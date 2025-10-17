@@ -1,0 +1,50 @@
+{
+  "name": "IdeaGraph",
+  "version": "1.0.0",
+  "description": "KI-gestützte Plattform zur Erfassung, Bewertung und Umsetzung von Ideen – von der Idee bis zum GitHub Issue.",
+  "author": {
+    "name": "Christian Angermeier",
+    "email": "ca@angermeier.net"    
+  },
+  "license": "MIT",
+  "copyright": "© 2025 Christian Angermeier - Alle Rechte vorbehalten.",
+  "homepage": "https://github.com/gdsanger/IdeaGraph-v1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gdsanger/IdeaGraph-v1.git"
+  },
+  "keywords": [
+    "AI",
+    "Idea Management",
+    "Knowledge Graph",
+    "FastAPI",
+    "Django",
+    "KIGate",
+    "ChromaDB",
+    "GitHub Integration"
+  ],
+  "architecture": {
+    "frontend": "Django + HTMX + Bootstrap",
+    "backend": "Django ORM + FastAPI",
+    "database": {
+      "primary": "SQLite",
+      "vector": "ChromaDB"
+    },
+    "integrations": ["GitHub API", "Microsoft Graph API", "KIGate"]
+  },
+  "dependencies": [
+    "Django>=5.0",
+    "FastAPI>=0.110",
+    "chromadb",
+    "bcrypt",
+    "requests",
+    "python-dotenv",
+    "pydantic",
+    "httpx"
+  ],
+  "release": {
+    "stage": "v1.0",
+    "status": "stable",
+    "planned_next": "v1.1 - Security & Async Processing"
+  }
+}
