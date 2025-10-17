@@ -131,4 +131,4 @@ Ziel ist *Transparenz ohne Bürokratie*.
 ---
 
 © 2025 Christian Angermeier
-Lizenz: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
+[Lizenz](https://github.com/gdsanger/IdeaGraph-v1/blob/main/LICENSE_OVERVIEW.md)
