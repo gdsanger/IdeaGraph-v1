@@ -125,6 +125,7 @@ Logik, Konzept, Systemarchitektur und KI-Agentendesign sind urheberrechtlich ges
 - Die KI-Agenten-Architektur („KIGate“) ist integraler Bestandteil des Systems.  
 - Eine kommerzielle Nutzung oder Integration außerhalb der MIT-Lizenz bedarf der ausdrücklichen Zustimmung.
 
+[Lizenz](https://github.com/gdsanger/IdeaGraph-v1/blob/main/LICENSE_OVERVIEW.md)
 
 ## Verantwortlicher Autor
 **Christian Angermeier**  
