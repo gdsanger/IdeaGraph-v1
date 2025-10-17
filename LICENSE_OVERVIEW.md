@@ -5,31 +5,6 @@ für die Projekte **IdeaGraph** und **Kigil**.
 
 ---
 
-## 🧠 Kigil – Methodik & Framework
-
-**Lizenz:** Creative Commons Attribution-ShareAlike 4.0 International  
-**(CC BY-SA 4.0)**  
-🔗 [https://creativecommons.org/licenses/by-sa/4.0/deed.de](https://creativecommons.org/licenses/by-sa/4.0/deed.de)
-
-**Beschreibung:**  
-Kigil ist ein konzeptionelles Framework zur agilen, KI-gestützten Umsetzung von Ideen.  
-Es kombiniert klassische Entwicklungsprozesse mit intelligenten, selbststrukturierenden Agentensystemen.  
-
-**Rechte & Pflichten:**
-- Du darfst Kigil frei nutzen, teilen und anpassen.
-- Du **musst den ursprünglichen Autor nennen**:  
-  > © 2025 Christian Angermeier – ISARtec GmbH
-- Abgeleitete Werke müssen **unter derselben Lizenz (CC BY-SA 4.0)** veröffentlicht werden.
-- Kommerzielle Nutzung ist **erlaubt**, solange die Namensnennung erfolgt.
-
-**Typische Beispiele:**
-- Veröffentlichungen (z. B. Whitepaper, Präsentationen)
-- Schulungen und Seminare
-- Forschungsarbeiten oder Hochschulprojekte
-- Implementierungen von Kigil in anderen Tools oder Frameworks
-
----
-
 ## 💻 IdeaGraph – Software & Implementierung
 
 **Lizenz:** MIT License  
@@ -46,25 +21,48 @@ Das System verknüpft Ideenmanagement, Aufgabenplanung, KI-Automation und GitHub
 - Für Schäden oder Fehlverhalten wird keine Haftung übernommen.
 
 **Typische Beispiele:**
-- Einsatz in Unternehmen oder Bildungseinrichtungen
-- Eigene Anpassungen oder Erweiterungen (Forks)
-- Integration in interne Workflows
+- Einsatz in Unternehmen oder Bildungseinrichtungen  
+- Eigene Anpassungen oder Erweiterungen (Forks)  
+- Integration in interne Workflows  
 - SaaS-Hosting unter eigener Marke (unter Wahrung der MIT-Lizenz)
+
+---
+
+## 🧠 Kigil – Methodik & Framework
+
+**Lizenz:** Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International  
+**(CC BY-NC-SA 4.0)**  
+🔗 [https://creativecommons.org/licenses/by-nc-sa/4.0/deed.de](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.de)
+
+**Beschreibung:**  
+Kigil ist ein konzeptionelles Framework zur agilen, KI-gestützten Umsetzung von Ideen.  
+Es kombiniert klassische Entwicklungsprozesse mit intelligenten, selbststrukturierenden Agentensystemen.
+
+**Rechte & Pflichten:**
+- Du darfst Kigil frei **nutzen, teilen und anpassen**,  
+  jedoch **nicht für kommerzielle Zwecke**, es sei denn mit Zustimmung des Autors.  
+- Du **musst den ursprünglichen Autor nennen**:  
+  > © 2025 Christian Angermeier  
+- Abgeleitete Werke müssen **unter derselben Lizenz (CC BY-NC-SA 4.0)** veröffentlicht werden.
+
+**Kommerzielle Nutzung:**
+- Nur mit ausdrücklicher Zustimmung des Autors erlaubt.  
+  Anfragen bitte an: `ca@angermeier.net`
 
 ---
 
 ## 📘 Dokumentation, Whitepaper & Diagramme
 
-**Lizenz:** CC BY-SA 4.0  
+**Lizenz:** CC BY-NC-SA 4.0  
 Dies umfasst:
-- Whitepaper („Kigil – KI-gestützte agile Methodik“)
-- Technische Diagramme und Architekturübersichten
-- Screenshots und Tutorials
+- Whitepaper („Kigil – KI-gestützte agile Methodik“)  
+- Technische Diagramme und Architekturübersichten  
+- Screenshots, Präsentationen und Tutorials
 
 **Hinweis zur Namensnennung:**
 > Quelle: *Kigil Framework & IdeaGraph System*  
-> © 2025 Christian Angermeier
-> Lizenz: CC BY-SA 4.0
+> © 2025 Christian Angermeier  
+> Lizenz: CC BY-NC-SA 4.0
 
 ---
 
@@ -72,22 +70,13 @@ Dies umfasst:
 
 | Bereich | Name | Lizenz | Kommerzielle Nutzung | Attribution erforderlich |
 |----------|------|---------|-----------------------|---------------------------|
-| Software | **IdeaGraph** | MIT | ✅ Ja | ❌ Nein (optional) |
-| Methodik | **Kigil Framework** | CC BY-SA 4.0 | ✅ Ja | ✅ Ja |
-| Dokumentation | **Kigil Paper, Whitepaper, Diagramme** | CC BY-SA 4.0 | ✅ Ja | ✅ Ja |
-
----
-
-## 🔐 Hinweise zur Kombination
-
-- Die Software **IdeaGraph** kann frei verwendet werden, unabhängig von der Kigil-Lizenz.  
-- Wenn du **Kigil als Konzept** oder die Inhalte des Whitepapers nutzt oder weiterentwickelst,  
-  ist eine **Namensnennung und Lizenzweitergabe** nach CC BY-SA 4.0 erforderlich.
-- Beide Lizenzen können im selben Repository nebeneinander bestehen.
+| Software | **IdeaGraph** | MIT | ✅ Ja | ❌ Optional |
+| Methodik | **Kigil Framework** | CC BY-NC-SA 4.0 | ❌ Nein (nur mit Zustimmung) | ✅ Ja |
+| Dokumentation | **Kigil Paper, Whitepaper, Diagramme** | CC BY-NC-SA 4.0 | ❌ Nein (nur mit Zustimmung) | ✅ Ja |
 
 ---
 
 **Autor & Rechteinhaber:**  
 Christian Angermeier  
-📧 ca@angermeier.net
+📧 ca@angermeier.net  
 © 2025 – Alle Rechte vorbehalten.
