@@ -222,17 +222,29 @@ class Settings(models.Model):
     )
     
     # KiGate Configuration
-    kigate_url = models.CharField(
-        max_length=255, 
-        blank=True, 
-        default='',
-        verbose_name='KiGateUrl'
+    kigate_api_enabled = models.BooleanField(
+        default=False,
+        verbose_name='Enable KiGate API',
+        help_text='Enable KiGate API integration'
     )
-    kigate_token = models.CharField(
-        max_length=255, 
-        blank=True, 
+    kigate_api_base_url = models.CharField(
+        max_length=255,
+        blank=True,
+        default='http://localhost:8000',
+        verbose_name='KiGate API Base URL',
+        help_text='KiGate API base URL'
+    )
+    kigate_api_token = models.CharField(
+        max_length=255,
+        blank=True,
         default='',
-        verbose_name='KiGateToken'
+        verbose_name='KiGate API Token',
+        help_text='KiGate API authentication token (client_id:client_secret)'
+    )
+    kigate_api_timeout = models.IntegerField(
+        default=30,
+        verbose_name='KiGate API Timeout',
+        help_text='Timeout for KiGate API requests in seconds'
     )
     
     # Additional Settings

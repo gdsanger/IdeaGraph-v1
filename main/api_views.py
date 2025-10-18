@@ -11,6 +11,7 @@ from .models import User
 from .auth_utils import generate_jwt_token, decode_jwt_token, validate_password
 from core.services.graph_service import GraphService, GraphServiceError
 from core.services.github_service import GitHubService, GitHubServiceError
+from core.services.kigate_service import KiGateService, KiGateServiceError
 
 
 def get_user_from_token(request):
@@ -681,4 +682,140 @@ def api_github_list_issues(request, owner, repo):
         return JsonResponse({
             'success': False,
             'error': 'An error occurred while listing issues'
+        }, status=500)
+
+
+# ==================== KiGate API Endpoints ====================
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_kigate_agents(request):
+    """
+    API endpoint to list all available KiGate agents.
+    GET /api/kigate/agents
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        kigate = KiGateService()
+        result = kigate.get_agents()
+        
+        return JsonResponse(result)
+        
+    except KiGateServiceError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'KiGate API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'KiGate agents list error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'An error occurred while listing agents'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_kigate_execute(request):
+    """
+    API endpoint to execute a KiGate agent.
+    POST /api/kigate/execute
+    Body: {
+        "agent_name": "...",
+        "provider": "...",
+        "model": "...",
+        "message": "...",
+        "user_id": "...",
+        "parameters": {...}  // optional
+    }
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        data = json.loads(request.body)
+        
+        agent_name = data.get('agent_name')
+        provider = data.get('provider')
+        model = data.get('model')
+        message = data.get('message')
+        user_id = data.get('user_id')
+        parameters = data.get('parameters')
+        
+        # Validate required fields
+        if not agent_name:
+            return JsonResponse({'error': 'agent_name is required'}, status=400)
+        if not provider:
+            return JsonResponse({'error': 'provider is required'}, status=400)
+        if not model:
+            return JsonResponse({'error': 'model is required'}, status=400)
+        if not message:
+            return JsonResponse({'error': 'message is required'}, status=400)
+        if not user_id:
+            return JsonResponse({'error': 'user_id is required'}, status=400)
+        
+        kigate = KiGateService()
+        result = kigate.execute_agent(
+            agent_name=agent_name,
+            provider=provider,
+            model=model,
+            message=message,
+            user_id=user_id,
+            parameters=parameters
+        )
+        
+        return JsonResponse(result, status=200)
+        
+    except KiGateServiceError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'KiGate API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'KiGate execute error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'An error occurred while executing agent'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_kigate_agent_details(request, agent_name):
+    """
+    API endpoint to get details of a specific KiGate agent.
+    GET /api/kigate/agent/{agent_name}
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        kigate = KiGateService()
+        result = kigate.get_agent_details(agent_name=agent_name)
+        
+        return JsonResponse(result)
+        
+    except KiGateServiceError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'KiGate API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'KiGate agent details error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'An error occurred while getting agent details'
         }, status=500)
