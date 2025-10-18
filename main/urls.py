@@ -1,10 +1,19 @@
 from django.urls import path
-from . import views, api_views
+from . import views, api_views, auth_views
 
 app_name = 'main'
 
 urlpatterns = [
     path('', views.home, name='home'),
+    
+    # Authentication URLs
+    path('login/', auth_views.login_view, name='login'),
+    path('logout/', auth_views.logout_view, name='logout'),
+    path('register/', auth_views.register_view, name='register'),
+    path('forgot-password/', auth_views.forgot_password_view, name='forgot_password'),
+    path('reset-password/<str:token>/', auth_views.reset_password_view, name='reset_password'),
+    path('change-password/', auth_views.change_password_view, name='change_password'),
+    
     path('settings/', views.settings_view, name='settings'),
     path('settings/tags/', views.tag_list, name='tag_list'),
     path('settings/tags/create/', views.tag_create, name='tag_create'),

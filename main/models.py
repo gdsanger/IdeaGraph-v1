@@ -1,6 +1,7 @@
 import uuid
 import random
 import bcrypt
+import secrets
 from django.db import models
 from django.utils import timezone
 
@@ -50,6 +51,59 @@ class User(models.Model):
         """Update the last login timestamp"""
         self.last_login = timezone.now()
         self.save(update_fields=['last_login'])
+
+
+class PasswordResetToken(models.Model):
+    """Token model for password reset functionality"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reset_tokens')
+    token = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Password Reset Token'
+        verbose_name_plural = 'Password Reset Tokens'
+    
+    def __str__(self):
+        return f"Reset token for {self.user.username}"
+    
+    def is_valid(self):
+        """Check if token is still valid"""
+        if self.used:
+            return False
+        if timezone.now() > self.expires_at:
+            return False
+        return True
+    
+    def mark_as_used(self):
+        """Mark token as used"""
+        self.used = True
+        self.save(update_fields=['used'])
+    
+    @classmethod
+    def generate_token(cls, user):
+        """Generate a new password reset token for a user"""
+        # Invalidate all existing tokens for this user
+        cls.objects.filter(user=user, used=False).update(used=True)
+        
+        # Generate secure random token
+        token = secrets.token_urlsafe(32)
+        
+        # Token expires in 30 minutes
+        expires_at = timezone.now() + timezone.timedelta(minutes=30)
+        
+        # Create and return new token
+        reset_token = cls.objects.create(
+            user=user,
+            token=token,
+            expires_at=expires_at
+        )
+        
+        return reset_token
 
 
 class Tag(models.Model):

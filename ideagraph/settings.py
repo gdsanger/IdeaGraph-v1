@@ -50,6 +50,8 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django_htmx.middleware.HtmxMiddleware',
+    'main.middleware.AuthenticationMiddleware',
+    'main.middleware.AdminRequiredMiddleware',
 ]
 
 ROOT_URLCONF = 'ideagraph.urls'
@@ -132,3 +134,35 @@ PASSWORD_REQUIRE_SPECIAL = True
 PASSWORD_REQUIRE_NUMBER = True
 JWT_SECRET = SECRET_KEY  # In production, use a separate secret
 JWT_EXPIRATION_HOURS = 24
+
+# Logging Configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'auth_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'auth_service.log',
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'auth_service': {
+            'handlers': ['auth_file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
