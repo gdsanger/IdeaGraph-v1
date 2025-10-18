@@ -552,8 +552,7 @@ def api_github_repos(request):
         logger.error(f'GitHub repos list error: {str(e)}')
         return JsonResponse({
             'success': False,
-            'error': 'An error occurred while listing repositories',
-            'details': str(e)
+            'error': 'An error occurred while listing repositories'
         }, status=500)
 
 
@@ -606,8 +605,7 @@ def api_github_create_issue(request):
         logger.error(f'GitHub create issue error: {str(e)}')
         return JsonResponse({
             'success': False,
-            'error': 'An error occurred while creating issue',
-            'details': str(e)
+            'error': 'An error occurred while creating issue'
         }, status=500)
 
 
@@ -641,8 +639,7 @@ def api_github_get_issue(request, owner, repo, issue_number):
         logger.error(f'GitHub get issue error: {str(e)}')
         return JsonResponse({
             'success': False,
-            'error': 'An error occurred while retrieving issue',
-            'details': str(e)
+            'error': 'An error occurred while retrieving issue'
         }, status=500)
 
 
@@ -683,6 +680,5 @@ def api_github_list_issues(request, owner, repo):
         logger.error(f'GitHub list issues error: {str(e)}')
         return JsonResponse({
             'success': False,
-            'error': 'An error occurred while listing issues',
-            'details': str(e)
+            'error': 'An error occurred while listing issues'
         }, status=500)
