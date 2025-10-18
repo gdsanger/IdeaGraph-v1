@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
-from .models import Tag, Settings
+from .models import Tag, Settings, Section
 
 
 def home(request):
@@ -79,6 +79,67 @@ def tag_delete(request, tag_id):
         return redirect('main:tag_list')
     
     return render(request, 'main/tags/delete.html', {'tag': tag})
+
+
+def section_list(request):
+    """List all sections"""
+    sections = Section.objects.all()
+    return render(request, 'main/sections/list.html', {'sections': sections})
+
+
+def section_create(request):
+    """Create a new section"""
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        
+        if name:
+            try:
+                section = Section(name=name)
+                section.save()
+                messages.success(request, f'Section "{name}" created successfully!')
+                return redirect('main:section_list')
+            except Exception as e:
+                messages.error(request, f'Error creating section: {str(e)}')
+        else:
+            messages.error(request, 'Section name is required.')
+    
+    return render(request, 'main/sections/form.html')
+
+
+def section_edit(request, section_id):
+    """Edit an existing section"""
+    section = get_object_or_404(Section, id=section_id)
+    
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        
+        if name:
+            try:
+                section.name = name
+                section.save()
+                messages.success(request, f'Section "{name}" updated successfully!')
+                return redirect('main:section_list')
+            except Exception as e:
+                messages.error(request, f'Error updating section: {str(e)}')
+        else:
+            messages.error(request, 'Section name is required.')
+    
+    return render(request, 'main/sections/form.html', {'section': section})
+
+
+def section_delete(request, section_id):
+    """Delete a section"""
+    section = get_object_or_404(Section, id=section_id)
+    
+    if request.method == 'POST':
+        section_name = section.name
+        section.delete()
+        messages.success(request, f'Section "{section_name}" deleted successfully!')
+        return redirect('main:section_list')
+    
+    return render(request, 'main/sections/delete.html', {'section': section})
+
+
 @staff_member_required
 def settings_list(request):
     """List all settings"""
