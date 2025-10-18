@@ -56,4 +56,8 @@ urlpatterns = [
     path('api/kigate/agents', api_views.api_kigate_agents, name='api_kigate_agents'),
     path('api/kigate/execute', api_views.api_kigate_execute, name='api_kigate_execute'),
     path('api/kigate/agent/<str:agent_name>', api_views.api_kigate_agent_details, name='api_kigate_agent_details'),
+    
+    # OpenAI API Endpoints
+    path('api/openai/query', api_views.api_openai_query, name='api_openai_query'),
+    path('api/openai/models', api_views.api_openai_models, name='api_openai_models'),
 ]

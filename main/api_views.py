@@ -12,6 +12,7 @@ from .auth_utils import generate_jwt_token, decode_jwt_token, validate_password
 from core.services.graph_service import GraphService, GraphServiceError
 from core.services.github_service import GitHubService, GitHubServiceError
 from core.services.kigate_service import KiGateService, KiGateServiceError
+from core.services.openai_service import OpenAIService, OpenAIServiceError
 
 
 def get_user_from_token(request):
@@ -819,3 +820,109 @@ def api_kigate_agent_details(request, agent_name):
             'success': False,
             'error': 'An error occurred while getting agent details'
         }, status=500)
+
+
+# ==================== OpenAI API Endpoints ====================
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_openai_query(request):
+    """
+    API endpoint to execute an AI query via OpenAI API (with KiGate fallback).
+    POST /api/openai/query
+    Body: {
+        "prompt": "...",
+        "model": "..." (optional),
+        "user_id": "..." (optional),
+        "agent_name": "..." (optional - for KiGate routing),
+        "temperature": 0.7 (optional),
+        "max_tokens": 1000 (optional)
+    }
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        data = json.loads(request.body)
+        
+        prompt = data.get('prompt')
+        model = data.get('model')
+        user_id = data.get('user_id', str(user.id))
+        agent_name = data.get('agent_name')
+        temperature = data.get('temperature', 0.7)
+        max_tokens = data.get('max_tokens')
+        
+        # Validate required fields
+        if not prompt:
+            return JsonResponse({'error': 'prompt is required'}, status=400)
+        
+        openai = OpenAIService()
+        
+        # Use agent routing if agent_name is provided
+        if agent_name:
+            result = openai.query_with_agent(
+                prompt=prompt,
+                agent_name=agent_name,
+                user_id=user_id,
+                model=model
+            )
+        else:
+            result = openai.query(
+                prompt=prompt,
+                model=model,
+                user_id=user_id,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+        
+        return JsonResponse(result, status=200)
+        
+    except OpenAIServiceError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'OpenAI API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'OpenAI query error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'An error occurred while executing query'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_openai_models(request):
+    """
+    API endpoint to list available OpenAI models.
+    GET /api/openai/models
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        openai = OpenAIService()
+        result = openai.get_models()
+        
+        return JsonResponse(result)
+        
+    except OpenAIServiceError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'OpenAI API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'OpenAI models list error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'An error occurred while listing models'
+        }, status=500)
+

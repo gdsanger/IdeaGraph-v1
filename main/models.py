@@ -123,7 +123,12 @@ class Settings(models.Model):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
-    # API Keys
+    # OpenAI API Configuration
+    openai_api_enabled = models.BooleanField(
+        default=False,
+        verbose_name='Enable OpenAI API',
+        help_text='Enable OpenAI API integration'
+    )
     openai_api_key = models.CharField(
         max_length=255, 
         blank=True, 
@@ -136,6 +141,25 @@ class Settings(models.Model):
         default='',
         verbose_name='OPENAI_ORG_ID',
         help_text='OpenAI Organisation ID'
+    )
+    openai_default_model = models.CharField(
+        max_length=100,
+        blank=True,
+        default='gpt-4',
+        verbose_name='Default OpenAI Model',
+        help_text='Default model for OpenAI API (e.g., gpt-4, gpt-3.5-turbo)'
+    )
+    openai_api_base_url = models.CharField(
+        max_length=255,
+        blank=True,
+        default='https://api.openai.com/v1',
+        verbose_name='OpenAI API Base URL',
+        help_text='OpenAI API base URL'
+    )
+    openai_api_timeout = models.IntegerField(
+        default=30,
+        verbose_name='OpenAI API Timeout',
+        help_text='Timeout for OpenAI API requests in seconds'
     )
     
     # Graph API Credentials
