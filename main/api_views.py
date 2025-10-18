@@ -1358,3 +1358,125 @@ def api_task_similar(request, task_id):
         logger.error(f'Task similarity error: {str(e)}')
         return JsonResponse({'error': 'An error occurred while finding similar tasks'}, status=500)
 
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_task_overview(request):
+    """
+    API endpoint for global task overview with filtering and pagination.
+    GET /api/tasks/overview?status=new&item=uuid&has_github=true&query=search&page=1&limit=20
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Task, Item
+    from django.db.models import Q, Count
+    
+    try:
+        # Base query - show only user's tasks unless admin
+        if user.role == 'admin':
+            tasks = Task.objects.all()
+        else:
+            tasks = tasks = Task.objects.filter(created_by=user)
+        
+        # Apply filters
+        status_filter = request.GET.get('status', '').strip()
+        if status_filter:
+            tasks = tasks.filter(status=status_filter)
+        
+        item_filter = request.GET.get('item', '').strip()
+        if item_filter:
+            tasks = tasks.filter(item_id=item_filter)
+        
+        has_github = request.GET.get('has_github', '').strip().lower()
+        if has_github == 'true':
+            tasks = tasks.filter(github_issue_id__isnull=False)
+        elif has_github == 'false':
+            tasks = tasks.filter(github_issue_id__isnull=True)
+        
+        query = request.GET.get('query', '').strip()
+        if query:
+            tasks = tasks.filter(
+                Q(title__icontains=query) | 
+                Q(description__icontains=query)
+            )
+        
+        # Get status counts for badges (before pagination)
+        status_counts = {}
+        for status_key, status_label in Task.STATUS_CHOICES:
+            if user.role == 'admin':
+                count = Task.objects.filter(status=status_key).count()
+            else:
+                count = Task.objects.filter(status=status_key, created_by=user).count()
+            status_counts[status_key] = {
+                'label': status_label,
+                'count': count
+            }
+        
+        # Pagination
+        page = int(request.GET.get('page', 1))
+        limit = min(int(request.GET.get('limit', 20)), 100)  # Max 100 per page
+        
+        total_count = tasks.count()
+        total_pages = (total_count + limit - 1) // limit if limit > 0 else 1
+        
+        start_index = (page - 1) * limit
+        end_index = start_index + limit
+        
+        # Get tasks with related data
+        tasks = tasks.select_related('item', 'assigned_to', 'created_by').prefetch_related('tags')
+        tasks = tasks.order_by('-updated_at')[start_index:end_index]
+        
+        # Prepare response data
+        tasks_data = []
+        for task in tasks:
+            tasks_data.append({
+                'id': str(task.id),
+                'title': task.title,
+                'description': task.description,
+                'status': task.status,
+                'status_display': task.get_status_display(),
+                'item': {
+                    'id': str(task.item.id),
+                    'title': task.item.title
+                } if task.item else None,
+                'github_issue_id': task.github_issue_id,
+                'github_issue_url': task.github_issue_url,
+                'github_synced_at': task.github_synced_at.isoformat() if task.github_synced_at else None,
+                'assigned_to': {
+                    'id': str(task.assigned_to.id),
+                    'username': task.assigned_to.username
+                } if task.assigned_to else None,
+                'created_by': {
+                    'id': str(task.created_by.id),
+                    'username': task.created_by.username
+                } if task.created_by else None,
+                'created_at': task.created_at.isoformat(),
+                'updated_at': task.updated_at.isoformat(),
+                'completed_at': task.completed_at.isoformat() if task.completed_at else None,
+                'tags': [{'id': str(tag.id), 'name': tag.name, 'color': tag.color} for tag in task.tags.all()],
+                'ai_enhanced': task.ai_enhanced,
+                'ai_generated': task.ai_generated,
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'tasks': tasks_data,
+            'status_counts': status_counts,
+            'pagination': {
+                'page': page,
+                'limit': limit,
+                'total_count': total_count,
+                'total_pages': total_pages,
+                'has_next': page < total_pages,
+                'has_previous': page > 1
+            }
+        })
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Task overview error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while fetching task overview'}, status=500)
+

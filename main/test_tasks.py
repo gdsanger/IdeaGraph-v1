@@ -341,3 +341,262 @@ class TaskAPITest(TestCase):
         self.assertEqual(response.status_code, 401)
         data = json.loads(response.content)
         self.assertIn('error', data)
+
+
+class TaskOverviewTest(TestCase):
+    """Tests for the task overview functionality"""
+    
+    def setUp(self):
+        """Set up test data"""
+        # Create test user
+        self.user = User.objects.create(
+            username='testuser',
+            email='test@example.com',
+            role='developer',
+            is_active=True
+        )
+        self.user.set_password('testpass123')
+        self.user.save()
+        
+        # Create admin user
+        self.admin = User.objects.create(
+            username='adminuser',
+            email='admin@example.com',
+            role='admin',
+            is_active=True
+        )
+        self.admin.set_password('testpass123')
+        self.admin.save()
+        
+        # Create test section
+        self.section = Section.objects.create(name='Test Section')
+        
+        # Create test tag
+        self.tag = Tag.objects.create(name='test-tag', color='#3b82f6')
+        
+        # Create test items
+        self.item1 = Item.objects.create(
+            title='Test Item 1',
+            description='Test item 1 description',
+            github_repo='testuser/testrepo',
+            status='new',
+            section=self.section,
+            created_by=self.user
+        )
+        
+        self.item2 = Item.objects.create(
+            title='Test Item 2',
+            description='Test item 2 description',
+            status='working',
+            created_by=self.user
+        )
+        
+        # Create test tasks with different statuses
+        self.task1 = Task.objects.create(
+            title='Task New',
+            description='New task',
+            status='new',
+            item=self.item1,
+            created_by=self.user,
+            assigned_to=self.user
+        )
+        
+        self.task2 = Task.objects.create(
+            title='Task Working',
+            description='Working task',
+            status='working',
+            item=self.item1,
+            created_by=self.user,
+            assigned_to=self.user,
+            github_issue_id=123,
+            github_issue_url='https://github.com/test/repo/issues/123'
+        )
+        
+        self.task3 = Task.objects.create(
+            title='Task Ready',
+            description='Ready task',
+            status='ready',
+            item=self.item2,
+            created_by=self.user,
+            assigned_to=self.user
+        )
+        
+        # Generate auth token
+        from main.auth_utils import generate_jwt_token
+        self.token = generate_jwt_token(self.user)
+        self.admin_token = generate_jwt_token(self.admin)
+        
+        self.client = Client()
+    
+    def login_user(self):
+        """Helper to log in the test user"""
+        session = self.client.session
+        session['user_id'] = str(self.user.id)
+        session['username'] = self.user.username
+        session['user_role'] = self.user.role
+        session.save()
+    
+    def login_admin(self):
+        """Helper to log in the admin user"""
+        session = self.client.session
+        session['user_id'] = str(self.admin.id)
+        session['username'] = self.admin.username
+        session['user_role'] = self.admin.role
+        session.save()
+    
+    def test_task_overview_view(self):
+        """Test task overview view"""
+        self.login_user()
+        url = reverse('main:task_overview')
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Task Overview')
+        self.assertContains(response, 'Task New')
+        self.assertContains(response, 'Task Working')
+        self.assertContains(response, 'Task Ready')
+    
+    def test_task_overview_status_filter(self):
+        """Test filtering by status"""
+        self.login_user()
+        url = reverse('main:task_overview')
+        response = self.client.get(url, {'status': 'working'})
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Task Working')
+        self.assertNotContains(response, 'Task New')
+        self.assertNotContains(response, 'Task Ready')
+    
+    def test_task_overview_item_filter(self):
+        """Test filtering by item"""
+        self.login_user()
+        url = reverse('main:task_overview')
+        response = self.client.get(url, {'item': str(self.item1.id)})
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Task New')
+        self.assertContains(response, 'Task Working')
+        self.assertNotContains(response, 'Task Ready')
+    
+    def test_task_overview_github_filter(self):
+        """Test filtering by GitHub issue presence"""
+        self.login_user()
+        url = reverse('main:task_overview')
+        
+        # Filter for tasks with GitHub issues
+        response = self.client.get(url, {'has_github': 'true'})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Task Working')
+        self.assertNotContains(response, 'Task New')
+        
+        # Filter for tasks without GitHub issues
+        response = self.client.get(url, {'has_github': 'false'})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Task New')
+        self.assertNotContains(response, 'Task Working')
+    
+    def test_task_overview_search(self):
+        """Test search functionality"""
+        self.login_user()
+        url = reverse('main:task_overview')
+        response = self.client.get(url, {'search': 'Working'})
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Task Working')
+        self.assertNotContains(response, 'Task New')
+    
+    def test_task_overview_status_counts(self):
+        """Test status counts are displayed"""
+        self.login_user()
+        url = reverse('main:task_overview')
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        # Check that status counts are in context
+        self.assertIn('status_counts', response.context)
+        self.assertEqual(response.context['status_counts']['new'], 1)
+        self.assertEqual(response.context['status_counts']['working'], 1)
+        self.assertEqual(response.context['status_counts']['ready'], 1)
+    
+    def test_task_overview_requires_login(self):
+        """Test that task overview requires login"""
+        url = reverse('main:task_overview')
+        response = self.client.get(url)
+        
+        # Should redirect to login
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/login/', response.url)
+    
+    def test_api_task_overview(self):
+        """Test API task overview endpoint"""
+        url = reverse('main:api_task_overview')
+        response = self.client.get(
+            url,
+            HTTP_AUTHORIZATION=f'Bearer {self.token}'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertEqual(len(data['tasks']), 3)
+        self.assertIn('status_counts', data)
+        self.assertIn('pagination', data)
+    
+    def test_api_task_overview_filters(self):
+        """Test API task overview with filters"""
+        url = reverse('main:api_task_overview')
+        
+        # Filter by status
+        response = self.client.get(
+            url + '?status=working',
+            HTTP_AUTHORIZATION=f'Bearer {self.token}'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(len(data['tasks']), 1)
+        self.assertEqual(data['tasks'][0]['title'], 'Task Working')
+        
+        # Filter by item
+        response = self.client.get(
+            url + f'?item={self.item1.id}',
+            HTTP_AUTHORIZATION=f'Bearer {self.token}'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(len(data['tasks']), 2)
+        
+        # Filter by GitHub issue
+        response = self.client.get(
+            url + '?has_github=true',
+            HTTP_AUTHORIZATION=f'Bearer {self.token}'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(len(data['tasks']), 1)
+        self.assertEqual(data['tasks'][0]['github_issue_id'], 123)
+    
+    def test_api_task_overview_pagination(self):
+        """Test API task overview pagination"""
+        # Create more tasks to test pagination
+        for i in range(25):
+            Task.objects.create(
+                title=f'Task {i}',
+                description=f'Description {i}',
+                status='new',
+                item=self.item1,
+                created_by=self.user,
+                assigned_to=self.user
+            )
+        
+        url = reverse('main:api_task_overview')
+        response = self.client.get(
+            url + '?limit=10&page=1',
+            HTTP_AUTHORIZATION=f'Bearer {self.token}'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(len(data['tasks']), 10)
+        self.assertEqual(data['pagination']['page'], 1)
+        self.assertTrue(data['pagination']['has_next'])
+        self.assertFalse(data['pagination']['has_previous'])

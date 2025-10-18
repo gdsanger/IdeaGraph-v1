@@ -242,7 +242,7 @@
                         </ul>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'task_overview' %}active{% endif %}" href="{% url 'main:task_overview' %}">
                             <i class="bi bi-list-task"></i> Tasks
                         </a>
                     </li>

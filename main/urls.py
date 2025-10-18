@@ -55,6 +55,9 @@ urlpatterns = [
     path('tasks/<uuid:task_id>/edit/', views.task_edit, name='task_edit'),
     path('tasks/<uuid:task_id>/delete/', views.task_delete, name='task_delete'),
     
+    # Global Task Overview
+    path('admin/tasks/overview/', views.task_overview, name='task_overview'),
+    
     # API Authentication Endpoints
     path('api/auth/login', api_views.api_login, name='api_login'),
     path('api/auth/logout', api_views.api_logout, name='api_logout'),
@@ -92,4 +95,5 @@ urlpatterns = [
     path('api/tasks/<uuid:task_id>/ai-enhance', api_views.api_task_ai_enhance, name='api_task_ai_enhance'),
     path('api/tasks/<uuid:task_id>/create-github-issue', api_views.api_task_create_github_issue, name='api_task_create_github_issue'),
     path('api/tasks/<uuid:task_id>/similar', api_views.api_task_similar, name='api_task_similar'),
+    path('api/tasks/overview', api_views.api_task_overview, name='api_task_overview'),
 ]
