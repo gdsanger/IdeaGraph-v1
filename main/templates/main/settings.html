@@ -1,0 +1,68 @@
+{% extends "main/base.html" %}
+
+{% block title %}Settings - IdeaGraph v1.0{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4 fade-in-up">
+        <div class="col-lg-12">
+            <h1 class="display-4 fw-bold mb-3" style="color: var(--autumn-light);">
+                <i class="bi bi-gear-fill"></i> Settings
+            </h1>
+            <p class="lead" style="color: #d1d5db;">
+                Manage your IdeaGraph configuration
+            </p>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Tags Management -->
+        <div class="col-lg-4 col-md-6 fade-in-up" style="animation-delay: 0.1s;">
+            <div class="card h-100">
+                <div class="card-body text-center p-4">
+                    <i class="bi bi-tags-fill feature-icon"></i>
+                    <h3 class="h4 mb-3" style="color: var(--autumn-light);">Tags</h3>
+                    <p class="text-muted mb-4">
+                        Manage tags for categorizing and organizing your ideas
+                    </p>
+                    <a href="{% url 'main:tag_list' %}" class="btn btn-primary">
+                        <i class="bi bi-arrow-right-circle"></i> Manage Tags
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Settings (Placeholder) -->
+        <div class="col-lg-4 col-md-6 fade-in-up" style="animation-delay: 0.2s;">
+            <div class="card h-100">
+                <div class="card-body text-center p-4">
+                    <i class="bi bi-person-fill feature-icon"></i>
+                    <h3 class="h4 mb-3" style="color: var(--autumn-light);">User Profile</h3>
+                    <p class="text-muted mb-4">
+                        Manage your user profile and preferences
+                    </p>
+                    <button class="btn btn-primary" disabled>
+                        <i class="bi bi-arrow-right-circle"></i> Coming Soon
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Integration Settings (Placeholder) -->
+        <div class="col-lg-4 col-md-6 fade-in-up" style="animation-delay: 0.3s;">
+            <div class="card h-100">
+                <div class="card-body text-center p-4">
+                    <i class="bi bi-plug-fill feature-icon"></i>
+                    <h3 class="h4 mb-3" style="color: var(--autumn-light);">Integrations</h3>
+                    <p class="text-muted mb-4">
+                        Configure GitHub and AI integrations
+                    </p>
+                    <button class="btn btn-primary" disabled>
+                        <i class="bi bi-arrow-right-circle"></i> Coming Soon
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
