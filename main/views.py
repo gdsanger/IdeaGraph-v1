@@ -149,51 +149,27 @@ def settings_list(request):
 def settings_create(request):
     """Create a new settings entry"""
     if request.method == 'POST':
-        try:
-            # Validate integer fields
-            max_tags = request.POST.get('max_tags_per_idea', '5')
-            kigate_timeout = request.POST.get('kigate_api_timeout', '30')
-            
-            try:
-                max_tags_int = int(max_tags)
-                if max_tags_int < 1 or max_tags_int > 20:
-                    messages.error(request, 'Max tags per idea must be between 1 and 20.')
-                    return render(request, 'main/settings_form.html', {'action': 'Create'})
-            except ValueError:
-                messages.error(request, 'Max tags per idea must be a valid number.')
-                return render(request, 'main/settings_form.html', {'action': 'Create'})
-            
-            try:
-                kigate_timeout_int = int(kigate_timeout)
-                if kigate_timeout_int < 1 or kigate_timeout_int > 600:
-                    messages.error(request, 'KiGate API timeout must be between 1 and 600 seconds.')
-                    return render(request, 'main/settings_form.html', {'action': 'Create'})
-            except ValueError:
-                messages.error(request, 'KiGate API timeout must be a valid number.')
-                return render(request, 'main/settings_form.html', {'action': 'Create'})
-            
-            # Create settings
-            settings = Settings.objects.create(
-                openai_api_key=request.POST.get('openai_api_key', ''),
-                openai_org_id=request.POST.get('openai_org_id', ''),
-                client_id=request.POST.get('client_id', ''),
-                client_secret=request.POST.get('client_secret', ''),
-                tenant_id=request.POST.get('tenant_id', ''),
-                github_token=request.POST.get('github_token', ''),
-                chroma_api_key=request.POST.get('chroma_api_key', ''),
-                chroma_database=request.POST.get('chroma_database', ''),
-                chroma_tenant=request.POST.get('chroma_tenant', ''),
-                kigate_api_enabled=request.POST.get('kigate_api_enabled', 'false') == 'true',
-                kigate_api_base_url=request.POST.get('kigate_api_base_url', 'http://localhost:8000'),
-                kigate_api_token=request.POST.get('kigate_api_token', ''),
-                kigate_api_timeout=kigate_timeout_int,
-                max_tags_per_idea=max_tags_int,
-            )
-            messages.success(request, 'Settings created successfully!')
-            return redirect('main:settings_list')
-        except Exception as e:
-            messages.error(request, f'Error creating settings: {str(e)}')
-            return render(request, 'main/settings_form.html', {'action': 'Create'})
+        settings = Settings.objects.create(
+            openai_api_key=request.POST.get('openai_api_key', ''),
+            openai_org_id=request.POST.get('openai_org_id', ''),
+            client_id=request.POST.get('client_id', ''),
+            client_secret=request.POST.get('client_secret', ''),
+            tenant_id=request.POST.get('tenant_id', ''),
+            github_token=request.POST.get('github_token', ''),
+            chroma_api_key=request.POST.get('chroma_api_key', ''),
+            chroma_database=request.POST.get('chroma_database', ''),
+            chroma_tenant=request.POST.get('chroma_tenant', ''),
+            kigate_api_enabled=request.POST.get('kigate_api_enabled', 'false') == 'true',
+            kigate_api_base_url=request.POST.get('kigate_api_base_url', 'http://localhost:8000'),
+            kigate_api_token=request.POST.get('kigate_api_token', ''),
+            kigate_api_timeout=int(request.POST.get('kigate_api_timeout') or 30),
+            max_tags_per_idea=int(request.POST.get('max_tags_per_idea') or 5),
+            graph_api_enabled=request.POST.get('graph_api_enabled') == 'on',
+            sharepoint_site_id=request.POST.get('sharepoint_site_id', ''),
+            default_mail_sender=request.POST.get('default_mail_sender', ''),
+        )
+        messages.success(request, 'Settings created successfully!')
+        return redirect('main:settings_list')
     
     return render(request, 'main/settings_form.html', {'action': 'Create'})
 
@@ -203,66 +179,27 @@ def settings_update(request, pk):
     settings = get_object_or_404(Settings, pk=pk)
     
     if request.method == 'POST':
-        try:
-            # Validate integer fields
-            max_tags = request.POST.get('max_tags_per_idea', '5')
-            kigate_timeout = request.POST.get('kigate_api_timeout', '30')
-            
-            try:
-                max_tags_int = int(max_tags)
-                if max_tags_int < 1 or max_tags_int > 20:
-                    messages.error(request, 'Max tags per idea must be between 1 and 20.')
-                    return render(request, 'main/settings_form.html', {
-                        'settings': settings,
-                        'action': 'Update'
-                    })
-            except ValueError:
-                messages.error(request, 'Max tags per idea must be a valid number.')
-                return render(request, 'main/settings_form.html', {
-                    'settings': settings,
-                    'action': 'Update'
-                })
-            
-            try:
-                kigate_timeout_int = int(kigate_timeout)
-                if kigate_timeout_int < 1 or kigate_timeout_int > 600:
-                    messages.error(request, 'KiGate API timeout must be between 1 and 600 seconds.')
-                    return render(request, 'main/settings_form.html', {
-                        'settings': settings,
-                        'action': 'Update'
-                    })
-            except ValueError:
-                messages.error(request, 'KiGate API timeout must be a valid number.')
-                return render(request, 'main/settings_form.html', {
-                    'settings': settings,
-                    'action': 'Update'
-                })
-            
-            # Update settings
-            settings.openai_api_key = request.POST.get('openai_api_key', '')
-            settings.openai_org_id = request.POST.get('openai_org_id', '')
-            settings.client_id = request.POST.get('client_id', '')
-            settings.client_secret = request.POST.get('client_secret', '')
-            settings.tenant_id = request.POST.get('tenant_id', '')
-            settings.github_token = request.POST.get('github_token', '')
-            settings.chroma_api_key = request.POST.get('chroma_api_key', '')
-            settings.chroma_database = request.POST.get('chroma_database', '')
-            settings.chroma_tenant = request.POST.get('chroma_tenant', '')
-            settings.kigate_api_enabled = request.POST.get('kigate_api_enabled', 'false') == 'true'
-            settings.kigate_api_base_url = request.POST.get('kigate_api_base_url', 'http://localhost:8000')
-            settings.kigate_api_token = request.POST.get('kigate_api_token', '')
-            settings.kigate_api_timeout = kigate_timeout_int
-            settings.max_tags_per_idea = max_tags_int
-            settings.save()
-            
-            messages.success(request, 'Settings updated successfully!')
-            return redirect('main:settings_list')
-        except Exception as e:
-            messages.error(request, f'Error updating settings: {str(e)}')
-            return render(request, 'main/settings_form.html', {
-                'settings': settings,
-                'action': 'Update'
-            })
+        settings.openai_api_key = request.POST.get('openai_api_key', '')
+        settings.openai_org_id = request.POST.get('openai_org_id', '')
+        settings.client_id = request.POST.get('client_id', '')
+        settings.client_secret = request.POST.get('client_secret', '')
+        settings.tenant_id = request.POST.get('tenant_id', '')
+        settings.github_token = request.POST.get('github_token', '')
+        settings.chroma_api_key = request.POST.get('chroma_api_key', '')
+        settings.chroma_database = request.POST.get('chroma_database', '')
+        settings.chroma_tenant = request.POST.get('chroma_tenant', '')
+        settings.kigate_api_enabled = request.POST.get('kigate_api_enabled', 'false') == 'true'
+        settings.kigate_api_base_url = request.POST.get('kigate_api_base_url', 'http://localhost:8000')
+        settings.kigate_api_token = request.POST.get('kigate_api_token', '')
+        settings.kigate_api_timeout = int(request.POST.get('kigate_api_timeout') or 30)
+        settings.max_tags_per_idea = int(request.POST.get('max_tags_per_idea') or 5)
+        settings.graph_api_enabled = request.POST.get('graph_api_enabled') == 'on'
+        settings.sharepoint_site_id = request.POST.get('sharepoint_site_id', '')
+        settings.default_mail_sender = request.POST.get('default_mail_sender', '')
+        settings.save()
+        
+        messages.success(request, 'Settings updated successfully!')
+        return redirect('main:settings_list')
     
     return render(request, 'main/settings_form.html', {
         'settings': settings,
