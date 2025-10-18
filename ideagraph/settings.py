@@ -27,6 +27,11 @@ DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
 
+# Cross-Origin-Opener-Policy Configuration
+# Set to None for development to avoid COOP header errors when not using HTTPS or localhost
+# In production, consider setting to 'same-origin' if using HTTPS
+SECURE_CROSS_ORIGIN_OPENER_POLICY = None
+
 
 # Application definition
 
