@@ -14,7 +14,7 @@ This document provides quick setup instructions for the IdeaGraph Django/HTMX ap
    git clone https://github.com/gdsanger/IdeaGraph-v1.git
    cd IdeaGraph-v1
    ```
-
+ 
 2. **Create and activate a virtual environment:**
    ```bash
    # Linux/Mac
