@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Tag, User, Settings
+from .models import Tag, User, Settings, Section
 
 
 @admin.register(Tag)
