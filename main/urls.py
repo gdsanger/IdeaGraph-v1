@@ -11,6 +11,12 @@ urlpatterns = [
     path('settings/tags/<uuid:tag_id>/edit/', views.tag_edit, name='tag_edit'),
     path('settings/tags/<uuid:tag_id>/delete/', views.tag_delete, name='tag_delete'),
     
+    # Section URLs
+    path('settings/sections/', views.section_list, name='section_list'),
+    path('settings/sections/create/', views.section_create, name='section_create'),
+    path('settings/sections/<uuid:section_id>/edit/', views.section_edit, name='section_edit'),
+    path('settings/sections/<uuid:section_id>/delete/', views.section_delete, name='section_delete'),
+    
     # Settings URLs
     path('admin/settings/', views.settings_list, name='settings_list'),
     path('admin/settings/create/', views.settings_create, name='settings_create'),

@@ -34,4 +34,8 @@ class UserAdmin(admin.ModelAdmin):
 @admin.register(Settings)
 class SettingsAdmin(admin.ModelAdmin):
     list_display = ['id', 'created_at', 'updated_at']
+@admin.register(Section)
+class SectionAdmin(admin.ModelAdmin):
+    list_display = ['name', 'created_at', 'updated_at']
+    search_fields = ['name']
     readonly_fields = ['id', 'created_at', 'updated_at']

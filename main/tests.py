@@ -120,6 +120,109 @@ class TagViewTest(TestCase):
         self.assertContains(response, "Settings")
 
 
+class SectionModelTest(TestCase):
+    """Test the Section model"""
+
+    def test_create_section(self):
+        """Test creating a section"""
+        section = Section.objects.create(name="Software Project")
+        self.assertEqual(section.name, "Software Project")
+        self.assertIsNotNone(section.id)
+
+    def test_section_str_representation(self):
+        """Test section string representation"""
+        section = Section.objects.create(name="DIY Item")
+        self.assertEqual(str(section), "DIY Item")
+
+    def test_section_uuid_primary_key(self):
+        """Test that section uses UUID as primary key"""
+        section = Section.objects.create(name="UUID Test")
+        self.assertIsInstance(section.id, uuid.UUID)
+
+    def test_section_unique_name(self):
+        """Test that section names must be unique"""
+        Section.objects.create(name="Unique Section")
+        with self.assertRaises(Exception):
+            Section.objects.create(name="Unique Section")
+
+    def test_section_ordering(self):
+        """Test that sections are ordered by name"""
+        Section.objects.create(name="Zebra")
+        Section.objects.create(name="Alpha")
+        Section.objects.create(name="Beta")
+        sections = list(Section.objects.all())
+        self.assertEqual(sections[0].name, "Alpha")
+        self.assertEqual(sections[1].name, "Beta")
+        self.assertEqual(sections[2].name, "Zebra")
+
+
+class SectionViewTest(TestCase):
+    """Test the Section views"""
+
+    def setUp(self):
+        """Set up test client and sample data"""
+        self.client = Client()
+        self.section = Section.objects.create(name="Test Section")
+
+    def test_section_list_view(self):
+        """Test section list view returns correctly"""
+        response = self.client.get(reverse('main:section_list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Test Section")
+        self.assertContains(response, "Sections")
+
+    def test_section_create_view_get(self):
+        """Test section create view GET request"""
+        response = self.client.get(reverse('main:section_create'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Create New Section")
+
+    def test_section_create_view_post(self):
+        """Test section create view POST request"""
+        data = {'name': 'New Section'}
+        response = self.client.post(reverse('main:section_create'), data)
+        self.assertEqual(response.status_code, 302)  # Redirect after success
+        self.assertTrue(Section.objects.filter(name='New Section').exists())
+
+    def test_section_edit_view_get(self):
+        """Test section edit view GET request"""
+        response = self.client.get(reverse('main:section_edit', args=[self.section.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Edit Section")
+        self.assertContains(response, self.section.name)
+
+    def test_section_edit_view_post(self):
+        """Test section edit view POST request"""
+        data = {'name': 'Updated Section'}
+        response = self.client.post(reverse('main:section_edit', args=[self.section.id]), data)
+        self.assertEqual(response.status_code, 302)  # Redirect after success
+        
+        self.section.refresh_from_db()
+        self.assertEqual(self.section.name, 'Updated Section')
+
+    def test_section_delete_view_get(self):
+        """Test section delete view GET request"""
+        response = self.client.get(reverse('main:section_delete', args=[self.section.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Delete Section")
+        self.assertContains(response, self.section.name)
+
+    def test_section_delete_view_post(self):
+        """Test section delete view POST request"""
+        section_id = self.section.id
+        response = self.client.post(reverse('main:section_delete', args=[self.section.id]))
+        self.assertEqual(response.status_code, 302)  # Redirect after success
+        self.assertFalse(Section.objects.filter(id=section_id).exists())
+
+
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+from .models import Settings
+import uuid
+
+User = get_user_model()
+
+
 class SettingsModelTest(TestCase):
     """Test the Settings model"""
     
