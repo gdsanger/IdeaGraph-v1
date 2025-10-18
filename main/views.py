@@ -922,3 +922,81 @@ def task_delete(request, task_id):
     context = {'task': task}
     return render(request, 'main/tasks/delete.html', context)
 
+
+def task_overview(request):
+    """Global task overview - shows all tasks for the user"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Get filter parameters
+    status_filter = request.GET.get('status', '')
+    item_filter = request.GET.get('item', '')
+    has_github = request.GET.get('has_github', '')
+    search_query = request.GET.get('search', '').strip()
+    
+    # Base query - show only user's tasks unless admin
+    if user.role == 'admin':
+        tasks = Task.objects.all()
+    else:
+        tasks = Task.objects.filter(created_by=user)
+    
+    # Apply filters
+    if status_filter:
+        tasks = tasks.filter(status=status_filter)
+    
+    if item_filter:
+        tasks = tasks.filter(item_id=item_filter)
+    
+    if has_github == 'true':
+        tasks = tasks.filter(github_issue_id__isnull=False)
+    elif has_github == 'false':
+        tasks = tasks.filter(github_issue_id__isnull=True)
+    
+    if search_query:
+        from django.db.models import Q
+        tasks = tasks.filter(
+            Q(title__icontains=search_query) | 
+            Q(description__icontains=search_query)
+        )
+    
+    # Prefetch related data
+    tasks = tasks.select_related('item', 'assigned_to', 'created_by').prefetch_related('tags')
+    tasks = tasks.order_by('-updated_at')
+    
+    # Calculate status counts
+    status_counts = {}
+    for status_key, status_label in Task.STATUS_CHOICES:
+        if user.role == 'admin':
+            count = Task.objects.filter(status=status_key).count()
+        else:
+            count = Task.objects.filter(status=status_key, created_by=user).count()
+        status_counts[status_key] = count
+    
+    # Pagination
+    paginator = Paginator(tasks, 20)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    # Get all items for filter dropdown
+    if user.role == 'admin':
+        items = Item.objects.all()
+    else:
+        items = Item.objects.filter(created_by=user)
+    
+    context = {
+        'tasks': page_obj,
+        'items': items,
+        'status_choices': Task.STATUS_CHOICES,
+        'status_counts': status_counts,
+        'status_filter': status_filter,
+        'item_filter': item_filter,
+        'has_github': has_github,
+        'search_query': search_query,
+    }
+    
+    return render(request, 'main/tasks/overview.html', context)
+
