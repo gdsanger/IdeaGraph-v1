@@ -68,6 +68,22 @@
                             <i class="bi bi-microsoft"></i> Graph API Configuration
                         </h5>
                         <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <div class="form-check form-switch">
+                                    <input 
+                                        class="form-check-input" 
+                                        type="checkbox" 
+                                        id="graph_api_enabled" 
+                                        name="graph_api_enabled"
+                                        {% if settings.graph_api_enabled %}checked{% endif %}>
+                                    <label class="form-check-label" for="graph_api_enabled">
+                                        Enable Graph API
+                                    </label>
+                                    <div class="form-text">Enable Microsoft Graph API integration</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
                             <div class="col-md-4 mb-3">
                                 <label for="client_id" class="form-label">CLIENT_ID</label>
                                 <input 
@@ -100,6 +116,30 @@
                                     value="{{ settings.tenant_id|default:'' }}"
                                     placeholder="GraphAPI Tenant">
                                 <div class="form-text">GraphAPI Tenant</div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="sharepoint_site_id" class="form-label">SharePoint Site ID</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="sharepoint_site_id" 
+                                    name="sharepoint_site_id" 
+                                    value="{{ settings.sharepoint_site_id|default:'' }}"
+                                    placeholder="SharePoint site ID">
+                                <div class="form-text">SharePoint site ID for document operations</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="default_mail_sender" class="form-label">Default Mail Sender</label>
+                                <input 
+                                    type="email" 
+                                    class="form-control" 
+                                    id="default_mail_sender" 
+                                    name="default_mail_sender" 
+                                    value="{{ settings.default_mail_sender|default:'' }}"
+                                    placeholder="sender@example.com">
+                                <div class="form-text">Default sender email for Graph API mail operations</div>
                             </div>
                         </div>
                     </div>

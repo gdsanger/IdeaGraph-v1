@@ -164,6 +164,9 @@ def settings_create(request):
             kigate_api_token=request.POST.get('kigate_api_token', ''),
             kigate_api_timeout=int(request.POST.get('kigate_api_timeout', 30)),
             max_tags_per_idea=int(request.POST.get('max_tags_per_idea', 5)),
+            graph_api_enabled=request.POST.get('graph_api_enabled') == 'on',
+            sharepoint_site_id=request.POST.get('sharepoint_site_id', ''),
+            default_mail_sender=request.POST.get('default_mail_sender', ''),
         )
         messages.success(request, 'Settings created successfully!')
         return redirect('main:settings_list')
@@ -190,6 +193,9 @@ def settings_update(request, pk):
         settings.kigate_api_token = request.POST.get('kigate_api_token', '')
         settings.kigate_api_timeout = int(request.POST.get('kigate_api_timeout', 30))
         settings.max_tags_per_idea = int(request.POST.get('max_tags_per_idea', 5))
+        settings.graph_api_enabled = request.POST.get('graph_api_enabled') == 'on'
+        settings.sharepoint_site_id = request.POST.get('sharepoint_site_id', '')
+        settings.default_mail_sender = request.POST.get('default_mail_sender', '')
         settings.save()
         
         messages.success(request, 'Settings updated successfully!')
