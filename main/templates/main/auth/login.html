@@ -1,0 +1,98 @@
+{% extends "main/base.html" %}
+
+{% block title %}Login - IdeaGraph{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow-lg">
+                <div class="card-header text-center py-4">
+                    <h2 class="mb-0">
+                        <i class="bi bi-box-arrow-in-right"></i> Login
+                    </h2>
+                </div>
+                <div class="card-body p-4">
+                    <!-- Messages -->
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <form method="post" action="{% url 'main:login' %}">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="username" class="form-label">
+                                <i class="bi bi-person-fill"></i> Username
+                            </label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="username" 
+                                   name="username" 
+                                   required 
+                                   autofocus
+                                   placeholder="Enter your username">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label">
+                                <i class="bi bi-lock-fill"></i> Password
+                            </label>
+                            <input type="password" 
+                                   class="form-control" 
+                                   id="password" 
+                                   name="password" 
+                                   required
+                                   placeholder="Enter your password">
+                        </div>
+
+                        <div class="d-grid gap-2 mb-3">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-box-arrow-in-right"></i> Login
+                            </button>
+                        </div>
+
+                        <div class="text-center">
+                            <a href="{% url 'main:forgot_password' %}" class="text-decoration-none">
+                                <i class="bi bi-question-circle"></i> Forgot Password?
+                            </a>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <div class="text-center">
+                            <p class="mb-0">
+                                Don't have an account? 
+                                <a href="{% url 'main:register' %}" class="text-decoration-none">
+                                    <i class="bi bi-person-plus"></i> Register
+                                </a>
+                            </p>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Default Admin Info (only show in development) -->
+            {% if debug %}
+            <div class="card mt-3 border-warning">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="bi bi-info-circle text-warning"></i> Development Mode
+                    </h6>
+                    <p class="card-text small mb-0">
+                        Default admin credentials:<br>
+                        Username: <code>admin</code><br>
+                        Password: <code>admin1234</code>
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

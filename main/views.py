@@ -1,6 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from django.contrib.admin.views.decorators import staff_member_required
 from django.core.paginator import Paginator
 from .auth_utils import validate_password
 from .models import Tag, Settings, Section, User
@@ -141,14 +140,12 @@ def section_delete(request, section_id):
     return render(request, 'main/sections/delete.html', {'section': section})
 
 
-@staff_member_required
 def settings_list(request):
     """List all settings"""
     settings = Settings.objects.all()
     return render(request, 'main/settings_list.html', {'settings': settings})
 
 
-@staff_member_required
 def settings_create(request):
     """Create a new settings entry"""
     if request.method == 'POST':
@@ -174,7 +171,6 @@ def settings_create(request):
     return render(request, 'main/settings_form.html', {'action': 'Create'})
 
 
-@staff_member_required
 def settings_update(request, pk):
     """Update an existing settings entry"""
     settings = get_object_or_404(Settings, pk=pk)
@@ -205,7 +201,6 @@ def settings_update(request, pk):
     })
 
 
-@staff_member_required
 def settings_delete(request, pk):
     """Delete a settings entry"""
     settings = get_object_or_404(Settings, pk=pk)
@@ -219,7 +214,6 @@ def settings_delete(request, pk):
 
 
 # User Management Views
-@staff_member_required
 def user_list(request):
     """List all users with pagination and search"""
     search_query = request.GET.get('search', '').strip()
@@ -260,7 +254,6 @@ def user_list(request):
     return render(request, 'main/users/user_list.html', context)
 
 
-@staff_member_required
 def user_create(request):
     """Create a new user"""
     if request.method == 'POST':
@@ -312,7 +305,6 @@ def user_create(request):
     return render(request, 'main/users/user_create.html', context)
 
 
-@staff_member_required
 def user_edit(request, user_id):
     """Edit an existing user"""
     user = get_object_or_404(User, id=user_id)
@@ -366,7 +358,6 @@ def user_edit(request, user_id):
     return render(request, 'main/users/user_edit.html', context)
 
 
-@staff_member_required
 def user_detail(request, user_id):
     """View user details"""
     user = get_object_or_404(User, id=user_id)
@@ -374,14 +365,14 @@ def user_detail(request, user_id):
     return render(request, 'main/users/user_detail.html', context)
 
 
-@staff_member_required
 def user_delete(request, user_id):
     """Delete a user"""
     user = get_object_or_404(User, id=user_id)
     
     if request.method == 'POST':
         # Prevent deleting yourself
-        if request.user.username == user.username:
+        current_user_id = request.session.get('user_id')
+        if current_user_id == str(user.id):
             messages.error(request, 'You cannot delete your own account!')
             return redirect('main:user_list')
         
