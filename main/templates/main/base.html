@@ -218,10 +218,28 @@
                             <i class="bi bi-house-fill"></i> Home
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#">
-                            <i class="bi bi-lightbulb"></i> Ideas
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if 'item' in request.resolver_match.url_name %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-lightbulb"></i> Items
                         </a>
+                        <ul class="dropdown-menu dropdown-menu-dark">
+                            <li>
+                                <a class="dropdown-item" href="{% url 'main:item_list' %}">
+                                    <i class="bi bi-list-ul"></i> List View
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'main:item_kanban' %}">
+                                    <i class="bi bi-kanban"></i> Kanban View
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'main:item_create' %}">
+                                    <i class="bi bi-plus-circle"></i> New Item
+                                </a>
+                            </li>
+                        </ul>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#">

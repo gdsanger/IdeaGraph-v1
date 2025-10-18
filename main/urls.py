@@ -40,6 +40,14 @@ urlpatterns = [
     path('admin/users/<uuid:user_id>/delete/', views.user_delete, name='user_delete'),
     path('admin/users/<uuid:user_id>/send-password/', views.user_send_password, name='user_send_password'),
     
+    # Item Management URLs
+    path('items/', views.item_list, name='item_list'),
+    path('items/kanban/', views.item_kanban, name='item_kanban'),
+    path('items/create/', views.item_create, name='item_create'),
+    path('items/<uuid:item_id>/', views.item_detail, name='item_detail'),
+    path('items/<uuid:item_id>/edit/', views.item_edit, name='item_edit'),
+    path('items/<uuid:item_id>/delete/', views.item_delete, name='item_delete'),
+    
     # API Authentication Endpoints
     path('api/auth/login', api_views.api_login, name='api_login'),
     path('api/auth/logout', api_views.api_logout, name='api_logout'),
