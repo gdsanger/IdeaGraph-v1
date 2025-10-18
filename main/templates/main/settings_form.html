@@ -1,0 +1,240 @@
+{% extends "main/base.html" %}
+
+{% block title %}{{ action }} Settings - IdeaGraph v1.0{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4 fade-in-up">
+        <div class="col-lg-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 fw-bold mb-2" style="color: var(--autumn-light);">
+                        <i class="bi bi-gear-fill" style="color: var(--autumn-accent);"></i>
+                        {{ action }} Settings
+                    </h1>
+                    <p class="text-muted mb-0">
+                        <i class="bi bi-shield-lock-fill"></i> Configure system settings and API keys
+                    </p>
+                </div>
+                <div>
+                    <a href="{% url 'main:settings_list' %}" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-left"></i> Back to List
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row fade-in-up" style="animation-delay: 0.1s;">
+        <div class="col-lg-12">
+            <form method="post" class="card">
+                {% csrf_token %}
+                <div class="card-body">
+                    <!-- OpenAI Configuration -->
+                    <div class="mb-4">
+                        <h5 class="mb-3" style="color: var(--autumn-accent);">
+                            <i class="bi bi-robot"></i> OpenAI Configuration
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="openai_api_key" class="form-label">OPENAI_API_KEY</label>
+                                <input 
+                                    type="password" 
+                                    class="form-control" 
+                                    id="openai_api_key" 
+                                    name="openai_api_key" 
+                                    value="{{ settings.openai_api_key|default:'' }}"
+                                    placeholder="sk-...">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="openai_org_id" class="form-label">OPENAI_ORG_ID</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="openai_org_id" 
+                                    name="openai_org_id" 
+                                    value="{{ settings.openai_org_id|default:'' }}"
+                                    placeholder="OpenAI Organisation ID">
+                                <div class="form-text">OpenAI Organisation ID</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr style="border-color: var(--autumn-primary);">
+
+                    <!-- Graph API Configuration -->
+                    <div class="mb-4">
+                        <h5 class="mb-3" style="color: var(--autumn-accent);">
+                            <i class="bi bi-microsoft"></i> Graph API Configuration
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="client_id" class="form-label">CLIENT_ID</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="client_id" 
+                                    name="client_id" 
+                                    value="{{ settings.client_id|default:'' }}"
+                                    placeholder="GraphAPI Client ID">
+                                <div class="form-text">GraphAPI Client ID</div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="client_secret" class="form-label">CLIENT_SECRET</label>
+                                <input 
+                                    type="password" 
+                                    class="form-control" 
+                                    id="client_secret" 
+                                    name="client_secret" 
+                                    value="{{ settings.client_secret|default:'' }}"
+                                    placeholder="GraphAPI Client Secret">
+                                <div class="form-text">GraphAPI Client Secret</div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="tenant_id" class="form-label">TENANT_ID</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="tenant_id" 
+                                    name="tenant_id" 
+                                    value="{{ settings.tenant_id|default:'' }}"
+                                    placeholder="GraphAPI Tenant">
+                                <div class="form-text">GraphAPI Tenant</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr style="border-color: var(--autumn-primary);">
+
+                    <!-- GitHub Configuration -->
+                    <div class="mb-4">
+                        <h5 class="mb-3" style="color: var(--autumn-accent);">
+                            <i class="bi bi-github"></i> GitHub Configuration
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label for="github_token" class="form-label">GITHUB_TOKEN</label>
+                                <input 
+                                    type="password" 
+                                    class="form-control" 
+                                    id="github_token" 
+                                    name="github_token" 
+                                    value="{{ settings.github_token|default:'' }}"
+                                    placeholder="ghp_...">
+                                <div class="form-text">GitHub PAT Key</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr style="border-color: var(--autumn-primary);">
+
+                    <!-- ChromaDB Configuration -->
+                    <div class="mb-4">
+                        <h5 class="mb-3" style="color: var(--autumn-accent);">
+                            <i class="bi bi-database"></i> ChromaDB Configuration
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="chroma_api_key" class="form-label">CHROMA_API_KEY</label>
+                                <input 
+                                    type="password" 
+                                    class="form-control" 
+                                    id="chroma_api_key" 
+                                    name="chroma_api_key" 
+                                    value="{{ settings.chroma_api_key|default:'' }}"
+                                    placeholder="ChromaDB Api Key">
+                                <div class="form-text">ChromaDB Api Key (Cloud)</div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="chroma_database" class="form-label">CHROMA_DATABASE</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="chroma_database" 
+                                    name="chroma_database" 
+                                    value="{{ settings.chroma_database|default:'' }}"
+                                    placeholder="Database name">
+                                <div class="form-text">ChromaDB Database</div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="chroma_tenant" class="form-label">CHROMA_TENANT</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="chroma_tenant" 
+                                    name="chroma_tenant" 
+                                    value="{{ settings.chroma_tenant|default:'' }}"
+                                    placeholder="Tenant name">
+                                <div class="form-text">ChromaDB Tenant</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr style="border-color: var(--autumn-primary);">
+
+                    <!-- KiGate Configuration -->
+                    <div class="mb-4">
+                        <h5 class="mb-3" style="color: var(--autumn-accent);">
+                            <i class="bi bi-cpu"></i> KiGate Configuration
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="kigate_url" class="form-label">KiGateUrl</label>
+                                <input 
+                                    type="url" 
+                                    class="form-control" 
+                                    id="kigate_url" 
+                                    name="kigate_url" 
+                                    value="{{ settings.kigate_url|default:'' }}"
+                                    placeholder="https://...">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="kigate_token" class="form-label">KiGateToken</label>
+                                <input 
+                                    type="password" 
+                                    class="form-control" 
+                                    id="kigate_token" 
+                                    name="kigate_token" 
+                                    value="{{ settings.kigate_token|default:'' }}"
+                                    placeholder="Token">
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr style="border-color: var(--autumn-primary);">
+
+                    <!-- Additional Settings -->
+                    <div class="mb-4">
+                        <h5 class="mb-3" style="color: var(--autumn-accent);">
+                            <i class="bi bi-sliders"></i> Additional Settings
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="max_tags_per_idea" class="form-label">MAX_TAGS_PER_IDEA</label>
+                                <input 
+                                    type="number" 
+                                    class="form-control" 
+                                    id="max_tags_per_idea" 
+                                    name="max_tags_per_idea" 
+                                    value="{{ settings.max_tags_per_idea|default:5 }}"
+                                    min="1" 
+                                    max="20">
+                                <div class="form-text">Anzahl der Tags die bei Items durch die KI gesucht werden sollen</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-footer text-end">
+                    <a href="{% url 'main:settings_list' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle"></i> Cancel
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle-fill"></i> {{ action }} Settings
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
