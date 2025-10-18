@@ -88,6 +88,25 @@ Bearbeite `.env` oder Settings in der Datenbank (Adminbereich):
 
 ---
 
+## Backend
+Im Backend verwenden wir folgende Elemente:
+1. **SQLite Database**
+   → Zum speichern aller Datenelemente in einer Relationalen Datenbank, mit sqlalchemy
+   → Datenbankname: db.sqlite
+2. **ChomdaDB**
+   → Items, Task und Dateien vektorisieren wir zusätzlich in einer ChromaDB
+   → Im Dokument die Hauptinformation, also Field Description oder den Dateiinhalt, Metadaten anwenden, alle anderen Felder dort mit einfügen (Section, Title, Filename, Tags)
+   → Wir verwenden ChromaDB in der Cloud [TryChroma](https://www.trychroma.com/)
+   → Databasename: ItemGraphDB
+   → Achtung keine lokale Persistens, da die DB in der Cloud gehostet wird (fürht sonst zu Problemen!)
+4. **KIGate*
+   → RestFul API auf Basis von FastAPI
+   → See Docs:
+     - [KIGate_Documentation.md](https://github.com/gdsanger/IdeaGraph-v1/blob/main/docs/KIGate_Documentation.md)
+     - [QUICK_START_AGENTS.md](https://github.com/gdsanger/IdeaGraph-v1/blob/main/docs/QUICK_START_AGENTS.md)
+     - [README_AGENTS.md](https://github.com/gdsanger/IdeaGraph-v1/blob/main/docs/README_AGENTS.md)
+---
+
 ## 🧠 Beispiel-Workflow
 
 1. **Idee erfassen**  
