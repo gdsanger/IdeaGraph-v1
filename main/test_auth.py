@@ -388,3 +388,39 @@ class DefaultAdminTest(TestCase):
         self.assertEqual(response.status_code, 302)  # Redirect after login
         self.assertIn('user_id', client.session)
         self.assertEqual(client.session['user_role'], 'admin')
+
+
+class PasswordGenerationTest(TestCase):
+    """Test password generation functionality"""
+    
+    def test_generate_secure_password(self):
+        """Test that generated password is secure and valid"""
+        from main.auth_utils import generate_secure_password, validate_password
+        
+        # Generate password
+        password = generate_secure_password(12)
+        
+        # Check length
+        self.assertEqual(len(password), 12)
+        
+        # Validate password meets requirements
+        is_valid, msg = validate_password(password)
+        self.assertTrue(is_valid, f"Generated password should be valid: {msg}")
+        
+    def test_generate_secure_password_minimum_length(self):
+        """Test that minimum password length is enforced"""
+        from main.auth_utils import generate_secure_password
+        
+        # Try to generate a short password (should default to 8)
+        password = generate_secure_password(4)
+        self.assertGreaterEqual(len(password), 8)
+        
+    def test_password_uniqueness(self):
+        """Test that generated passwords are unique"""
+        from main.auth_utils import generate_secure_password
+        
+        # Generate multiple passwords
+        passwords = [generate_secure_password(12) for _ in range(10)]
+        
+        # Check all are unique
+        self.assertEqual(len(passwords), len(set(passwords)))

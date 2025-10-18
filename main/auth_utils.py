@@ -3,6 +3,8 @@ Authentication utilities for JWT token generation and validation.
 """
 import jwt
 import datetime
+import secrets
+import string
 from django.conf import settings
 
 
@@ -78,3 +80,42 @@ def validate_password(password):
         return False, 'Password must contain at least one special character'
     
     return True, ''
+
+
+def generate_secure_password(length=12):
+    """
+    Generate a secure random password.
+    
+    Args:
+        length: Length of the password (default: 12)
+        
+    Returns:
+        str: Randomly generated secure password
+    """
+    # Ensure minimum length
+    if length < 8:
+        length = 8
+    
+    # Character sets
+    lowercase = string.ascii_lowercase
+    uppercase = string.ascii_uppercase
+    digits = string.digits
+    special = '!@#$%^&*()_+-=[]{}|;:,.<>?'
+    
+    # Ensure at least one character from each set
+    password_chars = [
+        secrets.choice(lowercase),
+        secrets.choice(uppercase),
+        secrets.choice(digits),
+        secrets.choice(special)
+    ]
+    
+    # Fill the rest with random characters from all sets
+    all_chars = lowercase + uppercase + digits + special
+    password_chars.extend(secrets.choice(all_chars) for _ in range(length - 4))
+    
+    # Shuffle to avoid predictable patterns
+    password_list = list(password_chars)
+    secrets.SystemRandom().shuffle(password_list)
+    
+    return ''.join(password_list)
