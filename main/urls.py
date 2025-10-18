@@ -45,4 +45,10 @@ urlpatterns = [
     path('api/graph/sharepoint/files', api_views.api_graph_sharepoint_files, name='api_graph_sharepoint_files'),
     path('api/graph/sharepoint/upload', api_views.api_graph_sharepoint_upload, name='api_graph_sharepoint_upload'),
     path('api/graph/mail/send', api_views.api_graph_mail_send, name='api_graph_mail_send'),
+    
+    # GitHub API Endpoints
+    path('api/github/repos', api_views.api_github_repos, name='api_github_repos'),
+    path('api/github/create-issue', api_views.api_github_create_issue, name='api_github_create_issue'),
+    path('api/github/issue/<str:owner>/<str:repo>/<int:issue_number>', api_views.api_github_get_issue, name='api_github_get_issue'),
+    path('api/github/issues/<str:owner>/<str:repo>', api_views.api_github_list_issues, name='api_github_list_issues'),
 ]

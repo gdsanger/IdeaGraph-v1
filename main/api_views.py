@@ -10,6 +10,7 @@ from django.core.paginator import Paginator
 from .models import User
 from .auth_utils import generate_jwt_token, decode_jwt_token, validate_password
 from core.services.graph_service import GraphService, GraphServiceError
+from core.services.github_service import GitHubService, GitHubServiceError
 
 
 def get_user_from_token(request):
@@ -229,7 +230,7 @@ def api_user_create(request):
             return JsonResponse({'error': error_msg}, status=400)
         
         # Validate role
-        valid_roles = ['admin', 'user', 'viewer']
+        valid_roles = ['admin', 'developer', 'user', 'viewer']
         if role not in valid_roles:
             return JsonResponse({'error': f'Invalid role. Must be one of: {", ".join(valid_roles)}'}, status=400)
         
@@ -309,7 +310,7 @@ def api_user_update(request, user_id):
             
             if 'role' in data:
                 role = data['role']
-                valid_roles = ['admin', 'user', 'viewer']
+                valid_roles = ['admin', 'developer', 'user', 'viewer']
                 if role not in valid_roles:
                     return JsonResponse({'error': f'Invalid role. Must be one of: {", ".join(valid_roles)}'}, status=400)
                 target_user.role = role
@@ -506,5 +507,182 @@ def api_graph_mail_send(request):
         return JsonResponse({
             'success': False,
             'error': 'An error occurred while sending email',
+            'details': str(e)
+        }, status=500)
+
+
+# GitHub API Endpoints
+
+def require_developer(view_func):
+    """Decorator to require admin or developer role for API endpoints"""
+    def wrapper(request, *args, **kwargs):
+        user = get_user_from_token(request)
+        if not user or user.role not in ['admin', 'developer']:
+            return JsonResponse({'error': 'Admin or developer access required'}, status=403)
+        request.user_obj = user
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_developer
+def api_github_repos(request):
+    """
+    API endpoint to list GitHub repositories (admin/developer only).
+    GET /api/github/repos?owner=username&per_page=30&page=1
+    """
+    try:
+        owner = request.GET.get('owner')
+        per_page = int(request.GET.get('per_page', 30))
+        page = int(request.GET.get('page', 1))
+        
+        github = GitHubService()
+        result = github.get_repositories(owner=owner, per_page=per_page, page=page)
+        
+        return JsonResponse(result)
+        
+    except GitHubServiceError as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f'GitHub API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'GitHub repos list error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'An error occurred while listing repositories',
+            'details': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_developer
+def api_github_create_issue(request):
+    """
+    API endpoint to create a GitHub issue (admin/developer only).
+    POST /api/github/create-issue
+    Body: {"owner": "...", "repo": "...", "title": "...", "body": "...", "labels": ["..."], "assignees": ["..."]}
+    """
+    try:
+        data = json.loads(request.body)
+        
+        title = data.get('title')
+        body = data.get('body')
+        owner = data.get('owner')
+        repo = data.get('repo')
+        labels = data.get('labels', [])
+        assignees = data.get('assignees', [])
+        
+        if not title:
+            return JsonResponse({'error': 'title is required'}, status=400)
+        
+        if not body:
+            return JsonResponse({'error': 'body is required'}, status=400)
+        
+        github = GitHubService()
+        result = github.create_issue(
+            title=title,
+            body=body,
+            owner=owner,
+            repo=repo,
+            labels=labels,
+            assignees=assignees
+        )
+        
+        return JsonResponse(result, status=201)
+        
+    except GitHubServiceError as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f'GitHub API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'GitHub create issue error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'An error occurred while creating issue',
+            'details': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_developer
+def api_github_get_issue(request, owner, repo, issue_number):
+    """
+    API endpoint to get a specific GitHub issue (admin/developer only).
+    GET /api/github/issue/{owner}/{repo}/{issue_number}
+    """
+    try:
+        github = GitHubService()
+        result = github.get_issue(
+            issue_number=int(issue_number),
+            owner=owner,
+            repo=repo
+        )
+        
+        return JsonResponse(result)
+        
+    except GitHubServiceError as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f'GitHub API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except ValueError:
+        return JsonResponse({'error': 'Invalid issue number'}, status=400)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'GitHub get issue error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'An error occurred while retrieving issue',
+            'details': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_developer
+def api_github_list_issues(request, owner, repo):
+    """
+    API endpoint to list GitHub issues in a repository (admin/developer only).
+    GET /api/github/issues/{owner}/{repo}?state=open&labels=bug,feature&per_page=30&page=1
+    """
+    try:
+        state = request.GET.get('state', 'open')
+        labels_str = request.GET.get('labels')
+        labels = labels_str.split(',') if labels_str else None
+        per_page = int(request.GET.get('per_page', 30))
+        page = int(request.GET.get('page', 1))
+        
+        github = GitHubService()
+        result = github.list_issues(
+            owner=owner,
+            repo=repo,
+            state=state,
+            labels=labels,
+            per_page=per_page,
+            page=page
+        )
+        
+        return JsonResponse(result)
+        
+    except GitHubServiceError as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f'GitHub API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'GitHub list issues error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'An error occurred while listing issues',
             'details': str(e)
         }, status=500)
