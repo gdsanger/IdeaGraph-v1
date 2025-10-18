@@ -1,0 +1,147 @@
+{% extends "main/base.html" %}
+
+{% block title %}{% if item %}Edit{% else %}Create{% endif %} Item{% endblock %}
+
+{% block extra_css %}
+<!-- Toast UI Editor CSS -->
+<link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'main:item_list' %}">Items</a></li>
+            {% if item %}
+            <li class="breadcrumb-item"><a href="{% url 'main:item_detail' item.id %}">{{ item.title }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Edit</li>
+            {% else %}
+            <li class="breadcrumb-item active" aria-current="page">Create</li>
+            {% endif %}
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0">
+                        {% if item %}
+                        <i class="bi bi-pencil"></i> Edit Item
+                        {% else %}
+                        <i class="bi bi-plus-circle"></i> Create New Item
+                        {% endif %}
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <!-- Title -->
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Title <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="title" name="title" 
+                                   value="{% if item %}{{ item.title }}{% endif %}" required>
+                        </div>
+
+                        <!-- Description with Toast UI Editor -->
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description (Markdown)</label>
+                            <div id="editor"></div>
+                            <textarea name="description" id="description" style="display: none;">{% if item %}{{ item.description }}{% endif %}</textarea>
+                        </div>
+
+                        <!-- GitHub Repository -->
+                        <div class="mb-3">
+                            <label for="github_repo" class="form-label">GitHub Repository</label>
+                            <input type="text" class="form-control" id="github_repo" name="github_repo" 
+                                   value="{% if item %}{{ item.github_repo }}{% endif %}" 
+                                   placeholder="owner/repository">
+                            <small class="text-muted">Optional: Link to a GitHub repository</small>
+                        </div>
+
+                        <div class="row">
+                            <!-- Section -->
+                            <div class="col-md-4 mb-3">
+                                <label for="section" class="form-label">Section</label>
+                                <select class="form-select" id="section" name="section">
+                                    <option value="">No Section</option>
+                                    {% for section in sections %}
+                                    <option value="{{ section.id }}" 
+                                            {% if item and item.section and item.section.id == section.id %}selected{% endif %}>
+                                        {{ section.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Status -->
+                            <div class="col-md-4 mb-3">
+                                <label for="status" class="form-label">Status</label>
+                                <select class="form-select" id="status" name="status">
+                                    {% for value, label in status_choices %}
+                                    <option value="{{ value }}" 
+                                            {% if item and item.status == value %}selected{% elif not item and value == 'new' %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Tags -->
+                            <div class="col-md-4 mb-3">
+                                <label for="tags" class="form-label">Tags</label>
+                                <select class="form-select" id="tags" name="tags" multiple size="5">
+                                    {% for tag in all_tags %}
+                                    <option value="{{ tag.id }}" 
+                                            {% if item and tag in item.tags.all %}selected{% endif %}
+                                            style="background-color: {{ tag.color }}; color: white;">
+                                        {{ tag.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Hold Ctrl/Cmd to select multiple tags</small>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> 
+                                {% if item %}Update{% else %}Create{% endif %}
+                            </button>
+                            <a href="{% if item %}{% url 'main:item_detail' item.id %}{% else %}{% url 'main:item_list' %}{% endif %}" 
+                               class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Toast UI Editor JS -->
+<script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
+
+<script>
+// Initialize Toast UI Editor
+const editor = new toastui.Editor({
+    el: document.querySelector('#editor'),
+    height: '400px',
+    initialEditType: 'markdown',
+    previewStyle: 'vertical',
+    initialValue: document.querySelector('#description').value,
+    theme: 'dark'
+});
+
+// Sync editor content to textarea before form submit
+document.querySelector('form').addEventListener('submit', function() {
+    document.querySelector('#description').value = editor.getMarkdown();
+});
+</script>
+{% endblock %}

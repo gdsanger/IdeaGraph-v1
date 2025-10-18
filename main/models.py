@@ -173,10 +173,20 @@ class Section(models.Model):
 class Item(models.Model):
     """Item model for managing ideas and concepts"""
     
+    STATUS_CHOICES = [
+        ('new', 'Neu'),
+        ('spec_review', 'Spezifikation Review'),
+        ('working', 'Working'),
+        ('ready', 'Ready'),
+        ('done', 'Erledigt'),
+        ('rejected', 'Verworfen'),
+    ]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default='')  # Markdown content
     github_repo = models.CharField(max_length=255, blank=True, default='')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='new')
     section = models.ForeignKey(Section, on_delete=models.SET_NULL, null=True, blank=True, related_name='items')
     tags = models.ManyToManyField(Tag, blank=True, related_name='items')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_items')

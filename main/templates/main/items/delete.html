@@ -1,0 +1,83 @@
+{% extends "main/base.html" %}
+
+{% block title %}Delete Item - {{ item.title }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'main:item_list' %}">Items</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'main:item_detail' item.id %}">{{ item.title }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Delete</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h3 class="mb-0">
+                        <i class="bi bi-exclamation-triangle"></i> Confirm Deletion
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-danger">
+                        <h5>
+                            <i class="bi bi-exclamation-circle"></i> Warning
+                        </h5>
+                        <p class="mb-0">
+                            You are about to delete this item. This action cannot be undone.
+                        </p>
+                    </div>
+
+                    <h5>Item Details:</h5>
+                    <dl class="row">
+                        <dt class="col-sm-3">Title:</dt>
+                        <dd class="col-sm-9">{{ item.title }}</dd>
+
+                        {% if item.section %}
+                        <dt class="col-sm-3">Section:</dt>
+                        <dd class="col-sm-9">{{ item.section.name }}</dd>
+                        {% endif %}
+
+                        <dt class="col-sm-3">Status:</dt>
+                        <dd class="col-sm-9">{{ item.get_status_display }}</dd>
+
+                        <dt class="col-sm-3">Created:</dt>
+                        <dd class="col-sm-9">{{ item.created_at|date:"Y-m-d H:i" }}</dd>
+
+                        {% if item.tags.all %}
+                        <dt class="col-sm-3">Tags:</dt>
+                        <dd class="col-sm-9">
+                            {% for tag in item.tags.all %}
+                            <span class="badge" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                            {% endfor %}
+                        </dd>
+                        {% endif %}
+
+                        {% if item.tasks.count > 0 %}
+                        <dt class="col-sm-3">Tasks:</dt>
+                        <dd class="col-sm-9">
+                            <span class="badge bg-warning">{{ item.tasks.count }} task(s) will also be deleted</span>
+                        </dd>
+                        {% endif %}
+                    </dl>
+
+                    <form method="post" class="mt-4">
+                        {% csrf_token %}
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-trash"></i> Yes, Delete Item
+                            </button>
+                            <a href="{% url 'main:item_detail' item.id %}" class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
