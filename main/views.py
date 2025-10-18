@@ -606,6 +606,17 @@ def item_create(request):
                 if tag_ids:
                     item.tags.set(tag_ids)
                 
+                # Sync to ChromaDB
+                try:
+                    from core.services.chroma_sync_service import ChromaItemSyncService
+                    sync_service = ChromaItemSyncService()
+                    sync_service.sync_create(item)
+                except Exception as sync_error:
+                    # Log error but don't fail the item creation
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f'ChromaDB sync failed for item {item.id}: {str(sync_error)}')
+                
                 messages.success(request, f'Item "{title}" created successfully!')
                 return redirect('main:item_detail', item_id=item.id)
                 
@@ -671,6 +682,17 @@ def item_edit(request, item_id):
                 else:
                     item.tags.clear()
                 
+                # Sync update to ChromaDB
+                try:
+                    from core.services.chroma_sync_service import ChromaItemSyncService
+                    sync_service = ChromaItemSyncService()
+                    sync_service.sync_update(item)
+                except Exception as sync_error:
+                    # Log error but don't fail the item update
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f'ChromaDB sync failed for item {item.id}: {str(sync_error)}')
+                
                 messages.success(request, f'Item "{title}" updated successfully!')
                 return redirect('main:item_detail', item_id=item.id)
                 
@@ -709,7 +731,20 @@ def item_delete(request, item_id):
     
     if request.method == 'POST':
         item_title = item.title
+        item_id_str = str(item.id)
         item.delete()
+        
+        # Sync delete to ChromaDB
+        try:
+            from core.services.chroma_sync_service import ChromaItemSyncService
+            sync_service = ChromaItemSyncService()
+            sync_service.sync_delete(item_id_str)
+        except Exception as sync_error:
+            # Log error but don't fail the item deletion
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f'ChromaDB sync failed for item {item_id_str}: {str(sync_error)}')
+        
         messages.success(request, f'Item "{item_title}" deleted successfully!')
         return redirect('main:item_list')
     
