@@ -39,6 +39,13 @@ urlpatterns = [
     path('admin/users/<uuid:user_id>/edit/', views.user_edit, name='user_edit'),
     path('admin/users/<uuid:user_id>/delete/', views.user_delete, name='user_delete'),
     
+    # Item URLs
+    path('items/', views.item_list, name='item_list'),
+    path('items/kanban/', views.item_kanban, name='item_kanban'),
+    path('items/create/', views.item_create, name='item_create'),
+    path('items/<uuid:item_id>/', views.item_detail, name='item_detail'),
+    path('items/<uuid:item_id>/delete/', views.item_delete, name='item_delete'),
+    
     # API Authentication Endpoints
     path('api/auth/login', api_views.api_login, name='api_login'),
     path('api/auth/logout', api_views.api_logout, name='api_logout'),
@@ -69,4 +76,14 @@ urlpatterns = [
     # OpenAI API Endpoints
     path('api/openai/query', api_views.api_openai_query, name='api_openai_query'),
     path('api/openai/models', api_views.api_openai_models, name='api_openai_models'),
+    
+    # Item API Endpoints
+    path('api/items', api_views.api_item_list, name='api_item_list'),
+    path('api/items/create', api_views.api_item_create, name='api_item_create'),
+    path('api/items/<uuid:item_id>', api_views.api_item_detail, name='api_item_detail'),
+    path('api/items/<uuid:item_id>/update', api_views.api_item_update, name='api_item_update'),
+    path('api/items/<uuid:item_id>/delete', api_views.api_item_delete, name='api_item_delete'),
+    path('api/items/<uuid:item_id>/ai-enhance', api_views.api_item_ai_enhance, name='api_item_ai_enhance'),
+    path('api/items/<uuid:item_id>/build-tasks', api_views.api_item_build_tasks, name='api_item_build_tasks'),
+    path('api/items/<uuid:item_id>/check-similarity', api_views.api_item_check_similarity, name='api_item_check_similarity'),
 ]

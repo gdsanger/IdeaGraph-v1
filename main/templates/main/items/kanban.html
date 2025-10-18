@@ -1,0 +1,168 @@
+{% extends 'main/base.html' %}
+
+{% block title %}Items Kanban - IdeaGraph{% endblock %}
+
+{% block extra_css %}
+<style>
+    .kanban-container {
+        display: flex;
+        gap: 1rem;
+        overflow-x: auto;
+        padding-bottom: 1rem;
+    }
+    
+    .kanban-column {
+        min-width: 300px;
+        flex: 1;
+        background: rgba(31, 41, 55, 0.6);
+        border: 1px solid var(--autumn-primary);
+        border-radius: 0.5rem;
+        padding: 1rem;
+        max-height: calc(100vh - 250px);
+        overflow-y: auto;
+    }
+    
+    .kanban-column h5 {
+        color: var(--autumn-accent);
+        font-weight: 600;
+        margin-bottom: 1rem;
+        position: sticky;
+        top: 0;
+        background: rgba(31, 41, 55, 0.95);
+        padding: 0.5rem 0;
+        z-index: 1;
+    }
+    
+    .kanban-card {
+        background: rgba(55, 65, 81, 0.8);
+        border: 1px solid rgba(217, 119, 6, 0.3);
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .kanban-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 15px rgba(217, 119, 6, 0.3);
+        border-color: var(--autumn-accent);
+    }
+    
+    .kanban-card-title {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: #fff;
+    }
+    
+    .kanban-card-section {
+        font-size: 0.75rem;
+        color: var(--autumn-accent);
+        margin-bottom: 0.5rem;
+    }
+    
+    .tag-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        margin: 0.125rem;
+        border-radius: 0.25rem;
+        font-size: 0.7rem;
+        font-weight: 500;
+        color: white;
+    }
+    
+    .status-new .kanban-column { border-color: #6c757d; }
+    .status-spec_review .kanban-column { border-color: #ffc107; }
+    .status-working .kanban-column { border-color: #0d6efd; }
+    .status-ready .kanban-column { border-color: #198754; }
+    .status-done .kanban-column { border-color: #0dcaf0; }
+    .status-rejected .kanban-column { border-color: #dc3545; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="display-4">
+                <i class="bi bi-kanban"></i> Items Kanban
+            </h1>
+        </div>
+        <div class="col-auto">
+            <a href="{% url 'main:item_list' %}" class="btn btn-outline-primary me-2">
+                <i class="bi bi-list-ul"></i> List View
+            </a>
+            <a href="{% url 'main:item_create' %}" class="btn btn-primary me-2">
+                <i class="bi bi-plus-circle"></i> New Item
+            </a>
+            <div class="form-check form-switch d-inline-block ms-2">
+                <input class="form-check-input" type="checkbox" id="showDone" {% if show_done %}checked{% endif %} 
+                       onchange="window.location.href='?show_done=' + this.checked">
+                <label class="form-check-label" for="showDone">
+                    Show Completed
+                </label>
+            </div>
+        </div>
+    </div>
+    
+    <div class="kanban-container">
+        {% for status_code, status_data in items_by_status.items %}
+        <div class="kanban-column status-{{ status_code }}">
+            <h5>
+                {{ status_data.label }}
+                <span class="badge bg-secondary">{{ status_data.items|length }}</span>
+            </h5>
+            
+            {% for item in status_data.items %}
+            <div class="kanban-card" onclick="window.location='{% url 'main:item_detail' item.id %}'">
+                {% if item.section %}
+                <div class="kanban-card-section">
+                    <i class="bi bi-folder"></i> {{ item.section.name }}
+                </div>
+                {% endif %}
+                
+                <div class="kanban-card-title">
+                    {{ item.title }}
+                </div>
+                
+                {% if item.tags.all %}
+                <div class="mt-2">
+                    {% for tag in item.tags.all %}
+                    <span class="tag-badge" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                {% if item.github_repo %}
+                <div class="mt-2">
+                    <small class="text-muted">
+                        <i class="bi bi-github"></i> {{ item.github_repo|truncatechars:30 }}
+                    </small>
+                </div>
+                {% endif %}
+                
+                <div class="mt-2">
+                    <small class="text-muted">
+                        {% if item.ai_enhanced %}<i class="bi bi-stars text-warning" title="AI Enhanced"></i>{% endif %}
+                        {% if item.similarity_checked %}<i class="bi bi-diagram-3 text-info" title="Similarity Checked"></i>{% endif %}
+                        Updated: {{ item.updated_at|date:"Y-m-d" }}
+                    </small>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center text-muted py-3">
+                <small>No items</small>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Drag and drop functionality could be added here using HTMX or vanilla JS
+    // For now, users can click on cards to change status via the detail view
+</script>
+{% endblock %}

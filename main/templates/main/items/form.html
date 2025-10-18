@@ -1,0 +1,144 @@
+{% extends 'main/base.html' %}
+
+{% block title %}Create Item - IdeaGraph{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
+<style>
+    .tag-checkbox {
+        display: inline-block;
+        margin: 0.25rem;
+    }
+    
+    .tag-checkbox input[type="checkbox"] {
+        display: none;
+    }
+    
+    .tag-checkbox label {
+        padding: 0.375rem 0.75rem;
+        border-radius: 0.375rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: inline-block;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: white;
+        opacity: 0.6;
+    }
+    
+    .tag-checkbox input[type="checkbox"]:checked + label {
+        opacity: 1;
+        box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'main:item_list' %}">Items</a></li>
+                    <li class="breadcrumb-item active">Create New Item</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+    
+    <form method="post" id="itemForm">
+        {% csrf_token %}
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="bi bi-plus-circle"></i> Create New Item
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Title <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="title" name="title" required autofocus>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description (Markdown)</label>
+                            <textarea class="form-control" id="description" name="description" rows="10"></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="github_repo" class="form-label">GitHub Repository</label>
+                            <input type="text" class="form-control" id="github_repo" name="github_repo" placeholder="owner/repository">
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="status" class="form-label">Status</label>
+                            <select class="form-select" id="status" name="status">
+                                {% for status_code, status_label in status_choices %}
+                                <option value="{{ status_code }}" {% if status_code == 'new' %}selected{% endif %}>{{ status_label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="section" class="form-label">Section</label>
+                            <select class="form-select" id="section" name="section">
+                                <option value="">-- No Section --</option>
+                                {% for section in sections %}
+                                <option value="{{ section.id }}">{{ section.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Tags</label>
+                            <div>
+                                {% for tag in tags %}
+                                <div class="tag-checkbox">
+                                    <input type="checkbox" id="tag-{{ tag.id }}" name="tags" value="{{ tag.id }}">
+                                    <label for="tag-{{ tag.id }}" style="background-color: {{ tag.color }};">
+                                        {{ tag.name }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mt-3">
+                    <div class="col">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Create Item
+                        </button>
+                        <a href="{% url 'main:item_list' %}" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
+<script>
+    // Initialize Toast UI Editor
+    const editor = new toastui.Editor({
+        el: document.querySelector('#description'),
+        height: '400px',
+        initialEditType: 'markdown',
+        previewStyle: 'vertical',
+    });
+    
+    // Update textarea before form submission
+    document.querySelector('#itemForm').addEventListener('submit', function() {
+        document.querySelector('#description').value = editor.getMarkdown();
+    });
+</script>
+{% endblock %}

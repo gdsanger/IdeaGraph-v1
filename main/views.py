@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.core.paginator import Paginator
 from .auth_utils import validate_password
-from .models import Tag, Settings, Section, User
+from .models import Tag, Settings, Section, User, Item, Task, ItemSimilarity
 
 def home(request):
     """Home page view"""
@@ -452,4 +452,288 @@ def user_delete(request, user_id):
     
     context = {'user': user}
     return render(request, 'main/users/user_delete.html', context)
+
+
+# ==================== Item Views ====================
+
+def item_list(request):
+    """List all items for the current user"""
+    # Check if user is logged in
+    user_id = request.session.get('user_id')
+    if not user_id:
+        messages.error(request, 'Please log in to view items.')
+        return redirect('main:login')
+    
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        messages.error(request, 'User not found.')
+        return redirect('main:login')
+    
+    # Get filters from request
+    status_filter = request.GET.get('status', '')
+    section_filter = request.GET.get('section', '')
+    search_query = request.GET.get('search', '').strip()
+    
+    # Base query: show only user's items (or all if admin)
+    if user.role == 'admin':
+        items = Item.objects.all()
+    else:
+        items = Item.objects.filter(created_by=user)
+    
+    # Apply filters
+    if status_filter:
+        items = items.filter(status=status_filter)
+    
+    if section_filter:
+        items = items.filter(section_id=section_filter)
+    
+    if search_query:
+        from django.db.models import Q
+        items = items.filter(
+            Q(title__icontains=search_query) | 
+            Q(description__icontains=search_query)
+        )
+    
+    # Prefetch related data
+    items = items.select_related('section', 'created_by').prefetch_related('tags')
+    
+    # Pagination
+    paginator = Paginator(items, 20)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    # Get all sections for filter dropdown
+    sections = Section.objects.all()
+    
+    context = {
+        'items': page_obj,
+        'status_choices': Item.STATUS_CHOICES,
+        'sections': sections,
+        'status_filter': status_filter,
+        'section_filter': section_filter,
+        'search_query': search_query,
+    }
+    
+    return render(request, 'main/items/list.html', context)
+
+
+def item_kanban(request):
+    """Kanban view of items for the current user"""
+    # Check if user is logged in
+    user_id = request.session.get('user_id')
+    if not user_id:
+        messages.error(request, 'Please log in to view items.')
+        return redirect('main:login')
+    
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        messages.error(request, 'User not found.')
+        return redirect('main:login')
+    
+    # Get show_done filter
+    show_done = request.GET.get('show_done', 'false') == 'true'
+    
+    # Base query: show only user's items (or all if admin)
+    if user.role == 'admin':
+        items = Item.objects.all()
+    else:
+        items = Item.objects.filter(created_by=user)
+    
+    # Prefetch related data
+    items = items.select_related('section', 'created_by').prefetch_related('tags')
+    
+    # Group items by status
+    items_by_status = {}
+    for status_code, status_label in Item.STATUS_CHOICES:
+        if not show_done and status_code in ['done', 'rejected']:
+            continue
+        items_by_status[status_code] = {
+            'label': status_label,
+            'items': items.filter(status=status_code)
+        }
+    
+    context = {
+        'items_by_status': items_by_status,
+        'status_choices': Item.STATUS_CHOICES,
+        'show_done': show_done,
+    }
+    
+    return render(request, 'main/items/kanban.html', context)
+
+
+def item_detail(request, item_id):
+    """Detail view and edit form for a single item"""
+    # Check if user is logged in
+    user_id = request.session.get('user_id')
+    if not user_id:
+        messages.error(request, 'Please log in to view items.')
+        return redirect('main:login')
+    
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        messages.error(request, 'User not found.')
+        return redirect('main:login')
+    
+    # Get the item
+    item = get_object_or_404(Item, id=item_id)
+    
+    # Check permissions: only owner or admin can view
+    if item.created_by != user and user.role != 'admin':
+        messages.error(request, 'You do not have permission to view this item.')
+        return redirect('main:item_list')
+    
+    if request.method == 'POST':
+        # Handle form submission
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        github_repo = request.POST.get('github_repo', '').strip()
+        status = request.POST.get('status', 'new')
+        section_id = request.POST.get('section', '')
+        tag_ids = request.POST.getlist('tags')
+        
+        if not title:
+            messages.error(request, 'Title is required.')
+        else:
+            try:
+                item.title = title
+                item.description = description
+                item.github_repo = github_repo
+                item.status = status
+                
+                # Update section
+                if section_id:
+                    item.section_id = section_id
+                else:
+                    item.section = None
+                
+                item.save()
+                
+                # Update tags
+                item.tags.set(tag_ids)
+                
+                messages.success(request, 'Item updated successfully!')
+                return redirect('main:item_detail', item_id=item.id)
+            except Exception as e:
+                messages.error(request, f'Error updating item: {str(e)}')
+    
+    # Get related data
+    sections = Section.objects.all()
+    tags = Tag.objects.all()
+    
+    # Get similar items
+    similar_items = ItemSimilarity.objects.filter(source_item=item).select_related('target_item')[:10]
+    
+    # Get tasks for this item
+    tasks = Task.objects.filter(item=item).select_related('assigned_to')
+    
+    # Get settings for AI features
+    settings = Settings.objects.first()
+    
+    context = {
+        'item': item,
+        'sections': sections,
+        'tags': tags,
+        'status_choices': Item.STATUS_CHOICES,
+        'similar_items': similar_items,
+        'tasks': tasks,
+        'settings': settings,
+    }
+    
+    return render(request, 'main/items/detail.html', context)
+
+
+def item_create(request):
+    """Create a new item"""
+    # Check if user is logged in
+    user_id = request.session.get('user_id')
+    if not user_id:
+        messages.error(request, 'Please log in to create items.')
+        return redirect('main:login')
+    
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        messages.error(request, 'User not found.')
+        return redirect('main:login')
+    
+    if request.method == 'POST':
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        github_repo = request.POST.get('github_repo', '').strip()
+        status = request.POST.get('status', 'new')
+        section_id = request.POST.get('section', '')
+        tag_ids = request.POST.getlist('tags')
+        
+        if not title:
+            messages.error(request, 'Title is required.')
+        else:
+            try:
+                item = Item(
+                    title=title,
+                    description=description,
+                    github_repo=github_repo,
+                    status=status,
+                    created_by=user
+                )
+                
+                # Set section if provided
+                if section_id:
+                    item.section_id = section_id
+                
+                item.save()
+                
+                # Set tags
+                item.tags.set(tag_ids)
+                
+                messages.success(request, f'Item "{title}" created successfully!')
+                return redirect('main:item_detail', item_id=item.id)
+            except Exception as e:
+                messages.error(request, f'Error creating item: {str(e)}')
+    
+    # Get related data
+    sections = Section.objects.all()
+    tags = Tag.objects.all()
+    
+    context = {
+        'sections': sections,
+        'tags': tags,
+        'status_choices': Item.STATUS_CHOICES,
+    }
+    
+    return render(request, 'main/items/form.html', context)
+
+
+def item_delete(request, item_id):
+    """Delete an item"""
+    # Check if user is logged in
+    user_id = request.session.get('user_id')
+    if not user_id:
+        messages.error(request, 'Please log in to delete items.')
+        return redirect('main:login')
+    
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        messages.error(request, 'User not found.')
+        return redirect('main:login')
+    
+    # Get the item
+    item = get_object_or_404(Item, id=item_id)
+    
+    # Check permissions: only owner or admin can delete
+    if item.created_by != user and user.role != 'admin':
+        messages.error(request, 'You do not have permission to delete this item.')
+        return redirect('main:item_list')
+    
+    if request.method == 'POST':
+        item_title = item.title
+        item.delete()
+        messages.success(request, f'Item "{item_title}" deleted successfully!')
+        return redirect('main:item_list')
+    
+    context = {'item': item}
+    return render(request, 'main/items/delete.html', context)
 

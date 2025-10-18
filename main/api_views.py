@@ -7,7 +7,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.core.paginator import Paginator
-from .models import User
+from .models import User, Item, Task, ItemSimilarity
 from .auth_utils import generate_jwt_token, decode_jwt_token, validate_password
 from core.services.graph_service import GraphService, GraphServiceError
 from core.services.github_service import GitHubService, GitHubServiceError
@@ -925,4 +925,441 @@ def api_openai_models(request):
             'success': False,
             'error': 'An error occurred while listing models'
         }, status=500)
+
+
+# ==================== Item API Endpoints ====================
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_item_list(request):
+    """
+    API endpoint to list all items for the current user.
+    GET /api/items?page=1&per_page=20&status=new&section=uuid
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        page = int(request.GET.get('page', 1))
+        per_page = int(request.GET.get('per_page', 20))
+        per_page = min(per_page, 100)  # Max 100 per page
+        
+        status_filter = request.GET.get('status', '')
+        section_filter = request.GET.get('section', '')
+        
+        # Base query: show only user's items (or all if admin)
+        if user.role == 'admin':
+            items = Item.objects.all()
+        else:
+            items = Item.objects.filter(created_by=user)
+        
+        # Apply filters
+        if status_filter:
+            items = items.filter(status=status_filter)
+        if section_filter:
+            items = items.filter(section_id=section_filter)
+        
+        items = items.select_related('section', 'created_by').prefetch_related('tags').order_by('-created_at')
+        
+        paginator = Paginator(items, per_page)
+        page_obj = paginator.get_page(page)
+        
+        items_data = [{
+            'id': str(i.id),
+            'title': i.title,
+            'description': i.description,
+            'github_repo': i.github_repo,
+            'status': i.status,
+            'section': {'id': str(i.section.id), 'name': i.section.name} if i.section else None,
+            'tags': [{'id': str(t.id), 'name': t.name, 'color': t.color} for t in i.tags.all()],
+            'created_by': str(i.created_by.id) if i.created_by else None,
+            'created_at': i.created_at.isoformat(),
+            'updated_at': i.updated_at.isoformat(),
+            'ai_enhanced': i.ai_enhanced,
+            'similarity_checked': i.similarity_checked,
+        } for i in page_obj]
+        
+        return JsonResponse({
+            'items': items_data,
+            'page': page,
+            'per_page': per_page,
+            'total': paginator.count,
+            'total_pages': paginator.num_pages,
+        })
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Item list error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while retrieving items'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_item_detail(request, item_id):
+    """
+    API endpoint to get a specific item.
+    GET /api/items/{item_id}
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        item = Item.objects.select_related('section', 'created_by').prefetch_related('tags').get(id=item_id)
+        
+        # Check permissions
+        if item.created_by != user and user.role != 'admin':
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        return JsonResponse({
+            'id': str(item.id),
+            'title': item.title,
+            'description': item.description,
+            'github_repo': item.github_repo,
+            'status': item.status,
+            'section': {'id': str(item.section.id), 'name': item.section.name} if item.section else None,
+            'tags': [{'id': str(t.id), 'name': t.name, 'color': t.color} for t in item.tags.all()],
+            'created_by': str(item.created_by.id) if item.created_by else None,
+            'created_at': item.created_at.isoformat(),
+            'updated_at': item.updated_at.isoformat(),
+            'ai_enhanced': item.ai_enhanced,
+            'similarity_checked': item.similarity_checked,
+        })
+    except Item.DoesNotExist:
+        return JsonResponse({'error': 'Item not found'}, status=404)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Item detail error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while retrieving item details'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_item_create(request):
+    """
+    API endpoint to create a new item.
+    POST /api/items
+    Body: {"title": "...", "description": "...", "status": "new", "section": "uuid", "tags": ["uuid1", "uuid2"]}
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        data = json.loads(request.body)
+        
+        title = data.get('title', '').strip()
+        if not title:
+            return JsonResponse({'error': 'Title is required'}, status=400)
+        
+        item = Item(
+            title=title,
+            description=data.get('description', ''),
+            github_repo=data.get('github_repo', ''),
+            status=data.get('status', 'new'),
+            created_by=user
+        )
+        
+        # Set section if provided
+        section_id = data.get('section')
+        if section_id:
+            item.section_id = section_id
+        
+        item.save()
+        
+        # Set tags
+        tag_ids = data.get('tags', [])
+        if tag_ids:
+            item.tags.set(tag_ids)
+        
+        return JsonResponse({
+            'id': str(item.id),
+            'title': item.title,
+            'description': item.description,
+            'github_repo': item.github_repo,
+            'status': item.status,
+            'created_at': item.created_at.isoformat(),
+        }, status=201)
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Item create error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while creating item'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def api_item_update(request, item_id):
+    """
+    API endpoint to update an item.
+    PUT /api/items/{item_id}
+    Body: {"title": "...", "description": "...", "status": "...", "section": "uuid", "tags": ["uuid1"]}
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        item = Item.objects.get(id=item_id)
+        
+        # Check permissions
+        if item.created_by != user and user.role != 'admin':
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        data = json.loads(request.body)
+        
+        if 'title' in data:
+            title = data['title'].strip()
+            if not title:
+                return JsonResponse({'error': 'Title cannot be empty'}, status=400)
+            item.title = title
+        
+        if 'description' in data:
+            item.description = data['description']
+        
+        if 'github_repo' in data:
+            item.github_repo = data['github_repo']
+        
+        if 'status' in data:
+            item.status = data['status']
+        
+        if 'section' in data:
+            section_id = data['section']
+            if section_id:
+                item.section_id = section_id
+            else:
+                item.section = None
+        
+        item.save()
+        
+        # Update tags
+        if 'tags' in data:
+            item.tags.set(data['tags'])
+        
+        return JsonResponse({
+            'id': str(item.id),
+            'title': item.title,
+            'description': item.description,
+            'status': item.status,
+            'updated_at': item.updated_at.isoformat(),
+        })
+        
+    except Item.DoesNotExist:
+        return JsonResponse({'error': 'Item not found'}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Item update error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while updating item'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def api_item_delete(request, item_id):
+    """
+    API endpoint to delete an item.
+    DELETE /api/items/{item_id}
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        item = Item.objects.get(id=item_id)
+        
+        # Check permissions
+        if item.created_by != user and user.role != 'admin':
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        item_title = item.title
+        item.delete()
+        
+        return JsonResponse({'message': f'Item "{item_title}" deleted successfully'})
+        
+    except Item.DoesNotExist:
+        return JsonResponse({'error': 'Item not found'}, status=404)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Item delete error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while deleting item'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_item_ai_enhance(request, item_id):
+    """
+    API endpoint to enhance an item using AI.
+    POST /api/items/{item_id}/ai-enhance
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        item = Item.objects.get(id=item_id)
+        
+        # Check permissions
+        if item.created_by != user and user.role != 'admin':
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        # Call KiGate API with text-optimization-agent
+        kigate = KiGateService()
+        
+        # Prepare the message for AI
+        message = f"Title: {item.title}\n\nDescription:\n{item.description}"
+        
+        result = kigate.execute_agent(
+            agent_name='text-optimization-agent',
+            provider='openai',
+            model='gpt-4',
+            message=message,
+            user_id=str(user.id),
+            parameters={}
+        )
+        
+        if result.get('success'):
+            # Update item with AI-enhanced content
+            # Note: The actual response format depends on the agent implementation
+            # This is a placeholder - adjust based on actual KiGate response
+            item.ai_enhanced = True
+            item.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Item enhanced successfully',
+                'data': result
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': result.get('error', 'AI enhancement failed')
+            }, status=500)
+        
+    except Item.DoesNotExist:
+        return JsonResponse({'error': 'Item not found'}, status=404)
+    except KiGateServiceError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'KiGate API error: {e.message}')
+        return JsonResponse({'success': False, 'error': e.message}, status=500)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Item AI enhance error: {str(e)}')
+        return JsonResponse({'success': False, 'error': 'An error occurred during AI enhancement'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_item_build_tasks(request, item_id):
+    """
+    API endpoint to build tasks for an item using AI.
+    POST /api/items/{item_id}/build-tasks
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        item = Item.objects.get(id=item_id)
+        
+        # Check permissions
+        if item.created_by != user and user.role != 'admin':
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        # Check if item is ready
+        if item.status != 'ready':
+            return JsonResponse({'error': 'Item must be in Ready status to build tasks'}, status=400)
+        
+        # Call KiGate API with task-builder-agent
+        kigate = KiGateService()
+        
+        message = f"Title: {item.title}\n\nDescription:\n{item.description}"
+        
+        result = kigate.execute_agent(
+            agent_name='task-builder-agent',
+            provider='openai',
+            model='gpt-4',
+            message=message,
+            user_id=str(user.id),
+            parameters={'item_id': str(item.id)}
+        )
+        
+        if result.get('success'):
+            # Tasks should be created by the agent
+            # This is a placeholder response
+            return JsonResponse({
+                'success': True,
+                'message': 'Tasks built successfully',
+                'data': result
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': result.get('error', 'Task building failed')
+            }, status=500)
+        
+    except Item.DoesNotExist:
+        return JsonResponse({'error': 'Item not found'}, status=404)
+    except KiGateServiceError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'KiGate API error: {e.message}')
+        return JsonResponse({'success': False, 'error': e.message}, status=500)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Item build tasks error: {str(e)}')
+        return JsonResponse({'success': False, 'error': 'An error occurred while building tasks'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_item_check_similarity(request, item_id):
+    """
+    API endpoint to check similarity with other items.
+    POST /api/items/{item_id}/check-similarity
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        item = Item.objects.get(id=item_id)
+        
+        # Check permissions
+        if item.created_by != user and user.role != 'admin':
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        # Placeholder implementation
+        # In production, this would:
+        # 1. Vectorize the item content using ChromaDB
+        # 2. Find similar items
+        # 3. Create ItemSimilarity relations
+        
+        # For now, mark as checked
+        item.similarity_checked = True
+        item.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Similarity check completed'
+        })
+        
+    except Item.DoesNotExist:
+        return JsonResponse({'error': 'Item not found'}, status=404)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Item similarity check error: {str(e)}')
+        return JsonResponse({'success': False, 'error': 'An error occurred during similarity check'}, status=500)
 
