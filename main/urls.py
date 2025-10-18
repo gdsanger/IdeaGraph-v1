@@ -48,6 +48,13 @@ urlpatterns = [
     path('items/<uuid:item_id>/edit/', views.item_edit, name='item_edit'),
     path('items/<uuid:item_id>/delete/', views.item_delete, name='item_delete'),
     
+    # Task Management URLs
+    path('items/<uuid:item_id>/tasks/', views.task_list, name='task_list'),
+    path('items/<uuid:item_id>/tasks/create/', views.task_create, name='task_create'),
+    path('tasks/<uuid:task_id>/', views.task_detail, name='task_detail'),
+    path('tasks/<uuid:task_id>/edit/', views.task_edit, name='task_edit'),
+    path('tasks/<uuid:task_id>/delete/', views.task_delete, name='task_delete'),
+    
     # API Authentication Endpoints
     path('api/auth/login', api_views.api_login, name='api_login'),
     path('api/auth/logout', api_views.api_logout, name='api_logout'),
@@ -78,4 +85,11 @@ urlpatterns = [
     # OpenAI API Endpoints
     path('api/openai/query', api_views.api_openai_query, name='api_openai_query'),
     path('api/openai/models', api_views.api_openai_models, name='api_openai_models'),
+    
+    # Task API Endpoints
+    path('api/tasks/<uuid:item_id>', api_views.api_tasks, name='api_tasks'),
+    path('api/tasks/<uuid:task_id>/detail', api_views.api_task_detail, name='api_task_detail'),
+    path('api/tasks/<uuid:task_id>/ai-enhance', api_views.api_task_ai_enhance, name='api_task_ai_enhance'),
+    path('api/tasks/<uuid:task_id>/create-github-issue', api_views.api_task_create_github_issue, name='api_task_create_github_issue'),
+    path('api/tasks/<uuid:task_id>/similar', api_views.api_task_similar, name='api_task_similar'),
 ]

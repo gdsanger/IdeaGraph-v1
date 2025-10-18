@@ -926,3 +926,435 @@ def api_openai_models(request):
             'error': 'An error occurred while listing models'
         }, status=500)
 
+
+# ==================== Task API Endpoints ====================
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def api_tasks(request, item_id=None):
+    """
+    API endpoint for task CRUD operations.
+    GET /api/tasks/{item_id} - List tasks for an item
+    POST /api/tasks/{item_id} - Create a new task
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Item, Task, Tag
+    
+    if request.method == 'GET':
+        # List tasks for an item
+        if not item_id:
+            return JsonResponse({'error': 'item_id is required'}, status=400)
+        
+        try:
+            item = Item.objects.get(id=item_id)
+            # Check ownership
+            if user.role != 'admin' and item.created_by != user:
+                return JsonResponse({'error': 'Access denied'}, status=403)
+            
+            # Get tasks for this item - only show owned tasks
+            tasks = item.tasks.filter(created_by=user).select_related('assigned_to', 'created_by').prefetch_related('tags')
+            
+            # Sort tasks by status priority
+            status_order = {'new': 1, 'working': 2, 'review': 3, 'ready': 4, 'done': 5}
+            tasks = sorted(tasks, key=lambda t: status_order.get(t.status, 99))
+            
+            tasks_data = [{
+                'id': str(task.id),
+                'title': task.title,
+                'description': task.description,
+                'status': task.status,
+                'status_display': task.get_status_display(),
+                'github_issue_id': task.github_issue_id,
+                'github_issue_url': task.github_issue_url,
+                'assigned_to': task.assigned_to.username if task.assigned_to else None,
+                'created_at': task.created_at.isoformat(),
+                'updated_at': task.updated_at.isoformat(),
+                'tags': [{'id': str(tag.id), 'name': tag.name, 'color': tag.color} for tag in task.tags.all()],
+            } for task in tasks]
+            
+            return JsonResponse({
+                'success': True,
+                'tasks': tasks_data
+            })
+            
+        except Item.DoesNotExist:
+            return JsonResponse({'error': 'Item not found'}, status=404)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f'Task list error: {str(e)}')
+            return JsonResponse({'error': 'An error occurred while listing tasks'}, status=500)
+    
+    elif request.method == 'POST':
+        # Create a new task
+        if not item_id:
+            return JsonResponse({'error': 'item_id is required'}, status=400)
+        
+        try:
+            data = json.loads(request.body)
+            item = Item.objects.get(id=item_id)
+            
+            # Check ownership
+            if user.role != 'admin' and item.created_by != user:
+                return JsonResponse({'error': 'Access denied'}, status=403)
+            
+            title = data.get('title', '').strip()
+            description = data.get('description', '').strip()
+            status = data.get('status', 'new')
+            tag_ids = data.get('tags', [])
+            
+            if not title:
+                return JsonResponse({'error': 'Title is required'}, status=400)
+            
+            # Create task
+            task = Task(
+                title=title,
+                description=description,
+                status=status,
+                item=item,
+                created_by=user,
+                assigned_to=user
+            )
+            task.save()
+            
+            # Add tags
+            if tag_ids:
+                task.tags.set(tag_ids)
+            
+            return JsonResponse({
+                'success': True,
+                'task': {
+                    'id': str(task.id),
+                    'title': task.title,
+                    'description': task.description,
+                    'status': task.status,
+                    'status_display': task.get_status_display(),
+                }
+            }, status=201)
+            
+        except Item.DoesNotExist:
+            return JsonResponse({'error': 'Item not found'}, status=404)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f'Task create error: {str(e)}')
+            return JsonResponse({'error': 'An error occurred while creating task'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET", "PUT", "DELETE"])
+def api_task_detail(request, task_id):
+    """
+    API endpoint for task detail operations.
+    GET /api/tasks/{task_id} - Get task details
+    PUT /api/tasks/{task_id} - Update a task
+    DELETE /api/tasks/{task_id} - Delete a task
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Task
+    
+    try:
+        task = Task.objects.get(id=task_id)
+        
+        # Check ownership
+        if task.created_by != user:
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        if request.method == 'GET':
+            return JsonResponse({
+                'success': True,
+                'task': {
+                    'id': str(task.id),
+                    'title': task.title,
+                    'description': task.description,
+                    'status': task.status,
+                    'status_display': task.get_status_display(),
+                    'github_issue_id': task.github_issue_id,
+                    'github_issue_url': task.github_issue_url,
+                    'assigned_to': task.assigned_to.username if task.assigned_to else None,
+                    'created_at': task.created_at.isoformat(),
+                    'updated_at': task.updated_at.isoformat(),
+                    'tags': [{'id': str(tag.id), 'name': tag.name, 'color': tag.color} for tag in task.tags.all()],
+                }
+            })
+        
+        elif request.method == 'PUT':
+            data = json.loads(request.body)
+            
+            title = data.get('title', '').strip()
+            description = data.get('description', '').strip()
+            status = data.get('status', task.status)
+            tag_ids = data.get('tags', [])
+            
+            if not title:
+                return JsonResponse({'error': 'Title is required'}, status=400)
+            
+            task.title = title
+            task.description = description
+            task.status = status
+            
+            # Mark as done if status changed to done
+            if status == 'done' and task.status != 'done':
+                task.mark_as_done()
+            else:
+                task.save()
+            
+            # Update tags
+            if tag_ids:
+                task.tags.set(tag_ids)
+            else:
+                task.tags.clear()
+            
+            return JsonResponse({
+                'success': True,
+                'task': {
+                    'id': str(task.id),
+                    'title': task.title,
+                    'description': task.description,
+                    'status': task.status,
+                    'status_display': task.get_status_display(),
+                }
+            })
+        
+        elif request.method == 'DELETE':
+            task.delete()
+            return JsonResponse({'success': True, 'message': 'Task deleted successfully'})
+    
+    except Task.DoesNotExist:
+        return JsonResponse({'error': 'Task not found'}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Task operation error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_task_ai_enhance(request, task_id):
+    """
+    API endpoint to enhance task with AI.
+    POST /api/tasks/{task_id}/ai-enhance
+    Body: {"title": "...", "description": "..."}
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Task, Tag, Settings
+    
+    try:
+        task = Task.objects.get(id=task_id)
+        
+        # Check ownership
+        if task.created_by != user:
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        data = json.loads(request.body)
+        title = data.get('title', '').strip()
+        description = data.get('description', '').strip()
+        
+        if not title or not description:
+            return JsonResponse({'error': 'Title and description are required'}, status=400)
+        
+        # Get settings for max tags
+        settings = Settings.objects.first()
+        max_tags = settings.max_tags_per_idea if settings else 5
+        
+        # Use KiGate service to enhance content
+        kigate = KiGateService()
+        
+        # First, optimize the text
+        text_result = kigate.execute_agent(
+            agent_name='text-optimization-agent',
+            provider='openai',
+            model='gpt-4',
+            message=f"Title: {title}\n\nDescription:\n{description}",
+            user_id=str(user.id),
+            parameters={'language': 'de'}
+        )
+        
+        if not text_result.get('success'):
+            return JsonResponse({'error': text_result.get('error', 'Failed to enhance text')}, status=500)
+        
+        enhanced_text = text_result.get('response', description)
+        
+        # Extract keywords/tags
+        keyword_result = kigate.execute_agent(
+            agent_name='text-keyword-extractor-de',
+            provider='openai',
+            model='gpt-4',
+            message=enhanced_text,
+            user_id=str(user.id),
+            parameters={'max_keywords': max_tags}
+        )
+        
+        # Parse keywords
+        tags_list = []
+        if keyword_result.get('success'):
+            keywords_text = keyword_result.get('response', '')
+            # Extract keywords from response
+            keywords = [k.strip() for k in keywords_text.split(',') if k.strip()]
+            
+            # Get or create tags
+            for keyword in keywords[:max_tags]:
+                tag, _ = Tag.objects.get_or_create(name=keyword)
+                tags_list.append(tag.name)
+        
+        # Generate improved title if possible
+        title_lines = enhanced_text.split('\n')
+        enhanced_title = title_lines[0].replace('Title:', '').strip() if title_lines else title
+        
+        return JsonResponse({
+            'success': True,
+            'title': enhanced_title[:255],  # Limit to field max length
+            'description': enhanced_text,
+            'tags': tags_list
+        })
+        
+    except Task.DoesNotExist:
+        return JsonResponse({'error': 'Task not found'}, status=404)
+    except KiGateServiceError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'KiGate API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Task AI enhance error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred during AI enhancement'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_task_create_github_issue(request, task_id):
+    """
+    API endpoint to create GitHub issue from task.
+    POST /api/tasks/{task_id}/create-github-issue
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Task
+    
+    try:
+        task = Task.objects.get(id=task_id)
+        
+        # Check ownership
+        if task.created_by != user:
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        # Check status
+        if task.status != 'ready':
+            return JsonResponse({'error': 'Task must be in Ready status to create GitHub issue'}, status=400)
+        
+        # Check if issue already exists
+        if task.github_issue_id:
+            return JsonResponse({'error': 'GitHub issue already exists for this task'}, status=400)
+        
+        # Get GitHub repository from item
+        if not task.item or not task.item.github_repo:
+            return JsonResponse({'error': 'No GitHub repository configured for this item'}, status=400)
+        
+        # Parse owner/repo from github_repo field
+        repo_parts = task.item.github_repo.split('/')
+        if len(repo_parts) != 2:
+            return JsonResponse({'error': 'Invalid GitHub repository format. Expected: owner/repo'}, status=400)
+        
+        owner, repo = repo_parts
+        
+        # Prepare labels from tags
+        labels = [tag.name for tag in task.tags.all()]
+        
+        # Create GitHub issue
+        github = GitHubService()
+        result = github.create_issue(
+            title=task.title,
+            body=task.description,
+            owner=owner,
+            repo=repo,
+            labels=labels,
+            assignees=[]
+        )
+        
+        if result.get('success'):
+            # Update task with GitHub issue info
+            task.github_issue_id = result.get('issue_number')
+            task.github_issue_url = result.get('html_url')
+            task.github_synced_at = timezone.now()
+            task.save()
+            
+            return JsonResponse({
+                'success': True,
+                'issue_number': task.github_issue_id,
+                'issue_url': task.github_issue_url,
+                'message': 'GitHub issue created successfully'
+            })
+        else:
+            return JsonResponse({'error': result.get('error', 'Failed to create GitHub issue')}, status=500)
+        
+    except Task.DoesNotExist:
+        return JsonResponse({'error': 'Task not found'}, status=404)
+    except GitHubServiceError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'GitHub API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Create GitHub issue error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while creating GitHub issue'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_task_similar(request, task_id):
+    """
+    API endpoint to get similar tasks.
+    GET /api/tasks/{task_id}/similar
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Task
+    
+    try:
+        task = Task.objects.get(id=task_id)
+        
+        # Check ownership
+        if task.created_by != user:
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        # TODO: Implement ChromaDB similarity search
+        # For now, return empty list
+        # In future, use ChromaDB to find similar tasks based on description
+        
+        return JsonResponse({
+            'success': True,
+            'similar_tasks': []
+        })
+        
+    except Task.DoesNotExist:
+        return JsonResponse({'error': 'Task not found'}, status=404)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Task similarity error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while finding similar tasks'}, status=500)
+
