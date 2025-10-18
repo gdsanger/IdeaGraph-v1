@@ -90,7 +90,7 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if setting.kigate_url %}
+                                        {% if setting.kigate_api_base_url and setting.kigate_api_token %}
                                         <i class="bi bi-check-circle-fill text-success" title="Configured"></i>
                                         {% else %}
                                         <i class="bi bi-x-circle-fill text-danger" title="Not configured"></i>
