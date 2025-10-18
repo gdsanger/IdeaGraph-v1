@@ -1,0 +1,105 @@
+{% extends "main/base.html" %}
+
+{% block title %}Tasks - {{ item.title }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'main:item_list' %}">Items</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'main:item_detail' item.id %}">{{ item.title }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Tasks</li>
+        </ol>
+    </nav>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0">
+                        <i class="bi bi-list-task"></i> Tasks for {{ item.title }}
+                    </h3>
+                    <a href="{% url 'main:task_create' item.id %}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> New Task
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if tasks %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Status</th>
+                                    <th>GitHub Issue</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for task in tasks %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'main:task_detail' task.id %}" class="text-decoration-none">
+                                            {{ task.title }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        {% if task.status == 'ready' %}
+                                        <span class="badge bg-success">🟢 Ready</span>
+                                        {% elif task.status == 'review' %}
+                                        <span class="badge bg-warning">🟡 Review</span>
+                                        {% elif task.status == 'working' %}
+                                        <span class="badge bg-primary">🔵 Working</span>
+                                        {% elif task.status == 'done' %}
+                                        <span class="badge bg-secondary">✅ Done</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">⚪ New</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if task.github_issue_id %}
+                                        <a href="{{ task.github_issue_url }}" target="_blank" class="text-decoration-none">
+                                            #{{ task.github_issue_id }} <i class="bi bi-box-arrow-up-right"></i>
+                                        </a>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ task.created_at|date:"Y-m-d" }}</small>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'main:task_detail' task.id %}" class="btn btn-sm btn-outline-primary" title="View Details">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <a href="{% url 'main:task_edit' task.id %}" class="btn btn-sm btn-outline-secondary" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <a href="{% url 'main:task_delete' task.id %}" class="btn btn-sm btn-outline-danger" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                        <p class="mt-3">No tasks yet. Create your first task!</p>
+                        <a href="{% url 'main:task_create' item.id %}" class="btn btn-primary mt-2">
+                            <i class="bi bi-plus-circle"></i> Create Task
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

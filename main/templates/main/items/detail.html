@@ -191,7 +191,7 @@
                         <!-- Tasks Tab -->
                         <div class="tab-pane fade" id="tasks" role="tabpanel">
                             <div class="mb-3">
-                                <a href="#" class="btn btn-primary">
+                                <a href="{% url 'main:task_create' item.id %}" class="btn btn-primary">
                                     <i class="bi bi-plus-circle"></i> New Task
                                 </a>
                             </div>
@@ -213,27 +213,27 @@
                                         {% for task in tasks %}
                                         <tr>
                                             <td>
-                                                <a href="#" class="text-decoration-none">
+                                                <a href="{% url 'main:task_detail' task.id %}" class="text-decoration-none">
                                                     {{ task.title }}
                                                 </a>
                                             </td>
                                             <td>
                                                 {% if task.status == 'ready' %}
-                                                <span class="badge bg-success">Ready</span>
+                                                <span class="badge bg-success">🟢 Ready</span>
                                                 {% elif task.status == 'review' %}
-                                                <span class="badge bg-warning">Review</span>
+                                                <span class="badge bg-warning">🟡 Review</span>
                                                 {% elif task.status == 'working' %}
-                                                <span class="badge bg-primary">Working</span>
+                                                <span class="badge bg-primary">🔵 Working</span>
                                                 {% elif task.status == 'done' %}
-                                                <span class="badge bg-secondary">Done</span>
+                                                <span class="badge bg-secondary">✅ Done</span>
                                                 {% else %}
-                                                <span class="badge bg-secondary">New</span>
+                                                <span class="badge bg-secondary">⚪ New</span>
                                                 {% endif %}
                                             </td>
                                             <td>
                                                 {% if task.github_issue_id %}
                                                 <a href="{{ task.github_issue_url }}" target="_blank" class="text-decoration-none">
-                                                    #{{ task.github_issue_id }}
+                                                    #{{ task.github_issue_id }} <i class="bi bi-box-arrow-up-right"></i>
                                                 </a>
                                                 {% else %}
                                                 <span class="text-muted">-</span>
@@ -250,7 +250,7 @@
                                                 <small class="text-muted">{{ task.created_at|date:"Y-m-d" }}</small>
                                             </td>
                                             <td>
-                                                <a href="#" class="btn btn-sm btn-outline-primary">
+                                                <a href="{% url 'main:task_detail' task.id %}" class="btn btn-sm btn-outline-primary">
                                                     <i class="bi bi-eye"></i>
                                                 </a>
                                             </td>

@@ -716,3 +716,209 @@ def item_delete(request, item_id):
     context = {'item': item}
     return render(request, 'main/items/delete.html', context)
 
+
+# Task Management Views
+
+def task_list(request, item_id):
+    """List all tasks for an item"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Get item - check ownership unless admin
+    item = get_object_or_404(Item, id=item_id)
+    if user.role != 'admin' and item.created_by != user:
+        messages.error(request, 'You do not have permission to view this item.')
+        return redirect('main:item_list')
+    
+    # Get tasks for this item - only show owned tasks
+    tasks = item.tasks.filter(created_by=user).select_related('assigned_to', 'created_by').prefetch_related('tags')
+    
+    # Sort tasks by status priority
+    status_order = {'new': 1, 'working': 2, 'review': 3, 'ready': 4, 'done': 5}
+    tasks = sorted(tasks, key=lambda t: status_order.get(t.status, 99))
+    
+    context = {
+        'item': item,
+        'tasks': tasks,
+    }
+    
+    return render(request, 'main/tasks/list.html', context)
+
+
+def task_detail(request, task_id):
+    """Detail view for a single task"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Get task - check ownership
+    task = get_object_or_404(Task, id=task_id)
+    if task.created_by != user:
+        messages.error(request, 'You do not have permission to view this task.')
+        return redirect('main:item_list')
+    
+    # Get all tags and status choices
+    all_tags = Tag.objects.all()
+    status_choices = Task.STATUS_CHOICES
+    
+    context = {
+        'task': task,
+        'all_tags': all_tags,
+        'status_choices': status_choices,
+    }
+    
+    return render(request, 'main/tasks/detail.html', context)
+
+
+def task_create(request, item_id):
+    """Create a new task"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Get item - check ownership unless admin
+    item = get_object_or_404(Item, id=item_id)
+    if user.role != 'admin' and item.created_by != user:
+        messages.error(request, 'You do not have permission to create tasks for this item.')
+        return redirect('main:item_list')
+    
+    if request.method == 'POST':
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        status = request.POST.get('status', 'new')
+        tag_ids = request.POST.getlist('tags')
+        
+        if not title:
+            messages.error(request, 'Title is required.')
+        else:
+            try:
+                # Create task
+                task = Task(
+                    title=title,
+                    description=description,
+                    status=status,
+                    item=item,
+                    created_by=user,
+                    assigned_to=user
+                )
+                task.save()
+                
+                # Add tags
+                if tag_ids:
+                    task.tags.set(tag_ids)
+                
+                messages.success(request, f'Task "{title}" created successfully!')
+                return redirect('main:task_detail', task_id=task.id)
+                
+            except Exception as e:
+                messages.error(request, f'Error creating task: {str(e)}')
+    
+    # Get all tags for the form
+    all_tags = Tag.objects.all()
+    status_choices = Task.STATUS_CHOICES
+    
+    context = {
+        'item': item,
+        'all_tags': all_tags,
+        'status_choices': status_choices,
+    }
+    
+    return render(request, 'main/tasks/form.html', context)
+
+
+def task_edit(request, task_id):
+    """Edit an existing task"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Get task - check ownership
+    task = get_object_or_404(Task, id=task_id)
+    if task.created_by != user:
+        messages.error(request, 'You do not have permission to edit this task.')
+        return redirect('main:item_list')
+    
+    if request.method == 'POST':
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        status = request.POST.get('status', task.status)
+        tag_ids = request.POST.getlist('tags')
+        
+        if not title:
+            messages.error(request, 'Title is required.')
+        else:
+            try:
+                task.title = title
+                task.description = description
+                task.status = status
+                
+                # Mark as done if status changed to done
+                if status == 'done' and task.status != 'done':
+                    task.mark_as_done()
+                else:
+                    task.save()
+                
+                # Update tags
+                if tag_ids:
+                    task.tags.set(tag_ids)
+                else:
+                    task.tags.clear()
+                
+                messages.success(request, f'Task "{title}" updated successfully!')
+                return redirect('main:task_detail', task_id=task.id)
+                
+            except Exception as e:
+                messages.error(request, f'Error updating task: {str(e)}')
+    
+    # Get all tags for the form
+    all_tags = Tag.objects.all()
+    status_choices = Task.STATUS_CHOICES
+    
+    context = {
+        'task': task,
+        'all_tags': all_tags,
+        'status_choices': status_choices,
+    }
+    
+    return render(request, 'main/tasks/form.html', context)
+
+
+def task_delete(request, task_id):
+    """Delete a task"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Get task - check ownership
+    task = get_object_or_404(Task, id=task_id)
+    if task.created_by != user:
+        messages.error(request, 'You do not have permission to delete this task.')
+        return redirect('main:item_list')
+    
+    item = task.item
+    
+    if request.method == 'POST':
+        task_title = task.title
+        task.delete()
+        messages.success(request, f'Task "{task_title}" deleted successfully!')
+        return redirect('main:item_detail', item_id=item.id)
+    
+    context = {'task': task}
+    return render(request, 'main/tasks/delete.html', context)
+

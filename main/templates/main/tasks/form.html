@@ -1,0 +1,133 @@
+{% extends "main/base.html" %}
+
+{% block title %}{% if task %}Edit Task{% else %}Create Task{% endif %}{% endblock %}
+
+{% block extra_css %}
+<!-- Toast UI Editor CSS -->
+<link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
+
+<style>
+    .task-form-card {
+        background: rgba(31, 41, 55, 0.9);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'main:item_list' %}">Items</a></li>
+            {% if item %}
+            <li class="breadcrumb-item"><a href="{% url 'main:item_detail' item.id %}">{{ item.title }}</a></li>
+            {% elif task and task.item %}
+            <li class="breadcrumb-item"><a href="{% url 'main:item_detail' task.item.id %}">{{ task.item.title }}</a></li>
+            {% endif %}
+            <li class="breadcrumb-item active" aria-current="page">{% if task %}Edit Task{% else %}Create Task{% endif %}</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card task-form-card">
+                <div class="card-header">
+                    <h3 class="mb-0">
+                        <i class="bi bi-{% if task %}pencil-square{% else %}plus-circle{% endif %}"></i>
+                        {% if task %}Edit Task{% else %}Create Task{% endif %}
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="taskForm">
+                        {% csrf_token %}
+                        
+                        <!-- Title -->
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Title <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="title" name="title" 
+                                   value="{% if task %}{{ task.title }}{% endif %}" required>
+                        </div>
+
+                        <!-- Description with Toast UI Editor -->
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description (Markdown)</label>
+                            <div id="editor"></div>
+                            <textarea name="description" id="description" style="display: none;">{% if task %}{{ task.description }}{% endif %}</textarea>
+                        </div>
+
+                        <div class="row">
+                            <!-- Status -->
+                            <div class="col-md-6 mb-3">
+                                <label for="status" class="form-label">Status</label>
+                                <select class="form-select" id="status" name="status">
+                                    {% for value, label in status_choices %}
+                                    <option value="{{ value }}" 
+                                            {% if task and task.status == value %}selected
+                                            {% elif not task and value == 'new' %}selected{% endif %}>
+                                        {% if value == 'new' %}⚪
+                                        {% elif value == 'working' %}🔵
+                                        {% elif value == 'review' %}🟡
+                                        {% elif value == 'ready' %}🟢
+                                        {% elif value == 'done' %}✅
+                                        {% endif %}
+                                        {{ label }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Tags -->
+                            <div class="col-md-6 mb-3">
+                                <label for="tags" class="form-label">Tags</label>
+                                <select class="form-select" id="tags" name="tags" multiple size="5">
+                                    {% for tag in all_tags %}
+                                    <option value="{{ tag.id }}" 
+                                            {% if task and tag in task.tags.all %}selected{% endif %}
+                                            style="background-color: {{ tag.color }}; color: white;">
+                                        {{ tag.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Hold Ctrl/Cmd to select multiple tags</small>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> Save Task
+                            </button>
+                            <a href="{% if task %}{% url 'main:task_detail' task.id %}{% elif item %}{% url 'main:item_detail' item.id %}{% else %}{% url 'main:item_list' %}{% endif %}" 
+                               class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Toast UI Editor JS -->
+<script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
+
+<script>
+// Initialize Toast UI Editor
+const editor = new toastui.Editor({
+    el: document.querySelector('#editor'),
+    height: '400px',
+    initialEditType: 'markdown',
+    previewStyle: 'vertical',
+    initialValue: document.querySelector('#description').value,
+    theme: 'dark'
+});
+
+// Sync editor content to textarea before form submit
+document.querySelector('#taskForm').addEventListener('submit', function() {
+    document.querySelector('#description').value = editor.getMarkdown();
+});
+</script>
+{% endblock %}
