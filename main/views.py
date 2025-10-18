@@ -453,3 +453,41 @@ def user_delete(request, user_id):
     context = {'user': user}
     return render(request, 'main/users/user_delete.html', context)
 
+
+def user_send_password(request, user_id):
+    """Generate and send a new password to user via email"""
+    from main.auth_utils import generate_secure_password
+    from main.mail_utils import send_password_email
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    if request.method == 'POST':
+        try:
+            # Generate a secure random password
+            new_password = generate_secure_password(12)
+            
+            # Set the new password
+            user.set_password(new_password)
+            user.save()
+            
+            # Send the password via email
+            success, message = send_password_email(user, new_password)
+            
+            if success:
+                messages.success(request, f'New password generated and sent to {user.email}')
+            else:
+                messages.error(request, f'Password updated but failed to send email: {message}')
+                
+        except Exception as e:
+            messages.error(request, f'Failed to generate and send password: {str(e)}')
+        
+        # Redirect back to where we came from
+        return_url = request.POST.get('return_url', 'main:user_list')
+        if return_url == 'detail':
+            return redirect('main:user_detail', user_id=user_id)
+        else:
+            return redirect('main:user_list')
+    
+    # If GET request, redirect to user list
+    return redirect('main:user_list')
+

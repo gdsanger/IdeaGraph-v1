@@ -38,6 +38,7 @@ urlpatterns = [
     path('admin/users/<uuid:user_id>/', views.user_detail, name='user_detail'),
     path('admin/users/<uuid:user_id>/edit/', views.user_edit, name='user_edit'),
     path('admin/users/<uuid:user_id>/delete/', views.user_delete, name='user_delete'),
+    path('admin/users/<uuid:user_id>/send-password/', views.user_send_password, name='user_send_password'),
     
     # API Authentication Endpoints
     path('api/auth/login', api_views.api_login, name='api_login'),
