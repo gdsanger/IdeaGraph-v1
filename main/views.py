@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from .models import Tag
+from django.contrib.admin.views.decorators import staff_member_required
+from .models import Tag, Settings
 
 
 def home(request):
