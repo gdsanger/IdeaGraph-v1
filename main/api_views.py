@@ -89,7 +89,10 @@ def api_login(request):
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Login error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred during login'}, status=500)
 
 
 @csrf_exempt
@@ -143,7 +146,10 @@ def api_user_list(request):
         })
         
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'User list error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while retrieving users'}, status=500)
 
 
 @csrf_exempt
@@ -176,7 +182,10 @@ def api_user_detail(request, user_id):
     except User.DoesNotExist:
         return JsonResponse({'error': 'User not found'}, status=404)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'User detail error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while retrieving user details'}, status=500)
 
 
 @csrf_exempt
@@ -246,7 +255,10 @@ def api_user_create(request):
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'User create error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while creating user'}, status=500)
 
 
 @csrf_exempt
@@ -331,7 +343,10 @@ def api_user_update(request, user_id):
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'User update error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while updating user'}, status=500)
 
 
 @csrf_exempt
@@ -357,4 +372,7 @@ def api_user_delete(request, user_id):
     except User.DoesNotExist:
         return JsonResponse({'error': 'User not found'}, status=404)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'User delete error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while deleting user'}, status=500)
