@@ -162,8 +162,10 @@ def settings_create(request):
             chroma_api_key=request.POST.get('chroma_api_key', ''),
             chroma_database=request.POST.get('chroma_database', ''),
             chroma_tenant=request.POST.get('chroma_tenant', ''),
-            kigate_url=request.POST.get('kigate_url', ''),
-            kigate_token=request.POST.get('kigate_token', ''),
+            kigate_api_enabled=request.POST.get('kigate_api_enabled', 'false') == 'true',
+            kigate_api_base_url=request.POST.get('kigate_api_base_url', 'http://localhost:8000'),
+            kigate_api_token=request.POST.get('kigate_api_token', ''),
+            kigate_api_timeout=int(request.POST.get('kigate_api_timeout', 30)),
             max_tags_per_idea=int(request.POST.get('max_tags_per_idea', 5)),
         )
         messages.success(request, 'Settings created successfully!')
@@ -187,8 +189,10 @@ def settings_update(request, pk):
         settings.chroma_api_key = request.POST.get('chroma_api_key', '')
         settings.chroma_database = request.POST.get('chroma_database', '')
         settings.chroma_tenant = request.POST.get('chroma_tenant', '')
-        settings.kigate_url = request.POST.get('kigate_url', '')
-        settings.kigate_token = request.POST.get('kigate_token', '')
+        settings.kigate_api_enabled = request.POST.get('kigate_api_enabled', 'false') == 'true'
+        settings.kigate_api_base_url = request.POST.get('kigate_api_base_url', 'http://localhost:8000')
+        settings.kigate_api_token = request.POST.get('kigate_api_token', '')
+        settings.kigate_api_timeout = int(request.POST.get('kigate_api_timeout', 30))
         settings.max_tags_per_idea = int(request.POST.get('max_tags_per_idea', 5))
         settings.save()
         
