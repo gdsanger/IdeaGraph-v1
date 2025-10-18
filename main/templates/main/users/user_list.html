@@ -143,6 +143,14 @@
                                        class="btn btn-sm btn-warning" title="Edit">
                                         <i class="bi bi-pencil"></i>
                                     </a>
+                                    <form method="post" action="{% url 'main:user_send_password' user.id %}" style="display: inline;">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="return_url" value="list">
+                                        <button type="submit" class="btn btn-sm btn-primary" title="Send Password"
+                                                onclick="return confirm('Generate and send a new password to {{ user.email }}?');">
+                                            <i class="bi bi-envelope"></i>
+                                        </button>
+                                    </form>
                                     <a href="{% url 'main:user_delete' user.id %}" 
                                        class="btn btn-sm btn-danger" title="Delete">
                                         <i class="bi bi-trash"></i>
