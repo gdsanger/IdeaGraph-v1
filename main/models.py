@@ -1,7 +1,54 @@
 import uuid
 import random
+import bcrypt
 from django.db import models
-import uuid
+from django.utils import timezone
+
+
+class User(models.Model):
+    """User model for authentication and authorization"""
+    
+    ROLE_CHOICES = [
+        ('admin', 'Administrator'),
+        ('user', 'User'),
+        ('viewer', 'Viewer'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    username = models.CharField(max_length=150, unique=True)
+    email = models.EmailField(max_length=254, unique=True)
+    password_hash = models.CharField(max_length=128)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='user')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_login = models.DateTimeField(null=True, blank=True)
+    ai_classification = models.CharField(max_length=255, blank=True, default='')
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'User'
+        verbose_name_plural = 'Users'
+    
+    def __str__(self):
+        return self.username
+    
+    def set_password(self, raw_password):
+        """Hash and set the user's password using bcrypt"""
+        password_bytes = raw_password.encode('utf-8')
+        salt = bcrypt.gensalt()
+        hashed = bcrypt.hashpw(password_bytes, salt)
+        self.password_hash = hashed.decode('utf-8')
+    
+    def check_password(self, raw_password):
+        """Verify a password against the stored hash"""
+        password_bytes = raw_password.encode('utf-8')
+        hashed_bytes = self.password_hash.encode('utf-8')
+        return bcrypt.checkpw(password_bytes, hashed_bytes)
+    
+    def update_last_login(self):
+        """Update the last login timestamp"""
+        self.last_login = timezone.now()
+        self.save(update_fields=['last_login'])
 
 
 class Tag(models.Model):
