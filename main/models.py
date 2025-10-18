@@ -207,6 +207,35 @@ class Item(models.Model):
         return self.title
 
 
+class Relation(models.Model):
+    """Relation model for managing relationships between items"""
+    
+    TYPE_CHOICES = [
+        ('dependency', 'Abhängigkeit'),
+        ('similar', 'Ähnlich'),
+        ('synergy', 'Synergieeffekt'),
+        ('parent', 'Parent'),
+        ('child', 'Child'),
+        ('other', 'Sonstige'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    source = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='relations_from')
+    target = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='relations_to')
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Relation'
+        verbose_name_plural = 'Relations'
+        unique_together = [['source', 'target', 'type']]
+    
+    def __str__(self):
+        return f"{self.source.title} -> {self.target.title} ({self.get_type_display()})"
+
+
 class Task(models.Model):
     """Task model for managing action items derived from Ideas"""
     

@@ -1,7 +1,7 @@
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model as get_django_user_model
-from .models import Tag, Settings, User as AppUser, Section, Item, Task
+from .models import Tag, Settings, User as AppUser, Section, Item, Task, Relation
 import uuid
 import json
 
@@ -757,3 +757,171 @@ class TaskModelTest(TestCase):
         tasks = Task.objects.all()
         self.assertEqual(tasks[0], task2)  # Most recent first
         self.assertEqual(tasks[1], task1)
+
+
+class RelationModelTest(TestCase):
+    """Test the Relation model"""
+
+    def setUp(self):
+        """Set up test data"""
+        self.user = AppUser.objects.create(username='testuser', email='test@example.com')
+        self.user.set_password('testpass123')
+        self.user.save()
+        
+        self.item1 = Item.objects.create(
+            title='Item 1',
+            description='First item',
+            created_by=self.user
+        )
+        
+        self.item2 = Item.objects.create(
+            title='Item 2',
+            description='Second item',
+            created_by=self.user
+        )
+        
+        self.item3 = Item.objects.create(
+            title='Item 3',
+            description='Third item',
+            created_by=self.user
+        )
+
+    def test_create_relation_basic(self):
+        """Test creating a basic relation"""
+        relation = Relation.objects.create(
+            source=self.item1,
+            target=self.item2,
+            type='dependency'
+        )
+        self.assertEqual(relation.source, self.item1)
+        self.assertEqual(relation.target, self.item2)
+        self.assertEqual(relation.type, 'dependency')
+        self.assertIsInstance(relation.id, uuid.UUID)
+
+    def test_relation_type_choices(self):
+        """Test all relation type choices"""
+        types = ['dependency', 'similar', 'synergy', 'parent', 'child', 'other']
+        
+        for rel_type in types:
+            relation = Relation.objects.create(
+                source=self.item1,
+                target=self.item2 if rel_type != 'dependency' else self.item3,
+                type=rel_type
+            )
+            self.assertEqual(relation.type, rel_type)
+
+    def test_relation_type_display(self):
+        """Test relation type display values"""
+        relation = Relation.objects.create(
+            source=self.item1,
+            target=self.item2,
+            type='dependency'
+        )
+        self.assertEqual(relation.get_type_display(), 'Abhängigkeit')
+        
+        relation2 = Relation.objects.create(
+            source=self.item1,
+            target=self.item3,
+            type='similar'
+        )
+        self.assertEqual(relation2.get_type_display(), 'Ähnlich')
+
+    def test_relation_str_representation(self):
+        """Test relation string representation"""
+        relation = Relation.objects.create(
+            source=self.item1,
+            target=self.item2,
+            type='dependency'
+        )
+        expected = f"{self.item1.title} -> {self.item2.title} (Abhängigkeit)"
+        self.assertEqual(str(relation), expected)
+
+    def test_relation_unique_constraint(self):
+        """Test that source-target-type combination must be unique"""
+        Relation.objects.create(
+            source=self.item1,
+            target=self.item2,
+            type='dependency'
+        )
+        
+        # Try to create duplicate relation
+        with self.assertRaises(Exception):
+            Relation.objects.create(
+                source=self.item1,
+                target=self.item2,
+                type='dependency'
+            )
+
+    def test_relation_different_types_allowed(self):
+        """Test that same source-target with different types are allowed"""
+        relation1 = Relation.objects.create(
+            source=self.item1,
+            target=self.item2,
+            type='dependency'
+        )
+        
+        # Different type should be allowed
+        relation2 = Relation.objects.create(
+            source=self.item1,
+            target=self.item2,
+            type='similar'
+        )
+        
+        self.assertIsNotNone(relation1)
+        self.assertIsNotNone(relation2)
+        self.assertEqual(Relation.objects.filter(source=self.item1, target=self.item2).count(), 2)
+
+    def test_relation_reverse_relations(self):
+        """Test accessing relations through items"""
+        relation = Relation.objects.create(
+            source=self.item1,
+            target=self.item2,
+            type='dependency'
+        )
+        
+        # Test forward relation (from source)
+        self.assertIn(relation, self.item1.relations_from.all())
+        
+        # Test backward relation (to target)
+        self.assertIn(relation, self.item2.relations_to.all())
+
+    def test_relation_cascade_delete(self):
+        """Test that relations are deleted when items are deleted"""
+        relation = Relation.objects.create(
+            source=self.item1,
+            target=self.item2,
+            type='dependency'
+        )
+        relation_id = relation.id
+        
+        # Delete source item
+        self.item1.delete()
+        
+        # Relation should be deleted
+        self.assertFalse(Relation.objects.filter(id=relation_id).exists())
+
+    def test_relation_ordering(self):
+        """Test relations are ordered by creation date"""
+        relation1 = Relation.objects.create(
+            source=self.item1,
+            target=self.item2,
+            type='dependency'
+        )
+        relation2 = Relation.objects.create(
+            source=self.item2,
+            target=self.item3,
+            type='similar'
+        )
+        
+        relations = Relation.objects.all()
+        self.assertEqual(relations[0], relation2)  # Most recent first
+        self.assertEqual(relations[1], relation1)
+
+    def test_relation_uuid_primary_key(self):
+        """Test that relation uses UUID as primary key"""
+        relation = Relation.objects.create(
+            source=self.item1,
+            target=self.item2,
+            type='dependency'
+        )
+        self.assertIsInstance(relation.id, uuid.UUID)

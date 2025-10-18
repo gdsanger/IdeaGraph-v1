@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Tag, User, Settings, Section, Item, Task
+from .models import Tag, User, Settings, Section, Item, Task, Relation
 
 
 @admin.register(Tag)
@@ -92,5 +92,21 @@ class TaskAdmin(admin.ModelAdmin):
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at', 'completed_at')
+        }),
+    )
+
+
+@admin.register(Relation)
+class RelationAdmin(admin.ModelAdmin):
+    list_display = ['source', 'target', 'type', 'created_at', 'updated_at']
+    list_filter = ['type', 'created_at']
+    search_fields = ['source__title', 'target__title']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+    fieldsets = (
+        ('Relationship Information', {
+            'fields': ('id', 'source', 'target', 'type')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
         }),
     )
