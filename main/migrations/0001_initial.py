@@ -13,6 +13,11 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
+            name='Tag',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('name', models.CharField(max_length=100, unique=True)),
+                ('color', models.CharField(default='#3b82f6', max_length=7)),
             name='Settings',
             fields=[
                 ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
@@ -32,9 +37,7 @@ class Migration(migrations.Migration):
                 ('updated_at', models.DateTimeField(auto_now=True)),
             ],
             options={
-                'verbose_name': 'Settings',
-                'verbose_name_plural': 'Settings',
-                'ordering': ['-created_at'],
+                'ordering': ['name'],
             },
         ),
     ]

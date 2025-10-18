@@ -228,6 +228,9 @@
                             <i class="bi bi-list-task"></i> Tasks
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'settings' or 'tag' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'main:settings' %}">
+                            <i class="bi bi-gear-fill"></i> Settings
                     {% if user.is_staff %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {% if 'settings' in request.resolver_match.url_name %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">

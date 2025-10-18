@@ -1,0 +1,75 @@
+{% extends "main/base.html" %}
+
+{% block title %}Delete Tag - IdeaGraph v1.0{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header -->
+    <div class="row mb-4 fade-in-up">
+        <div class="col-lg-12">
+            <h1 class="display-4 fw-bold mb-2" style="color: var(--autumn-red);">
+                <i class="bi bi-exclamation-triangle-fill"></i> Delete Tag
+            </h1>
+            <p class="lead" style="color: #d1d5db;">
+                Confirm tag deletion
+            </p>
+        </div>
+    </div>
+
+    <!-- Confirmation -->
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card fade-in-up" style="animation-delay: 0.1s; border-color: var(--autumn-red);">
+                <div class="card-header" style="background: linear-gradient(135deg, #dc2626, #991b1b); border-color: var(--autumn-red);">
+                    <h5 class="mb-0">
+                        <i class="bi bi-exclamation-triangle-fill"></i> Confirm Deletion
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-danger d-flex align-items-center" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+                        <div>
+                            <strong>Warning!</strong> This action cannot be undone.
+                        </div>
+                    </div>
+
+                    <p class="mb-4" style="color: #d1d5db; font-size: 1.1rem;">
+                        Are you sure you want to delete the tag:
+                    </p>
+
+                    <!-- Tag Preview -->
+                    <div class="p-4 bg-dark rounded mb-4 text-center">
+                        <span class="badge" style="background-color: {{ tag.color }}; color: white; font-size: 1.5rem; padding: 1rem 2rem;">
+                            <i class="bi bi-tag-fill"></i> {{ tag.name }}
+                        </span>
+                    </div>
+
+                    <div class="mb-4 p-3 rounded" style="background: rgba(220, 38, 38, 0.1); border: 1px solid var(--autumn-red);">
+                        <p class="mb-2" style="color: var(--autumn-red);">
+                            <i class="bi bi-info-circle-fill"></i> <strong>Please note:</strong>
+                        </p>
+                        <ul class="mb-0" style="color: #d1d5db;">
+                            <li>This tag will be permanently deleted</li>
+                            <li>Any items using this tag will no longer have this tag associated</li>
+                            <li>This action cannot be reversed</li>
+                        </ul>
+                    </div>
+
+                    <!-- Buttons -->
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex gap-2 justify-content-end">
+                            <a href="{% url 'main:tag_list' %}" class="btn btn-outline-secondary btn-lg">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-lg" style="background: linear-gradient(135deg, #dc2626, #991b1b); border: none; color: white;">
+                                <i class="bi bi-trash-fill"></i> Delete Tag
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

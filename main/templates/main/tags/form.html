@@ -1,0 +1,168 @@
+{% extends "main/base.html" %}
+
+{% block title %}{% if tag %}Edit Tag{% else %}Create Tag{% endif %} - IdeaGraph v1.0{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header -->
+    <div class="row mb-4 fade-in-up">
+        <div class="col-lg-12">
+            <h1 class="display-4 fw-bold mb-2" style="color: var(--autumn-light);">
+                <i class="bi bi-{% if tag %}pencil-fill{% else %}plus-circle-fill{% endif %}"></i>
+                {% if tag %}Edit Tag{% else %}Create New Tag{% endif %}
+            </h1>
+            <p class="lead" style="color: #d1d5db;">
+                {% if tag %}Update the tag information{% else %}Add a new tag to organize your ideas{% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Form -->
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card fade-in-up" style="animation-delay: 0.1s;">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-{% if tag %}pencil{% else %}plus{% endif %}-circle"></i>
+                        Tag Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="tagForm">
+                        {% csrf_token %}
+                        
+                        <!-- Name Field -->
+                        <div class="mb-4">
+                            <label for="name" class="form-label" style="color: var(--autumn-light);">
+                                <i class="bi bi-tag-fill"></i> Tag Name *
+                            </label>
+                            <input type="text" 
+                                   class="form-control form-control-lg" 
+                                   id="name" 
+                                   name="name" 
+                                   value="{% if tag %}{{ tag.name }}{% endif %}"
+                                   placeholder="Enter tag name"
+                                   required>
+                            <small class="text-muted">Choose a descriptive name for your tag</small>
+                        </div>
+
+                        <!-- Color Field -->
+                        <div class="mb-4">
+                            <label for="color" class="form-label" style="color: var(--autumn-light);">
+                                <i class="bi bi-palette-fill"></i> Color *
+                            </label>
+                            <div class="row g-3 mb-3">
+                                <!-- Color Picker -->
+                                <div class="col-md-6">
+                                    <input type="color" 
+                                           class="form-control form-control-color form-control-lg w-100" 
+                                           id="color" 
+                                           name="color" 
+                                           value="{% if tag %}{{ tag.color }}{% else %}#3b82f6{% endif %}"
+                                           style="height: 60px;">
+                                </div>
+                                <!-- Color Code Display -->
+                                <div class="col-md-6">
+                                    <input type="text" 
+                                           class="form-control form-control-lg" 
+                                           id="colorCode" 
+                                           value="{% if tag %}{{ tag.color }}{% else %}#3b82f6{% endif %}"
+                                           readonly
+                                           style="height: 60px; font-family: monospace;">
+                                </div>
+                            </div>
+                            
+                            <!-- Color Palette -->
+                            <div class="mb-2">
+                                <small class="text-muted"><i class="bi bi-palette"></i> Quick Color Palette:</small>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2">
+                                {% for palette_color in color_palette %}
+                                <button type="button" 
+                                        class="btn p-0 color-palette-btn"
+                                        data-color="{{ palette_color }}"
+                                        style="width: 45px; height: 45px; background-color: {{ palette_color }}; border: 3px solid transparent; border-radius: 8px; transition: all 0.3s ease;"
+                                        title="{{ palette_color }}"
+                                        onclick="selectColor('{{ palette_color }}')">
+                                </button>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Preview -->
+                        <div class="mb-4">
+                            <label class="form-label" style="color: var(--autumn-light);">
+                                <i class="bi bi-eye-fill"></i> Preview
+                            </label>
+                            <div class="p-4 bg-dark rounded">
+                                <span id="tagPreview" class="badge" style="background-color: {% if tag %}{{ tag.color }}{% else %}#3b82f6{% endif %}; color: white; font-size: 1.2rem; padding: 0.75rem 1.5rem;">
+                                    <span id="previewName">{% if tag %}{{ tag.name }}{% else %}Tag Name{% endif %}</span>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="d-flex gap-2 justify-content-end">
+                            <a href="{% url 'main:tag_list' %}" class="btn btn-outline-secondary btn-lg">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-check-circle-fill"></i> {% if tag %}Update Tag{% else %}Create Tag{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Update preview when name changes
+    document.getElementById('name').addEventListener('input', function(e) {
+        const previewName = document.getElementById('previewName');
+        previewName.textContent = e.target.value || 'Tag Name';
+    });
+
+    // Update preview and code display when color changes
+    document.getElementById('color').addEventListener('input', function(e) {
+        const color = e.target.value;
+        document.getElementById('colorCode').value = color;
+        document.getElementById('tagPreview').style.backgroundColor = color;
+    });
+
+    // Function to select color from palette
+    function selectColor(color) {
+        document.getElementById('color').value = color;
+        document.getElementById('colorCode').value = color;
+        document.getElementById('tagPreview').style.backgroundColor = color;
+        
+        // Visual feedback
+        document.querySelectorAll('.color-palette-btn').forEach(btn => {
+            if (btn.dataset.color === color) {
+                btn.style.border = '3px solid var(--autumn-light)';
+                btn.style.transform = 'scale(1.1)';
+            } else {
+                btn.style.border = '3px solid transparent';
+                btn.style.transform = 'scale(1)';
+            }
+        });
+    }
+
+    // Highlight selected color on load
+    document.addEventListener('DOMContentLoaded', function() {
+        const currentColor = document.getElementById('color').value;
+        selectColor(currentColor);
+    });
+</script>
+{% endblock %}
