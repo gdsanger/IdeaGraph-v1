@@ -2,12 +2,14 @@
 API views for user management and authentication.
 """
 import json
+import base64
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.core.paginator import Paginator
 from .models import User
 from .auth_utils import generate_jwt_token, decode_jwt_token, validate_password
+from core.services.graph_service import GraphService, GraphServiceError
 
 
 def get_user_from_token(request):
@@ -376,3 +378,133 @@ def api_user_delete(request, user_id):
         logger = logging.getLogger(__name__)
         logger.error(f'User delete error: {str(e)}')
         return JsonResponse({'error': 'An error occurred while deleting user'}, status=500)
+
+
+# Graph API Endpoints
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_admin
+def api_graph_sharepoint_files(request):
+    """
+    API endpoint to list SharePoint files (admin only).
+    GET /api/graph/sharepoint/files?folder_path=Documents
+    """
+    try:
+        folder_path = request.GET.get('folder_path', '')
+        
+        graph = GraphService()
+        result = graph.get_sharepoint_file_list(folder_path)
+        
+        return JsonResponse(result)
+        
+    except GraphServiceError as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f'Graph API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'SharePoint files list error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'An error occurred while listing files',
+            'details': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_admin
+def api_graph_sharepoint_upload(request):
+    """
+    API endpoint to upload a file to SharePoint (admin only).
+    POST /api/graph/sharepoint/upload
+    Body: {"folder_path": "Documents", "file_name": "test.txt", "content": "base64_encoded_content"}
+    """
+    try:
+        data = json.loads(request.body)
+        
+        folder_path = data.get('folder_path', '')
+        file_name = data.get('file_name')
+        content_b64 = data.get('content')
+        
+        if not file_name:
+            return JsonResponse({'error': 'file_name is required'}, status=400)
+        
+        if not content_b64:
+            return JsonResponse({'error': 'content is required'}, status=400)
+        
+        # Decode base64 content
+        try:
+            content = base64.b64decode(content_b64)
+        except Exception as e:
+            return JsonResponse({'error': 'Invalid base64 content', 'details': str(e)}, status=400)
+        
+        graph = GraphService()
+        result = graph.upload_sharepoint_file(folder_path, file_name, content)
+        
+        return JsonResponse(result, status=201)
+        
+    except GraphServiceError as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f'Graph API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'SharePoint upload error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'An error occurred while uploading file',
+            'details': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_admin
+def api_graph_mail_send(request):
+    """
+    API endpoint to send a test email via Graph API (admin only).
+    POST /api/graph/mail/send
+    Body: {"to": ["user@domain.com"], "subject": "Test", "body": "Test message"}
+    """
+    try:
+        data = json.loads(request.body)
+        
+        to = data.get('to')
+        subject = data.get('subject')
+        body = data.get('body')
+        
+        if not to or not isinstance(to, list):
+            return JsonResponse({'error': 'to must be a list of email addresses'}, status=400)
+        
+        if not subject:
+            return JsonResponse({'error': 'subject is required'}, status=400)
+        
+        if not body:
+            return JsonResponse({'error': 'body is required'}, status=400)
+        
+        graph = GraphService()
+        result = graph.send_mail(to, subject, body)
+        
+        return JsonResponse(result)
+        
+    except GraphServiceError as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f'Graph API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Mail send error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'An error occurred while sending email',
+            'details': str(e)
+        }, status=500)
