@@ -7,12 +7,12 @@ KIGate ist ein zentralisiertes, agenten-basiertes API Gateway für AI-Services. 
 ## 🔒 Zugriff und Netzwerk
 
 **Wichtiger Hinweis**: Diese API ist **nicht öffentlich im Internet verfügbar**. Der Zugriff ist nur möglich über:
-- Das **Sternnetzerwerk** (interne Netzwerkverbindung)
-- **VPN-Verbindung** zum Unternehmensnetzwerk
+- Lokale Netze
+- Sourcode ist derzeit nich offentlich Verfügbar, bei Bedarf bitte melden
 
-**Zugangsdaten** und weitere technische Details erhalten Sie bei:
+Bei Fragen:
 **Christian Angermeier**  
-📧 christian.angermeier@isartec.de  
+📧 ca@angermeier.net  
 *Ansprechpartner und Maintainer*
 
 ## 🚀 Hauptendpoint: `/agent/execute`
