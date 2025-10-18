@@ -6,6 +6,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from .models import User, PasswordResetToken
 from .auth_utils import validate_password
 from core.services.graph_service import GraphService, GraphServiceError
@@ -59,9 +60,16 @@ def login_view(request):
             messages.warning(request, 'You are using the default password. Please change it immediately!')
             return redirect('main:change_password')
         
-        # Redirect to next page or home
-        next_url = request.GET.get('next', 'main:home')
-        return redirect(next_url)
+        # Redirect to next page or home (validate URL to prevent open redirect)
+        next_url = request.GET.get('next', '')
+        # Use Django's built-in URL validation
+        if next_url and url_has_allowed_host_and_scheme(
+            url=next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure()
+        ):
+            return redirect(next_url)
+        return redirect('main:home')
     
     return render(request, 'main/auth/login.html')
 
