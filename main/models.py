@@ -31,6 +31,43 @@ class Tag(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, unique=True)
     color = models.CharField(max_length=7, default='#3b82f6')  # Hex color code
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['name']
+        
+    def __str__(self):
+        return self.name
+    
+    def save(self, *args, **kwargs):
+        # Assign a random color from the palette if no color is set
+        if not self.color or self.color == '#3b82f6':
+            self.color = random.choice(self.COLOR_PALETTE)
+        super().save(*args, **kwargs)
+class Section(models.Model):
+    """Section model for categorizing items by their fundamental type
+    
+    Sections classify items into domains such as:
+    - Software projects
+    - DIY/Home improvement items
+    - Problems
+    - Visions
+    - Action items
+    etc.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['name']
+        
+    def __str__(self):
+        return self.name
+
+
 class Settings(models.Model):
     """
     Settings model to store system configuration and API keys.
@@ -133,16 +170,6 @@ class Settings(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        ordering = ['name']
-        
-    def __str__(self):
-        return self.name
-    
-    def save(self, *args, **kwargs):
-        # Assign a random color from the palette if no color is set
-        if not self.color or self.color == '#3b82f6':
-            self.color = random.choice(self.COLOR_PALETTE)
-        super().save(*args, **kwargs)
         verbose_name = 'Settings'
         verbose_name_plural = 'Settings'
         ordering = ['-created_at']

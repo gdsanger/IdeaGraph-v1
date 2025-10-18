@@ -1,0 +1,86 @@
+{% extends "main/base.html" %}
+
+{% block title %}{% if section %}Edit Section{% else %}Create Section{% endif %} - IdeaGraph v1.0{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header -->
+    <div class="row mb-4 fade-in-up">
+        <div class="col-lg-12">
+            <h1 class="display-4 fw-bold mb-2" style="color: var(--autumn-light);">
+                <i class="bi bi-{% if section %}pencil-fill{% else %}plus-circle-fill{% endif %}"></i>
+                {% if section %}Edit Section{% else %}Create New Section{% endif %}
+            </h1>
+            <p class="lead" style="color: #d1d5db;">
+                {% if section %}Update the section information{% else %}Add a new section to classify your items{% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Form -->
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card fade-in-up" style="animation-delay: 0.1s;">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-{% if section %}pencil{% else %}plus{% endif %}-circle"></i>
+                        Section Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="sectionForm">
+                        {% csrf_token %}
+                        
+                        <!-- Name Field -->
+                        <div class="mb-4">
+                            <label for="name" class="form-label" style="color: var(--autumn-light);">
+                                <i class="bi bi-folder-fill"></i> Section Name *
+                            </label>
+                            <input type="text" 
+                                   class="form-control form-control-lg" 
+                                   id="name" 
+                                   name="name" 
+                                   value="{% if section %}{{ section.name }}{% endif %}"
+                                   placeholder="Enter section name (e.g., Software Project, DIY Item, Problem, Vision)"
+                                   required>
+                            <small class="text-muted">
+                                Choose a descriptive name for your section. Examples: Software Project, Home Improvement, Problem, Vision, Action Required
+                            </small>
+                        </div>
+
+                        <!-- Info Box -->
+                        <div class="mb-4 p-3 rounded" style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--autumn-accent);">
+                            <p class="mb-2" style="color: var(--autumn-light);">
+                                <i class="bi bi-info-circle-fill"></i> <strong>About Sections:</strong>
+                            </p>
+                            <p class="mb-0 text-muted" style="font-size: 0.95rem;">
+                                Sections help classify items into fundamental domains or types. They provide a high-level organization for your ideas and projects.
+                            </p>
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="d-flex gap-2 justify-content-end">
+                            <a href="{% url 'main:section_list' %}" class="btn btn-outline-secondary btn-lg">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-check-circle-fill"></i> {% if section %}Update Section{% else %}Create Section{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
