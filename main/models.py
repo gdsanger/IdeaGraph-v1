@@ -10,6 +10,7 @@ class User(models.Model):
     
     ROLE_CHOICES = [
         ('admin', 'Administrator'),
+        ('developer', 'Developer'),
         ('user', 'User'),
         ('viewer', 'Viewer'),
     ]
@@ -167,6 +168,34 @@ class Settings(models.Model):
         default='',
         verbose_name='GITHUB_TOKEN',
         help_text='GitHub PAT Key'
+    )
+    
+    # GitHub API Settings
+    github_api_enabled = models.BooleanField(
+        default=False,
+        verbose_name='Enable GitHub API',
+        help_text='Enable GitHub API integration'
+    )
+    github_api_base_url = models.CharField(
+        max_length=255,
+        blank=True,
+        default='https://api.github.com',
+        verbose_name='GitHub API Base URL',
+        help_text='GitHub API base URL'
+    )
+    github_default_owner = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='Default GitHub Owner',
+        help_text='Default owner for GitHub operations'
+    )
+    github_default_repo = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='Default GitHub Repository',
+        help_text='Default repository for GitHub operations'
     )
     
     # ChromaDB Configuration
