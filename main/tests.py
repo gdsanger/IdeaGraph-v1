@@ -1,7 +1,7 @@
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model as get_django_user_model
-from .models import Tag, Settings, User as AppUser, Section
+from .models import Tag, Settings, User as AppUser, Section, Item, Task
 import uuid
 import json
 
@@ -539,3 +539,221 @@ class UserViewTest(TestCase):
         response = self.client.post(reverse('main:user_delete', args=[user_id]))
         self.assertEqual(response.status_code, 302)
         self.assertFalse(AppUser.objects.filter(id=user_id).exists())
+
+
+class ItemModelTest(TestCase):
+    """Test the Item model"""
+
+    def setUp(self):
+        """Set up test data"""
+        self.user = AppUser.objects.create(username='testuser', email='test@example.com')
+        self.user.set_password('testpass123')
+        self.user.save()
+        
+        self.section = Section.objects.create(name='Software Project')
+        self.tag1 = Tag.objects.create(name='Python')
+        self.tag2 = Tag.objects.create(name='Django')
+
+    def test_create_item_basic(self):
+        """Test creating a basic item"""
+        item = Item.objects.create(
+            title='Test Idea',
+            description='This is a test idea description',
+            created_by=self.user
+        )
+        self.assertEqual(item.title, 'Test Idea')
+        self.assertEqual(item.description, 'This is a test idea description')
+        self.assertIsInstance(item.id, uuid.UUID)
+        self.assertFalse(item.ai_enhanced)
+        self.assertFalse(item.ai_tags_generated)
+        self.assertFalse(item.similarity_checked)
+
+    def test_item_with_section_and_tags(self):
+        """Test creating an item with section and tags"""
+        item = Item.objects.create(
+            title='Django Project',
+            description='A new Django project',
+            section=self.section,
+            created_by=self.user
+        )
+        item.tags.add(self.tag1, self.tag2)
+        
+        self.assertEqual(item.section, self.section)
+        self.assertEqual(item.tags.count(), 2)
+        self.assertIn(self.tag1, item.tags.all())
+        self.assertIn(self.tag2, item.tags.all())
+
+    def test_item_str_representation(self):
+        """Test item string representation"""
+        item = Item.objects.create(title='Test Item', created_by=self.user)
+        self.assertEqual(str(item), 'Test Item')
+
+    def test_item_with_github_repo(self):
+        """Test item with GitHub repository"""
+        item = Item.objects.create(
+            title='GitHub Project',
+            github_repo='https://github.com/user/repo',
+            created_by=self.user
+        )
+        self.assertEqual(item.github_repo, 'https://github.com/user/repo')
+
+    def test_item_ai_fields(self):
+        """Test item AI-related fields"""
+        item = Item.objects.create(
+            title='AI Enhanced Item',
+            ai_enhanced=True,
+            ai_tags_generated=True,
+            similarity_checked=True,
+            created_by=self.user
+        )
+        self.assertTrue(item.ai_enhanced)
+        self.assertTrue(item.ai_tags_generated)
+        self.assertTrue(item.similarity_checked)
+
+    def test_item_ordering(self):
+        """Test items are ordered by creation date"""
+        item1 = Item.objects.create(title='First Item', created_by=self.user)
+        item2 = Item.objects.create(title='Second Item', created_by=self.user)
+        
+        items = Item.objects.all()
+        self.assertEqual(items[0], item2)  # Most recent first
+        self.assertEqual(items[1], item1)
+
+
+class TaskModelTest(TestCase):
+    """Test the Task model"""
+
+    def setUp(self):
+        """Set up test data"""
+        self.user = AppUser.objects.create(username='testuser', email='test@example.com')
+        self.user.set_password('testpass123')
+        self.user.save()
+        
+        self.assignee = AppUser.objects.create(username='assignee', email='assignee@example.com')
+        
+        self.item = Item.objects.create(
+            title='Parent Item',
+            description='Parent item for tasks',
+            created_by=self.user
+        )
+        
+        self.tag = Tag.objects.create(name='Bug')
+
+    def test_create_task_basic(self):
+        """Test creating a basic task"""
+        task = Task.objects.create(
+            title='Test Task',
+            description='This is a test task',
+            created_by=self.user
+        )
+        self.assertEqual(task.title, 'Test Task')
+        self.assertEqual(task.description, 'This is a test task')
+        self.assertEqual(task.status, 'new')
+        self.assertIsInstance(task.id, uuid.UUID)
+        self.assertFalse(task.ai_enhanced)
+        self.assertFalse(task.ai_generated)
+
+    def test_task_with_item_relation(self):
+        """Test creating a task linked to an item"""
+        task = Task.objects.create(
+            title='Task from Item',
+            item=self.item,
+            created_by=self.user
+        )
+        self.assertEqual(task.item, self.item)
+        self.assertIn(task, self.item.tasks.all())
+
+    def test_task_status_workflow(self):
+        """Test task status workflow"""
+        task = Task.objects.create(
+            title='Workflow Task',
+            created_by=self.user
+        )
+        
+        # Test initial status
+        self.assertEqual(task.status, 'new')
+        
+        # Test status changes
+        task.status = 'working'
+        task.save()
+        self.assertEqual(task.status, 'working')
+        
+        task.status = 'review'
+        task.save()
+        self.assertEqual(task.status, 'review')
+        
+        task.status = 'ready'
+        task.save()
+        self.assertEqual(task.status, 'ready')
+
+    def test_task_mark_as_done(self):
+        """Test marking task as done"""
+        task = Task.objects.create(
+            title='Complete Task',
+            created_by=self.user
+        )
+        
+        self.assertIsNone(task.completed_at)
+        task.mark_as_done()
+        
+        task.refresh_from_db()
+        self.assertEqual(task.status, 'done')
+        self.assertIsNotNone(task.completed_at)
+
+    def test_task_with_assignment(self):
+        """Test task assignment to user"""
+        task = Task.objects.create(
+            title='Assigned Task',
+            assigned_to=self.assignee,
+            created_by=self.user
+        )
+        self.assertEqual(task.assigned_to, self.assignee)
+        self.assertIn(task, self.assignee.assigned_tasks.all())
+
+    def test_task_with_tags(self):
+        """Test task with tags"""
+        task = Task.objects.create(
+            title='Tagged Task',
+            created_by=self.user
+        )
+        task.tags.add(self.tag)
+        
+        self.assertEqual(task.tags.count(), 1)
+        self.assertIn(self.tag, task.tags.all())
+
+    def test_task_github_integration_fields(self):
+        """Test task GitHub integration fields"""
+        task = Task.objects.create(
+            title='GitHub Task',
+            github_issue_id=123,
+            github_issue_url='https://github.com/user/repo/issues/123',
+            created_by=self.user
+        )
+        self.assertEqual(task.github_issue_id, 123)
+        self.assertEqual(task.github_issue_url, 'https://github.com/user/repo/issues/123')
+        self.assertIsNone(task.github_synced_at)
+
+    def test_task_ai_fields(self):
+        """Test task AI-related fields"""
+        task = Task.objects.create(
+            title='AI Task',
+            ai_enhanced=True,
+            ai_generated=True,
+            created_by=self.user
+        )
+        self.assertTrue(task.ai_enhanced)
+        self.assertTrue(task.ai_generated)
+
+    def test_task_str_representation(self):
+        """Test task string representation"""
+        task = Task.objects.create(title='Test Task', created_by=self.user)
+        self.assertEqual(str(task), 'Test Task')
+
+    def test_task_ordering(self):
+        """Test tasks are ordered by creation date"""
+        task1 = Task.objects.create(title='First Task', created_by=self.user)
+        task2 = Task.objects.create(title='Second Task', created_by=self.user)
+        
+        tasks = Task.objects.all()
+        self.assertEqual(tasks[0], task2)  # Most recent first
+        self.assertEqual(tasks[1], task1)

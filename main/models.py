@@ -170,6 +170,84 @@ class Section(models.Model):
         return self.name
 
 
+class Item(models.Model):
+    """Item model for managing ideas and concepts"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default='')  # Markdown content
+    github_repo = models.CharField(max_length=255, blank=True, default='')
+    section = models.ForeignKey(Section, on_delete=models.SET_NULL, null=True, blank=True, related_name='items')
+    tags = models.ManyToManyField(Tag, blank=True, related_name='items')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_items')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # AI-related fields
+    ai_enhanced = models.BooleanField(default=False)
+    ai_tags_generated = models.BooleanField(default=False)
+    similarity_checked = models.BooleanField(default=False)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Item'
+        verbose_name_plural = 'Items'
+    
+    def __str__(self):
+        return self.title
+
+
+class Task(models.Model):
+    """Task model for managing action items derived from Ideas"""
+    
+    STATUS_CHOICES = [
+        ('new', 'Neu'),
+        ('working', 'Working'),
+        ('review', 'Review'),
+        ('ready', 'Ready'),
+        ('done', 'Erledigt'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default='')  # Markdown content
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='new')
+    
+    # Relations
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
+    tags = models.ManyToManyField(Tag, blank=True, related_name='tasks')
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_tasks')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_tasks')
+    
+    # GitHub Integration
+    github_issue_id = models.IntegerField(null=True, blank=True)
+    github_issue_url = models.URLField(max_length=500, blank=True, default='')
+    github_synced_at = models.DateTimeField(null=True, blank=True)
+    
+    # AI-related fields
+    ai_enhanced = models.BooleanField(default=False)
+    ai_generated = models.BooleanField(default=False)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Task'
+        verbose_name_plural = 'Tasks'
+    
+    def __str__(self):
+        return self.title
+    
+    def mark_as_done(self):
+        """Mark task as completed"""
+        self.status = 'done'
+        self.completed_at = timezone.now()
+        self.save(update_fields=['status', 'completed_at'])
+
+
 class Settings(models.Model):
     """
     Settings model to store system configuration and API keys.

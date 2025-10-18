@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Tag, User, Settings, Section
+from .models import Tag, User, Settings, Section, Item, Task
 
 
 @admin.register(Tag)
@@ -39,3 +39,58 @@ class SectionAdmin(admin.ModelAdmin):
     list_display = ['name', 'created_at', 'updated_at']
     search_fields = ['name']
     readonly_fields = ['id', 'created_at', 'updated_at']
+
+
+@admin.register(Item)
+class ItemAdmin(admin.ModelAdmin):
+    list_display = ['title', 'section', 'created_by', 'github_repo', 'ai_enhanced', 'created_at', 'updated_at']
+    list_filter = ['section', 'ai_enhanced', 'ai_tags_generated', 'similarity_checked', 'created_at']
+    search_fields = ['title', 'description', 'github_repo']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+    filter_horizontal = ['tags']
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('id', 'title', 'description', 'section')
+        }),
+        ('GitHub Integration', {
+            'fields': ('github_repo',)
+        }),
+        ('Categorization', {
+            'fields': ('tags',)
+        }),
+        ('AI Features', {
+            'fields': ('ai_enhanced', 'ai_tags_generated', 'similarity_checked')
+        }),
+        ('Meta Information', {
+            'fields': ('created_by', 'created_at', 'updated_at')
+        }),
+    )
+
+
+@admin.register(Task)
+class TaskAdmin(admin.ModelAdmin):
+    list_display = ['title', 'status', 'item', 'assigned_to', 'github_issue_id', 'ai_generated', 'created_at', 'updated_at']
+    list_filter = ['status', 'ai_enhanced', 'ai_generated', 'created_at']
+    search_fields = ['title', 'description', 'github_issue_url']
+    readonly_fields = ['id', 'created_at', 'updated_at', 'completed_at', 'github_synced_at']
+    filter_horizontal = ['tags']
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('id', 'title', 'description', 'status')
+        }),
+        ('Relations', {
+            'fields': ('item', 'assigned_to', 'created_by')
+        }),
+        ('GitHub Integration', {
+            'fields': ('github_issue_id', 'github_issue_url', 'github_synced_at')
+        }),
+        ('Categorization', {
+            'fields': ('tags',)
+        }),
+        ('AI Features', {
+            'fields': ('ai_enhanced', 'ai_generated')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at', 'completed_at')
+        }),
+    )
