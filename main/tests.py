@@ -1,7 +1,7 @@
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model as get_django_user_model
-from .models import Tag, Settings, User as AppUser
+from .models import Tag, Settings, User as AppUser, Section
 import uuid
 import json
 
