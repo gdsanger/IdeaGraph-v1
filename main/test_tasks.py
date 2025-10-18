@@ -146,6 +146,27 @@ class TaskViewTest(TestCase):
         self.assertEqual(self.task1.description, 'Updated description')
         self.assertEqual(self.task1.status, 'working')
     
+    def test_task_edit_error_message_display(self):
+        """Test that error messages are displayed when task edit fails"""
+        self.login()
+        url = reverse('main:task_edit', args=[self.task1.id])
+        
+        # POST request with missing required field (empty title)
+        response = self.client.post(url, {
+            'title': '',
+            'description': 'Some description',
+            'status': 'working',
+        })
+        
+        # Should not redirect (stays on form page)
+        self.assertEqual(response.status_code, 200)
+        
+        # Check that error message is in the response
+        self.assertContains(response, 'Title is required')
+        
+        # Verify the messages template code is present
+        self.assertContains(response, 'alert alert-')
+    
     def test_task_delete_view(self):
         """Test task deletion"""
         self.login()
