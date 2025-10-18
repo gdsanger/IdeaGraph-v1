@@ -1,0 +1,406 @@
+{% extends "main/base.html" %}
+
+{% block title %}Task Overview{% endblock %}
+
+{% block extra_css %}
+<style>
+    .status-badge {
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    .status-badge:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .filter-bar {
+        position: sticky;
+        top: 76px;
+        z-index: 100;
+        background: rgba(31, 41, 55, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--autumn-primary);
+    }
+    .task-row {
+        transition: all 0.2s ease;
+    }
+    .task-row:hover {
+        background-color: rgba(217, 119, 6, 0.1);
+    }
+    .badge-clickable {
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .badge-clickable:hover {
+        transform: scale(1.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1 class="mb-0">
+                    <i class="bi bi-list-check"></i> Task Overview
+                </h1>
+                <div>
+                    <span class="text-muted">
+                        <i class="bi bi-person-circle"></i> {{ request.session.username }}
+                        {% if request.session.user_role == 'admin' %}
+                        <span class="badge bg-danger ms-2">Admin</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Overview Badges -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">
+                        <i class="bi bi-bar-chart-fill"></i> Status Overview
+                    </h5>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for status_key, status_label in status_choices %}
+                        <a href="?status={{ status_key }}&item={{ item_filter }}&has_github={{ has_github }}&search={{ search_query }}" 
+                           class="text-decoration-none">
+                            {% if status_key == 'new' %}
+                            <span class="badge bg-secondary status-badge badge-clickable" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                                ⚪ {{ status_label }} ({{ status_counts.new|default:0 }})
+                            </span>
+                            {% elif status_key == 'working' %}
+                            <span class="badge bg-primary status-badge badge-clickable" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                                🔵 {{ status_label }} ({{ status_counts.working|default:0 }})
+                            </span>
+                            {% elif status_key == 'review' %}
+                            <span class="badge bg-warning text-dark status-badge badge-clickable" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                                🟡 {{ status_label }} ({{ status_counts.review|default:0 }})
+                            </span>
+                            {% elif status_key == 'ready' %}
+                            <span class="badge bg-success status-badge badge-clickable" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                                🟢 {{ status_label }} ({{ status_counts.ready|default:0 }})
+                            </span>
+                            {% elif status_key == 'done' %}
+                            <span class="badge bg-secondary status-badge badge-clickable" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                                ✅ {{ status_label }} ({{ status_counts.done|default:0 }})
+                            </span>
+                            {% endif %}
+                        </a>
+                        {% endfor %}
+                        
+                        {% if status_filter %}
+                        <a href="?item={{ item_filter }}&has_github={{ has_github }}&search={{ search_query }}" 
+                           class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Clear Status Filter
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label for="search" class="form-label">
+                    <i class="bi bi-search"></i> Search
+                </label>
+                <input type="text" class="form-control" id="search" name="search" 
+                       value="{{ search_query }}" placeholder="Search title or description">
+            </div>
+            <div class="col-md-2">
+                <label for="status" class="form-label">
+                    <i class="bi bi-flag-fill"></i> Status
+                </label>
+                <select class="form-select" id="status" name="status">
+                    <option value="">All Statuses</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="item" class="form-label">
+                    <i class="bi bi-lightbulb"></i> Item
+                </label>
+                <select class="form-select" id="item" name="item">
+                    <option value="">All Items</option>
+                    {% for item in items %}
+                    <option value="{{ item.id }}" {% if item_filter == item.id|stringformat:"s" %}selected{% endif %}>
+                        {{ item.title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="has_github" class="form-label">
+                    <i class="bi bi-github"></i> GitHub Issue
+                </label>
+                <select class="form-select" id="has_github" name="has_github">
+                    <option value="">All Tasks</option>
+                    <option value="true" {% if has_github == 'true' %}selected{% endif %}>With GitHub Issue</option>
+                    <option value="false" {% if has_github == 'false' %}selected{% endif %}>Without GitHub Issue</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-funnel"></i> Filter
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tasks Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-list-ul"></i> Tasks 
+                        {% if tasks %}
+                        <span class="badge bg-primary">{{ tasks.paginator.count }} total</span>
+                        {% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if tasks %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th style="width: 30%;">Title</th>
+                                    <th style="width: 15%;">Status</th>
+                                    <th style="width: 20%;">Item</th>
+                                    <th style="width: 15%;">GitHub Issue</th>
+                                    <th style="width: 10%;">Updated</th>
+                                    <th style="width: 10%;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for task in tasks %}
+                                <tr class="task-row">
+                                    <td>
+                                        <a href="{% url 'main:task_detail' task.id %}" class="text-decoration-none fw-bold">
+                                            {{ task.title }}
+                                        </a>
+                                        {% if task.ai_enhanced %}
+                                        <span class="badge bg-info" title="AI Enhanced">
+                                            <i class="bi bi-stars"></i>
+                                        </span>
+                                        {% endif %}
+                                        {% if task.tags.all %}
+                                        <div class="mt-1">
+                                            {% for tag in task.tags.all %}
+                                            <span class="badge" style="background-color: {{ tag.color }}; font-size: 0.75rem;">
+                                                {{ tag.name }}
+                                            </span>
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if task.status == 'ready' %}
+                                        <span class="badge bg-success">🟢 Ready</span>
+                                        {% elif task.status == 'review' %}
+                                        <span class="badge bg-warning text-dark">🟡 Review</span>
+                                        {% elif task.status == 'working' %}
+                                        <span class="badge bg-primary">🔵 Working</span>
+                                        {% elif task.status == 'done' %}
+                                        <span class="badge bg-secondary">✅ Done</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">⚪ New</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if task.item %}
+                                        <a href="{% url 'main:item_detail' task.item.id %}" class="text-decoration-none">
+                                            <i class="bi bi-lightbulb"></i> {{ task.item.title|truncatechars:30 }}
+                                        </a>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if task.github_issue_id %}
+                                        <a href="{{ task.github_issue_url }}" target="_blank" class="text-decoration-none">
+                                            <i class="bi bi-github"></i> #{{ task.github_issue_id }}
+                                            <i class="bi bi-box-arrow-up-right"></i>
+                                        </a>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            {{ task.updated_at|date:"Y-m-d" }}
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'main:task_detail' task.id %}" 
+                                               class="btn btn-sm btn-outline-primary" 
+                                               title="View Details"
+                                               data-bs-toggle="tooltip">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <a href="{% url 'main:task_edit' task.id %}" 
+                                               class="btn btn-sm btn-outline-secondary" 
+                                               title="Edit"
+                                               data-bs-toggle="tooltip">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <button type="button" 
+                                                    class="btn btn-sm btn-outline-info" 
+                                                    title="AI Enhance"
+                                                    data-bs-toggle="tooltip"
+                                                    onclick="aiEnhanceTask('{{ task.id }}')">
+                                                <i class="bi bi-stars"></i>
+                                            </button>
+                                            {% if not task.github_issue_id and task.status == 'ready' %}
+                                            <button type="button" 
+                                                    class="btn btn-sm btn-outline-success" 
+                                                    title="Create GitHub Issue"
+                                                    data-bs-toggle="tooltip"
+                                                    onclick="createGitHubIssue('{{ task.id }}')">
+                                                <i class="bi bi-github"></i>
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if tasks.has_other_pages %}
+                    <nav aria-label="Page navigation" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            {% if tasks.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1&status={{ status_filter }}&item={{ item_filter }}&has_github={{ has_github }}&search={{ search_query }}">
+                                    <i class="bi bi-chevron-double-left"></i>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ tasks.previous_page_number }}&status={{ status_filter }}&item={{ item_filter }}&has_github={{ has_github }}&search={{ search_query }}">
+                                    <i class="bi bi-chevron-left"></i>
+                                </a>
+                            </li>
+                            {% endif %}
+                            
+                            <li class="page-item active">
+                                <span class="page-link">
+                                    Page {{ tasks.number }} of {{ tasks.paginator.num_pages }}
+                                </span>
+                            </li>
+                            
+                            {% if tasks.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ tasks.next_page_number }}&status={{ status_filter }}&item={{ item_filter }}&has_github={{ has_github }}&search={{ search_query }}">
+                                    <i class="bi bi-chevron-right"></i>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ tasks.paginator.num_pages }}&status={{ status_filter }}&item={{ item_filter }}&has_github={{ has_github }}&search={{ search_query }}">
+                                    <i class="bi bi-chevron-double-right"></i>
+                                </a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                    
+                    {% else %}
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                        <p class="mt-3">No tasks found.</p>
+                        {% if status_filter or item_filter or has_github or search_query %}
+                        <p>Try adjusting your filters.</p>
+                        <a href="{% url 'main:task_overview' %}" class="btn btn-outline-primary mt-2">
+                            <i class="bi bi-arrow-counterclockwise"></i> Clear Filters
+                        </a>
+                        {% else %}
+                        <p>Create your first task from an item!</p>
+                        <a href="{% url 'main:item_list' %}" class="btn btn-primary mt-2">
+                            <i class="bi bi-lightbulb"></i> Go to Items
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-5">
+                <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h5 id="loadingMessage">Processing...</h5>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Initialize tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+
+// AI Enhance Task
+function aiEnhanceTask(taskId) {
+    // Show loading modal
+    const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    document.getElementById('loadingMessage').textContent = 'Enhancing task with AI...';
+    loadingModal.show();
+    
+    // TODO: Implement AI enhancement
+    // This would typically call the /api/tasks/{taskId}/ai-enhance endpoint
+    setTimeout(() => {
+        loadingModal.hide();
+        alert('AI enhancement feature is not yet fully implemented. Please use the task detail page.');
+    }, 2000);
+}
+
+// Create GitHub Issue
+function createGitHubIssue(taskId) {
+    if (!confirm('Create a GitHub issue for this task?')) {
+        return;
+    }
+    
+    // Show loading modal
+    const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    document.getElementById('loadingMessage').textContent = 'Creating GitHub issue...';
+    loadingModal.show();
+    
+    // TODO: Implement GitHub issue creation
+    // This would typically call the /api/tasks/{taskId}/create-github-issue endpoint
+    setTimeout(() => {
+        loadingModal.hide();
+        alert('GitHub issue creation feature is not yet fully implemented. Please use the task detail page.');
+    }, 2000);
+}
+</script>
+{% endblock %}
