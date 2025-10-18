@@ -213,6 +213,40 @@ class Settings(models.Model):
         help_text='Anzahl der Tags die bei Items durch die KI gesucht werden sollen'
     )
     
+    # Graph API Settings
+    graph_api_enabled = models.BooleanField(
+        default=False,
+        verbose_name='Enable Graph API',
+        help_text='Enable Microsoft Graph API integration'
+    )
+    graph_api_base_url = models.CharField(
+        max_length=255,
+        blank=True,
+        default='https://graph.microsoft.com/v1.0',
+        verbose_name='Graph API Base URL',
+        help_text='Microsoft Graph API base URL'
+    )
+    graph_api_scopes = models.TextField(
+        blank=True,
+        default='https://graph.microsoft.com/.default',
+        verbose_name='Graph API Scopes',
+        help_text='Comma-separated list of Graph API scopes'
+    )
+    sharepoint_site_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='SharePoint Site ID',
+        help_text='SharePoint site ID for document operations'
+    )
+    default_mail_sender = models.EmailField(
+        max_length=254,
+        blank=True,
+        default='',
+        verbose_name='Default Mail Sender',
+        help_text='Default sender email for Graph API mail operations'
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

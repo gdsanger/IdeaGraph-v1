@@ -40,4 +40,9 @@ urlpatterns = [
     path('api/users/<uuid:user_id>', api_views.api_user_detail, name='api_user_detail'),
     path('api/users/<uuid:user_id>/update', api_views.api_user_update, name='api_user_update'),
     path('api/users/<uuid:user_id>/delete', api_views.api_user_delete, name='api_user_delete'),
+    
+    # Graph API Endpoints
+    path('api/graph/sharepoint/files', api_views.api_graph_sharepoint_files, name='api_graph_sharepoint_files'),
+    path('api/graph/sharepoint/upload', api_views.api_graph_sharepoint_upload, name='api_graph_sharepoint_upload'),
+    path('api/graph/mail/send', api_views.api_graph_mail_send, name='api_graph_mail_send'),
 ]
