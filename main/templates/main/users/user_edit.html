@@ -1,0 +1,156 @@
+{% extends "main/base.html" %}
+
+{% block title %}Edit User - IdeaGraph{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="bi bi-pencil-square text-warning"></i> Edit User: {{ user.username }}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <!-- Alerts -->
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <form method="post" class="needs-validation" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- Username (Read-only) -->
+                        <div class="mb-3">
+                            <label for="username" class="form-label">
+                                <i class="bi bi-person"></i> Username
+                            </label>
+                            <input type="text" class="form-control" id="username" value="{{ user.username }}" 
+                                   readonly disabled>
+                            <div class="form-text">
+                                <i class="bi bi-info-circle"></i> Username cannot be changed.
+                            </div>
+                        </div>
+
+                        <!-- Email -->
+                        <div class="mb-3">
+                            <label for="email" class="form-label">
+                                <i class="bi bi-envelope"></i> Email <span class="text-danger">*</span>
+                            </label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   required maxlength="254" value="{{ user.email }}" placeholder="user@example.com">
+                            <div class="invalid-feedback">
+                                Please provide a valid email address.
+                            </div>
+                        </div>
+
+                        <!-- Password (Optional for update) -->
+                        <div class="mb-3">
+                            <label for="password" class="form-label">
+                                <i class="bi bi-key"></i> New Password (Optional)
+                            </label>
+                            <input type="password" class="form-control" id="password" name="password" 
+                                   minlength="8" placeholder="Leave blank to keep current password">
+                            <div class="form-text">
+                                <i class="bi bi-info-circle"></i> Minimum 8 characters, must include numbers and special characters.
+                            </div>
+                        </div>
+
+                        <!-- Confirm Password -->
+                        <div class="mb-3">
+                            <label for="password_confirm" class="form-label">
+                                <i class="bi bi-key-fill"></i> Confirm New Password
+                            </label>
+                            <input type="password" class="form-control" id="password_confirm" name="password_confirm" 
+                                   minlength="8" placeholder="Re-enter new password">
+                        </div>
+
+                        <!-- Role -->
+                        <div class="mb-3">
+                            <label for="role" class="form-label">
+                                <i class="bi bi-person-badge"></i> Role
+                            </label>
+                            <select class="form-select" id="role" name="role">
+                                {% for role_key, role_name in role_choices %}
+                                    <option value="{{ role_key }}" {% if user.role == role_key %}selected{% endif %}>
+                                        {{ role_name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Is Active -->
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="is_active" name="is_active" 
+                                   {% if user.is_active %}checked{% endif %}>
+                            <label class="form-check-label" for="is_active">
+                                <i class="bi bi-toggle-on"></i> Active Account
+                            </label>
+                        </div>
+
+                        <!-- AI Classification (Optional) -->
+                        <div class="mb-4">
+                            <label for="ai_classification" class="form-label">
+                                <i class="bi bi-robot"></i> AI Classification (Optional)
+                            </label>
+                            <input type="text" class="form-control" id="ai_classification" name="ai_classification" 
+                                   maxlength="255" value="{{ user.ai_classification }}" placeholder="Enter AI classification">
+                            <div class="form-text">
+                                <i class="bi bi-info-circle"></i> Optional AI-based user classification or notes.
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'main:user_list' %}" class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-warning">
+                                <i class="bi bi-save"></i> Update User
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Bootstrap form validation
+(function () {
+    'use strict'
+    var forms = document.querySelectorAll('.needs-validation')
+    Array.prototype.slice.call(forms).forEach(function (form) {
+        form.addEventListener('submit', function (event) {
+            // Check password match only if password is provided
+            var password = document.getElementById('password').value;
+            var password_confirm = document.getElementById('password_confirm').value;
+            
+            if (password || password_confirm) {
+                if (password !== password_confirm) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    document.getElementById('password_confirm').setCustomValidity('Passwords do not match');
+                } else {
+                    document.getElementById('password_confirm').setCustomValidity('');
+                }
+            }
+            
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            
+            form.classList.add('was-validated');
+        }, false);
+    });
+})();
+</script>
+{% endblock %}

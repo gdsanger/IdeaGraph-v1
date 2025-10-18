@@ -233,13 +233,18 @@
                             <i class="bi bi-gear-fill"></i> Settings
                     {% if user.is_staff %}
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {% if 'settings' in request.resolver_match.url_name %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <a class="nav-link dropdown-toggle {% if 'settings' in request.resolver_match.url_name or 'user' in request.resolver_match.url_name %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-shield-lock-fill"></i> Admin
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark">
                             <li>
                                 <a class="dropdown-item" href="{% url 'main:settings_list' %}">
                                     <i class="bi bi-gear-fill"></i> Settings
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'main:user_list' %}">
+                                    <i class="bi bi-people-fill"></i> User Management
                                 </a>
                             </li>
                         </ul>

@@ -1,8 +1,9 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
-from .models import Tag, Settings, Section
-
+from django.core.paginator import Paginator
+from .auth_utils import validate_password
+from .models import Tag, Settings, Section, User
 
 def home(request):
     """Home page view"""
@@ -211,4 +212,180 @@ def settings_delete(request, pk):
         return redirect('main:settings_list')
     
     return render(request, 'main/settings_confirm_delete.html', {'settings': settings})
+
+
+# User Management Views
+@staff_member_required
+def user_list(request):
+    """List all users with pagination and search"""
+    search_query = request.GET.get('search', '').strip()
+    role_filter = request.GET.get('role', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    
+    users = User.objects.all()
+    
+    # Apply filters
+    if search_query:
+        from django.db.models import Q
+        users = users.filter(
+            Q(username__icontains=search_query) | 
+            Q(email__icontains=search_query)
+        )
+    
+    if role_filter:
+        users = users.filter(role=role_filter)
+    
+    if status_filter == 'active':
+        users = users.filter(is_active=True)
+    elif status_filter == 'inactive':
+        users = users.filter(is_active=False)
+    
+    # Pagination
+    paginator = Paginator(users, 10)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'users': page_obj,
+        'search_query': search_query,
+        'role_filter': role_filter,
+        'status_filter': status_filter,
+        'role_choices': User.ROLE_CHOICES,
+    }
+    
+    return render(request, 'main/users/user_list.html', context)
+
+
+@staff_member_required
+def user_create(request):
+    """Create a new user"""
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        email = request.POST.get('email', '').strip()
+        password = request.POST.get('password', '')
+        password_confirm = request.POST.get('password_confirm', '')
+        role = request.POST.get('role', 'user')
+        is_active = request.POST.get('is_active') == 'on'
+        ai_classification = request.POST.get('ai_classification', '').strip()
+        
+        # Validation
+        if not username:
+            messages.error(request, 'Username is required.')
+        elif not email:
+            messages.error(request, 'Email is required.')
+        elif not password:
+            messages.error(request, 'Password is required.')
+        elif password != password_confirm:
+            messages.error(request, 'Passwords do not match.')
+        elif User.objects.filter(username=username).exists():
+            messages.error(request, 'Username already exists.')
+        elif User.objects.filter(email=email).exists():
+            messages.error(request, 'Email already exists.')
+        else:
+            # Validate password
+            is_valid, error_msg = validate_password(password)
+            if not is_valid:
+                messages.error(request, error_msg)
+            else:
+                try:
+                    user = User(
+                        username=username,
+                        email=email,
+                        role=role,
+                        is_active=is_active,
+                        ai_classification=ai_classification
+                    )
+                    user.set_password(password)
+                    user.save()
+                    messages.success(request, f'User "{username}" created successfully!')
+                    return redirect('main:user_list')
+                except Exception as e:
+                    messages.error(request, f'Error creating user: {str(e)}')
+    
+    context = {
+        'role_choices': User.ROLE_CHOICES,
+    }
+    return render(request, 'main/users/user_create.html', context)
+
+
+@staff_member_required
+def user_edit(request, user_id):
+    """Edit an existing user"""
+    user = get_object_or_404(User, id=user_id)
+    
+    if request.method == 'POST':
+        email = request.POST.get('email', '').strip()
+        role = request.POST.get('role', user.role)
+        is_active = request.POST.get('is_active') == 'on'
+        ai_classification = request.POST.get('ai_classification', '').strip()
+        password = request.POST.get('password', '')
+        password_confirm = request.POST.get('password_confirm', '')
+        
+        # Validation
+        if not email:
+            messages.error(request, 'Email is required.')
+        elif User.objects.filter(email=email).exclude(id=user_id).exists():
+            messages.error(request, 'Email already exists.')
+        elif password and password != password_confirm:
+            messages.error(request, 'Passwords do not match.')
+        else:
+            # Validate password if provided
+            if password:
+                is_valid, error_msg = validate_password(password)
+                if not is_valid:
+                    messages.error(request, error_msg)
+                    context = {
+                        'user': user,
+                        'role_choices': User.ROLE_CHOICES,
+                    }
+                    return render(request, 'main/users/user_edit.html', context)
+            
+            try:
+                user.email = email
+                user.role = role
+                user.is_active = is_active
+                user.ai_classification = ai_classification
+                
+                if password:
+                    user.set_password(password)
+                
+                user.save()
+                messages.success(request, f'User "{user.username}" updated successfully!')
+                return redirect('main:user_list')
+            except Exception as e:
+                messages.error(request, f'Error updating user: {str(e)}')
+    
+    context = {
+        'user': user,
+        'role_choices': User.ROLE_CHOICES,
+    }
+    return render(request, 'main/users/user_edit.html', context)
+
+
+@staff_member_required
+def user_detail(request, user_id):
+    """View user details"""
+    user = get_object_or_404(User, id=user_id)
+    context = {'user': user}
+    return render(request, 'main/users/user_detail.html', context)
+
+
+@staff_member_required
+def user_delete(request, user_id):
+    """Delete a user"""
+    user = get_object_or_404(User, id=user_id)
+    
+    if request.method == 'POST':
+        # Prevent deleting yourself
+        if request.user.username == user.username:
+            messages.error(request, 'You cannot delete your own account!')
+            return redirect('main:user_list')
+        
+        username = user.username
+        user.delete()
+        messages.success(request, f'User "{username}" deleted successfully!')
+        return redirect('main:user_list')
+    
+    context = {'user': user}
+    return render(request, 'main/users/user_delete.html', context)
 

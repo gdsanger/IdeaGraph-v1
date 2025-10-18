@@ -1,0 +1,70 @@
+{% extends "main/base.html" %}
+
+{% block title %}Delete User - IdeaGraph{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-6 offset-md-3">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-exclamation-triangle-fill"></i> Delete User
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-danger" role="alert">
+                        <i class="bi bi-exclamation-octagon-fill"></i>
+                        <strong>Warning!</strong> This action cannot be undone.
+                    </div>
+
+                    <p class="mb-3">
+                        Are you sure you want to delete the following user?
+                    </p>
+
+                    <div class="card bg-dark mb-4">
+                        <div class="card-body">
+                            <div class="row mb-2">
+                                <div class="col-4 text-muted"><strong>Username:</strong></div>
+                                <div class="col-8">{{ user.username }}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-4 text-muted"><strong>Email:</strong></div>
+                                <div class="col-8">{{ user.email }}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-4 text-muted"><strong>Role:</strong></div>
+                                <div class="col-8">
+                                    {% if user.role == 'admin' %}
+                                        <span class="badge bg-danger">Administrator</span>
+                                    {% elif user.role == 'user' %}
+                                        <span class="badge bg-primary">User</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Viewer</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-4 text-muted"><strong>Created:</strong></div>
+                                <div class="col-8">{{ user.created_at|date:"Y-m-d H:i" }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'main:user_list' %}" class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-trash"></i> Confirm Delete
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

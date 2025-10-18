@@ -125,3 +125,10 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Authentication Configuration
+PASSWORD_MIN_LENGTH = 8
+PASSWORD_REQUIRE_SPECIAL = True
+PASSWORD_REQUIRE_NUMBER = True
+JWT_SECRET = SECRET_KEY  # In production, use a separate secret
+JWT_EXPIRATION_HOURS = 24

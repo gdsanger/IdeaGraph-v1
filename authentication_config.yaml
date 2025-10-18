@@ -1,0 +1,62 @@
+# Authentication Configuration for IdeaGraph
+# This file defines authentication and password policy settings
+
+authentication:
+  # Authentication provider (internal JWT-based authentication)
+  provider: internal
+  
+  # JWT Token Configuration
+  jwt:
+    expiration_hours: 24  # JWT token expires after 24 hours
+    algorithm: HS256      # HMAC SHA-256 algorithm
+    
+  # Password Policy
+  password_policy:
+    min_length: 8           # Minimum password length
+    require_special: true   # Require at least one special character
+    require_number: true    # Require at least one number
+    require_uppercase: false  # Optional: require uppercase letters
+    require_lowercase: false  # Optional: require lowercase letters
+
+# Role Definitions
+roles:
+  admin:
+    description: "Full system access including user management"
+    permissions:
+      - user_create
+      - user_read
+      - user_update
+      - user_delete
+      - settings_manage
+      
+  user:
+    description: "Standard user with access to ideas and tasks"
+    permissions:
+      - idea_create
+      - idea_read
+      - idea_update
+      - task_create
+      - task_read
+      - task_update
+      - profile_edit
+      
+  viewer:
+    description: "Read-only access to ideas and tasks"
+    permissions:
+      - idea_read
+      - task_read
+
+# Security Settings
+security:
+  # Password hashing using bcrypt
+  password_hashing: bcrypt
+  bcrypt_rounds: 12  # Number of bcrypt rounds (higher = more secure but slower)
+  
+  # Session settings
+  max_failed_login_attempts: 5
+  account_lockout_duration_minutes: 30
+  
+  # CORS settings for API
+  cors_allowed_origins:
+    - http://localhost:3000
+    - http://localhost:8000

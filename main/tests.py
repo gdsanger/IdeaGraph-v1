@@ -1,7 +1,12 @@
 from django.test import TestCase, Client
 from django.urls import reverse
-from .models import Tag, Section
+from django.contrib.auth import get_user_model as get_django_user_model
+from .models import Tag, Settings, User as AppUser
 import uuid
+import json
+
+
+DjangoUser = get_django_user_model()
 
 
 class TagModelTest(TestCase):
@@ -243,7 +248,7 @@ class SettingsViewTest(TestCase):
     def setUp(self):
         """Set up test client and admin user"""
         self.client = Client()
-        self.admin_user = User.objects.create_superuser(
+        self.admin_user = DjangoUser.objects.create_superuser(
             username='admin',
             email='admin@test.com',
             password='testpass123'
@@ -326,3 +331,211 @@ class SettingsViewTest(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertFalse(Settings.objects.filter(id=settings_id).exists())
+
+
+class UserModelTest(TestCase):
+    """Test the User model"""
+    
+    def test_create_user(self):
+        """Test creating a user"""
+        user = AppUser(username='testuser', email='test@example.com', role='user')
+        user.set_password('TestPass123!')
+        user.save()
+        
+        self.assertEqual(user.username, 'testuser')
+        self.assertEqual(user.email, 'test@example.com')
+        self.assertEqual(user.role, 'user')
+        self.assertTrue(user.is_active)
+        self.assertIsNotNone(user.password_hash)
+    
+    def test_password_hashing(self):
+        """Test password hashing and verification"""
+        user = AppUser(username='testuser', email='test@example.com')
+        password = 'SecurePass123!'
+        user.set_password(password)
+        user.save()
+        
+        # Password should be hashed
+        self.assertNotEqual(user.password_hash, password)
+        
+        # check_password should verify correctly
+        self.assertTrue(user.check_password(password))
+        self.assertFalse(user.check_password('wrongpassword'))
+    
+    def test_user_roles(self):
+        """Test different user roles"""
+        admin = AppUser.objects.create(username='admin', email='admin@example.com', role='admin')
+        user = AppUser.objects.create(username='user', email='user@example.com', role='user')
+        viewer = AppUser.objects.create(username='viewer', email='viewer@example.com', role='viewer')
+        
+        self.assertEqual(admin.role, 'admin')
+        self.assertEqual(user.role, 'user')
+        self.assertEqual(viewer.role, 'viewer')
+    
+    def test_update_last_login(self):
+        """Test updating last login timestamp"""
+        user = AppUser.objects.create(username='testuser', email='test@example.com')
+        self.assertIsNone(user.last_login)
+        
+        user.update_last_login()
+        self.assertIsNotNone(user.last_login)
+
+
+class UserAPITest(TestCase):
+    """Test the User API endpoints"""
+    
+    def setUp(self):
+        """Set up test data"""
+        self.client = Client()
+        
+        # Create admin user
+        self.admin = AppUser(username='admin', email='admin@example.com', role='admin')
+        self.admin.set_password('AdminPass123!')
+        self.admin.save()
+        
+        # Create regular user
+        self.user = AppUser(username='user', email='user@example.com', role='user')
+        self.user.set_password('UserPass123!')
+        self.user.save()
+        
+    def test_login_success(self):
+        """Test successful login"""
+        response = self.client.post(
+            reverse('main:api_login'),
+            data=json.dumps({'username': 'admin', 'password': 'AdminPass123!'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn('token', data)
+        self.assertIn('user', data)
+        self.assertEqual(data['user']['username'], 'admin')
+    
+    def test_login_invalid_credentials(self):
+        """Test login with invalid credentials"""
+        response = self.client.post(
+            reverse('main:api_login'),
+            data=json.dumps({'username': 'admin', 'password': 'wrongpassword'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 401)
+        data = response.json()
+        self.assertIn('error', data)
+    
+    def test_login_inactive_user(self):
+        """Test login with inactive user"""
+        self.user.is_active = False
+        self.user.save()
+        
+        response = self.client.post(
+            reverse('main:api_login'),
+            data=json.dumps({'username': 'user', 'password': 'UserPass123!'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 401)
+    
+    def test_logout(self):
+        """Test logout endpoint"""
+        response = self.client.post(reverse('main:api_logout'))
+        self.assertEqual(response.status_code, 200)
+
+
+class UserViewTest(TestCase):
+    """Test the User management views"""
+    
+    def setUp(self):
+        """Set up test data"""
+        self.client = Client()
+        
+        # Create Django admin user (for staff access)
+        self.admin_user = DjangoUser.objects.create_superuser(
+            username='djangoadmin',
+            email='djangoadmin@test.com',
+            password='testpass123'
+        )
+        
+        # Create app user
+        self.app_user = AppUser(username='appuser', email='appuser@example.com', role='user')
+        self.app_user.set_password('UserPass123!')
+        self.app_user.save()
+    
+    def test_user_list_requires_staff(self):
+        """Test that user list requires staff access"""
+        response = self.client.get(reverse('main:user_list'))
+        self.assertEqual(response.status_code, 302)  # Redirect to login
+    
+    def test_user_list_accessible_by_staff(self):
+        """Test that staff can access user list"""
+        self.client.login(username='djangoadmin', password='testpass123')
+        response = self.client.get(reverse('main:user_list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'User Management')
+    
+    def test_user_create_get(self):
+        """Test user create form display"""
+        self.client.login(username='djangoadmin', password='testpass123')
+        response = self.client.get(reverse('main:user_create'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Create New User')
+    
+    def test_user_create_post(self):
+        """Test creating a user via POST"""
+        self.client.login(username='djangoadmin', password='testpass123')
+        response = self.client.post(reverse('main:user_create'), {
+            'username': 'newuser',
+            'email': 'newuser@example.com',
+            'password': 'NewPass123!',
+            'password_confirm': 'NewPass123!',
+            'role': 'user',
+            'is_active': 'on',
+        })
+        self.assertEqual(response.status_code, 302)  # Redirect after success
+        self.assertTrue(AppUser.objects.filter(username='newuser').exists())
+    
+    def test_user_edit_get(self):
+        """Test user edit form display"""
+        self.client.login(username='djangoadmin', password='testpass123')
+        response = self.client.get(reverse('main:user_edit', args=[self.app_user.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Edit User')
+        self.assertContains(response, self.app_user.username)
+    
+    def test_user_edit_post(self):
+        """Test updating a user via POST"""
+        self.client.login(username='djangoadmin', password='testpass123')
+        response = self.client.post(
+            reverse('main:user_edit', args=[self.app_user.id]),
+            {
+                'email': 'updated@example.com',
+                'role': 'admin',
+                'is_active': 'on',
+            }
+        )
+        self.assertEqual(response.status_code, 302)
+        self.app_user.refresh_from_db()
+        self.assertEqual(self.app_user.email, 'updated@example.com')
+        self.assertEqual(self.app_user.role, 'admin')
+    
+    def test_user_detail_get(self):
+        """Test user detail view"""
+        self.client.login(username='djangoadmin', password='testpass123')
+        response = self.client.get(reverse('main:user_detail', args=[self.app_user.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'User Details')
+        self.assertContains(response, self.app_user.username)
+    
+    def test_user_delete_get(self):
+        """Test user delete confirmation display"""
+        self.client.login(username='djangoadmin', password='testpass123')
+        response = self.client.get(reverse('main:user_delete', args=[self.app_user.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Delete User')
+        self.assertContains(response, self.app_user.username)
+    
+    def test_user_delete_post(self):
+        """Test deleting a user via POST"""
+        self.client.login(username='djangoadmin', password='testpass123')
+        user_id = self.app_user.id
+        response = self.client.post(reverse('main:user_delete', args=[user_id]))
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(AppUser.objects.filter(id=user_id).exists())
