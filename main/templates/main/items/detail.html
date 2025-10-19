@@ -350,6 +350,62 @@
 <script src="{% static 'main/js/tag-token.js' %}"></script>
 
 <script>
+// Tab state persistence: Save and restore last opened tab
+// This must be loaded BEFORE other scripts that might fail
+(function() {
+    const STORAGE_KEY = 'itemDetailLastTab';
+    
+    // Function to activate a tab
+    function activateTab(tabId) {
+        // Get all tab buttons and panes
+        const allTabButtons = document.querySelectorAll('#itemTabs button[data-bs-toggle="tab"]');
+        const allTabPanes = document.querySelectorAll('#itemTabsContent .tab-pane');
+        
+        // Deactivate all tabs
+        allTabButtons.forEach(btn => {
+            btn.classList.remove('active');
+            btn.setAttribute('aria-selected', 'false');
+        });
+        allTabPanes.forEach(pane => {
+            pane.classList.remove('show', 'active');
+        });
+        
+        // Activate the target tab
+        const targetButton = document.querySelector(`#${tabId}`);
+        if (targetButton) {
+            const targetId = targetButton.getAttribute('data-bs-target');
+            const targetPane = document.querySelector(targetId);
+            
+            targetButton.classList.add('active');
+            targetButton.setAttribute('aria-selected', 'true');
+            
+            if (targetPane) {
+                targetPane.classList.add('show', 'active');
+            }
+        }
+    }
+    
+    // Wait for DOM to be ready
+    document.addEventListener('DOMContentLoaded', function() {
+        // Restore last opened tab on page load
+        const lastTab = localStorage.getItem(STORAGE_KEY);
+        if (lastTab) {
+            activateTab(lastTab);
+        }
+        
+        // Save tab state when user switches tabs
+        const tabButtons = document.querySelectorAll('#itemTabs button[data-bs-toggle="tab"]');
+        tabButtons.forEach(button => {
+            button.addEventListener('click', function(event) {
+                // Save the ID of the clicked tab
+                localStorage.setItem(STORAGE_KEY, this.id);
+                // Manually activate the tab
+                activateTab(this.id);
+            });
+        });
+    });
+})();
+
 // Initialize Toast UI Editor
 const editor = new toastui.Editor({
     el: document.querySelector('#editor'),
@@ -358,6 +414,7 @@ const editor = new toastui.Editor({
     previewStyle: 'vertical',
     initialValue: document.querySelector('#description').value
 });
+
 
 // Sync editor content to textarea before form submit
 document.querySelector('#itemForm').addEventListener('submit', function() {
@@ -577,59 +634,5 @@ document.querySelector('#checkSimilarityBtn').addEventListener('click', async fu
         btn.disabled = false;
     }
 });
-
-// Tab state persistence: Save and restore last opened tab
-(function() {
-    const STORAGE_KEY = 'itemDetailLastTab';
-    
-    // Function to activate a tab
-    function activateTab(tabId) {
-        // Get all tab buttons and panes
-        const allTabButtons = document.querySelectorAll('#itemTabs button[data-bs-toggle="tab"]');
-        const allTabPanes = document.querySelectorAll('#itemTabsContent .tab-pane');
-        
-        // Deactivate all tabs
-        allTabButtons.forEach(btn => {
-            btn.classList.remove('active');
-            btn.setAttribute('aria-selected', 'false');
-        });
-        allTabPanes.forEach(pane => {
-            pane.classList.remove('show', 'active');
-        });
-        
-        // Activate the target tab
-        const targetButton = document.querySelector(`#${tabId}`);
-        if (targetButton) {
-            const targetId = targetButton.getAttribute('data-bs-target');
-            const targetPane = document.querySelector(targetId);
-            
-            targetButton.classList.add('active');
-            targetButton.setAttribute('aria-selected', 'true');
-            
-            if (targetPane) {
-                targetPane.classList.add('show', 'active');
-            }
-        }
-    }
-    
-    // Restore last opened tab on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        const lastTab = localStorage.getItem(STORAGE_KEY);
-        if (lastTab) {
-            activateTab(lastTab);
-        }
-    });
-    
-    // Save tab state when user switches tabs
-    const tabButtons = document.querySelectorAll('#itemTabs button[data-bs-toggle="tab"]');
-    tabButtons.forEach(button => {
-        button.addEventListener('click', function(event) {
-            // Save the ID of the clicked tab
-            localStorage.setItem(STORAGE_KEY, this.id);
-            // Manually activate the tab
-            activateTab(this.id);
-        });
-    });
-})();
 </script>
 {% endblock %}
