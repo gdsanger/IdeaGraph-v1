@@ -153,6 +153,22 @@
                         </h5>
                         <div class="row">
                             <div class="col-md-12 mb-3">
+                                <div class="form-check form-switch">
+                                    <input 
+                                        class="form-check-input" 
+                                        type="checkbox" 
+                                        id="github_api_enabled" 
+                                        name="github_api_enabled"
+                                        {% if settings.github_api_enabled %}checked{% endif %}>
+                                    <label class="form-check-label" for="github_api_enabled">
+                                        Enable GitHub API
+                                    </label>
+                                    <div class="form-text">Enable GitHub API integration</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
                                 <label for="github_token" class="form-label">GITHUB_TOKEN</label>
                                 <input 
                                     type="password" 
@@ -162,6 +178,43 @@
                                     value="{{ settings.github_token|default:'' }}"
                                     placeholder="ghp_...">
                                 <div class="form-text">GitHub PAT Key</div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="github_api_base_url" class="form-label">GitHub API Base URL</label>
+                                <input 
+                                    type="url" 
+                                    class="form-control" 
+                                    id="github_api_base_url" 
+                                    name="github_api_base_url" 
+                                    value="{{ settings.github_api_base_url|default:'https://api.github.com' }}"
+                                    placeholder="https://api.github.com">
+                                <div class="form-text">GitHub API base URL</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="github_default_owner" class="form-label">Default GitHub Owner</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="github_default_owner" 
+                                    name="github_default_owner" 
+                                    value="{{ settings.github_default_owner|default:'' }}"
+                                    placeholder="username or organization">
+                                <div class="form-text">Default owner for GitHub operations</div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="github_default_repo" class="form-label">Default GitHub Repository</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="github_default_repo" 
+                                    name="github_default_repo" 
+                                    value="{{ settings.github_default_repo|default:'' }}"
+                                    placeholder="repository-name">
+                                <div class="form-text">Default repository for GitHub operations</div>
                             </div>
                         </div>
                     </div>

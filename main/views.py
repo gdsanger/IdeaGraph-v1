@@ -245,7 +245,11 @@ def settings_create(request):
             client_id=request.POST.get('client_id', ''),
             client_secret=request.POST.get('client_secret', ''),
             tenant_id=request.POST.get('tenant_id', ''),
+            github_api_enabled=request.POST.get('github_api_enabled') == 'on',
             github_token=request.POST.get('github_token', ''),
+            github_api_base_url=request.POST.get('github_api_base_url', 'https://api.github.com'),
+            github_default_owner=request.POST.get('github_default_owner', ''),
+            github_default_repo=request.POST.get('github_default_repo', ''),
             chroma_api_key=request.POST.get('chroma_api_key', ''),
             chroma_database=request.POST.get('chroma_database', ''),
             chroma_tenant=request.POST.get('chroma_tenant', ''),
@@ -274,7 +278,11 @@ def settings_update(request, pk):
         settings.client_id = request.POST.get('client_id', '')
         settings.client_secret = request.POST.get('client_secret', '')
         settings.tenant_id = request.POST.get('tenant_id', '')
+        settings.github_api_enabled = request.POST.get('github_api_enabled') == 'on'
         settings.github_token = request.POST.get('github_token', '')
+        settings.github_api_base_url = request.POST.get('github_api_base_url', 'https://api.github.com')
+        settings.github_default_owner = request.POST.get('github_default_owner', '')
+        settings.github_default_repo = request.POST.get('github_default_repo', '')
         settings.chroma_api_key = request.POST.get('chroma_api_key', '')
         settings.chroma_database = request.POST.get('chroma_database', '')
         settings.chroma_tenant = request.POST.get('chroma_tenant', '')
