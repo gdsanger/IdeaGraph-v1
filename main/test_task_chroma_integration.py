@@ -18,9 +18,9 @@ class TaskChromaIntegrationTest(TestCase):
             openai_api_enabled=True,
             openai_api_key='test-key-123',
             openai_api_base_url='https://api.openai.com/v1',
-            chroma_api_key='',
-            chroma_database='',
-            chroma_tenant=''
+            chroma_api_key='test-cloud-key',
+            chroma_database='https://api.trychroma.com/api/v1/databases/test-db',
+            chroma_tenant='test-tenant'
         )
         
         # Create test user

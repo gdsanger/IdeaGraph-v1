@@ -15,7 +15,10 @@ class ItemChromaIntegrationTest(TestCase):
         self.settings = Settings.objects.create(
             openai_api_enabled=True,
             openai_api_key='test-key-123',
-            openai_api_base_url='https://api.openai.com/v1'
+            openai_api_base_url='https://api.openai.com/v1',
+            chroma_api_key='test-cloud-key',
+            chroma_database='https://api.trychroma.com/api/v1/databases/test-db',
+            chroma_tenant='test-tenant',
         )
         
         # Create test user
@@ -42,7 +45,7 @@ class ItemChromaIntegrationTest(TestCase):
         })
     
     @patch('core.services.chroma_sync_service.requests.post')
-    @patch('core.services.chroma_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_sync_service.chromadb.HttpClient')
     def test_item_create_triggers_chroma_sync(self, mock_client, mock_post):
         """Test that creating an item triggers ChromaDB sync"""
         # Setup mocks
@@ -73,7 +76,7 @@ class ItemChromaIntegrationTest(TestCase):
         mock_collection.add.assert_called_once()
     
     @patch('core.services.chroma_sync_service.requests.post')
-    @patch('core.services.chroma_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_sync_service.chromadb.HttpClient')
     def test_item_update_triggers_chroma_sync(self, mock_client, mock_post):
         """Test that updating an item triggers ChromaDB sync"""
         # Setup mocks
@@ -114,7 +117,7 @@ class ItemChromaIntegrationTest(TestCase):
         # Verify ChromaDB sync was called
         mock_collection.upsert.assert_called_once()
     
-    @patch('core.services.chroma_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_sync_service.chromadb.HttpClient')
     def test_item_delete_triggers_chroma_sync(self, mock_client):
         """Test that deleting an item triggers ChromaDB sync"""
         # Setup mocks

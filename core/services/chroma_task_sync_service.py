@@ -79,25 +79,26 @@ class ChromaTaskSyncService:
             ChromaTaskSyncServiceError: If initialization fails
         """
         try:
-            # Check if cloud configuration is available
-            if self.settings.chroma_api_key and self.settings.chroma_database and self.settings.chroma_tenant:
-                # Cloud configuration using HttpClient
-                logger.info("Initializing ChromaDB cloud client")
-                client_kwargs = self._build_cloud_client_kwargs()
-                self._client = chromadb.HttpClient(**client_kwargs)
-            else:
-                # Local/persistent storage configuration
-                logger.info("Initializing ChromaDB local client")
-                self._client = chromadb.PersistentClient(path="./chroma_db")
-            
+            credentials = self._resolve_cloud_credentials()
+
+            logger.info("Initializing ChromaDB cloud client")
+            client_kwargs = self._build_cloud_client_kwargs(
+                database_value=credentials['database'],
+                api_key=credentials['api_key'],
+                tenant=credentials['tenant'],
+            )
+            self._client = chromadb.HttpClient(**client_kwargs)
+
             # Get or create collection
             self._collection = self._client.get_or_create_collection(
                 name=self.COLLECTION_NAME,
                 metadata={"description": "IdeaGraph tasks with embeddings"}
             )
-            
+
             logger.info(f"ChromaDB collection '{self.COLLECTION_NAME}' initialized")
             
+        except ChromaTaskSyncServiceError:
+            raise
         except Exception as e:
             logger.error(f"Failed to initialize ChromaDB: {str(e)}")
             raise ChromaTaskSyncServiceError(
@@ -105,9 +106,39 @@ class ChromaTaskSyncService:
                 details=str(e)
             )
 
-    def _build_cloud_client_kwargs(self) -> Dict[str, Any]:
+    def _resolve_cloud_credentials(self) -> Dict[str, str]:
+        """Resolve ChromaDB credentials from database or Django settings."""
+
+        api_key = (self.settings.chroma_api_key or '').strip()
+        database = (self.settings.chroma_database or '').strip()
+        tenant = (self.settings.chroma_tenant or '').strip()
+
+        missing = [
+            name
+            for name, value in (
+                ('CHROMA_API_KEY', api_key),
+                ('CHROMA_DATABASE', database),
+                ('CHROMA_TENANT', tenant),
+            )
+            if not value
+        ]
+
+        if missing:
+            message = (
+                "Missing ChromaDB cloud configuration in Settings. "
+                "Please configure " + ', '.join(missing) + " in the Settings entity."
+            )
+            raise ChromaTaskSyncServiceError(message)
+
+        return {
+            'api_key': api_key,
+            'database': database,
+            'tenant': tenant,
+        }
+
+    def _build_cloud_client_kwargs(self, *, database_value: str, api_key: str, tenant: str) -> Dict[str, Any]:
         """Build keyword arguments for ChromaDB HttpClient configuration."""
-        raw_value = (self.settings.chroma_database or '').strip()
+        raw_value = (database_value or '').strip()
 
         host = 'api.trychroma.com'
         port = 443
@@ -149,8 +180,8 @@ class ChromaTaskSyncService:
                         database_name = query_params['database'][0]
 
         headers = {
-            "Authorization": f"Bearer {self.settings.chroma_api_key}",
-            "X-Chroma-Token": self.settings.chroma_api_key
+            "Authorization": f"Bearer {api_key}",
+            "X-Chroma-Token": api_key
         }
 
         client_kwargs: Dict[str, Any] = {
@@ -158,7 +189,7 @@ class ChromaTaskSyncService:
             'port': port,
             'ssl': use_ssl,
             'headers': headers,
-            'tenant': self.settings.chroma_tenant
+            'tenant': tenant
         }
 
         if database_name:
