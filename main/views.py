@@ -940,12 +940,10 @@ def task_list(request, item_id):
     tasks = item.tasks.filter(created_by=user).select_related('assigned_to', 'created_by').prefetch_related('tags')
     
     # Filter by completion status
-    if show_completed:
-        # Show only completed tasks
-        tasks = tasks.filter(status='done')
-    else:
+    if not show_completed:
         # Show only non-completed tasks (default)
         tasks = tasks.exclude(status='done')
+    # else: show all tasks (both completed and non-completed)
     
     # Sort tasks by status priority
     status_order = {'new': 1, 'working': 2, 'review': 3, 'ready': 4, 'done': 5}
