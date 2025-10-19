@@ -113,7 +113,7 @@ class TaskViewTest(TestCase):
         self.assertFalse(response.context['show_completed'])
     
     def test_task_list_filter_show_completed(self):
-        """Test task list view shows only completed tasks when filter is enabled"""
+        """Test task list view shows all tasks (completed and non-completed) when filter is enabled"""
         self.login()
         
         # Create a completed task
@@ -132,9 +132,9 @@ class TaskViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # Should show completed task
         self.assertContains(response, 'Completed Task')
-        # Should NOT show non-completed tasks
-        self.assertNotContains(response, 'Test Task 1')
-        self.assertNotContains(response, 'Test Task 2')
+        # Should ALSO show non-completed tasks (showing all tasks)
+        self.assertContains(response, 'Test Task 1')
+        self.assertContains(response, 'Test Task 2')
         # Should have show_completed=True in context
         self.assertTrue(response.context['show_completed'])
     
