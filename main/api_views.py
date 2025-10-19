@@ -2261,6 +2261,6 @@ def api_tags_network_data(request):
     
     except Exception as e:
         logger.error(f'Error fetching tags network data: {str(e)}')
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': 'Failed to load network data'}, status=500)
 
 
