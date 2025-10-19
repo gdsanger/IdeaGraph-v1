@@ -125,7 +125,7 @@ class TaskViewTest(TestCase):
         """Test task editing"""
         self.login()
         url = reverse('main:task_edit', args=[self.task1.id])
-        
+
         # GET request
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -145,7 +145,30 @@ class TaskViewTest(TestCase):
         self.assertEqual(self.task1.title, 'Updated Task 1')
         self.assertEqual(self.task1.description, 'Updated description')
         self.assertEqual(self.task1.status, 'working')
-    
+
+    def test_task_edit_marks_done_and_sets_completed_at(self):
+        """Status change to done should set completed_at via mark_as_done"""
+        self.login()
+        url = reverse('main:task_edit', args=[self.task1.id])
+
+        self.task1.status = 'working'
+        self.task1.completed_at = None
+        self.task1.save()
+
+        response = self.client.post(url, {
+            'title': 'Task Done',
+            'description': 'Completed description',
+            'status': 'done',
+            'tags': [str(self.tag.id)]
+        })
+
+        self.assertEqual(response.status_code, 302)
+
+        self.task1.refresh_from_db()
+        self.assertEqual(self.task1.status, 'done')
+        self.assertIsNotNone(self.task1.completed_at)
+        self.assertEqual(self.task1.description, 'Completed description')
+
     def test_task_edit_error_message_display(self):
         """Test that error messages are displayed when task edit fails"""
         self.login()
@@ -338,7 +361,33 @@ class TaskAPITest(TestCase):
         self.task.refresh_from_db()
         self.assertEqual(self.task.title, 'Updated Task')
         self.assertEqual(self.task.status, 'working')
-    
+
+    def test_api_task_update_marks_done(self):
+        """Status change to done should set completed_at via mark_as_done"""
+        url = reverse('main:api_task_detail', args=[self.task.id])
+
+        self.task.status = 'working'
+        self.task.completed_at = None
+        self.task.save()
+
+        response = self.client.put(
+            url,
+            data=json.dumps({
+                'title': 'API Done Task',
+                'description': 'API done description',
+                'status': 'done'
+            }),
+            content_type='application/json',
+            HTTP_AUTHORIZATION=f'Bearer {self.token}'
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, 'done')
+        self.assertIsNotNone(self.task.completed_at)
+        self.assertEqual(self.task.description, 'API done description')
+
     def test_api_task_delete(self):
         """Test API task delete endpoint"""
         url = reverse('main:api_task_detail', args=[self.task.id])
