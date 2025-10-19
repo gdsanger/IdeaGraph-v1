@@ -246,6 +246,57 @@ class GitHubIssueSyncServiceTest(TestCase):
         self.assertEqual(self.task.status, 'done')
         self.assertIsNotNone(self.task.completed_at)
     
+    @patch('core.services.github_service.GitHubService')
+    @patch('core.services.github_issue_sync_service.requests.post')
+    @patch('core.services.github_issue_sync_service.chromadb.HttpClient')
+    def test_sync_skips_done_tasks(self, mock_client, mock_post, mock_github_service):
+        """Test that tasks with status='done' are skipped during synchronization"""
+        from core.services.github_issue_sync_service import GitHubIssueSyncService
+        
+        # Mock ChromaDB client
+        mock_collection = MagicMock()
+        mock_client_instance = MagicMock()
+        mock_client_instance.get_or_create_collection.return_value = mock_collection
+        mock_client.return_value = mock_client_instance
+        
+        # Mock OpenAI embedding response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'data': [{'embedding': [0.1] * 1536}]
+        }
+        mock_post.return_value = mock_response
+        
+        # Mock GitHub service
+        mock_github_instance = MagicMock()
+        mock_github_service.return_value = mock_github_instance
+        
+        # Create a task with status='done' and a GitHub issue ID
+        done_task = Task.objects.create(
+            title='Done Task',
+            description='This task is already done',
+            status='done',
+            item=self.item,
+            created_by=self.user,
+            github_issue_id=789,
+            completed_at=self.item.created_at
+        )
+        
+        # Initialize service
+        service = GitHubIssueSyncService(self.settings)
+        
+        # Run synchronization
+        result = service.sync_tasks_with_github_issues()
+        
+        # Verify that only the non-done task was checked
+        # (self.task has status='working', done_task has status='done')
+        self.assertTrue(result['success'])
+        self.assertEqual(result['results']['tasks_checked'], 1)  # Only one task checked
+        
+        # Verify GitHub service was not called for the done task
+        # It should only be called once for self.task (status='working')
+        self.assertEqual(mock_github_instance.get_issue.call_count, 1)
+    
     @patch('core.services.github_issue_sync_service.requests.post')
     @patch('core.services.github_issue_sync_service.chromadb.HttpClient')
     def test_search_similar(self, mock_client, mock_post):
