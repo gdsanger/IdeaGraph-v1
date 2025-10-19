@@ -120,7 +120,7 @@ class ChromaItemSyncServiceTest(TestCase):
     
     @patch('core.services.chroma_sync_service.chromadb.HttpClient')
     def test_generate_embedding_no_api_key(self, mock_client):
-        """Test embedding generation without API key returns zero vector"""
+        """Test embedding generation without API key raises error"""
         mock_collection = Mock()
         mock_client.return_value.get_or_create_collection.return_value = mock_collection
         
@@ -129,11 +129,12 @@ class ChromaItemSyncServiceTest(TestCase):
         self.settings.save()
         
         service = ChromaItemSyncService(self.settings)
-        embedding = service._generate_embedding('test text')
         
-        # Should return zero vector
-        self.assertEqual(len(embedding), 1536)
-        self.assertEqual(embedding, [0.0] * 1536)
+        # Should raise ChromaItemSyncServiceError when API is disabled
+        with self.assertRaises(ChromaItemSyncServiceError) as context:
+            service._generate_embedding('test text')
+        
+        self.assertIn("not enabled", str(context.exception))
     
     @patch('core.services.chroma_sync_service.chromadb.HttpClient')
     def test_generate_embedding_empty_text(self, mock_client):

@@ -240,8 +240,12 @@ def settings_create(request):
     """Create a new settings entry"""
     if request.method == 'POST':
         settings = Settings.objects.create(
+            openai_api_enabled=request.POST.get('openai_api_enabled') == 'on',
             openai_api_key=request.POST.get('openai_api_key', ''),
             openai_org_id=request.POST.get('openai_org_id', ''),
+            openai_default_model=request.POST.get('openai_default_model', 'gpt-4'),
+            openai_api_base_url=request.POST.get('openai_api_base_url', 'https://api.openai.com/v1'),
+            openai_api_timeout=int(request.POST.get('openai_api_timeout') or 30),
             client_id=request.POST.get('client_id', ''),
             client_secret=request.POST.get('client_secret', ''),
             tenant_id=request.POST.get('tenant_id', ''),
@@ -273,8 +277,12 @@ def settings_update(request, pk):
     settings = get_object_or_404(Settings, pk=pk)
     
     if request.method == 'POST':
+        settings.openai_api_enabled = request.POST.get('openai_api_enabled') == 'on'
         settings.openai_api_key = request.POST.get('openai_api_key', '')
         settings.openai_org_id = request.POST.get('openai_org_id', '')
+        settings.openai_default_model = request.POST.get('openai_default_model', 'gpt-4')
+        settings.openai_api_base_url = request.POST.get('openai_api_base_url', 'https://api.openai.com/v1')
+        settings.openai_api_timeout = int(request.POST.get('openai_api_timeout') or 30)
         settings.client_id = request.POST.get('client_id', '')
         settings.client_secret = request.POST.get('client_secret', '')
         settings.tenant_id = request.POST.get('tenant_id', '')
