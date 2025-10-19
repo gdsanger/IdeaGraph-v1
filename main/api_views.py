@@ -1367,9 +1367,21 @@ def api_task_ai_enhance(request, task_id):
 @require_http_methods(["POST"])
 def api_item_ai_enhance(request, item_id):
     """
-    API endpoint to enhance item with AI.
+    API endpoint to enhance item with AI using KiGate agents.
+    
+    This function performs three main tasks:
+    1. Text normalization (spelling, grammar, flow, comprehensibility) using 'text-optimization-agent'
+    2. Title generation from normalized text using 'text-to-title-generator'
+    3. Tag/keyword extraction from item context using 'text-keyword-extractor-de'
+    
+    The generated tags replace any existing tags on the item to avoid duplicates.
+    Tags are properly attached to the Item entity via the ManyToMany relationship.
+    
     POST /api/items/{item_id}/ai-enhance
     Body: {"title": "...", "description": "..."}
+    
+    Returns:
+        JSON response with enhanced title, description, and tags list
     """
     user = get_user_from_request(request)
     if not user:
@@ -1398,12 +1410,12 @@ def api_item_ai_enhance(request, item_id):
         # Use KiGate service to enhance content
         kigate = KiGateService()
         
-        # First, optimize the text
+        # Step 1: Optimize/normalize the text (spelling, grammar, flow, comprehensibility)
         text_result = kigate.execute_agent(
             agent_name='text-optimization-agent',
             provider='openai',
             model='gpt-4',
-            message=f"Title: {title}\n\nDescription:\n{description}",
+            message=description,
             user_id=str(user.id),
             parameters={'language': 'de'}
         )
@@ -1411,37 +1423,67 @@ def api_item_ai_enhance(request, item_id):
         if not text_result.get('success'):
             return JsonResponse({'error': text_result.get('error', 'Failed to enhance text')}, status=500)
         
-        enhanced_text = text_result.get('response', description)
+        # Use 'result' field from KiGate API response, not 'response'
+        enhanced_text = text_result.get('result', description)
         
-        # Extract keywords/tags
-        keyword_result = kigate.execute_agent(
-            agent_name='text-keyword-extractor-de',
+        # Step 2: Generate a title from the normalized text
+        title_result = kigate.execute_agent(
+            agent_name='text-to-title-generator',
             provider='openai',
             model='gpt-4',
             message=enhanced_text,
             user_id=str(user.id),
+            parameters={'language': 'de'}
+        )
+        
+        # Use generated title if successful, otherwise keep original
+        enhanced_title = title
+        if title_result.get('success'):
+            generated_title = title_result.get('result', '').strip()
+            if generated_title:
+                enhanced_title = generated_title[:255]  # Limit to field max length
+        
+        # Step 3: Extract keywords/tags from the item context
+        keyword_result = kigate.execute_agent(
+            agent_name='text-keyword-extractor-de',
+            provider='openai',
+            model='gpt-4',
+            message=f"Title: {enhanced_title}\n\nDescription:\n{enhanced_text}",
+            user_id=str(user.id),
             parameters={'max_keywords': max_tags}
         )
         
-        # Parse keywords
+        # Parse keywords and manage tags
         tags_list = []
         if keyword_result.get('success'):
-            keywords_text = keyword_result.get('response', '')
-            # Extract keywords from response
-            keywords = [k.strip() for k in keywords_text.split(',') if k.strip()]
+            keywords_text = keyword_result.get('result', '')
+            # Extract keywords from response (handle comma-separated or newline-separated)
+            keywords = []
+            for k in keywords_text.replace('\n', ',').split(','):
+                k = k.strip().lstrip('0123456789.-* ')  # Remove numbering and bullets
+                if k:
+                    keywords.append(k)
             
-            # Get or create tags
+            # Clear existing tags to replace them with new ones
+            item.tags.clear()
+            
+            # Get or create tags and attach to item (prevent duplicates)
             for keyword in keywords[:max_tags]:
                 tag, _ = Tag.objects.get_or_create(name=keyword)
+                # Add tag to item (ManyToManyField handles duplicates automatically)
+                item.tags.add(tag)
                 tags_list.append(tag.name)
+            
+            # Mark that AI tags have been generated
+            item.ai_tags_generated = True
         
-        # Generate improved title if possible
-        title_lines = enhanced_text.split('\n')
-        enhanced_title = title_lines[0].replace('Title:', '').strip() if title_lines else title
+        # Mark item as AI enhanced
+        item.ai_enhanced = True
+        item.save()
         
         return JsonResponse({
             'success': True,
-            'title': enhanced_title[:255],  # Limit to field max length
+            'title': enhanced_title,
             'description': enhanced_text,
             'tags': tags_list
         })
