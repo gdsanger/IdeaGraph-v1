@@ -1,0 +1,111 @@
+# IdeaGraph GitHub Issues Synchronization - Cron Configuration Examples
+#
+# This file contains example cron job configurations for the GitHub Issues
+# synchronization script. Copy the desired configuration to your crontab.
+#
+# To edit your crontab:
+#   crontab -e
+#
+# To view your current crontab:
+#   crontab -l
+#
+# Cron format:
+# ┌───────────── minute (0 - 59)
+# │ ┌───────────── hour (0 - 23)
+# │ │ ┌───────────── day of month (1 - 31)
+# │ │ │ ┌───────────── month (1 - 12)
+# │ │ │ │ ┌───────────── day of week (0 - 6) (Sunday to Saturday)
+# │ │ │ │ │
+# │ │ │ │ │
+# * * * * * command to execute
+
+# =============================================================================
+# Example 1: Run every hour
+# =============================================================================
+# This runs the synchronization every hour at minute 0
+# Good for: Regular monitoring with moderate update frequency
+0 * * * * cd /path/to/IdeaGraph-v1 && python sync_github_issues.py >> logs/sync_github.log 2>&1
+
+# =============================================================================
+# Example 2: Run every 15 minutes
+# =============================================================================
+# This runs the synchronization every 15 minutes
+# Good for: High-frequency updates, active development
+*/15 * * * * cd /path/to/IdeaGraph-v1 && python sync_github_issues.py >> logs/sync_github.log 2>&1
+
+# =============================================================================
+# Example 3: Run every 30 minutes during business hours
+# =============================================================================
+# This runs every 30 minutes from 8 AM to 6 PM on weekdays
+# Good for: Business hours monitoring
+*/30 8-18 * * 1-5 cd /path/to/IdeaGraph-v1 && python sync_github_issues.py >> logs/sync_github.log 2>&1
+
+# =============================================================================
+# Example 4: Run daily at 2 AM
+# =============================================================================
+# This runs once per day at 2:00 AM
+# Good for: Low-frequency batch updates, overnight processing
+0 2 * * * cd /path/to/IdeaGraph-v1 && python sync_github_issues.py >> logs/sync_github.log 2>&1
+
+# =============================================================================
+# Example 5: Run with verbose logging every hour
+# =============================================================================
+# This runs with verbose logging for debugging
+# Good for: Troubleshooting and detailed monitoring
+0 * * * * cd /path/to/IdeaGraph-v1 && python sync_github_issues.py --verbose >> logs/sync_github_verbose.log 2>&1
+
+# =============================================================================
+# Example 6: Run with specific repository every hour
+# =============================================================================
+# This runs for a specific repository
+# Good for: Multi-repository setups
+0 * * * * cd /path/to/IdeaGraph-v1 && python sync_github_issues.py --owner gdsanger --repo IdeaGraph-v1 >> logs/sync_github.log 2>&1
+
+# =============================================================================
+# Example 7: Run with environment variables
+# =============================================================================
+# This sets environment variables before running
+# Good for: Custom configuration per cron job
+0 * * * * cd /path/to/IdeaGraph-v1 && GITHUB_SYNC_OWNER=gdsanger GITHUB_SYNC_REPO=IdeaGraph-v1 python sync_github_issues.py >> logs/sync_github.log 2>&1
+
+# =============================================================================
+# Example 8: Run with Python virtual environment
+# =============================================================================
+# This activates the virtual environment before running
+# Good for: Production deployments with isolated dependencies
+0 * * * * cd /path/to/IdeaGraph-v1 && source .venv/bin/activate && python sync_github_issues.py >> logs/sync_github.log 2>&1
+
+# =============================================================================
+# Example 9: Run with email notifications on failure
+# =============================================================================
+# This sends an email if the script fails (requires mail setup)
+# Good for: Production monitoring
+MAILTO=admin@example.com
+0 * * * * cd /path/to/IdeaGraph-v1 && python sync_github_issues.py >> logs/sync_github.log 2>&1 || echo "GitHub sync failed at $(date)" | mail -s "IdeaGraph Sync Error" admin@example.com
+
+# =============================================================================
+# Example 10: Run with log rotation
+# =============================================================================
+# This appends to daily log files
+# Good for: Better log management
+0 * * * * cd /path/to/IdeaGraph-v1 && python sync_github_issues.py >> logs/sync_github_$(date +\%Y\%m\%d).log 2>&1
+
+# =============================================================================
+# Notes:
+# =============================================================================
+# 1. Replace /path/to/IdeaGraph-v1 with your actual installation path
+# 2. Ensure the logs directory exists: mkdir -p logs
+# 3. Make sure the script is executable: chmod +x sync_github_issues.py
+# 4. Consider log rotation to prevent disk space issues
+# 5. Monitor initial runs to ensure proper configuration
+# 6. Adjust frequency based on your needs and API rate limits
+#
+# GitHub API Rate Limits:
+# - Authenticated requests: 5000 requests/hour
+# - Each task check requires at least 1 API call
+# - Plan your cron frequency accordingly
+#
+# Recommended frequencies:
+# - Development: Every 15-30 minutes
+# - Production: Every hour
+# - Low activity: Daily

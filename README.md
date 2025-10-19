@@ -29,6 +29,10 @@ Sie verknüpft Kreativität, Struktur und Automatisierung – von der ersten Ide
   - Automatische Erstellung von Issues aus Aufgaben
   - Synchronisation von Status & Labels
   - Speicherung der GitHub-Issue-ID in IdeaGraph
+  - Automatische Überwachung von GitHub Issues und Pull Requests
+  - Synchronisation geschlossener Issues mit Task-Status
+  - ChromaDB-Speicherung von Issues/PRs für semantische Suche
+  - [Dokumentation →](GITHUB_SYNC_GUIDE.md)
 
 - **SharePoint Integration**
   - Datei-Upload (PDF, DOCX, MD, HTML, TXT)

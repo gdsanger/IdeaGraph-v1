@@ -380,3 +380,106 @@ class GitHubService:
         except Exception as e:
             logger.error(f"Error listing issues: {str(e)}")
             raise GitHubServiceError("Error listing issues", details=str(e))
+    
+    # Pull Request Methods
+    
+    def get_pull_request(
+        self,
+        pr_number: int,
+        repo: Optional[str] = None,
+        owner: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Get details of a specific pull request
+        
+        Args:
+            pr_number: Pull request number
+            repo: Repository name (uses default if not provided)
+            owner: Repository owner (uses default if not provided)
+            
+        Returns:
+            Dict with success status and pull request data
+        """
+        owner = owner or self.default_owner
+        repo = repo or self.default_repo
+        
+        if not owner or not repo:
+            raise GitHubServiceError(
+                "Repository information required",
+                details="owner and repo must be provided or configured as defaults"
+            )
+        
+        endpoint = f"repos/{owner}/{repo}/pulls/{pr_number}"
+        
+        try:
+            response = self._make_request('GET', endpoint)
+            pull_request = self._handle_response(response)
+            
+            return {
+                'success': True,
+                'pull_request': pull_request
+            }
+            
+        except GitHubServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting pull request: {str(e)}")
+            raise GitHubServiceError("Error getting pull request", details=str(e))
+    
+    def list_pull_requests(
+        self,
+        repo: Optional[str] = None,
+        owner: Optional[str] = None,
+        state: str = 'open',
+        per_page: int = 30,
+        page: int = 1
+    ) -> Dict[str, Any]:
+        """
+        List pull requests in a repository
+        
+        Args:
+            repo: Repository name (uses default if not provided)
+            owner: Repository owner (uses default if not provided)
+            state: Pull request state filter ('open', 'closed', 'all')
+            per_page: Number of results per page (max 100)
+            page: Page number for pagination
+            
+        Returns:
+            Dict with success status and list of pull requests
+        """
+        owner = owner or self.default_owner
+        repo = repo or self.default_repo
+        
+        if not owner or not repo:
+            raise GitHubServiceError(
+                "Repository information required",
+                details="owner and repo must be provided or configured as defaults"
+            )
+        
+        per_page = min(per_page, 100)  # GitHub API max
+        
+        endpoint = f"repos/{owner}/{repo}/pulls"
+        
+        params = {
+            'state': state,
+            'per_page': per_page,
+            'page': page,
+            'sort': 'updated',
+            'direction': 'desc'
+        }
+        
+        try:
+            response = self._make_request('GET', endpoint, params=params)
+            pull_requests = self._handle_response(response)
+            
+            return {
+                'success': True,
+                'pull_requests': pull_requests,
+                'count': len(pull_requests)
+            }
+            
+        except GitHubServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error listing pull requests: {str(e)}")
+            raise GitHubServiceError("Error listing pull requests", details=str(e))
