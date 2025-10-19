@@ -44,6 +44,22 @@
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(217, 119, 6, 0.3);
     }
+    
+    /* Fix Toast UI Editor markdown panel background to match the application theme */
+    .toastui-editor-defaultUI .toastui-editor-main-container .toastui-editor-md-container,
+    .toastui-editor-defaultUI .toastui-editor-main-container .toastui-editor-md-container .toastui-editor-md-splitter,
+    .toastui-editor-defaultUI .toastui-editor-main-container .toastui-editor-md-vertical-style .toastui-editor-md-splitter {
+        background-color: #1f2937;
+    }
+    
+    .toastui-editor-defaultUI .toastui-editor-md-vertical-style .toastui-editor-md-preview {
+        background-color: #1f2937;
+    }
+    
+    .toastui-editor-defaultUI .ProseMirror {
+        background-color: #1f2937;
+        color: #e5e7eb;
+    }
 </style>
 {% endblock %}
 
