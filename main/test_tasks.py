@@ -86,6 +86,87 @@ class TaskViewTest(TestCase):
         self.assertContains(response, 'Test Task 1')
         self.assertContains(response, 'Test Task 2')
     
+    def test_task_list_filter_completed_default(self):
+        """Test task list view shows only non-completed tasks by default"""
+        self.login()
+        
+        # Create a completed task
+        completed_task = Task.objects.create(
+            title='Completed Task',
+            description='Completed task description',
+            status='done',
+            item=self.item,
+            created_by=self.user,
+            assigned_to=self.user
+        )
+        
+        url = reverse('main:task_list', args=[self.item.id])
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        # Should show non-completed tasks
+        self.assertContains(response, 'Test Task 1')
+        self.assertContains(response, 'Test Task 2')
+        # Should NOT show completed task
+        self.assertNotContains(response, 'Completed Task')
+        # Should have show_completed=False in context
+        self.assertFalse(response.context['show_completed'])
+    
+    def test_task_list_filter_show_completed(self):
+        """Test task list view shows only completed tasks when filter is enabled"""
+        self.login()
+        
+        # Create a completed task
+        completed_task = Task.objects.create(
+            title='Completed Task',
+            description='Completed task description',
+            status='done',
+            item=self.item,
+            created_by=self.user,
+            assigned_to=self.user
+        )
+        
+        url = reverse('main:task_list', args=[self.item.id])
+        response = self.client.get(url, {'show_completed': 'true'})
+        
+        self.assertEqual(response.status_code, 200)
+        # Should show completed task
+        self.assertContains(response, 'Completed Task')
+        # Should NOT show non-completed tasks
+        self.assertNotContains(response, 'Test Task 1')
+        self.assertNotContains(response, 'Test Task 2')
+        # Should have show_completed=True in context
+        self.assertTrue(response.context['show_completed'])
+    
+    def test_task_list_toggle_switch_present(self):
+        """Test that the toggle switch is present in the HTML"""
+        self.login()
+        url = reverse('main:task_list', args=[self.item.id])
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        # Check for toggle switch elements
+        self.assertContains(response, 'id="showCompletedSwitch"')
+        self.assertContains(response, 'Anzeigen Erledigt')
+        self.assertContains(response, 'class="form-check form-switch"')
+    
+    def test_task_list_toggle_switch_checked_state(self):
+        """Test that the toggle switch reflects the correct state"""
+        self.login()
+        url = reverse('main:task_list', args=[self.item.id])
+        
+        # Test unchecked state (default)
+        response = self.client.get(url)
+        html = response.content.decode('utf-8')
+        # Verify switch is present but not checked
+        self.assertIn('id="showCompletedSwitch"', html)
+        self.assertNotIn('showCompletedSwitch" checked', html)
+        
+        # Test checked state
+        response = self.client.get(url, {'show_completed': 'true'})
+        html = response.content.decode('utf-8')
+        self.assertIn('showCompletedSwitch" checked', html)
+    
     def test_task_detail_view(self):
         """Test task detail view"""
         self.login()

@@ -933,8 +933,19 @@ def task_list(request, item_id):
         messages.error(request, 'You do not have permission to view this item.')
         return redirect('main:item_list')
     
+    # Get show_completed filter parameter (default: false - don't show completed)
+    show_completed = request.GET.get('show_completed', 'false').lower() == 'true'
+    
     # Get tasks for this item - only show owned tasks
     tasks = item.tasks.filter(created_by=user).select_related('assigned_to', 'created_by').prefetch_related('tags')
+    
+    # Filter by completion status
+    if show_completed:
+        # Show only completed tasks
+        tasks = tasks.filter(status='done')
+    else:
+        # Show only non-completed tasks (default)
+        tasks = tasks.exclude(status='done')
     
     # Sort tasks by status priority
     status_order = {'new': 1, 'working': 2, 'review': 3, 'ready': 4, 'done': 5}
@@ -943,6 +954,7 @@ def task_list(request, item_id):
     context = {
         'item': item,
         'tasks': tasks,
+        'show_completed': show_completed,
     }
     
     return render(request, 'main/tasks/list.html', context)
