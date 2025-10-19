@@ -18,7 +18,13 @@ class AutoTaskCreatorService:
     
     def __init__(self):
         """Initialize the auto-task creator service"""
-        self.github_service = GitHubService()
+        # GitHub service is optional - only used for issue creation
+        try:
+            self.github_service = GitHubService()
+        except Exception as e:
+            logger.warning(f"GitHub service not available: {e}")
+            self.github_service = None
+        
         logger.info("Auto-Task Creator Service initialized")
     
     def create_task_from_analysis(
@@ -233,6 +239,10 @@ class AutoTaskCreatorService:
             task: Task instance
             error_analysis: ErrorAnalysis instance
         """
+        if not self.github_service:
+            logger.warning("GitHub service not available, skipping issue creation")
+            return
+        
         try:
             # Build issue body
             issue_body = task.description + "\n\n---\n*Automatisch erstellt von IdeaGraph*"
