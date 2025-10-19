@@ -2,7 +2,7 @@
 Tests for ChromaTaskSyncService
 """
 from django.test import TestCase
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from main.models import User, Item, Task, Section, Settings
 from core.services.chroma_task_sync_service import ChromaTaskSyncService, ChromaTaskSyncServiceError
 
@@ -17,9 +17,9 @@ class ChromaTaskSyncServiceTest(TestCase):
             openai_api_enabled=True,
             openai_api_key='test-key-123',
             openai_api_base_url='https://api.openai.com/v1',
-            chroma_api_key='',
-            chroma_database='',
-            chroma_tenant=''
+            chroma_api_key='test-cloud-key',
+            chroma_database='https://api.trychroma.com/api/v1/databases/test-db',
+            chroma_tenant='test-tenant'
         )
         
         # Create test user
@@ -53,27 +53,9 @@ class ChromaTaskSyncServiceTest(TestCase):
             assigned_to=self.user
         )
     
-    @patch('core.services.chroma_task_sync_service.chromadb.PersistentClient')
-    def test_service_initialization_local(self, mock_client):
-        """Test service initializes with local storage"""
-        mock_collection = Mock()
-        mock_client.return_value.get_or_create_collection.return_value = mock_collection
-        
-        service = ChromaTaskSyncService(self.settings)
-        
-        self.assertIsNotNone(service)
-        mock_client.assert_called_once_with(path="./chroma_db")
-        mock_client.return_value.get_or_create_collection.assert_called_once()
-    
     @patch('core.services.chroma_task_sync_service.chromadb.HttpClient')
     def test_service_initialization_cloud(self, mock_client):
         """Test service initializes with cloud configuration"""
-        # Update settings for cloud config
-        self.settings.chroma_api_key = 'test-cloud-key'
-        self.settings.chroma_database = 'https://api.trychroma.com/api/v1/databases/test-db'
-        self.settings.chroma_tenant = 'test-tenant'
-        self.settings.save()
-
         mock_collection = Mock()
         mock_client.return_value.get_or_create_collection.return_value = mock_collection
 
@@ -94,6 +76,22 @@ class ChromaTaskSyncServiceTest(TestCase):
                 'X-Chroma-Token': 'test-cloud-key'
             }
         )
+
+    def test_service_initialization_missing_credentials(self):
+        """Service raises an error when credentials are missing"""
+        incomplete_settings = Settings.objects.create(
+            openai_api_enabled=True,
+            openai_api_key='key',
+            openai_api_base_url='https://api.openai.com/v1',
+            chroma_api_key='',
+            chroma_database='',
+            chroma_tenant='',
+        )
+
+        with self.assertRaises(ChromaTaskSyncServiceError) as context:
+            ChromaTaskSyncService(incomplete_settings)
+
+        self.assertIn('Missing ChromaDB cloud configuration', str(context.exception))
     
     def test_service_requires_settings(self):
         """Test service raises error without settings"""
@@ -105,7 +103,7 @@ class ChromaTaskSyncServiceTest(TestCase):
         self.assertIn('No settings found', str(context.exception))
     
     @patch('core.services.chroma_task_sync_service.requests.post')
-    @patch('core.services.chroma_task_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_task_sync_service.chromadb.HttpClient')
     def test_generate_embedding_success(self, mock_client, mock_post):
         """Test embedding generation with OpenAI API"""
         # Setup mocks
@@ -125,7 +123,7 @@ class ChromaTaskSyncServiceTest(TestCase):
         self.assertEqual(len(embedding), 1536)
         self.assertEqual(embedding[0], 0.1)
     
-    @patch('core.services.chroma_task_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_task_sync_service.chromadb.HttpClient')
     def test_generate_embedding_empty_text(self, mock_client):
         """Test embedding generation with empty text returns zero vector"""
         mock_collection = Mock()
@@ -137,7 +135,7 @@ class ChromaTaskSyncServiceTest(TestCase):
         self.assertEqual(len(embedding), 1536)
         self.assertEqual(embedding[0], 0.0)
     
-    @patch('core.services.chroma_task_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_task_sync_service.chromadb.HttpClient')
     def test_generate_embedding_api_disabled(self, mock_client):
         """Test embedding generation when API is disabled"""
         mock_collection = Mock()
@@ -152,7 +150,7 @@ class ChromaTaskSyncServiceTest(TestCase):
         self.assertEqual(len(embedding), 1536)
         self.assertEqual(embedding[0], 0.0)
     
-    @patch('core.services.chroma_task_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_task_sync_service.chromadb.HttpClient')
     def test_task_to_metadata(self, mock_client):
         """Test task metadata conversion"""
         mock_collection = Mock()
@@ -171,7 +169,7 @@ class ChromaTaskSyncServiceTest(TestCase):
         self.assertIn('updated_at', metadata)
     
     @patch('core.services.chroma_task_sync_service.requests.post')
-    @patch('core.services.chroma_task_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_task_sync_service.chromadb.HttpClient')
     def test_sync_create(self, mock_client, mock_post):
         """Test syncing a new task to ChromaDB"""
         # Setup mocks
@@ -199,7 +197,7 @@ class ChromaTaskSyncServiceTest(TestCase):
         self.assertEqual(call_args[1]['documents'], [self.task.description])
     
     @patch('core.services.chroma_task_sync_service.requests.post')
-    @patch('core.services.chroma_task_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_task_sync_service.chromadb.HttpClient')
     def test_sync_update(self, mock_client, mock_post):
         """Test syncing an updated task to ChromaDB"""
         # Setup mocks
@@ -231,7 +229,7 @@ class ChromaTaskSyncServiceTest(TestCase):
         self.assertEqual(len(call_args[1]['embeddings']), 1)
         self.assertEqual(call_args[1]['documents'], [self.task.description])
     
-    @patch('core.services.chroma_task_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_task_sync_service.chromadb.HttpClient')
     def test_sync_delete(self, mock_client):
         """Test deleting a task from ChromaDB"""
         mock_collection = Mock()
@@ -245,7 +243,7 @@ class ChromaTaskSyncServiceTest(TestCase):
         mock_collection.delete.assert_called_once_with(ids=[str(self.task.id)])
     
     @patch('core.services.chroma_task_sync_service.requests.post')
-    @patch('core.services.chroma_task_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_task_sync_service.chromadb.HttpClient')
     def test_search_similar(self, mock_client, mock_post):
         """Test searching for similar tasks"""
         # Setup mocks
@@ -277,7 +275,7 @@ class ChromaTaskSyncServiceTest(TestCase):
         self.assertEqual(result['results'][0]['id'], str(self.task.id))
         self.assertEqual(result['results'][0]['metadata']['title'], self.task.title)
     
-    @patch('core.services.chroma_task_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_task_sync_service.chromadb.HttpClient')
     def test_sync_create_collection_error(self, mock_client):
         """Test sync_create handles collection errors"""
         mock_collection = Mock()
@@ -291,7 +289,7 @@ class ChromaTaskSyncServiceTest(TestCase):
         
         self.assertIn('Failed to sync task', str(context.exception))
     
-    @patch('core.services.chroma_task_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_task_sync_service.chromadb.HttpClient')
     def test_sync_update_collection_error(self, mock_client):
         """Test sync_update handles collection errors"""
         mock_collection = Mock()
@@ -305,7 +303,7 @@ class ChromaTaskSyncServiceTest(TestCase):
         
         self.assertIn('Failed to update task', str(context.exception))
     
-    @patch('core.services.chroma_task_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_task_sync_service.chromadb.HttpClient')
     def test_sync_delete_collection_error(self, mock_client):
         """Test sync_delete handles collection errors"""
         mock_collection = Mock()
@@ -319,7 +317,7 @@ class ChromaTaskSyncServiceTest(TestCase):
         
         self.assertIn('Failed to delete task', str(context.exception))
     
-    @patch('core.services.chroma_task_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_task_sync_service.chromadb.HttpClient')
     def test_task_without_item(self, mock_client):
         """Test metadata conversion for task without item"""
         mock_collection = Mock()
@@ -339,7 +337,7 @@ class ChromaTaskSyncServiceTest(TestCase):
         
         self.assertEqual(metadata['item_id'], '')
     
-    @patch('core.services.chroma_task_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_task_sync_service.chromadb.HttpClient')
     def test_task_with_github_issue(self, mock_client):
         """Test metadata conversion for task with GitHub issue"""
         mock_collection = Mock()

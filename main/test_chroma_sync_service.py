@@ -2,7 +2,7 @@
 Tests for ChromaItemSyncService
 """
 from django.test import TestCase
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from main.models import User, Item, Section, Tag, Settings
 from core.services.chroma_sync_service import ChromaItemSyncService, ChromaItemSyncServiceError
 
@@ -17,9 +17,9 @@ class ChromaItemSyncServiceTest(TestCase):
             openai_api_enabled=True,
             openai_api_key='test-key-123',
             openai_api_base_url='https://api.openai.com/v1',
-            chroma_api_key='',
-            chroma_database='',
-            chroma_tenant=''
+            chroma_api_key='test-cloud-key',
+            chroma_database='https://api.trychroma.com/api/v1/databases/test-db',
+            chroma_tenant='test-tenant'
         )
         
         # Create test user
@@ -48,27 +48,9 @@ class ChromaItemSyncServiceTest(TestCase):
         )
         self.item.tags.add(self.tag1, self.tag2)
     
-    @patch('core.services.chroma_sync_service.chromadb.PersistentClient')
-    def test_service_initialization_local(self, mock_client):
-        """Test service initializes with local storage"""
-        mock_collection = Mock()
-        mock_client.return_value.get_or_create_collection.return_value = mock_collection
-        
-        service = ChromaItemSyncService(self.settings)
-        
-        self.assertIsNotNone(service)
-        mock_client.assert_called_once_with(path="./chroma_db")
-        mock_client.return_value.get_or_create_collection.assert_called_once()
-    
     @patch('core.services.chroma_sync_service.chromadb.HttpClient')
     def test_service_initialization_cloud(self, mock_client):
         """Test service initializes with cloud configuration"""
-        # Update settings for cloud config
-        self.settings.chroma_api_key = 'test-cloud-key'
-        self.settings.chroma_database = 'https://api.trychroma.com/api/v1/databases/test-db'
-        self.settings.chroma_tenant = 'test-tenant'
-        self.settings.save()
-
         mock_collection = Mock()
         mock_client.return_value.get_or_create_collection.return_value = mock_collection
 
@@ -89,6 +71,22 @@ class ChromaItemSyncServiceTest(TestCase):
                 'X-Chroma-Token': 'test-cloud-key'
             }
         )
+
+    def test_service_initialization_missing_credentials(self):
+        """Service raises an error when cloud credentials are missing"""
+        incomplete_settings = Settings.objects.create(
+            openai_api_enabled=True,
+            openai_api_key='key',
+            openai_api_base_url='https://api.openai.com/v1',
+            chroma_api_key='',
+            chroma_database='',
+            chroma_tenant='',
+        )
+
+        with self.assertRaises(ChromaItemSyncServiceError) as context:
+            ChromaItemSyncService(incomplete_settings)
+
+        self.assertIn('Missing ChromaDB cloud configuration', str(context.exception))
     
     def test_service_requires_settings(self):
         """Test service raises error without settings"""
@@ -100,7 +98,7 @@ class ChromaItemSyncServiceTest(TestCase):
         self.assertIn('No settings found', str(context.exception))
     
     @patch('core.services.chroma_sync_service.requests.post')
-    @patch('core.services.chroma_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_sync_service.chromadb.HttpClient')
     def test_generate_embedding_success(self, mock_client, mock_post):
         """Test embedding generation with OpenAI API"""
         # Setup mocks
@@ -120,7 +118,7 @@ class ChromaItemSyncServiceTest(TestCase):
         self.assertEqual(len(embedding), 1536)
         mock_post.assert_called_once()
     
-    @patch('core.services.chroma_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_sync_service.chromadb.HttpClient')
     def test_generate_embedding_no_api_key(self, mock_client):
         """Test embedding generation without API key returns zero vector"""
         mock_collection = Mock()
@@ -137,7 +135,7 @@ class ChromaItemSyncServiceTest(TestCase):
         self.assertEqual(len(embedding), 1536)
         self.assertEqual(embedding, [0.0] * 1536)
     
-    @patch('core.services.chroma_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_sync_service.chromadb.HttpClient')
     def test_generate_embedding_empty_text(self, mock_client):
         """Test embedding generation with empty text"""
         mock_collection = Mock()
@@ -150,7 +148,7 @@ class ChromaItemSyncServiceTest(TestCase):
         self.assertEqual(len(embedding), 1536)
         self.assertEqual(embedding, [0.0] * 1536)
     
-    @patch('core.services.chroma_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_sync_service.chromadb.HttpClient')
     def test_item_to_metadata(self, mock_client):
         """Test conversion of Item to metadata dictionary"""
         mock_collection = Mock()
@@ -170,7 +168,7 @@ class ChromaItemSyncServiceTest(TestCase):
         self.assertEqual(metadata['owner_username'], 'testuser')
     
     @patch('core.services.chroma_sync_service.requests.post')
-    @patch('core.services.chroma_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_sync_service.chromadb.HttpClient')
     def test_sync_create_success(self, mock_client, mock_post):
         """Test successful item creation sync"""
         # Setup mocks
@@ -197,7 +195,7 @@ class ChromaItemSyncServiceTest(TestCase):
         self.assertEqual(call_args.kwargs['documents'], [self.item.description])
     
     @patch('core.services.chroma_sync_service.requests.post')
-    @patch('core.services.chroma_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_sync_service.chromadb.HttpClient')
     def test_sync_update_success(self, mock_client, mock_post):
         """Test successful item update sync"""
         # Setup mocks
@@ -228,7 +226,7 @@ class ChromaItemSyncServiceTest(TestCase):
         self.assertEqual(call_args.kwargs['ids'], [str(self.item.id)])
         self.assertEqual(call_args.kwargs['documents'], ['Updated description'])
     
-    @patch('core.services.chroma_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_sync_service.chromadb.HttpClient')
     def test_sync_delete_success(self, mock_client):
         """Test successful item deletion sync"""
         mock_collection = Mock()
@@ -243,7 +241,7 @@ class ChromaItemSyncServiceTest(TestCase):
         self.assertIn('deleted', result['message'])
         mock_collection.delete.assert_called_once_with(ids=[item_id])
     
-    @patch('core.services.chroma_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_sync_service.chromadb.HttpClient')
     def test_sync_create_collection_error(self, mock_client):
         """Test sync_create handles collection errors"""
         mock_collection = Mock()
@@ -258,7 +256,7 @@ class ChromaItemSyncServiceTest(TestCase):
         self.assertIn('Failed to sync item', str(context.exception))
     
     @patch('core.services.chroma_sync_service.requests.post')
-    @patch('core.services.chroma_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_sync_service.chromadb.HttpClient')
     def test_search_similar_success(self, mock_client, mock_post):
         """Test successful similarity search"""
         # Setup mocks
@@ -286,7 +284,7 @@ class ChromaItemSyncServiceTest(TestCase):
         self.assertEqual(result['results'][0]['id'], str(self.item.id))
         mock_collection.query.assert_called_once()
     
-    @patch('core.services.chroma_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_sync_service.chromadb.HttpClient')
     def test_item_without_section_metadata(self, mock_client):
         """Test metadata generation for item without section"""
         mock_collection = Mock()
@@ -306,7 +304,7 @@ class ChromaItemSyncServiceTest(TestCase):
         self.assertEqual(metadata['section'], '')
         self.assertEqual(metadata['section_name'], '')
     
-    @patch('core.services.chroma_sync_service.chromadb.PersistentClient')
+    @patch('core.services.chroma_sync_service.chromadb.HttpClient')
     def test_item_without_tags_metadata(self, mock_client):
         """Test metadata generation for item without tags"""
         mock_collection = Mock()
