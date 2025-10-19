@@ -18,6 +18,13 @@ Sie verknüpft Kreativität, Struktur und Automatisierung – von der ersten Ide
   - Automatische Titel- und Tag-Erzeugung
   - Statusflow: Neu → Working → Review → Ready → Erledigt
 
+- **AI Log Analyzer & Auto-Task Creator** 🆕
+  - Automatische Erfassung von Fehlern aus lokalen Logs und Sentry
+  - KI-basierte Fehleranalyse und Schweregrad-Bewertung
+  - Automatische Task-Erstellung für behebbare Fehler
+  - Optional: GitHub Issue-Erstellung für kritische Fehler
+  - [Dokumentation →](AI_LOG_ANALYZER_GUIDE.md)
+
 - **GitHub Integration**
   - Automatische Erstellung von Issues aus Aufgaben
   - Synchronisation von Status & Labels
@@ -40,6 +47,8 @@ Sie verknüpft Kreativität, Struktur und Automatisierung – von der ersten Ide
 - **Logging & Monitoring**
   - System- und Audit-Logs in SQLite
   - JSON-basiertes Fehlertracking und API-Monitoring
+  - Automatische Log-Rotation
+  - AI-gestützte Fehleranalyse
 
 ---
 

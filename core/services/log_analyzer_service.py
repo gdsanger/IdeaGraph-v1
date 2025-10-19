@@ -217,7 +217,9 @@ class LogAnalyzerService:
         Returns:
             List of all relevant log entries
         """
-        since = datetime.now() - timedelta(hours=hours_back)
+        from django.utils import timezone as tz
+        
+        since = tz.now() - timedelta(hours=hours_back)
         all_entries = []
         
         logger.info(f"Analyzing logs from the last {hours_back} hours, min level: {min_level}")
