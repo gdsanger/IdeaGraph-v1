@@ -452,9 +452,12 @@ class GitHubIssueSyncService:
             # Initialize GitHub service
             github_service = GitHubService(self.settings)
             
-            # Find all tasks with linked GitHub issues
+            # Find all tasks with linked GitHub issues that are not done
+            # This optimization skips tasks that are already completed to save resources
             tasks_with_issues = Task.objects.filter(
                 github_issue_id__isnull=False
+            ).exclude(
+                status='done'
             ).select_related('item', 'created_by').prefetch_related('tags')
             
             results = {
