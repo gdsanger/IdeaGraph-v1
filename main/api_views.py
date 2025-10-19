@@ -1367,9 +1367,21 @@ def api_task_ai_enhance(request, task_id):
 @require_http_methods(["POST"])
 def api_item_ai_enhance(request, item_id):
     """
-    API endpoint to enhance item with AI.
+    API endpoint to enhance item with AI using KiGate agents.
+    
+    This function performs three main tasks:
+    1. Text normalization (spelling, grammar, flow, comprehensibility) using 'text-optimization-agent'
+    2. Title generation from normalized text using 'text-to-title-generator'
+    3. Tag/keyword extraction from item context using 'text-keyword-extractor-de'
+    
+    The generated tags replace any existing tags on the item to avoid duplicates.
+    Tags are properly attached to the Item entity via the ManyToMany relationship.
+    
     POST /api/items/{item_id}/ai-enhance
     Body: {"title": "...", "description": "..."}
+    
+    Returns:
+        JSON response with enhanced title, description, and tags list
     """
     user = get_user_from_request(request)
     if not user:
