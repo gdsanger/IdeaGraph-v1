@@ -365,13 +365,29 @@ document.querySelector('#aiEnhanceBtn').addEventListener('click', async function
                 editor.setMarkdown(data.description);
             }
             if (data.tags && data.tags.length > 0) {
-                // Select tags in the select element
-                const tagsSelect = document.querySelector('#tags');
-                Array.from(tagsSelect.options).forEach(option => {
-                    if (data.tags.includes(option.text)) {
-                        option.selected = true;
-                    }
-                });
+                // Update tag token box with new tags
+                const tagTokenBox = document.getElementById('taskDetailTagTokenBox');
+                if (tagTokenBox) {
+                    // Clear existing tags by removing all tag tokens
+                    tagTokenBox.querySelectorAll('.tag-token').forEach(token => {
+                        token.remove();
+                    });
+                    
+                    // Re-initialize the tag token box with new tags
+                    const allTags = JSON.parse(document.getElementById('task-detail-all-tags').textContent || '[]');
+                    const newSelectedTags = data.tags.map(tagName => {
+                        // Find tag in all tags or create new one
+                        const existingTag = allTags.find(t => t.name === tagName);
+                        return existingTag || { name: tagName, color: '#3b82f6', isNew: true };
+                    });
+                    
+                    initializeTagTokenBox('taskDetailTagTokenBox', {
+                        allTags: allTags,
+                        selectedTags: newSelectedTags,
+                        hiddenInputContainerId: 'taskDetailTagHiddenInputs',
+                        inputPlaceholder: 'Add a tag and press Enter'
+                    });
+                }
             }
             showAlert('Content enhanced successfully! Review and save the changes.', 'success');
         } else {

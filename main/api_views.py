@@ -1225,6 +1225,12 @@ def api_task_ai_enhance(request, task_id):
     API endpoint to enhance task with AI.
     POST /api/tasks/{task_id}/ai-enhance
     Body: {"title": "...", "description": "..."}
+    
+    Process:
+    1. Query ChromaDB for similar tasks to provide context
+    2. Normalize text using KiGate API with "github-issue-creation-agent" with context
+    3. Generate title from normalized text using "text-to-title-generator"
+    4. Extract 5 tags using "text-keyword-extractor-de" and replace existing tags
     """
     user = get_user_from_request(request)
     if not user:
@@ -1250,69 +1256,109 @@ def api_task_ai_enhance(request, task_id):
         settings = Settings.objects.first()
         max_tags = settings.max_tags_per_idea if settings else 5
         
+        # Step 1: Query ChromaDB for similar tasks to provide context
+        context_text = ""
+        try:
+            chroma_service = ChromaTaskSyncService(settings)
+            search_query = f"{title}\n{description}"
+            similar_results = chroma_service.search_similar(search_query, n_results=3)
+            
+            if similar_results.get('success') and similar_results.get('results'):
+                context_items = []
+                for idx, result in enumerate(similar_results['results'][:3], 1):
+                    metadata = result.get('metadata', {})
+                    doc = result.get('document', '')
+                    context_items.append(f"Similar Task {idx}:\nTitle: {metadata.get('title', 'N/A')}\nDescription: {doc[:200]}...")
+                
+                context_text = "\n\n".join(context_items)
+                logger.info(f"Found {len(similar_results['results'])} similar tasks for context")
+        except Exception as e:
+            logger.warning(f"Could not retrieve ChromaDB context: {str(e)}")
+            # Continue without context if ChromaDB fails
+        
         # Use KiGate service to enhance content
         kigate = KiGateService()
         
-        # First, optimize the text
+        # Step 2: Normalize text with context using github-issue-creation-agent
+        normalization_message = f"Title: {title}\n\nDescription:\n{description}"
+        if context_text:
+            normalization_message += f"\n\n--- Context from similar tasks ---\n{context_text}\n--- End of context ---"
+        
         text_result = kigate.execute_agent(
-            agent_name='text-optimization-agent',
+            agent_name='github-issue-creation-agent',
             provider='openai',
             model='gpt-4',
-            message=f"Title: {title}\n\nDescription:\n{description}",
+            message=normalization_message,
             user_id=str(user.id),
             parameters={'language': 'de'}
         )
         
         if not text_result.get('success'):
-            return JsonResponse({'error': text_result.get('error', 'Failed to enhance text')}, status=500)
+            return JsonResponse({'error': text_result.get('error', 'Failed to normalize text')}, status=500)
         
-        enhanced_text = text_result.get('response', description)
+        normalized_text = text_result.get('result', text_result.get('response', description))
         
-        # Extract keywords/tags
+        # Step 3: Generate title from normalized text using text-to-title-generator
+        title_result = kigate.execute_agent(
+            agent_name='text-to-title-generator',
+            provider='openai',
+            model='gpt-4',
+            message=normalized_text,
+            user_id=str(user.id),
+            parameters={'language': 'de'}
+        )
+        
+        enhanced_title = title
+        if title_result.get('success'):
+            generated_title = title_result.get('result', title_result.get('response', '')).strip()
+            if generated_title:
+                enhanced_title = generated_title[:255]  # Limit to field max length
+        
+        # Step 4: Extract keywords/tags using text-keyword-extractor-de
         keyword_result = kigate.execute_agent(
             agent_name='text-keyword-extractor-de',
             provider='openai',
             model='gpt-4',
-            message=enhanced_text,
+            message=normalized_text,
             user_id=str(user.id),
             parameters={'max_keywords': max_tags}
         )
         
-        # Parse keywords
+        # Parse keywords and create/get tags
         tags_list = []
         if keyword_result.get('success'):
-            keywords_text = keyword_result.get('response', '')
-            # Extract keywords from response
-            keywords = [k.strip() for k in keywords_text.split(',') if k.strip()]
+            keywords_response = keyword_result.get('result', keyword_result.get('response', ''))
+            # Extract keywords from response (can be comma-separated or line-separated)
+            keywords = []
+            for line in keywords_response.split('\n'):
+                for k in line.split(','):
+                    keyword = k.strip().strip('-').strip('*').strip()
+                    if keyword:
+                        keywords.append(keyword)
             
             # Get or create tags
             for keyword in keywords[:max_tags]:
                 tag, _ = Tag.objects.get_or_create(name=keyword)
                 tags_list.append(tag.name)
         
-        # Generate improved title if possible
-        title_lines = enhanced_text.split('\n')
-        enhanced_title = title_lines[0].replace('Title:', '').strip() if title_lines else title
-        
         return JsonResponse({
             'success': True,
-            'title': enhanced_title[:255],  # Limit to field max length
-            'description': enhanced_text,
+            'title': enhanced_title,
+            'description': normalized_text,
             'tags': tags_list
         })
         
     except Task.DoesNotExist:
         return JsonResponse({'error': 'Task not found'}, status=404)
     except KiGateServiceError as e:
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f'KiGate API error: {e.message}')
         return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except ChromaTaskSyncServiceError as e:
+        logger.error(f'ChromaDB error: {e.message}')
+        return JsonResponse({'error': 'ChromaDB service error', 'details': e.message}, status=500)
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f'Task AI enhance error: {str(e)}')
         return JsonResponse({'error': 'An error occurred during AI enhancement'}, status=500)
 
