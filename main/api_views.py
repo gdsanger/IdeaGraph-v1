@@ -1897,3 +1897,65 @@ def api_task_overview(request):
         logger.error(f'Task overview error: {str(e)}')
         return JsonResponse({'error': 'An error occurred while fetching task overview'}, status=500)
 
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_send_item_email(request, item_id):
+    """
+    API endpoint to send item details via email.
+    POST /api/items/{item_id}/send-email
+    Body: {"email": "recipient@example.com"}
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Item
+    from .mail_utils import send_item_email
+    
+    try:
+        # Get the item
+        item = Item.objects.get(id=item_id)
+        
+        # Check ownership (only owner or admin can send)
+        if user.role != 'admin' and item.created_by != user:
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        # Parse request body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        
+        recipient_email = data.get('email', '').strip()
+        
+        if not recipient_email:
+            return JsonResponse({'error': 'Email address is required'}, status=400)
+        
+        # Validate email format (basic validation)
+        if '@' not in recipient_email or '.' not in recipient_email:
+            return JsonResponse({'error': 'Invalid email address format'}, status=400)
+        
+        # Send the email
+        success, message = send_item_email(item_id, recipient_email)
+        
+        if success:
+            logger.info(f'Item {item.title} sent via email to {recipient_email} by user {user.username}')
+            return JsonResponse({
+                'success': True,
+                'message': message
+            })
+        else:
+            logger.error(f'Failed to send item {item.title} via email: {message}')
+            return JsonResponse({
+                'success': False,
+                'error': message
+            }, status=500)
+            
+    except Item.DoesNotExist:
+        return JsonResponse({'error': 'Item not found'}, status=404)
+    except Exception as e:
+        logger.error(f'Send item email error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while sending email'}, status=500)
+
+

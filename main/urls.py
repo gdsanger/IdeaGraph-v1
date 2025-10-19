@@ -52,6 +52,7 @@ urlpatterns = [
     path('api/items/<uuid:item_id>/ai-enhance', api_views.api_item_ai_enhance, name='api_item_ai_enhance'),
     path('api/items/<uuid:item_id>/build-tasks', api_views.api_item_build_tasks, name='api_item_build_tasks'),
     path('api/items/<uuid:item_id>/check-similarity', api_views.api_item_check_similarity, name='api_item_check_similarity'),
+    path('api/items/<uuid:item_id>/send-email', api_views.api_send_item_email, name='api_send_item_email'),
     
     # Task Management URLs
     path('items/<uuid:item_id>/tasks/', views.task_list, name='task_list'),
