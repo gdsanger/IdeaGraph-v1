@@ -574,7 +574,9 @@ document.querySelector('#checkSimilarityBtn').addEventListener('click', async fu
                     const metadata = item.metadata || {};
                     const itemTitle = metadata.title || 'Untitled';
                     const itemDesc = item.document || metadata.description || '';
-                    const tags = metadata.tags || [];
+                    // Tags are stored as comma-separated string in ChromaDB metadata
+                    const tagsString = metadata.tags || '';
+                    const tags = tagsString ? tagsString.split(',').map(t => t.trim()).filter(t => t) : [];
                     
                     html += `
                         <a href="/items/${item.id}/" class="list-group-item list-group-item-action">

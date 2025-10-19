@@ -237,11 +237,17 @@ class ChromaItemSyncService:
             # Return zero vector for empty text
             return [0.0] * 1536  # OpenAI ada-002 embedding size
         
+        # Check if OpenAI API is enabled
+        if not self.settings.openai_api_enabled or not self.settings.openai_api_key:
+            error_msg = "OpenAI API is not enabled or API key is missing. Please enable OpenAI API in Settings and configure your API key."
+            logger.error(error_msg)
+            raise ChromaItemSyncServiceError(
+                error_msg,
+                details="Configure OpenAI settings: openai_api_enabled=True, openai_api_key, openai_api_base_url"
+            )
+        
         try:
             # Use OpenAI embedding API
-            if not self.settings.openai_api_enabled or not self.settings.openai_api_key:
-                logger.warning("OpenAI API not enabled, using zero vector")
-                return [0.0] * 1536
             
             url = f"{self.settings.openai_api_base_url}/embeddings"
             headers = {
@@ -268,6 +274,8 @@ class ChromaItemSyncService:
                     details=f"API returned status {response.status_code}"
                 )
                 
+        except ChromaItemSyncServiceError:
+            raise
         except Exception as e:
             logger.error(f"Error generating embedding: {str(e)}")
             raise ChromaItemSyncServiceError(
