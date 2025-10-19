@@ -30,9 +30,17 @@
                     <h3 class="mb-0">
                         <i class="bi bi-list-task"></i> Tasks for {{ item.title }}
                     </h3>
-                    <a href="{% url 'main:task_create' item.id %}" class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> New Task
-                    </a>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="showCompletedSwitch" {% if show_completed %}checked{% endif %}>
+                            <label class="form-check-label" for="showCompletedSwitch">
+                                Anzeigen Erledigt
+                            </label>
+                        </div>
+                        <a href="{% url 'main:task_create' item.id %}" class="btn btn-primary">
+                            <i class="bi bi-plus-circle"></i> New Task
+                        </a>
+                    </div>
                 </div>
                 <div class="card-body">
                     {% if tasks %}
@@ -112,4 +120,18 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const showCompletedSwitch = document.getElementById('showCompletedSwitch');
+    
+    if (showCompletedSwitch) {
+        showCompletedSwitch.addEventListener('change', function() {
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.set('show_completed', this.checked ? 'true' : 'false');
+            window.location.href = currentUrl.toString();
+        });
+    }
+});
+</script>
 {% endblock %}
