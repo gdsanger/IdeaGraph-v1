@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ item.title }} - IdeaGraph</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            background: #ffffff;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: #ffffff;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .header .icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .content {
+            padding: 40px 30px;
+        }
+        .content h2 {
+            color: #3b82f6;
+            font-size: 22px;
+            margin-top: 0;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 10px;
+        }
+        .content h3 {
+            color: #1e40af;
+            font-size: 18px;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+        .content p {
+            margin: 15px 0;
+            color: #555;
+        }
+        .metadata {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .metadata-row {
+            display: table;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .metadata-row:last-child {
+            margin-bottom: 0;
+        }
+        .metadata-label {
+            display: table-cell;
+            font-weight: 600;
+            color: #1e40af;
+            width: 150px;
+            padding-right: 15px;
+        }
+        .metadata-value {
+            display: table-cell;
+            color: #555;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .status-new {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+        .status-spec_review {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+        .status-working {
+            background-color: #fef08a;
+            color: #854d0e;
+        }
+        .status-ready {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        .status-done {
+            background-color: #a7f3d0;
+            color: #064e3b;
+        }
+        .status-rejected {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+        .tag {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-right: 8px;
+            margin-bottom: 8px;
+            color: #ffffff;
+        }
+        .description-box {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .tasks-section {
+            margin-top: 30px;
+        }
+        .task-list {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+        .task-item {
+            background: #f9fafb;
+            border-left: 4px solid #3b82f6;
+            padding: 15px 20px;
+            margin-bottom: 12px;
+            border-radius: 5px;
+        }
+        .task-item.done {
+            border-left-color: #10b981;
+            opacity: 0.7;
+        }
+        .task-title {
+            font-weight: 600;
+            color: #1e40af;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        .task-status {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+        .task-status-new {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+        .task-status-working {
+            background-color: #fef08a;
+            color: #854d0e;
+        }
+        .task-status-review {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+        .task-status-ready {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        .task-status-done {
+            background-color: #a7f3d0;
+            color: #064e3b;
+        }
+        .no-tasks {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+            color: #92400e;
+        }
+        .footer {
+            background: #1a1a1a;
+            color: #999;
+            padding: 20px 30px;
+            text-align: center;
+            font-size: 14px;
+        }
+        .footer p {
+            margin: 5px 0;
+        }
+        .footer a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        .info-box {
+            background: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .info-box p {
+            margin: 5px 0;
+            color: #1e40af;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="icon">💡</div>
+            <h1>Item Details</h1>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+            <h2>{{ item.title }}</h2>
+            
+            <!-- Metadata Section -->
+            <div class="metadata">
+                <div class="metadata-row">
+                    <div class="metadata-label">Status:</div>
+                    <div class="metadata-value">
+                        <span class="status-badge status-{{ item.status }}">{{ item.get_status_display }}</span>
+                    </div>
+                </div>
+                {% if item.section %}
+                <div class="metadata-row">
+                    <div class="metadata-label">Bereich:</div>
+                    <div class="metadata-value">{{ item.section.name }}</div>
+                </div>
+                {% endif %}
+                {% if item.github_repo %}
+                <div class="metadata-row">
+                    <div class="metadata-label">GitHub Repository:</div>
+                    <div class="metadata-value">{{ item.github_repo }}</div>
+                </div>
+                {% endif %}
+                {% if item.created_by %}
+                <div class="metadata-row">
+                    <div class="metadata-label">Erstellt von:</div>
+                    <div class="metadata-value">{{ item.created_by.username }}</div>
+                </div>
+                {% endif %}
+                <div class="metadata-row">
+                    <div class="metadata-label">Erstellt am:</div>
+                    <div class="metadata-value">{{ item.created_at|date:"d.m.Y H:i" }} Uhr</div>
+                </div>
+                <div class="metadata-row">
+                    <div class="metadata-label">Aktualisiert am:</div>
+                    <div class="metadata-value">{{ item.updated_at|date:"d.m.Y H:i" }} Uhr</div>
+                </div>
+                {% if tags %}
+                <div class="metadata-row">
+                    <div class="metadata-label">Tags:</div>
+                    <div class="metadata-value">
+                        {% for tag in tags %}
+                        <span class="tag" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Description Section -->
+            {% if item.description %}
+            <h3>Beschreibung</h3>
+            <div class="description-box">{{ item.description }}</div>
+            {% endif %}
+
+            <!-- Tasks Section -->
+            <div class="tasks-section">
+                <h3>Offene Aufgaben ({{ open_tasks_count }})</h3>
+                
+                {% if open_tasks %}
+                <ul class="task-list">
+                    {% for task in open_tasks %}
+                    <li class="task-item {% if task.status == 'done' %}done{% endif %}">
+                        <div class="task-title">{{ task.title }}</div>
+                        <div class="task-status task-status-{{ task.status }}">
+                            Status: {{ task.get_status_display }}
+                        </div>
+                        {% if task.assigned_to %}
+                        <div style="margin-top: 8px; color: #6b7280; font-size: 14px;">
+                            Zugewiesen an: {{ task.assigned_to.username }}
+                        </div>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="no-tasks">
+                    <p><strong>ℹ️ Keine offenen Aufgaben</strong></p>
+                    <p>Für dieses Item gibt es derzeit keine offenen Aufgaben.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Info Box -->
+            <div class="info-box">
+                <p><strong>💡 Hinweis:</strong></p>
+                <p>Diese E-Mail wurde automatisch über IdeaGraph generiert und enthält alle aktuellen Informationen zum Item.</p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p><strong>IdeaGraph v1.0</strong></p>
+            <p>
+                &copy; Christian Angermeier | 
+                <a href="mailto:idea@angermeier.net">idea@angermeier.net</a>
+            </p>
+            <p style="margin-top: 15px; font-size: 12px;">
+                Diese E-Mail wurde automatisch generiert. Bitte antworten Sie nicht auf diese Nachricht.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
