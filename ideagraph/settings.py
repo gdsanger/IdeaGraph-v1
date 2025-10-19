@@ -128,6 +128,9 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 
+# Local persistent storage for ChromaDB when cloud credentials are not provided
+CHROMADB_LOCAL_PATH = BASE_DIR / 'chroma_db'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 

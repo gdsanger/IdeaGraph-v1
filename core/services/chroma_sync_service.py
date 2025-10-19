@@ -6,11 +6,14 @@ Items are stored with their description as embeddings and metadata.
 """
 
 import logging
+import os
+from pathlib import Path
 import requests
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 import chromadb
+from django.conf import settings as django_settings
 from urllib.parse import urlparse, parse_qs
 
 
@@ -88,7 +91,8 @@ class ChromaItemSyncService:
             else:
                 # Local/persistent storage configuration
                 logger.info("Initializing ChromaDB local client")
-                self._client = chromadb.PersistentClient(path="./chroma_db")
+                local_path = self._prepare_local_client_path()
+                self._client = chromadb.PersistentClient(path=local_path)
             
             # Get or create collection
             self._collection = self._client.get_or_create_collection(
@@ -104,6 +108,35 @@ class ChromaItemSyncService:
                 "Failed to initialize ChromaDB client",
                 details=str(e)
             )
+
+    def _prepare_local_client_path(self) -> str:
+        """Ensure a writable local directory exists for the ChromaDB client."""
+
+        configured_path = getattr(django_settings, 'CHROMADB_LOCAL_PATH', None)
+        if configured_path:
+            base_path = Path(configured_path)
+        else:
+            base_dir = getattr(django_settings, 'BASE_DIR', Path.cwd())
+            base_path = Path(base_dir) / 'chroma_db'
+
+        try:
+            base_path.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            logger.error(f"Failed to prepare local ChromaDB directory: {str(exc)}")
+            raise ChromaItemSyncServiceError(
+                "Failed to prepare local ChromaDB directory",
+                details=str(exc)
+            )
+
+        if not os.access(base_path, os.W_OK):
+            error_message = f"Directory '{base_path}' is not writable"
+            logger.error(error_message)
+            raise ChromaItemSyncServiceError(
+                "ChromaDB directory not writable",
+                details=error_message
+            )
+
+        return str(base_path)
 
     def _build_cloud_client_kwargs(self) -> Dict[str, Any]:
         """Build keyword arguments for ChromaDB HttpClient configuration."""
