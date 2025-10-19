@@ -37,6 +37,28 @@ def get_user_from_token(request):
         return None
 
 
+def get_user_from_request(request):
+    """
+    Extract and validate user from either JWT token or session.
+    This supports both API authentication (JWT) and web view authentication (session).
+    """
+    # First, try JWT authentication
+    user = get_user_from_token(request)
+    if user:
+        return user
+    
+    # Fall back to session authentication
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return None
+    
+    try:
+        user = User.objects.get(id=user_id, is_active=True)
+        return user
+    except User.DoesNotExist:
+        return None
+
+
 def require_admin(view_func):
     """Decorator to require admin role for API endpoints"""
     def wrapper(request, *args, **kwargs):
@@ -1201,7 +1223,7 @@ def api_task_ai_enhance(request, task_id):
     POST /api/tasks/{task_id}/ai-enhance
     Body: {"title": "...", "description": "..."}
     """
-    user = get_user_from_token(request)
+    user = get_user_from_request(request)
     if not user:
         return JsonResponse({'error': 'Authentication required'}, status=401)
     
@@ -1299,7 +1321,7 @@ def api_task_create_github_issue(request, task_id):
     API endpoint to create GitHub issue from task.
     POST /api/tasks/{task_id}/create-github-issue
     """
-    user = get_user_from_token(request)
+    user = get_user_from_request(request)
     if not user:
         return JsonResponse({'error': 'Authentication required'}, status=401)
     
@@ -1382,7 +1404,7 @@ def api_task_similar(request, task_id):
     API endpoint to get similar tasks.
     GET /api/tasks/{task_id}/similar
     """
-    user = get_user_from_token(request)
+    user = get_user_from_request(request)
     if not user:
         return JsonResponse({'error': 'Authentication required'}, status=401)
     
