@@ -8,6 +8,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.core.paginator import Paginator
+from django.utils import timezone
 from .models import User
 from .auth_utils import generate_jwt_token, decode_jwt_token, validate_password
 from core.services.graph_service import GraphService, GraphServiceError
@@ -1372,7 +1373,7 @@ def api_task_create_github_issue(request, task_id):
         if result.get('success'):
             # Update task with GitHub issue info
             task.github_issue_id = result.get('issue_number')
-            task.github_issue_url = result.get('html_url')
+            task.github_issue_url = result.get('url')
             task.github_synced_at = timezone.now()
             task.save()
             
