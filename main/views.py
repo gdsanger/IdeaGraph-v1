@@ -1277,3 +1277,8 @@ def task_overview(request):
     
     return render(request, 'main/tasks/overview.html', context)
 
+
+def tags_network_view(request):
+    """Tags network graph visualization view"""
+    return render(request, 'main/tags/network.html')
+

@@ -269,6 +269,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'tags_network' %}active{% endif %}" href="{% url 'main:tags_network' %}">
+                            <i class="bi bi-diagram-3-fill"></i> Tags
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.resolver_match.url_name == 'settings' or 'tag' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'main:settings' %}">
                             <i class="bi bi-gear-fill"></i> Settings
                         </a>
