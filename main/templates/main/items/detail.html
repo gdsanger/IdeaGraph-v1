@@ -453,10 +453,30 @@ document.querySelector('#buildTasksBtn').addEventListener('click', async functio
     btn.disabled = true;
     
     try {
-        // TODO: Call API endpoint for building tasks
-        alert('Build Tasks feature will be implemented with KiGate API integration');
+        const response = await fetch('/api/items/{{ item.id }}/build-tasks', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            const tasksCreated = data.tasks_created || 0;
+            showAlert(`Successfully created ${tasksCreated} task(s) from this item!`, 'success');
+            
+            // Reload the page to show the new tasks
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showAlert(data.error || 'Failed to build tasks', 'danger');
+        }
     } catch (error) {
-        alert('Error: ' + error.message);
+        console.error('Error:', error);
+        showAlert('Error: ' + error.message, 'danger');
     } finally {
         btn.classList.remove('loading');
         btn.disabled = false;

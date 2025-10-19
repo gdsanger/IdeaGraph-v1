@@ -50,6 +50,7 @@ urlpatterns = [
     
     # Item API Endpoints
     path('api/items/<uuid:item_id>/ai-enhance', api_views.api_item_ai_enhance, name='api_item_ai_enhance'),
+    path('api/items/<uuid:item_id>/build-tasks', api_views.api_item_build_tasks, name='api_item_build_tasks'),
     
     # Task Management URLs
     path('items/<uuid:item_id>/tasks/', views.task_list, name='task_list'),

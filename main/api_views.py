@@ -1418,6 +1418,156 @@ def api_item_ai_enhance(request, item_id):
 
 @csrf_exempt
 @require_http_methods(["POST"])
+def api_item_build_tasks(request, item_id):
+    """
+    API endpoint to build tasks from an item using KiGate agents.
+    POST /api/items/{item_id}/build-tasks
+    
+    This endpoint:
+    1. Uses role-identification-agent to determine the role
+    2. Uses task-extraction-agent to extract tasks from the item description
+    3. Creates tasks with status='review' for each extracted task
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Item, Task, Settings
+    
+    try:
+        item = Item.objects.get(id=item_id)
+        
+        # Check ownership
+        if item.created_by != user:
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        # Check if item description is present
+        if not item.description or not item.description.strip():
+            return JsonResponse({'error': 'Item description is required to build tasks'}, status=400)
+        
+        # Get settings
+        settings = Settings.objects.first()
+        if not settings:
+            return JsonResponse({'error': 'Settings not configured'}, status=500)
+        
+        # Initialize KiGate service
+        kigate = KiGateService(settings)
+        
+        # Step 1: Identify the role using role-identification-agent
+        role_result = kigate.execute_agent(
+            agent_name='role-identification-agent',
+            provider='openai',
+            model='gpt-4',
+            message=item.description,
+            user_id=str(user.id)
+        )
+        
+        if not role_result.get('success'):
+            return JsonResponse({
+                'error': 'Failed to identify role',
+                'details': role_result.get('error', 'Unknown error')
+            }, status=500)
+        
+        # Extract role from response (format: "Ich bin {Role}")
+        role_text = role_result.get('result', '')
+        logger.info(f'Role identification result: {role_text}')
+        
+        # Step 2: Extract tasks using task-extraction-agent
+        # Combine role and item description
+        task_extraction_message = f"{role_text}\n\n{item.description}"
+        
+        task_result = kigate.execute_agent(
+            agent_name='task-extraction-agent',
+            provider='openai',
+            model='gpt-4',
+            message=task_extraction_message,
+            user_id=str(user.id)
+        )
+        
+        if not task_result.get('success'):
+            return JsonResponse({
+                'error': 'Failed to extract tasks',
+                'details': task_result.get('error', 'Unknown error')
+            }, status=500)
+        
+        # Parse the task list (expected format: JSON list with "Titel" and "Beschreibung")
+        tasks_data = task_result.get('result', '')
+        logger.info(f'Task extraction result: {tasks_data}')
+        
+        # Try to parse as JSON
+        try:
+            if isinstance(tasks_data, str):
+                tasks_list = json.loads(tasks_data)
+            else:
+                tasks_list = tasks_data
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'error': 'Failed to parse tasks data',
+                'details': 'Invalid JSON format from task-extraction-agent'
+            }, status=500)
+        
+        if not isinstance(tasks_list, list):
+            return JsonResponse({
+                'error': 'Invalid tasks format',
+                'details': 'Expected a list of tasks'
+            }, status=500)
+        
+        # Step 3: Create tasks for each extracted task
+        created_tasks = []
+        for task_data in tasks_list:
+            if not isinstance(task_data, dict):
+                continue
+            
+            title = task_data.get('Titel', task_data.get('titel', ''))
+            description = task_data.get('Beschreibung', task_data.get('beschreibung', ''))
+            
+            if not title:
+                continue
+            
+            # Convert \n to actual line breaks in description
+            if description:
+                description = description.replace('\\n', '\n')
+            
+            # Create the task
+            task = Task.objects.create(
+                title=title,
+                description=description,
+                status='review',
+                item=item,
+                created_by=user,
+                ai_generated=True
+            )
+            
+            created_tasks.append({
+                'id': str(task.id),
+                'title': task.title,
+                'description': task.description,
+                'status': task.status
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'tasks_created': len(created_tasks),
+            'tasks': created_tasks,
+            'role': role_text
+        })
+        
+    except Item.DoesNotExist:
+        return JsonResponse({'error': 'Item not found'}, status=404)
+    except KiGateServiceError as e:
+        logger.error(f'KiGate API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f'Build tasks error: {str(e)}')
+        import traceback
+        logger.error(traceback.format_exc())
+        return JsonResponse({'error': 'An error occurred while building tasks'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
 def api_task_create_github_issue(request, task_id):
     """
     API endpoint to create GitHub issue from task.
