@@ -1959,3 +1959,82 @@ def api_send_item_email(request, item_id):
         return JsonResponse({'error': 'An error occurred while sending email'}, status=500)
 
 
+@require_http_methods(["POST"])
+def api_task_bulk_delete(request):
+    """
+    API endpoint for bulk task deletion.
+    POST /api/tasks/bulk-delete
+    Body: {"task_ids": ["uuid1", "uuid2", ...]}
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Task, Settings
+    from django.core.exceptions import ValidationError
+    
+    try:
+        data = json.loads(request.body)
+        task_ids = data.get('task_ids', [])
+        
+        if not task_ids:
+            return JsonResponse({'error': 'No task IDs provided'}, status=400)
+        
+        if not isinstance(task_ids, list):
+            return JsonResponse({'error': 'task_ids must be a list'}, status=400)
+        
+        # Validate UUIDs
+        valid_task_ids = []
+        for task_id in task_ids:
+            try:
+                import uuid
+                uuid.UUID(str(task_id))
+                valid_task_ids.append(task_id)
+            except (ValueError, AttributeError):
+                # Skip invalid UUIDs
+                pass
+        
+        if not valid_task_ids:
+            return JsonResponse({'error': 'No valid task IDs provided'}, status=400)
+        
+        # Get all tasks that belong to the user
+        tasks = Task.objects.filter(id__in=valid_task_ids, created_by=user)
+        
+        if not tasks.exists():
+            return JsonResponse({'error': 'No tasks found or access denied'}, status=404)
+        
+        # Store task IDs for ChromaDB sync before deletion
+        deleted_task_ids = [str(task.id) for task in tasks]
+        deleted_count = tasks.count()
+        
+        # Delete tasks
+        tasks.delete()
+        
+        # Sync with ChromaDB
+        try:
+            settings = Settings.objects.first()
+            if settings:
+                sync_service = ChromaTaskSyncService(settings)
+                for task_id in deleted_task_ids:
+                    try:
+                        sync_service.sync_delete(task_id)
+                    except Exception as sync_error:
+                        logger.warning(f'ChromaDB sync failed for task {task_id}: {str(sync_error)}')
+        except Exception as e:
+            logger.warning(f'ChromaDB sync error: {str(e)}')
+        
+        logger.info(f'User {user.username} deleted {deleted_count} task(s)')
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'{deleted_count} task(s) deleted successfully',
+            'deleted_count': deleted_count
+        })
+    
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f'Bulk delete error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while deleting tasks'}, status=500)
+
+

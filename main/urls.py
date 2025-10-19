@@ -102,4 +102,5 @@ urlpatterns = [
     path('api/tasks/<uuid:task_id>/create-github-issue', api_views.api_task_create_github_issue, name='api_task_create_github_issue'),
     path('api/tasks/<uuid:task_id>/similar', api_views.api_task_similar, name='api_task_similar'),
     path('api/tasks/overview', api_views.api_task_overview, name='api_task_overview'),
+    path('api/tasks/bulk-delete', api_views.api_task_bulk_delete, name='api_task_bulk_delete'),
 ]

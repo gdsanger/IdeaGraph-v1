@@ -751,3 +751,287 @@ class TaskOverviewTest(TestCase):
         self.assertEqual(data['pagination']['page'], 1)
         self.assertTrue(data['pagination']['has_next'])
         self.assertFalse(data['pagination']['has_previous'])
+
+
+class TaskBulkDeleteTest(TestCase):
+    """Tests for bulk task deletion functionality"""
+    
+    def setUp(self):
+        """Set up test data"""
+        # Create test user
+        self.user = User.objects.create(
+            username='testuser',
+            email='test@example.com',
+            role='developer',
+            is_active=True
+        )
+        self.user.set_password('testpass123')
+        self.user.save()
+        
+        # Create another user
+        self.other_user = User.objects.create(
+            username='otheruser',
+            email='other@example.com',
+            role='developer',
+            is_active=True
+        )
+        self.other_user.set_password('testpass123')
+        self.other_user.save()
+        
+        # Create test item
+        self.item = Item.objects.create(
+            title='Test Item',
+            description='Test item description',
+            status='new',
+            created_by=self.user
+        )
+        
+        # Create test tasks
+        self.task1 = Task.objects.create(
+            title='Task 1',
+            description='Task 1 description',
+            status='new',
+            item=self.item,
+            created_by=self.user,
+            assigned_to=self.user
+        )
+        
+        self.task2 = Task.objects.create(
+            title='Task 2',
+            description='Task 2 description',
+            status='working',
+            item=self.item,
+            created_by=self.user,
+            assigned_to=self.user
+        )
+        
+        self.task3 = Task.objects.create(
+            title='Task 3',
+            description='Task 3 description',
+            status='ready',
+            item=self.item,
+            created_by=self.user,
+            assigned_to=self.user
+        )
+        
+        # Create task for other user
+        self.other_task = Task.objects.create(
+            title='Other Task',
+            description='Other user task',
+            status='new',
+            item=self.item,
+            created_by=self.other_user,
+            assigned_to=self.other_user
+        )
+        
+        self.client = Client()
+    
+    def login_user(self):
+        """Helper to log in the test user"""
+        session = self.client.session
+        session['user_id'] = str(self.user.id)
+        session['username'] = self.user.username
+        session['user_role'] = self.user.role
+        session.save()
+    
+    def test_bulk_delete_success(self):
+        """Test successful bulk deletion of tasks"""
+        self.login_user()
+        url = reverse('main:api_task_bulk_delete')
+        
+        task_ids = [str(self.task1.id), str(self.task2.id)]
+        response = self.client.post(
+            url,
+            data=json.dumps({'task_ids': task_ids}),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['deleted_count'], 2)
+        
+        # Verify tasks were deleted
+        self.assertFalse(Task.objects.filter(id=self.task1.id).exists())
+        self.assertFalse(Task.objects.filter(id=self.task2.id).exists())
+        
+        # Verify task3 still exists
+        self.assertTrue(Task.objects.filter(id=self.task3.id).exists())
+    
+    def test_bulk_delete_all_user_tasks(self):
+        """Test bulk deletion of all user's tasks"""
+        self.login_user()
+        url = reverse('main:api_task_bulk_delete')
+        
+        task_ids = [str(self.task1.id), str(self.task2.id), str(self.task3.id)]
+        response = self.client.post(
+            url,
+            data=json.dumps({'task_ids': task_ids}),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['deleted_count'], 3)
+        
+        # Verify all user's tasks were deleted
+        self.assertEqual(Task.objects.filter(created_by=self.user).count(), 0)
+        
+        # Verify other user's task still exists
+        self.assertTrue(Task.objects.filter(id=self.other_task.id).exists())
+    
+    def test_bulk_delete_no_task_ids(self):
+        """Test bulk deletion with no task IDs provided"""
+        self.login_user()
+        url = reverse('main:api_task_bulk_delete')
+        
+        response = self.client.post(
+            url,
+            data=json.dumps({'task_ids': []}),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertIn('error', data)
+    
+    def test_bulk_delete_invalid_task_ids(self):
+        """Test bulk deletion with invalid task IDs"""
+        self.login_user()
+        url = reverse('main:api_task_bulk_delete')
+        
+        response = self.client.post(
+            url,
+            data=json.dumps({'task_ids': ['invalid-id']}),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertIn('error', data)
+        self.assertIn('No valid task IDs', data['error'])
+    
+    def test_bulk_delete_other_user_tasks_denied(self):
+        """Test that users cannot delete other users' tasks"""
+        self.login_user()
+        url = reverse('main:api_task_bulk_delete')
+        
+        # Try to delete other user's task
+        task_ids = [str(self.other_task.id)]
+        response = self.client.post(
+            url,
+            data=json.dumps({'task_ids': task_ids}),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 404)
+        data = json.loads(response.content)
+        self.assertIn('error', data)
+        
+        # Verify other user's task still exists
+        self.assertTrue(Task.objects.filter(id=self.other_task.id).exists())
+    
+    def test_bulk_delete_mixed_ownership(self):
+        """Test bulk deletion with mixed ownership (should only delete user's tasks)"""
+        self.login_user()
+        url = reverse('main:api_task_bulk_delete')
+        
+        # Mix user's tasks with other user's task
+        task_ids = [str(self.task1.id), str(self.task2.id), str(self.other_task.id)]
+        response = self.client.post(
+            url,
+            data=json.dumps({'task_ids': task_ids}),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['deleted_count'], 2)  # Only user's tasks deleted
+        
+        # Verify user's tasks were deleted
+        self.assertFalse(Task.objects.filter(id=self.task1.id).exists())
+        self.assertFalse(Task.objects.filter(id=self.task2.id).exists())
+        
+        # Verify other user's task still exists
+        self.assertTrue(Task.objects.filter(id=self.other_task.id).exists())
+    
+    def test_bulk_delete_requires_authentication(self):
+        """Test that bulk deletion requires authentication"""
+        url = reverse('main:api_task_bulk_delete')
+        
+        task_ids = [str(self.task1.id)]
+        response = self.client.post(
+            url,
+            data=json.dumps({'task_ids': task_ids}),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 401)
+        data = json.loads(response.content)
+        self.assertIn('error', data)
+        
+        # Verify task still exists
+        self.assertTrue(Task.objects.filter(id=self.task1.id).exists())
+    
+    def test_bulk_delete_invalid_json(self):
+        """Test bulk deletion with invalid JSON"""
+        self.login_user()
+        url = reverse('main:api_task_bulk_delete')
+        
+        response = self.client.post(
+            url,
+            data='invalid json',
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertIn('error', data)
+    
+    def test_bulk_delete_non_list_task_ids(self):
+        """Test bulk deletion with non-list task_ids parameter"""
+        self.login_user()
+        url = reverse('main:api_task_bulk_delete')
+        
+        response = self.client.post(
+            url,
+            data=json.dumps({'task_ids': 'not-a-list'}),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertIn('error', data)
+    
+    def test_overview_page_has_checkboxes(self):
+        """Test that the task overview page has checkboxes for selection"""
+        self.login_user()
+        url = reverse('main:task_overview')
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        
+        # Check for select all checkbox
+        self.assertContains(response, 'id="selectAllCheckbox"')
+        
+        # Check for task checkboxes
+        self.assertContains(response, 'class="form-check-input task-checkbox"')
+        
+        # Check for delete button
+        self.assertContains(response, 'id="deleteSelectedBtn"')
+        self.assertContains(response, 'Delete Selected')
+    
+    def test_overview_page_has_bulk_delete_js(self):
+        """Test that the task overview page has bulk delete JavaScript"""
+        self.login_user()
+        url = reverse('main:task_overview')
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        
+        # Check for JavaScript functions
+        self.assertContains(response, 'function toggleSelectAll')
+        self.assertContains(response, 'function updateSelectedCount')
+        self.assertContains(response, 'function deleteSelectedTasks')

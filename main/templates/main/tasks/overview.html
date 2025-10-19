@@ -28,6 +28,7 @@
 
 {% block content %}
 <div class="container-fluid">
+    {% csrf_token %}
     <!-- Messages -->
     {% if messages %}
         {% for message in messages %}
@@ -160,13 +161,24 @@
     <div class="row">
         <div class="col-12">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-list-ul"></i> Tasks 
-                        {% if tasks %}
-                        <span class="badge bg-primary">{{ tasks.paginator.count }} total</span>
-                        {% endif %}
-                    </h5>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">
+                            <i class="bi bi-list-ul"></i> Tasks 
+                            {% if tasks %}
+                            <span class="badge bg-primary">{{ tasks.paginator.count }} total</span>
+                            {% endif %}
+                        </h5>
+                    </div>
+                    <div>
+                        <button type="button" 
+                                id="deleteSelectedBtn" 
+                                class="btn btn-danger" 
+                                style="display: none;"
+                                onclick="deleteSelectedTasks()">
+                            <i class="bi bi-trash"></i> Delete Selected (<span id="selectedCount">0</span>)
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     {% if tasks %}
@@ -174,7 +186,13 @@
                         <table class="table table-hover">
                             <thead>
                                 <tr>
-                                    <th style="width: 30%;">Title</th>
+                                    <th style="width: 5%;">
+                                        <input type="checkbox" 
+                                               id="selectAllCheckbox" 
+                                               class="form-check-input" 
+                                               onchange="toggleSelectAll(this)">
+                                    </th>
+                                    <th style="width: 25%;">Title</th>
                                     <th style="width: 15%;">Status</th>
                                     <th style="width: 20%;">Item</th>
                                     <th style="width: 15%;">GitHub Issue</th>
@@ -185,6 +203,12 @@
                             <tbody>
                                 {% for task in tasks %}
                                 <tr class="task-row">
+                                    <td>
+                                        <input type="checkbox" 
+                                               class="form-check-input task-checkbox" 
+                                               data-task-id="{{ task.id }}"
+                                               onchange="updateSelectedCount()">
+                                    </td>
                                     <td>
                                         <a href="{% url 'main:task_detail' task.id %}" class="text-decoration-none fw-bold">
                                             {{ task.title }}
@@ -365,6 +389,83 @@ document.addEventListener('DOMContentLoaded', function() {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
 });
+
+// Toggle select all checkboxes
+function toggleSelectAll(checkbox) {
+    const taskCheckboxes = document.querySelectorAll('.task-checkbox');
+    taskCheckboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+    });
+    updateSelectedCount();
+}
+
+// Update the count of selected tasks and show/hide delete button
+function updateSelectedCount() {
+    const selectedCheckboxes = document.querySelectorAll('.task-checkbox:checked');
+    const count = selectedCheckboxes.length;
+    const deleteBtn = document.getElementById('deleteSelectedBtn');
+    const countSpan = document.getElementById('selectedCount');
+    
+    countSpan.textContent = count;
+    
+    if (count > 0) {
+        deleteBtn.style.display = 'inline-block';
+    } else {
+        deleteBtn.style.display = 'none';
+    }
+    
+    // Update select all checkbox state
+    const allCheckboxes = document.querySelectorAll('.task-checkbox');
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = allCheckboxes.length > 0 && selectedCheckboxes.length === allCheckboxes.length;
+    }
+}
+
+// Delete selected tasks
+function deleteSelectedTasks() {
+    const selectedCheckboxes = document.querySelectorAll('.task-checkbox:checked');
+    const taskIds = Array.from(selectedCheckboxes).map(cb => cb.getAttribute('data-task-id'));
+    
+    if (taskIds.length === 0) {
+        return;
+    }
+    
+    // Show loading modal
+    const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    document.getElementById('loadingMessage').textContent = `Deleting ${taskIds.length} task(s)...`;
+    loadingModal.show();
+    
+    // Get CSRF token
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                     document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+    
+    // Send delete request
+    fetch('{% url "main:api_task_bulk_delete" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            task_ids: taskIds
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        loadingModal.hide();
+        if (data.success) {
+            // Reload the page to show updated task list
+            window.location.reload();
+        } else {
+            alert('Error deleting tasks: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        loadingModal.hide();
+        alert('Error deleting tasks: ' + error.message);
+    });
+}
 
 // AI Enhance Task
 function aiEnhanceTask(taskId) {
