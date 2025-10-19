@@ -1418,6 +1418,199 @@ def api_item_ai_enhance(request, item_id):
 
 @csrf_exempt
 @require_http_methods(["POST"])
+def api_item_build_tasks(request, item_id):
+    """
+    API endpoint to build/decompose tasks from an item using AI.
+    POST /api/items/{item_id}/build-tasks
+    Body: {"title": "...", "description": "..."}
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Item, Task, Tag, Settings
+    
+    try:
+        item = Item.objects.get(id=item_id)
+        
+        # Check ownership
+        if item.created_by != user:
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        data = json.loads(request.body)
+        title = data.get('title', item.title).strip()
+        description = data.get('description', item.description).strip()
+        
+        if not title or not description:
+            return JsonResponse({'error': 'Title and description are required'}, status=400)
+        
+        # Use KiGate service to decompose item into tasks
+        kigate = KiGateService()
+        
+        # Use task decomposition agent to generate tasks
+        decompose_result = kigate.execute_agent(
+            agent_name='task-decomposition-agent',
+            provider='openai',
+            model='gpt-4',
+            message=f"Title: {title}\n\nDescription:\n{description}\n\nPlease decompose this into actionable tasks.",
+            user_id=str(user.id),
+            parameters={'max_tasks': 10}
+        )
+        
+        if not decompose_result.get('success'):
+            return JsonResponse({'error': decompose_result.get('error', 'Failed to decompose tasks')}, status=500)
+        
+        # Parse the response to extract tasks
+        # Expected format: The agent should return tasks in a structured format
+        response_text = decompose_result.get('response', '')
+        
+        # Parse tasks from response (assuming line-by-line format or JSON)
+        tasks_created = []
+        try:
+            # Try to parse as JSON first
+            import json as json_lib
+            tasks_data = json_lib.loads(response_text)
+            if isinstance(tasks_data, list):
+                for task_data in tasks_data[:10]:  # Limit to 10 tasks
+                    if isinstance(task_data, dict):
+                        task_title = task_data.get('title', '')
+                        task_desc = task_data.get('description', '')
+                    else:
+                        task_title = str(task_data)
+                        task_desc = ''
+                    
+                    if task_title:
+                        task = Task.objects.create(
+                            title=task_title[:255],
+                            description=task_desc,
+                            status='new',
+                            item=item,
+                            created_by=user,
+                            assigned_to=user,
+                            ai_generated=True
+                        )
+                        tasks_created.append({
+                            'id': str(task.id),
+                            'title': task.title,
+                            'description': task.description
+                        })
+        except (json_lib.JSONDecodeError, ValueError):
+            # Fallback: Parse as line-separated tasks
+            lines = response_text.split('\n')
+            for line in lines[:10]:  # Limit to 10 tasks
+                line = line.strip()
+                # Remove common prefixes like "1.", "-", "*", etc.
+                line = line.lstrip('0123456789.-* ')
+                if line and len(line) > 3:
+                    task = Task.objects.create(
+                        title=line[:255],
+                        description='',
+                        status='new',
+                        item=item,
+                        created_by=user,
+                        assigned_to=user,
+                        ai_generated=True
+                    )
+                    tasks_created.append({
+                        'id': str(task.id),
+                        'title': task.title,
+                        'description': task.description
+                    })
+        
+        return JsonResponse({
+            'success': True,
+            'tasks': tasks_created,
+            'count': len(tasks_created)
+        })
+        
+    except Item.DoesNotExist:
+        return JsonResponse({'error': 'Item not found'}, status=404)
+    except KiGateServiceError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'KiGate API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Build tasks error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while building tasks'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_item_check_similarity(request, item_id):
+    """
+    API endpoint to check similarity for an item using ChromaDB.
+    POST /api/items/{item_id}/check-similarity
+    Body: {"title": "...", "description": "..."}
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Item, Settings
+    from core.services.chroma_sync_service import ChromaItemSyncService, ChromaItemSyncServiceError
+    
+    try:
+        item = Item.objects.get(id=item_id)
+        
+        # Check ownership
+        if item.created_by != user:
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        data = json.loads(request.body)
+        title = data.get('title', item.title).strip()
+        description = data.get('description', item.description).strip()
+        
+        if not description:
+            return JsonResponse({'error': 'Description is required'}, status=400)
+        
+        # Use ChromaDB to find similar items
+        settings = Settings.objects.first()
+        if not settings:
+            return JsonResponse({'error': 'Settings not configured'}, status=500)
+        
+        chroma_service = ChromaItemSyncService(settings)
+        
+        # Search for similar items
+        search_text = f"{title}\n\n{description}"
+        result = chroma_service.search_similar(search_text, n_results=5)
+        
+        if not result.get('success'):
+            return JsonResponse({'error': 'Failed to search for similar items'}, status=500)
+        
+        # Filter out the current item from results
+        similar_items = []
+        for similar_item in result.get('results', []):
+            if similar_item.get('id') != str(item_id):
+                similar_items.append(similar_item)
+        
+        return JsonResponse({
+            'success': True,
+            'similar_items': similar_items[:5]  # Limit to 5 results
+        })
+        
+    except Item.DoesNotExist:
+        return JsonResponse({'error': 'Item not found'}, status=404)
+    except ChromaItemSyncServiceError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'ChromaDB error: {e.message}')
+        return JsonResponse(e.to_dict(), status=500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Check similarity error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while checking similarity'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
 def api_task_create_github_issue(request, task_id):
     """
     API endpoint to create GitHub issue from task.
