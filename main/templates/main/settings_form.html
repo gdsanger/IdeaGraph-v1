@@ -218,6 +218,22 @@
                             <i class="bi bi-cpu"></i> KiGate Configuration
                         </h5>
                         <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <div class="form-check form-switch">
+                                    <input 
+                                        class="form-check-input" 
+                                        type="checkbox" 
+                                        id="kigate_api_enabled" 
+                                        name="kigate_api_enabled"
+                                        {% if settings.kigate_api_enabled %}checked{% endif %}>
+                                    <label class="form-check-label" for="kigate_api_enabled">
+                                        Enable KiGate API
+                                    </label>
+                                    <div class="form-text">Enable KiGate API integration</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="kigate_api_base_url" class="form-label">KiGate API Base URL</label>
                                 <input 
@@ -239,6 +255,21 @@
                                     value="{{ settings.kigate_api_token|default:'' }}"
                                     placeholder="client_id:client_secret">
                                 <div class="form-text">KiGate API authentication token (client_id:client_secret)</div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="kigate_api_timeout" class="form-label">KiGate API Timeout</label>
+                                <input 
+                                    type="number" 
+                                    class="form-control" 
+                                    id="kigate_api_timeout" 
+                                    name="kigate_api_timeout" 
+                                    value="{{ settings.kigate_api_timeout|default:30 }}"
+                                    min="5" 
+                                    max="300"
+                                    placeholder="30">
+                                <div class="form-text">Timeout for KiGate API requests in seconds</div>
                             </div>
                         </div>
                     </div>

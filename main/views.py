@@ -249,7 +249,7 @@ def settings_create(request):
             chroma_api_key=request.POST.get('chroma_api_key', ''),
             chroma_database=request.POST.get('chroma_database', ''),
             chroma_tenant=request.POST.get('chroma_tenant', ''),
-            kigate_api_enabled=request.POST.get('kigate_api_enabled', 'false') == 'true',
+            kigate_api_enabled=request.POST.get('kigate_api_enabled') == 'on',
             kigate_api_base_url=request.POST.get('kigate_api_base_url', 'http://localhost:8000'),
             kigate_api_token=request.POST.get('kigate_api_token', ''),
             kigate_api_timeout=int(request.POST.get('kigate_api_timeout') or 30),
@@ -278,7 +278,7 @@ def settings_update(request, pk):
         settings.chroma_api_key = request.POST.get('chroma_api_key', '')
         settings.chroma_database = request.POST.get('chroma_database', '')
         settings.chroma_tenant = request.POST.get('chroma_tenant', '')
-        settings.kigate_api_enabled = request.POST.get('kigate_api_enabled', 'false') == 'true'
+        settings.kigate_api_enabled = request.POST.get('kigate_api_enabled') == 'on'
         settings.kigate_api_base_url = request.POST.get('kigate_api_base_url', 'http://localhost:8000')
         settings.kigate_api_token = request.POST.get('kigate_api_token', '')
         settings.kigate_api_timeout = int(request.POST.get('kigate_api_timeout') or 30)
