@@ -113,9 +113,5 @@ def get_logger(name='IdeaGraph'):
     return logger
 
 
-# Initialize Sentry if enabled
-if os.getenv('ENABLE_SENTRY', 'False').lower() == 'true':
-    initialize_sentry()
-
 # Create default logger instance
 logger = get_logger('IdeaGraph')
