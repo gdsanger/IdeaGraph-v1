@@ -261,6 +261,65 @@ The KiGate integration enables the following workflows:
 2. **KI-Agent → Result**: Agent results are processed and stored in tasks
 3. **Result → GitHub**: Validated results can be forwarded to GitHub integration for issue creation
 
+### Build Tasks from Items
+
+The "Build Tasks" feature allows automatic generation of tasks from item descriptions using AI agents.
+
+**How it works:**
+
+1. User clicks "Build Tasks" button on an item detail page
+2. System calls `/api/items/{item_id}/build-tasks` endpoint
+3. KiGate's `role-identification-agent` analyzes the item description to determine the appropriate role
+4. KiGate's `task-extraction-agent` extracts actionable tasks based on the role and description
+5. Tasks are automatically created with status='review' and marked as AI-generated
+
+**Required KiGate Agents:**
+- `role-identification-agent`: Identifies the role from text (returns "Ich bin {Role}")
+- `task-extraction-agent`: Extracts tasks from description (returns JSON array of tasks with "Titel" and "Beschreibung")
+
+**Expected Response Format:**
+```json
+[
+  {
+    "Titel": "Task title",
+    "Beschreibung": "Task description with\nmultiple lines"
+  },
+  {
+    "Titel": "Another task",
+    "Beschreibung": "Another description"
+  }
+]
+```
+
+**Features:**
+- Markdown line breaks (`\n`) are automatically converted to actual line breaks
+- Tasks are linked to the parent item
+- Tasks inherit the user who created the item
+- All created tasks are marked with `ai_generated=True`
+
+**API Endpoint:**
+```
+POST /api/items/{item_id}/build-tasks
+Authorization: Bearer <jwt-token> or Session Cookie
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "tasks_created": 2,
+  "role": "Ich bin Software Developer",
+  "tasks": [
+    {
+      "id": "uuid",
+      "title": "Task 1",
+      "description": "Description",
+      "status": "review"
+    }
+  ]
+}
+```
+
 ## Security Considerations
 
 - API token is stored securely in the database
