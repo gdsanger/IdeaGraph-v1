@@ -374,6 +374,28 @@ initializeTagTokenBox('itemDetailTagTokenBox', {
     inputPlaceholder: 'Add a tag and press Enter'
 });
 
+// Helper function to show alerts
+function showAlert(message, type = 'info') {
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} alert-dismissible fade show`;
+    alert.role = 'alert';
+    alert.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    document.querySelector('.container').insertBefore(alert, document.querySelector('.container').firstChild);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        alert.remove();
+    }, 5000);
+}
+
+// Helper function to get CSRF token
+function getCsrfToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]').value;
+}
+
 // AI Enhance Button
 document.querySelector('#aiEnhanceBtn').addEventListener('click', async function() {
     const btn = this;
@@ -381,10 +403,43 @@ document.querySelector('#aiEnhanceBtn').addEventListener('click', async function
     btn.disabled = true;
     
     try {
-        // TODO: Call API endpoint for AI enhancement
-        alert('AI Enhancement feature will be implemented with KiGate API integration');
+        const title = document.querySelector('#title').value;
+        const description = editor.getMarkdown();
+        
+        if (!title || !description) {
+            showAlert('Please provide both title and description before using AI Enhancer', 'warning');
+            return;
+        }
+        
+        const response = await fetch('/api/items/{{ item.id }}/ai-enhance', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                title: title,
+                description: description
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            // Update form with enhanced content
+            if (data.title) {
+                document.querySelector('#title').value = data.title;
+            }
+            if (data.description) {
+                editor.setMarkdown(data.description);
+            }
+            showAlert('Content enhanced successfully! Review and save the changes.', 'success');
+        } else {
+            showAlert(data.error || 'Failed to enhance content', 'danger');
+        }
     } catch (error) {
-        alert('Error: ' + error.message);
+        console.error('Error:', error);
+        showAlert('Error: ' + error.message, 'danger');
     } finally {
         btn.classList.remove('loading');
         btn.disabled = false;
