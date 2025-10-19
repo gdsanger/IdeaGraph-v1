@@ -75,13 +75,12 @@ class LogAnalyzerService:
         
         try:
             from django.utils import timezone as tz
-            import pytz
             
             # Parse timestamp as naive datetime
             naive_dt = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
             
-            # Make it timezone-aware (assume local timezone or UTC)
-            timestamp = tz.make_aware(naive_dt, pytz.UTC)
+            # Make it timezone-aware using the default timezone from settings
+            timestamp = tz.make_aware(naive_dt)
         except ValueError:
             logger.debug(f"Could not parse timestamp: {timestamp_str}")
             return None
