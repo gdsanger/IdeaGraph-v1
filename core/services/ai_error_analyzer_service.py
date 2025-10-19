@@ -5,6 +5,7 @@ This service uses AI (via KIGate or OpenAI) to analyze log entries and errors,
 determine their severity, and recommend actions.
 """
 
+import json
 from typing import Dict, List, Optional
 from core.logger_config import get_logger
 from core.services.kigate_service import KiGateService
@@ -159,7 +160,6 @@ Antworte NUR mit dem JSON-Objekt, keine zusätzlichen Erklärungen."""
                 return None
             
             # Parse JSON response from result
-            import json
             result_content = response.get('result', '')
             
             # Try to extract JSON from markdown code blocks
@@ -210,7 +210,6 @@ Antworte NUR mit dem JSON-Objekt, keine zusätzlichen Erklärungen."""
                 return None
             
             # Parse JSON response
-            import json
             content = response.get('content', '')
             
             # Try to extract JSON from markdown code blocks
