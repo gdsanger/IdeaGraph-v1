@@ -548,6 +548,54 @@ def item_detail(request, item_id):
         messages.error(request, 'You do not have permission to view this item.')
         return redirect('main:item_list')
     
+    # Handle POST request for updating the item
+    if request.method == 'POST':
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        github_repo = request.POST.get('github_repo', '').strip()
+        section_id = request.POST.get('section')
+        status = request.POST.get('status', item.status)
+        tag_ids = request.POST.getlist('tags')
+        
+        if not title:
+            messages.error(request, 'Title is required.')
+        else:
+            try:
+                item.title = title
+                item.description = description
+                item.github_repo = github_repo
+                item.status = status
+                
+                if section_id:
+                    item.section_id = section_id
+                else:
+                    item.section = None
+                
+                item.save()
+                
+                # Update tags
+                if tag_ids:
+                    item.tags.set(tag_ids)
+                else:
+                    item.tags.clear()
+                
+                # Sync update to ChromaDB
+                try:
+                    from core.services.chroma_sync_service import ChromaItemSyncService
+                    sync_service = ChromaItemSyncService()
+                    sync_service.sync_update(item)
+                except Exception as sync_error:
+                    # Log error but don't fail the item update
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f'ChromaDB sync failed for item {item.id}: {str(sync_error)}')
+                
+                messages.success(request, f'Item "{title}" updated successfully!')
+                # Stay on the same page after saving
+                
+            except Exception as e:
+                messages.error(request, f'Error updating item: {str(e)}')
+    
     # Get related tasks
     tasks = item.tasks.all().select_related('assigned_to', 'created_by').prefetch_related('tags')
     
