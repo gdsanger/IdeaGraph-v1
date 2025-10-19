@@ -11,7 +11,6 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 import chromadb
-from chromadb.config import Settings as ChromaSettings
 
 
 logger = logging.getLogger('chroma_task_sync_service')
@@ -81,19 +80,19 @@ class ChromaTaskSyncService:
         try:
             # Check if cloud configuration is available
             if self.settings.chroma_api_key and self.settings.chroma_database and self.settings.chroma_tenant:
-                # Cloud configuration
+                # Cloud configuration using HttpClient
                 logger.info("Initializing ChromaDB cloud client")
-                chroma_settings = ChromaSettings(
-                    chroma_api_impl="chromadb.api.fastapi.FastAPI",
-                    chroma_server_host=self.settings.chroma_database,
-                    chroma_server_http_port=443,
-                    chroma_server_ssl_enabled=True,
-                    chroma_server_headers={
+                self._client = chromadb.HttpClient(
+                    host=self.settings.chroma_database,
+                    port=443,
+                    ssl=True,
+                    headers={
                         "Authorization": f"Bearer {self.settings.chroma_api_key}",
                         "X-Chroma-Token": self.settings.chroma_api_key
-                    }
+                    },
+                    tenant=self.settings.chroma_tenant,
+                    database=self.settings.chroma_database
                 )
-                self._client = chromadb.Client(chroma_settings)
             else:
                 # Local/persistent storage configuration
                 logger.info("Initializing ChromaDB local client")
