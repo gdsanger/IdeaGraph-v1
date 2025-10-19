@@ -3,6 +3,7 @@ API views for user management and authentication.
 """
 import json
 import base64
+import logging
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -13,6 +14,9 @@ from core.services.graph_service import GraphService, GraphServiceError
 from core.services.github_service import GitHubService, GitHubServiceError
 from core.services.kigate_service import KiGateService, KiGateServiceError
 from core.services.openai_service import OpenAIService, OpenAIServiceError
+from core.services.chroma_task_sync_service import ChromaTaskSyncService, ChromaTaskSyncServiceError
+
+logger = logging.getLogger(__name__)
 
 
 def get_user_from_token(request):
@@ -1024,6 +1028,22 @@ def api_tasks(request, item_id=None):
             if tag_ids:
                 task.tags.set(tag_ids)
             
+            # Sync with ChromaDB
+            try:
+                from main.models import Settings
+                settings = Settings.objects.first()
+                if settings:
+                    sync_service = ChromaTaskSyncService(settings)
+                    sync_service.sync_create(task)
+            except ChromaTaskSyncServiceError as e:
+                import logging
+                sync_logger = logging.getLogger(__name__)
+                sync_logger.warning(f'ChromaDB sync failed for task {task.id}: {e.message}')
+            except Exception as e:
+                import logging
+                sync_logger = logging.getLogger(__name__)
+                sync_logger.warning(f'ChromaDB sync error for task {task.id}: {str(e)}')
+            
             return JsonResponse({
                 'success': True,
                 'task': {
@@ -1113,6 +1133,22 @@ def api_task_detail(request, task_id):
             else:
                 task.tags.clear()
             
+            # Sync with ChromaDB
+            try:
+                from main.models import Settings
+                settings = Settings.objects.first()
+                if settings:
+                    sync_service = ChromaTaskSyncService(settings)
+                    sync_service.sync_update(task)
+            except ChromaTaskSyncServiceError as e:
+                import logging
+                sync_logger = logging.getLogger(__name__)
+                sync_logger.warning(f'ChromaDB sync failed for task {task.id}: {e.message}')
+            except Exception as e:
+                import logging
+                sync_logger = logging.getLogger(__name__)
+                sync_logger.warning(f'ChromaDB sync error for task {task.id}: {str(e)}')
+            
             return JsonResponse({
                 'success': True,
                 'task': {
@@ -1125,7 +1161,25 @@ def api_task_detail(request, task_id):
             })
         
         elif request.method == 'DELETE':
+            task_id = str(task.id)
             task.delete()
+            
+            # Sync with ChromaDB
+            try:
+                from main.models import Settings
+                settings = Settings.objects.first()
+                if settings:
+                    sync_service = ChromaTaskSyncService(settings)
+                    sync_service.sync_delete(task_id)
+            except ChromaTaskSyncServiceError as e:
+                import logging
+                sync_logger = logging.getLogger(__name__)
+                sync_logger.warning(f'ChromaDB sync failed for task {task_id}: {e.message}')
+            except Exception as e:
+                import logging
+                sync_logger = logging.getLogger(__name__)
+                sync_logger.warning(f'ChromaDB sync error for task {task_id}: {str(e)}')
+            
             return JsonResponse({'success': True, 'message': 'Task deleted successfully'})
     
     except Task.DoesNotExist:
