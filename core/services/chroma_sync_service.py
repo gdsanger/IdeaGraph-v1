@@ -11,6 +11,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 import chromadb
+from urllib.parse import urlparse, parse_qs
 
 
 logger = logging.getLogger('chroma_sync_service')
@@ -82,17 +83,8 @@ class ChromaItemSyncService:
             if self.settings.chroma_api_key and self.settings.chroma_database and self.settings.chroma_tenant:
                 # Cloud configuration using HttpClient
                 logger.info("Initializing ChromaDB cloud client")
-                self._client = chromadb.HttpClient(
-                    host=self.settings.chroma_database,
-                    port=443,
-                    ssl=True,
-                    headers={
-                        "Authorization": f"Bearer {self.settings.chroma_api_key}",
-                        "X-Chroma-Token": self.settings.chroma_api_key
-                    },
-                    tenant=self.settings.chroma_tenant,
-                    database=self.settings.chroma_database
-                )
+                client_kwargs = self._build_cloud_client_kwargs()
+                self._client = chromadb.HttpClient(**client_kwargs)
             else:
                 # Local/persistent storage configuration
                 logger.info("Initializing ChromaDB local client")
@@ -112,6 +104,70 @@ class ChromaItemSyncService:
                 "Failed to initialize ChromaDB client",
                 details=str(e)
             )
+
+    def _build_cloud_client_kwargs(self) -> Dict[str, Any]:
+        """Build keyword arguments for ChromaDB HttpClient configuration."""
+        raw_value = (self.settings.chroma_database or '').strip()
+
+        # Default cloud configuration for TryChroma
+        host = 'api.trychroma.com'
+        port = 443
+        use_ssl = True
+        database_name: Optional[str] = None
+
+        if raw_value:
+            # Detect if the provided value looks like a bare database name
+            is_plain_database = not any(ch in raw_value for ch in ('/', ':')) and 'http' not in raw_value.lower()
+
+            if is_plain_database:
+                database_name = raw_value
+            else:
+                # Normalise URL to ensure parsing works even without scheme
+                value_to_parse = raw_value
+                if '://' not in value_to_parse:
+                    value_to_parse = f'https://{value_to_parse}'
+
+                parsed = urlparse(value_to_parse)
+                if parsed.hostname:
+                    host = parsed.hostname
+                if parsed.scheme == 'http':
+                    use_ssl = False
+                    port = parsed.port or 80
+                else:
+                    use_ssl = True
+                    port = parsed.port or 443
+
+                if parsed.path:
+                    path_parts = [segment for segment in parsed.path.split('/') if segment]
+                    if 'databases' in path_parts:
+                        idx = path_parts.index('databases')
+                        if idx + 1 < len(path_parts):
+                            database_name = path_parts[idx + 1]
+                    elif path_parts:
+                        database_name = path_parts[-1]
+
+                if not database_name:
+                    query_params = parse_qs(parsed.query)
+                    if 'database' in query_params and query_params['database']:
+                        database_name = query_params['database'][0]
+
+        headers = {
+            "Authorization": f"Bearer {self.settings.chroma_api_key}",
+            "X-Chroma-Token": self.settings.chroma_api_key
+        }
+
+        client_kwargs: Dict[str, Any] = {
+            'host': host,
+            'port': port,
+            'ssl': use_ssl,
+            'headers': headers,
+            'tenant': self.settings.chroma_tenant
+        }
+
+        if database_name:
+            client_kwargs['database'] = database_name
+
+        return client_kwargs
     
     def _get_embedding_service(self):
         """

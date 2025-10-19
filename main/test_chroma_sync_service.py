@@ -60,22 +60,35 @@ class ChromaItemSyncServiceTest(TestCase):
         mock_client.assert_called_once_with(path="./chroma_db")
         mock_client.return_value.get_or_create_collection.assert_called_once()
     
-    @patch('core.services.chroma_sync_service.chromadb.Client')
+    @patch('core.services.chroma_sync_service.chromadb.HttpClient')
     def test_service_initialization_cloud(self, mock_client):
         """Test service initializes with cloud configuration"""
         # Update settings for cloud config
         self.settings.chroma_api_key = 'test-cloud-key'
-        self.settings.chroma_database = 'test-db'
+        self.settings.chroma_database = 'https://api.trychroma.com/api/v1/databases/test-db'
         self.settings.chroma_tenant = 'test-tenant'
         self.settings.save()
-        
+
         mock_collection = Mock()
         mock_client.return_value.get_or_create_collection.return_value = mock_collection
-        
+
         service = ChromaItemSyncService(self.settings)
-        
+
         self.assertIsNotNone(service)
         mock_client.assert_called_once()
+        kwargs = mock_client.call_args.kwargs
+        self.assertEqual(kwargs['host'], 'api.trychroma.com')
+        self.assertTrue(kwargs['ssl'])
+        self.assertEqual(kwargs['port'], 443)
+        self.assertEqual(kwargs['tenant'], 'test-tenant')
+        self.assertEqual(kwargs['database'], 'test-db')
+        self.assertEqual(
+            kwargs['headers'],
+            {
+                'Authorization': 'Bearer test-cloud-key',
+                'X-Chroma-Token': 'test-cloud-key'
+            }
+        )
     
     def test_service_requires_settings(self):
         """Test service raises error without settings"""
