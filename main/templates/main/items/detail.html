@@ -261,10 +261,16 @@
                         
                         <!-- Tasks Tab -->
                         <div class="tab-pane fade" id="tasks" role="tabpanel">
-                            <div class="mb-3">
+                            <div class="mb-3 d-flex justify-content-between align-items-center">
                                 <a href="{% url 'main:task_create' item.id %}" class="btn btn-primary">
                                     <i class="bi bi-plus-circle"></i> New Task
                                 </a>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="showCompletedSwitch" {% if show_completed %}checked{% endif %}>
+                                    <label class="form-check-label" for="showCompletedSwitch">
+                                        Erledigt anzeigen
+                                    </label>
+                                </div>
                             </div>
                             
                             {% if tasks %}
@@ -725,5 +731,15 @@ document.querySelector('#confirmSendEmailBtn').addEventListener('click', async f
         btn.innerHTML = originalText;
     }
 });
+
+// Show Completed Tasks Toggle
+const showCompletedSwitch = document.getElementById('showCompletedSwitch');
+if (showCompletedSwitch) {
+    showCompletedSwitch.addEventListener('change', function() {
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set('show_completed', this.checked ? 'true' : 'false');
+        window.location.href = currentUrl.toString();
+    });
+}
 </script>
 {% endblock %}
