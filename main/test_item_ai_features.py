@@ -433,3 +433,104 @@ class ItemAIFeaturesTestCase(TestCase):
             self.assertIn('Tag3', data['tags'])
             self.assertIn('Tag4', data['tags'])
             self.assertIn('Tag5', data['tags'])
+    
+    def test_api_item_check_similarity_filters_by_relevance(self):
+        """Test that check similarity only returns items with relevance >= 0.8"""
+        from unittest.mock import patch, Mock
+        
+        # Mock ChromaItemSyncService at the location where it's imported
+        with patch('core.services.chroma_sync_service.ChromaItemSyncService') as mock_chroma_class:
+            mock_chroma = Mock()
+            mock_chroma_class.return_value = mock_chroma
+            
+            # Mock search_similar to return items with various distances
+            # distance 0.0 -> relevance 1.0 (identical)
+            # distance 0.2 -> relevance 0.9 (very similar - should be included)
+            # distance 0.4 -> relevance 0.8 (similar - should be included at threshold)
+            # distance 0.6 -> relevance 0.7 (somewhat similar - should be excluded)
+            # distance 1.0 -> relevance 0.5 (not very similar - should be excluded)
+            mock_chroma.search_similar.return_value = {
+                'success': True,
+                'results': [
+                    {
+                        'id': str(self.item.id),  # Current item (should be excluded)
+                        'distance': 0.0,
+                        'metadata': {'title': 'Current Item'},
+                        'document': 'Current item description'
+                    },
+                    {
+                        'id': 'similar-item-1',
+                        'distance': 0.2,  # relevance = 0.9
+                        'metadata': {'title': 'Very Similar Item'},
+                        'document': 'Very similar description'
+                    },
+                    {
+                        'id': 'similar-item-2',
+                        'distance': 0.4,  # relevance = 0.8
+                        'metadata': {'title': 'Similar Item'},
+                        'document': 'Similar description'
+                    },
+                    {
+                        'id': 'similar-item-3',
+                        'distance': 0.6,  # relevance = 0.7 (should be excluded)
+                        'metadata': {'title': 'Somewhat Similar Item'},
+                        'document': 'Somewhat similar description'
+                    },
+                    {
+                        'id': 'similar-item-4',
+                        'distance': 1.0,  # relevance = 0.5 (should be excluded)
+                        'metadata': {'title': 'Not Very Similar Item'},
+                        'document': 'Not very similar description'
+                    }
+                ]
+            }
+            
+            # Create request
+            request = self.factory.post(
+                f'/api/items/{self.item.id}/check-similarity',
+                data=json.dumps({
+                    'title': 'Test Item',
+                    'description': 'Test Description'
+                }),
+                content_type='application/json'
+            )
+            
+            # Add session
+            from django.contrib.sessions.middleware import SessionMiddleware
+            middleware = SessionMiddleware(lambda x: None)
+            middleware.process_request(request)
+            request.session['user_id'] = str(self.user.id)
+            request.session.save()
+            
+            # Call the API
+            response = api_item_check_similarity(request, self.item.id)
+            
+            # Verify response
+            self.assertEqual(response.status_code, 200)
+            data = json.loads(response.content)
+            self.assertTrue(data['success'])
+            
+            # Should only return items with relevance >= 0.8 (distances 0.2 and 0.4)
+            # Current item should also be excluded
+            similar_items = data['similar_items']
+            self.assertEqual(len(similar_items), 2)
+            
+            # Verify the returned items are the correct ones
+            item_ids = [item['id'] for item in similar_items]
+            self.assertIn('similar-item-1', item_ids)
+            self.assertIn('similar-item-2', item_ids)
+            self.assertNotIn('similar-item-3', item_ids)
+            self.assertNotIn('similar-item-4', item_ids)
+            self.assertNotIn(str(self.item.id), item_ids)  # Current item excluded
+            
+            # Verify relevance scores are calculated correctly
+            for item in similar_items:
+                self.assertIn('relevance', item)
+                self.assertGreaterEqual(item['relevance'], 0.8)
+            
+            # Verify specific relevance values
+            item1 = next(item for item in similar_items if item['id'] == 'similar-item-1')
+            self.assertAlmostEqual(item1['relevance'], 0.9, places=2)
+            
+            item2 = next(item for item in similar_items if item['id'] == 'similar-item-2')
+            self.assertAlmostEqual(item2['relevance'], 0.8, places=2)

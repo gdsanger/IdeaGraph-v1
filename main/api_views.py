@@ -1634,6 +1634,10 @@ def api_item_check_similarity(request, item_id):
     API endpoint to check similarity for an item using ChromaDB.
     POST /api/items/{item_id}/check-similarity
     Body: {"title": "...", "description": "..."}
+    
+    Returns only items with a relevance/similarity score of at least 0.8.
+    The relevance score is calculated as: relevance = 1 - (distance / 2)
+    where distance is the ChromaDB cosine distance (0-2 range).
     """
     user = get_user_from_request(request)
     if not user:
@@ -1663,22 +1667,38 @@ def api_item_check_similarity(request, item_id):
         
         chroma_service = ChromaItemSyncService(settings)
         
-        # Search for similar items
+        # Search for similar items (request more results to ensure we have enough after filtering)
         search_text = f"{title}\n\n{description}"
-        result = chroma_service.search_similar(search_text, n_results=5)
+        result = chroma_service.search_similar(search_text, n_results=20)
         
         if not result.get('success'):
             return JsonResponse({'error': 'Failed to search for similar items'}, status=500)
         
-        # Filter out the current item from results
+        # Minimum relevance threshold (0.8 = 80% similarity)
+        MIN_RELEVANCE = 0.8
+        
+        # Filter results by relevance and exclude current item
         similar_items = []
         for similar_item in result.get('results', []):
-            if similar_item.get('id') != str(item_id):
+            # Skip the current item
+            if similar_item.get('id') == str(item_id):
+                continue
+            
+            # Convert ChromaDB distance to relevance/similarity score
+            # ChromaDB uses cosine distance where 0 = identical, 2 = opposite
+            # Relevance formula: 1 - (distance / 2)
+            distance = similar_item.get('distance', 2.0)
+            relevance = 1.0 - (distance / 2.0)
+            
+            # Only include items with relevance >= 0.8
+            if relevance >= MIN_RELEVANCE:
+                # Add relevance score to the item data
+                similar_item['relevance'] = round(relevance, 3)
                 similar_items.append(similar_item)
         
         return JsonResponse({
             'success': True,
-            'similar_items': similar_items[:5]  # Limit to 5 results
+            'similar_items': similar_items[:5]  # Limit to 5 most relevant results
         })
         
     except Item.DoesNotExist:
