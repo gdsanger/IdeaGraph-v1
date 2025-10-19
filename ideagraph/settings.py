@@ -10,22 +10,27 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
+import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env file
+load_dotenv(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-(obrh2+_e_r258#^2n79_+2y6e1+%l$tb_iyq%p*o$m_53mx@y'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-(obrh2+_e_r258#^2n79_+2y6e1+%l$tb_iyq%p*o$m_53mx@y')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',') if os.getenv('ALLOWED_HOSTS') else ["*"]
 
 # Cross-Origin-Opener-Policy Configuration
 # Set to None for development to avoid COOP header errors when not using HTTPS or localhost
@@ -141,33 +146,80 @@ JWT_SECRET = SECRET_KEY  # In production, use a separate secret
 JWT_EXPIRATION_HOURS = 24
 
 # Logging Configuration
+# Initialize centralized logging system
+from core.logger_config import LOG_DIR, LOG_FORMAT, DATE_FORMAT
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
-            'style': '{',
+            'format': LOG_FORMAT,
+            'datefmt': DATE_FORMAT,
+        },
+        'simple': {
+            'format': '%(levelname)s %(message)s'
         },
     },
     'handlers': {
-        'auth_file': {
-            'level': 'INFO',
-            'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'auth_service.log',
+        'file': {
+            'level': 'DEBUG',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOG_DIR / 'ideagraph.log',
+            'maxBytes': int(os.getenv('LOG_MAX_BYTES', 5_000_000)),
+            'backupCount': int(os.getenv('LOG_BACKUP_COUNT', 5)),
             'formatter': 'verbose',
+            'encoding': 'utf-8',
         },
         'console': {
             'level': 'INFO',
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
+        'auth_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOG_DIR / 'auth_service.log',
+            'maxBytes': int(os.getenv('LOG_MAX_BYTES', 5_000_000)),
+            'backupCount': int(os.getenv('LOG_BACKUP_COUNT', 5)),
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+        },
     },
     'loggers': {
+        'django': {
+            'handlers': ['file', 'console'],
+            'level': os.getenv('LOG_LEVEL', 'INFO'),
+            'propagate': False,
+        },
+        'IdeaGraph': {
+            'handlers': ['file', 'console'],
+            'level': os.getenv('LOG_LEVEL', 'INFO'),
+            'propagate': False,
+        },
         'auth_service': {
             'handlers': ['auth_file', 'console'],
             'level': 'INFO',
             'propagate': False,
         },
+        'kigate_service': {
+            'handlers': ['file', 'console'],
+            'level': os.getenv('LOG_LEVEL', 'INFO'),
+            'propagate': False,
+        },
+        'openai_service': {
+            'handlers': ['file', 'console'],
+            'level': os.getenv('LOG_LEVEL', 'INFO'),
+            'propagate': False,
+        },
+        'graph_service': {
+            'handlers': ['file', 'console'],
+            'level': os.getenv('LOG_LEVEL', 'INFO'),
+            'propagate': False,
+        },
+    },
+    'root': {
+        'handlers': ['file', 'console'],
+        'level': os.getenv('LOG_LEVEL', 'INFO'),
     },
 }
