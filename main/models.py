@@ -493,3 +493,123 @@ class Settings(models.Model):
     
     def __str__(self):
         return f"Settings - {self.id}"
+
+
+class LogEntry(models.Model):
+    """Model to store parsed log entries from local logs and Sentry"""
+    
+    SOURCE_CHOICES = [
+        ('local', 'Local Log'),
+        ('sentry', 'Sentry API'),
+    ]
+    
+    LEVEL_CHOICES = [
+        ('DEBUG', 'Debug'),
+        ('INFO', 'Info'),
+        ('WARNING', 'Warning'),
+        ('ERROR', 'Error'),
+        ('CRITICAL', 'Critical'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES)
+    level = models.CharField(max_length=20, choices=LEVEL_CHOICES)
+    logger_name = models.CharField(max_length=255, blank=True, default='')
+    message = models.TextField()
+    timestamp = models.DateTimeField()
+    
+    # Additional context
+    exception_type = models.CharField(max_length=255, blank=True, default='')
+    exception_value = models.TextField(blank=True, default='')
+    stack_trace = models.TextField(blank=True, default='')
+    file_path = models.CharField(max_length=500, blank=True, default='')
+    line_number = models.IntegerField(null=True, blank=True)
+    
+    # Sentry specific fields
+    sentry_event_id = models.CharField(max_length=100, blank=True, default='', unique=True, null=True)
+    sentry_issue_id = models.CharField(max_length=100, blank=True, default='')
+    
+    # Processing metadata
+    analyzed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = 'Log Entry'
+        verbose_name_plural = 'Log Entries'
+        indexes = [
+            models.Index(fields=['-timestamp', 'level']),
+            models.Index(fields=['analyzed', 'level']),
+        ]
+    
+    def __str__(self):
+        return f"[{self.level}] {self.logger_name} - {self.message[:50]}"
+
+
+class ErrorAnalysis(models.Model):
+    """Model to store AI analysis results for log entries"""
+    
+    SEVERITY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('critical', 'Critical'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending Review'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('task_created', 'Task Created'),
+        ('issue_created', 'GitHub Issue Created'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    log_entry = models.ForeignKey(LogEntry, on_delete=models.CASCADE, related_name='analyses')
+    
+    # AI Analysis results
+    severity = models.CharField(max_length=20, choices=SEVERITY_CHOICES)
+    is_actionable = models.BooleanField(default=False)
+    summary = models.TextField()
+    root_cause = models.TextField(blank=True, default='')
+    recommended_action = models.TextField(blank=True, default='')
+    
+    # AI metadata
+    ai_model = models.CharField(max_length=100, blank=True, default='')
+    ai_confidence = models.FloatField(default=0.0)  # 0.0 to 1.0
+    
+    # Processing status
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_analyses')
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Related objects
+    task = models.ForeignKey(Task, on_delete=models.SET_NULL, null=True, blank=True, related_name='error_analyses')
+    github_issue_url = models.URLField(max_length=500, blank=True, default='')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Error Analysis'
+        verbose_name_plural = 'Error Analyses'
+        indexes = [
+            models.Index(fields=['status', '-created_at']),
+            models.Index(fields=['severity', 'is_actionable']),
+        ]
+    
+    def __str__(self):
+        return f"{self.get_severity_display()} - {self.summary[:50]}"
+    
+    def approve_and_create_task(self, user):
+        """Approve the analysis and create a task"""
+        if self.status != 'pending':
+            return None
+        
+        self.status = 'approved'
+        self.reviewed_by = user
+        self.reviewed_at = timezone.now()
+        self.save()
+        
+        return None  # Task creation will be handled by the service
