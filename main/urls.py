@@ -15,6 +15,7 @@ urlpatterns = [
     path('change-password/', auth_views.change_password_view, name='change_password'),
     
     path('settings/', views.settings_view, name='settings'),
+    path('tags/', views.tags_network_view, name='tags_network'),
     path('settings/tags/', views.tag_list, name='tag_list'),
     path('settings/tags/create/', views.tag_create, name='tag_create'),
     path('settings/tags/<uuid:tag_id>/edit/', views.tag_edit, name='tag_edit'),
@@ -103,4 +104,7 @@ urlpatterns = [
     path('api/tasks/<uuid:task_id>/similar', api_views.api_task_similar, name='api_task_similar'),
     path('api/tasks/overview', api_views.api_task_overview, name='api_task_overview'),
     path('api/tasks/bulk-delete', api_views.api_task_bulk_delete, name='api_task_bulk_delete'),
+    
+    # Tags Network Graph API
+    path('api/tags/network-data', api_views.api_tags_network_data, name='api_tags_network_data'),
 ]

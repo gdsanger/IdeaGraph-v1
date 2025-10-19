@@ -2142,3 +2142,125 @@ def api_task_bulk_delete(request):
         return JsonResponse({'error': 'An error occurred while deleting tasks'}, status=500)
 
 
+@csrf_exempt
+@require_http_methods(['GET'])
+def api_tags_network_data(request):
+    """
+    API endpoint to fetch network graph data for tags, items, and tasks.
+    Returns nodes and edges for visualization.
+    """
+    try:
+        from .models import Tag, Item, Task
+        
+        nodes = []
+        edges = []
+        
+        # Add tag nodes
+        tags = Tag.objects.all()
+        for tag in tags:
+            nodes.append({
+                'id': f'tag-{tag.id}',
+                'label': tag.name[:20] + '...' if len(tag.name) > 20 else tag.name,
+                'title': tag.name,  # Full name on hover
+                'group': 'tag',
+                'color': tag.color,
+                'shape': 'dot',
+                'size': 30,
+                'font': {'size': 14, 'color': '#ffffff'}
+            })
+        
+        # Add item nodes and edges to tags
+        items = Item.objects.prefetch_related('tags').all()
+        for item in items:
+            # Truncate title if too long
+            label = item.title[:25] + '...' if len(item.title) > 25 else item.title
+            
+            # Determine color based on status
+            status_colors = {
+                'new': '#6366f1',          # Indigo
+                'spec_review': '#8b5cf6',  # Violet
+                'working': '#f59e0b',      # Amber
+                'ready': '#22c55e',        # Green
+                'done': '#10b981',         # Emerald
+                'rejected': '#ef4444',     # Red
+            }
+            
+            nodes.append({
+                'id': f'item-{item.id}',
+                'label': label,
+                'title': f'{item.title}\nStatus: {item.get_status_display()}',
+                'group': 'item',
+                'color': status_colors.get(item.status, '#3b82f6'),
+                'shape': 'box',
+                'size': 20,
+                'font': {'size': 12, 'color': '#ffffff'},
+                'url': f'/items/{item.id}/'
+            })
+            
+            # Create edges from item to its tags
+            for tag in item.tags.all():
+                edges.append({
+                    'from': f'tag-{tag.id}',
+                    'to': f'item-{item.id}',
+                    'color': {'color': tag.color, 'opacity': 0.5},
+                    'width': 2
+                })
+        
+        # Add task nodes and edges to items/tags
+        tasks = Task.objects.prefetch_related('tags', 'item').all()
+        for task in tasks:
+            # Truncate title if too long
+            label = task.title[:20] + '...' if len(task.title) > 20 else task.title
+            
+            # Determine color based on status
+            task_status_colors = {
+                'new': '#6366f1',      # Indigo
+                'working': '#f59e0b',  # Amber
+                'review': '#8b5cf6',   # Violet
+                'ready': '#22c55e',    # Green
+                'done': '#10b981',     # Emerald
+            }
+            
+            nodes.append({
+                'id': f'task-{task.id}',
+                'label': label,
+                'title': f'{task.title}\nStatus: {task.get_status_display()}',
+                'group': 'task',
+                'color': task_status_colors.get(task.status, '#3b82f6'),
+                'shape': 'diamond',
+                'size': 15,
+                'font': {'size': 10, 'color': '#ffffff'},
+                'url': f'/tasks/{task.id}/'
+            })
+            
+            # Create edge from task to its item
+            if task.item:
+                edges.append({
+                    'from': f'item-{task.item.id}',
+                    'to': f'task-{task.id}',
+                    'color': {'color': '#9ca3af', 'opacity': 0.4},
+                    'width': 1.5,
+                    'dashes': True
+                })
+            
+            # Create edges from task to its tags
+            for tag in task.tags.all():
+                edges.append({
+                    'from': f'tag-{tag.id}',
+                    'to': f'task-{task.id}',
+                    'color': {'color': tag.color, 'opacity': 0.3},
+                    'width': 1,
+                    'dashes': True
+                })
+        
+        return JsonResponse({
+            'success': True,
+            'nodes': nodes,
+            'edges': edges
+        })
+    
+    except Exception as e:
+        logger.error(f'Error fetching tags network data: {str(e)}')
+        return JsonResponse({'error': str(e)}, status=500)
+
+
