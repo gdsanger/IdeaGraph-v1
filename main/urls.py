@@ -48,6 +48,9 @@ urlpatterns = [
     path('items/<uuid:item_id>/edit/', views.item_edit, name='item_edit'),
     path('items/<uuid:item_id>/delete/', views.item_delete, name='item_delete'),
     
+    # Item API Endpoints
+    path('api/items/<uuid:item_id>/ai-enhance', api_views.api_item_ai_enhance, name='api_item_ai_enhance'),
+    
     # Task Management URLs
     path('items/<uuid:item_id>/tasks/', views.task_list, name='task_list'),
     path('items/<uuid:item_id>/tasks/create/', views.task_create, name='task_create'),

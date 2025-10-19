@@ -1319,6 +1319,105 @@ def api_task_ai_enhance(request, task_id):
 
 @csrf_exempt
 @require_http_methods(["POST"])
+def api_item_ai_enhance(request, item_id):
+    """
+    API endpoint to enhance item with AI.
+    POST /api/items/{item_id}/ai-enhance
+    Body: {"title": "...", "description": "..."}
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Item, Tag, Settings
+    
+    try:
+        item = Item.objects.get(id=item_id)
+        
+        # Check ownership
+        if item.created_by != user:
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        data = json.loads(request.body)
+        title = data.get('title', '').strip()
+        description = data.get('description', '').strip()
+        
+        if not title or not description:
+            return JsonResponse({'error': 'Title and description are required'}, status=400)
+        
+        # Get settings for max tags
+        settings = Settings.objects.first()
+        max_tags = settings.max_tags_per_idea if settings else 5
+        
+        # Use KiGate service to enhance content
+        kigate = KiGateService()
+        
+        # First, optimize the text
+        text_result = kigate.execute_agent(
+            agent_name='text-optimization-agent',
+            provider='openai',
+            model='gpt-4',
+            message=f"Title: {title}\n\nDescription:\n{description}",
+            user_id=str(user.id),
+            parameters={'language': 'de'}
+        )
+        
+        if not text_result.get('success'):
+            return JsonResponse({'error': text_result.get('error', 'Failed to enhance text')}, status=500)
+        
+        enhanced_text = text_result.get('response', description)
+        
+        # Extract keywords/tags
+        keyword_result = kigate.execute_agent(
+            agent_name='text-keyword-extractor-de',
+            provider='openai',
+            model='gpt-4',
+            message=enhanced_text,
+            user_id=str(user.id),
+            parameters={'max_keywords': max_tags}
+        )
+        
+        # Parse keywords
+        tags_list = []
+        if keyword_result.get('success'):
+            keywords_text = keyword_result.get('response', '')
+            # Extract keywords from response
+            keywords = [k.strip() for k in keywords_text.split(',') if k.strip()]
+            
+            # Get or create tags
+            for keyword in keywords[:max_tags]:
+                tag, _ = Tag.objects.get_or_create(name=keyword)
+                tags_list.append(tag.name)
+        
+        # Generate improved title if possible
+        title_lines = enhanced_text.split('\n')
+        enhanced_title = title_lines[0].replace('Title:', '').strip() if title_lines else title
+        
+        return JsonResponse({
+            'success': True,
+            'title': enhanced_title[:255],  # Limit to field max length
+            'description': enhanced_text,
+            'tags': tags_list
+        })
+        
+    except Item.DoesNotExist:
+        return JsonResponse({'error': 'Item not found'}, status=404)
+    except KiGateServiceError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'KiGate API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Item AI enhance error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred during AI enhancement'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
 def api_task_create_github_issue(request, task_id):
     """
     API endpoint to create GitHub issue from task.
