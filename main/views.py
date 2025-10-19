@@ -707,8 +707,17 @@ def item_detail(request, item_id):
                 messages.error(request, f'Error updating item: {str(e)}')
                 selected_tags_payload = _build_selected_tags_payload(tag_values)
     
+    # Get show_completed filter parameter (default: false - don't show completed)
+    show_completed = request.GET.get('show_completed', 'false').lower() == 'true'
+    
     # Get related tasks
     tasks = item.tasks.all().select_related('assigned_to', 'created_by').prefetch_related('tags')
+    
+    # Filter by completion status
+    if not show_completed:
+        # Show only non-completed tasks (default)
+        tasks = tasks.exclude(status='done')
+    # else: show all tasks (both completed and non-completed)
     
     # Get all sections, tags, and status choices for the form
     sections = Section.objects.all()
@@ -722,6 +731,7 @@ def item_detail(request, item_id):
         'all_tags': all_tags,
         'selected_tags': selected_tags_payload,
         'status_choices': status_choices,
+        'show_completed': show_completed,
     }
     
     return render(request, 'main/items/detail.html', context)
