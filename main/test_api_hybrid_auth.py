@@ -9,6 +9,7 @@ from main.api_views import (
     api_task_similar,
     api_task_ai_enhance,
     api_task_create_github_issue,
+    api_item_ai_enhance,
     get_user_from_request
 )
 from main.auth_utils import generate_jwt_token
@@ -171,3 +172,98 @@ class HybridAuthenticationTestCase(TestCase):
         # but that's expected - we just want to ensure auth works)
         response = api_task_create_github_issue(request, self.task.id)
         self.assertNotEqual(response.status_code, 401)
+    
+    def test_api_item_ai_enhance_with_session(self):
+        """Test api_item_ai_enhance with session authentication"""
+        request = self.factory.post(
+            f'/api/items/{self.item.id}/ai-enhance',
+            data=json.dumps({
+                'title': 'Test Item Title',
+                'description': 'Test Item Description'
+            }),
+            content_type='application/json'
+        )
+        request.session = {
+            'user_id': str(self.user.id)
+        }
+        
+        # This should not return 401 (it will likely return 500 due to missing KiGate service,
+        # but that's expected in unit tests - we just want to ensure auth works)
+        response = api_item_ai_enhance(request, self.item.id)
+        self.assertNotEqual(response.status_code, 401)
+    
+    def test_api_item_ai_enhance_with_jwt(self):
+        """Test api_item_ai_enhance with JWT authentication"""
+        request = self.factory.post(
+            f'/api/items/{self.item.id}/ai-enhance',
+            data=json.dumps({
+                'title': 'Test Item Title',
+                'description': 'Test Item Description'
+            }),
+            content_type='application/json'
+        )
+        request.META['HTTP_AUTHORIZATION'] = f'Bearer {self.jwt_token}'
+        
+        # This should not return 401 (it will likely return 500 due to missing KiGate service,
+        # but that's expected in unit tests - we just want to ensure auth works)
+        response = api_item_ai_enhance(request, self.item.id)
+        self.assertNotEqual(response.status_code, 401)
+    
+    def test_api_item_ai_enhance_without_auth(self):
+        """Test api_item_ai_enhance without authentication returns 401"""
+        request = self.factory.post(
+            f'/api/items/{self.item.id}/ai-enhance',
+            data=json.dumps({
+                'title': 'Test Item Title',
+                'description': 'Test Item Description'
+            }),
+            content_type='application/json'
+        )
+        request.session = {}
+        
+        response = api_item_ai_enhance(request, self.item.id)
+        self.assertEqual(response.status_code, 401)
+    
+    def test_api_item_ai_enhance_missing_data(self):
+        """Test api_item_ai_enhance returns 400 when title or description is missing"""
+        request = self.factory.post(
+            f'/api/items/{self.item.id}/ai-enhance',
+            data=json.dumps({
+                'title': '',
+                'description': ''
+            }),
+            content_type='application/json'
+        )
+        request.session = {
+            'user_id': str(self.user.id)
+        }
+        
+        response = api_item_ai_enhance(request, self.item.id)
+        self.assertEqual(response.status_code, 400)
+    
+    def test_api_item_ai_enhance_access_denied(self):
+        """Test api_item_ai_enhance returns 403 for unauthorized user"""
+        # Create another user
+        other_user = User(
+            username='anotheruser',
+            email='another@example.com',
+            role='user',
+            is_active=True
+        )
+        other_user.set_password('AnotherPassword123!')
+        other_user.save()
+        
+        request = self.factory.post(
+            f'/api/items/{self.item.id}/ai-enhance',
+            data=json.dumps({
+                'title': 'Test Item Title',
+                'description': 'Test Item Description'
+            }),
+            content_type='application/json'
+        )
+        request.session = {
+            'user_id': str(other_user.id)
+        }
+        
+        response = api_item_ai_enhance(request, self.item.id)
+        self.assertEqual(response.status_code, 403)
