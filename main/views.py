@@ -944,12 +944,14 @@ def task_edit(request, task_id):
             messages.error(request, 'Title is required.')
         else:
             try:
+                previous_status = task.status
                 task.title = title
                 task.description = description
                 task.status = status
-                
+
                 # Mark as done if status changed to done
-                if status == 'done' and task.status != 'done':
+                if status == 'done' and previous_status != 'done':
+                    task.save()
                     task.mark_as_done()
                 else:
                     task.save()
