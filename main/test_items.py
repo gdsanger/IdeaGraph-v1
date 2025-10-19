@@ -186,3 +186,29 @@ class ItemViewsTest(TestCase):
         self.assertContains(response, 'Ready')
         self.assertContains(response, 'Erledigt')
         self.assertContains(response, 'Verworfen')
+    
+    def test_item_detail_view_post_saves_changes(self):
+        """Test that item detail view handles POST requests and saves changes"""
+        self.login_user(self.user)
+        
+        # Update item through detail view
+        response = self.client.post(f'/items/{self.item.id}/', {
+            'title': 'Updated via Detail View',
+            'description': 'Updated description via detail',
+            'status': 'ready',
+            'section': self.section.id,
+            'tags': [self.tag.id]
+        })
+        
+        # Should return 200 (stay on same page)
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify changes were saved
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.title, 'Updated via Detail View')
+        self.assertEqual(self.item.description, 'Updated description via detail')
+        self.assertEqual(self.item.status, 'ready')
+        
+        # Check success message
+        messages_list = list(response.context['messages'])
+        self.assertTrue(any('updated successfully' in str(m) for m in messages_list))
