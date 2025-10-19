@@ -4,6 +4,96 @@ from django.core.paginator import Paginator
 from .auth_utils import validate_password
 from .models import Tag, Settings, Section, User, Item, Task
 
+
+def _separate_tag_values(tag_values):
+    existing_ids = []
+    new_names = []
+    for value in tag_values:
+        if not value:
+            continue
+        if isinstance(value, str) and value[:4].lower() == 'new:':
+            name = value[4:].strip()
+            if name:
+                new_names.append(name)
+        else:
+            existing_ids.append(value)
+    return existing_ids, new_names
+
+
+def _resolve_tag_values(tag_values):
+    """Return Tag objects for submitted form values, creating new tags as needed."""
+
+    existing_ids, new_names = _separate_tag_values(tag_values)
+
+    resolved_tags = []
+    seen_ids = set()
+    if existing_ids:
+        existing_tags_map = {
+            str(tag.id): tag for tag in Tag.objects.filter(id__in=existing_ids)
+        }
+        for tag_id in existing_ids:
+            tag_obj = existing_tags_map.get(str(tag_id))
+            if tag_obj and str(tag_obj.id) not in seen_ids:
+                resolved_tags.append(tag_obj)
+                seen_ids.add(str(tag_obj.id))
+
+    seen_new_names = set()
+    for name in new_names:
+        lower_name = name.lower()
+        if lower_name in seen_new_names:
+            continue
+        seen_new_names.add(lower_name)
+
+        existing_tag = Tag.objects.filter(name__iexact=name).first()
+        if existing_tag:
+            if str(existing_tag.id) not in seen_ids:
+                resolved_tags.append(existing_tag)
+                seen_ids.add(str(existing_tag.id))
+            continue
+
+        new_tag = Tag.objects.create(name=name)
+        resolved_tags.append(new_tag)
+        seen_ids.add(str(new_tag.id))
+
+    return resolved_tags
+
+
+def _build_selected_tags_payload(tag_values):
+    """Return dictionaries for rendering selected tags without creating new records."""
+
+    existing_ids, new_names = _separate_tag_values(tag_values)
+
+    payload = []
+    seen_names = set()
+
+    if existing_ids:
+        existing_tags = {
+            str(tag['id']): tag
+            for tag in Tag.objects.filter(id__in=existing_ids).values('id', 'name', 'color')
+        }
+        for tag_id in existing_ids:
+            tag = existing_tags.get(str(tag_id))
+            if tag:
+                name_lower = tag['name'].lower()
+                if name_lower not in seen_names:
+                    payload.append(tag)
+                    seen_names.add(name_lower)
+
+    for name in new_names:
+        lower_name = name.lower()
+        if lower_name in seen_names:
+            continue
+        existing_tag = Tag.objects.filter(name__iexact=name).values('id', 'name', 'color').first()
+        if existing_tag:
+            if existing_tag['name'].lower() not in seen_names:
+                payload.append(existing_tag)
+                seen_names.add(existing_tag['name'].lower())
+            continue
+        payload.append({'id': None, 'name': name, 'color': None})
+        seen_names.add(lower_name)
+
+    return payload
+
 def home(request):
     """Home page view"""
     return render(request, 'main/home.html')
@@ -549,36 +639,40 @@ def item_detail(request, item_id):
         return redirect('main:item_list')
     
     # Handle POST request for updating the item
+    selected_tags_payload = list(item.tags.values('id', 'name', 'color'))
+
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '').strip()
         github_repo = request.POST.get('github_repo', '').strip()
         section_id = request.POST.get('section')
         status = request.POST.get('status', item.status)
-        tag_ids = request.POST.getlist('tags')
-        
+        tag_values = request.POST.getlist('tags')
+
         if not title:
             messages.error(request, 'Title is required.')
+            selected_tags_payload = _build_selected_tags_payload(tag_values)
         else:
             try:
                 item.title = title
                 item.description = description
                 item.github_repo = github_repo
                 item.status = status
-                
+
                 if section_id:
                     item.section_id = section_id
                 else:
                     item.section = None
-                
+
                 item.save()
-                
+
                 # Update tags
-                if tag_ids:
-                    item.tags.set(tag_ids)
+                resolved_tags = _resolve_tag_values(tag_values)
+                if resolved_tags:
+                    item.tags.set(resolved_tags)
                 else:
                     item.tags.clear()
-                
+
                 # Sync update to ChromaDB
                 try:
                     from core.services.chroma_sync_service import ChromaItemSyncService
@@ -589,26 +683,28 @@ def item_detail(request, item_id):
                     import logging
                     logger = logging.getLogger(__name__)
                     logger.warning(f'ChromaDB sync failed for item {item.id}: {str(sync_error)}')
-                
+
                 messages.success(request, f'Item "{title}" updated successfully!')
-                # Stay on the same page after saving
-                
+                selected_tags_payload = list(item.tags.values('id', 'name', 'color'))
+
             except Exception as e:
                 messages.error(request, f'Error updating item: {str(e)}')
+                selected_tags_payload = _build_selected_tags_payload(tag_values)
     
     # Get related tasks
     tasks = item.tasks.all().select_related('assigned_to', 'created_by').prefetch_related('tags')
     
     # Get all sections, tags, and status choices for the form
     sections = Section.objects.all()
-    all_tags = Tag.objects.all()
+    all_tags = list(Tag.objects.values('id', 'name', 'color'))
     status_choices = Item.STATUS_CHOICES
-    
+
     context = {
         'item': item,
         'tasks': tasks,
         'sections': sections,
         'all_tags': all_tags,
+        'selected_tags': selected_tags_payload,
         'status_choices': status_choices,
     }
     
@@ -624,16 +720,19 @@ def item_create(request):
     
     user = get_object_or_404(User, id=user_id)
     
+    selected_tags_payload = []
+
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '').strip()
         github_repo = request.POST.get('github_repo', '').strip()
         section_id = request.POST.get('section')
         status = request.POST.get('status', 'new')
-        tag_ids = request.POST.getlist('tags')
-        
+        tag_values = request.POST.getlist('tags')
+
         if not title:
             messages.error(request, 'Title is required.')
+            selected_tags_payload = _build_selected_tags_payload(tag_values)
         else:
             try:
                 # Create item
@@ -644,16 +743,17 @@ def item_create(request):
                     status=status,
                     created_by=user
                 )
-                
+
                 if section_id:
                     item.section_id = section_id
-                
+
                 item.save()
-                
+
                 # Add tags
-                if tag_ids:
-                    item.tags.set(tag_ids)
-                
+                resolved_tags = _resolve_tag_values(tag_values)
+                if resolved_tags:
+                    item.tags.set(resolved_tags)
+
                 # Sync to ChromaDB
                 try:
                     from core.services.chroma_sync_service import ChromaItemSyncService
@@ -664,21 +764,23 @@ def item_create(request):
                     import logging
                     logger = logging.getLogger(__name__)
                     logger.warning(f'ChromaDB sync failed for item {item.id}: {str(sync_error)}')
-                
+
                 messages.success(request, f'Item "{title}" created successfully!')
                 return redirect('main:item_detail', item_id=item.id)
-                
+
             except Exception as e:
                 messages.error(request, f'Error creating item: {str(e)}')
+                selected_tags_payload = _build_selected_tags_payload(tag_values)
     
     # Get all sections and tags for the form
     sections = Section.objects.all()
-    all_tags = Tag.objects.all()
+    all_tags = list(Tag.objects.values('id', 'name', 'color'))
     status_choices = Item.STATUS_CHOICES
-    
+
     context = {
         'sections': sections,
         'all_tags': all_tags,
+        'selected_tags': selected_tags_payload,
         'status_choices': status_choices,
     }
     
@@ -700,36 +802,40 @@ def item_edit(request, item_id):
         messages.error(request, 'You do not have permission to edit this item.')
         return redirect('main:item_list')
     
+    selected_tags_payload = list(item.tags.values('id', 'name', 'color'))
+
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '').strip()
         github_repo = request.POST.get('github_repo', '').strip()
         section_id = request.POST.get('section')
         status = request.POST.get('status', item.status)
-        tag_ids = request.POST.getlist('tags')
-        
+        tag_values = request.POST.getlist('tags')
+
         if not title:
             messages.error(request, 'Title is required.')
+            selected_tags_payload = _build_selected_tags_payload(tag_values)
         else:
             try:
                 item.title = title
                 item.description = description
                 item.github_repo = github_repo
                 item.status = status
-                
+
                 if section_id:
                     item.section_id = section_id
                 else:
                     item.section = None
-                
+
                 item.save()
-                
+
                 # Update tags
-                if tag_ids:
-                    item.tags.set(tag_ids)
+                resolved_tags = _resolve_tag_values(tag_values)
+                if resolved_tags:
+                    item.tags.set(resolved_tags)
                 else:
                     item.tags.clear()
-                
+
                 # Sync update to ChromaDB
                 try:
                     from core.services.chroma_sync_service import ChromaItemSyncService
@@ -740,22 +846,24 @@ def item_edit(request, item_id):
                     import logging
                     logger = logging.getLogger(__name__)
                     logger.warning(f'ChromaDB sync failed for item {item.id}: {str(sync_error)}')
-                
+
                 messages.success(request, f'Item "{title}" updated successfully!')
                 return redirect('main:item_detail', item_id=item.id)
-                
+
             except Exception as e:
                 messages.error(request, f'Error updating item: {str(e)}')
+                selected_tags_payload = _build_selected_tags_payload(tag_values)
     
     # Get all sections and tags for the form
     sections = Section.objects.all()
-    all_tags = Tag.objects.all()
+    all_tags = list(Tag.objects.values('id', 'name', 'color'))
     status_choices = Item.STATUS_CHOICES
-    
+
     context = {
         'item': item,
         'sections': sections,
         'all_tags': all_tags,
+        'selected_tags': selected_tags_payload,
         'status_choices': status_choices,
     }
     
@@ -846,17 +954,54 @@ def task_detail(request, task_id):
     if task.created_by != user:
         messages.error(request, 'You do not have permission to view this task.')
         return redirect('main:item_list')
-    
+
+    selected_tags_payload = list(task.tags.values('id', 'name', 'color'))
+
+    if request.method == 'POST':
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        status = request.POST.get('status', task.status)
+        tag_values = request.POST.getlist('tags')
+
+        if not title:
+            messages.error(request, 'Title is required.')
+            selected_tags_payload = _build_selected_tags_payload(tag_values)
+        else:
+            try:
+                previous_status = task.status
+                task.title = title
+                task.description = description
+                task.status = status
+
+                if status == 'done' and previous_status != 'done':
+                    task.mark_as_done()
+                else:
+                    task.save()
+
+                resolved_tags = _resolve_tag_values(tag_values)
+                if resolved_tags:
+                    task.tags.set(resolved_tags)
+                else:
+                    task.tags.clear()
+
+                messages.success(request, f'Task "{title}" updated successfully!')
+                selected_tags_payload = list(task.tags.values('id', 'name', 'color'))
+
+            except Exception as e:
+                messages.error(request, f'Error updating task: {str(e)}')
+                selected_tags_payload = _build_selected_tags_payload(tag_values)
+
     # Get all tags and status choices
-    all_tags = Tag.objects.all()
+    all_tags = list(Tag.objects.values('id', 'name', 'color'))
     status_choices = Task.STATUS_CHOICES
-    
+
     context = {
         'task': task,
         'all_tags': all_tags,
+        'selected_tags': selected_tags_payload,
         'status_choices': status_choices,
     }
-    
+
     return render(request, 'main/tasks/detail.html', context)
 
 
@@ -875,14 +1020,17 @@ def task_create(request, item_id):
         messages.error(request, 'You do not have permission to create tasks for this item.')
         return redirect('main:item_list')
     
+    selected_tags_payload = list(item.tags.values('id', 'name', 'color'))
+
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '').strip()
         status = request.POST.get('status', 'new')
-        tag_ids = request.POST.getlist('tags')
-        
+        tag_values = request.POST.getlist('tags')
+
         if not title:
             messages.error(request, 'Title is required.')
+            selected_tags_payload = _build_selected_tags_payload(tag_values)
         else:
             try:
                 # Create task
@@ -895,24 +1043,27 @@ def task_create(request, item_id):
                     assigned_to=user
                 )
                 task.save()
-                
+
                 # Add tags
-                if tag_ids:
-                    task.tags.set(tag_ids)
-                
+                resolved_tags = _resolve_tag_values(tag_values)
+                if resolved_tags:
+                    task.tags.set(resolved_tags)
+
                 messages.success(request, f'Task "{title}" created successfully!')
                 return redirect('main:task_detail', task_id=task.id)
-                
+
             except Exception as e:
                 messages.error(request, f'Error creating task: {str(e)}')
+                selected_tags_payload = _build_selected_tags_payload(tag_values)
     
     # Get all tags for the form
-    all_tags = Tag.objects.all()
+    all_tags = list(Tag.objects.values('id', 'name', 'color'))
     status_choices = Task.STATUS_CHOICES
-    
+
     context = {
         'item': item,
         'all_tags': all_tags,
+        'selected_tags': selected_tags_payload,
         'status_choices': status_choices,
     }
     
@@ -934,45 +1085,52 @@ def task_edit(request, task_id):
         messages.error(request, 'You do not have permission to edit this task.')
         return redirect('main:item_list')
     
+    selected_tags_payload = list(task.tags.values('id', 'name', 'color'))
+
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '').strip()
         status = request.POST.get('status', task.status)
-        tag_ids = request.POST.getlist('tags')
-        
+        tag_values = request.POST.getlist('tags')
+
         if not title:
             messages.error(request, 'Title is required.')
+            selected_tags_payload = _build_selected_tags_payload(tag_values)
         else:
             try:
+                previous_status = task.status
                 task.title = title
                 task.description = description
                 task.status = status
-                
+
                 # Mark as done if status changed to done
-                if status == 'done' and task.status != 'done':
+                if status == 'done' and previous_status != 'done':
                     task.mark_as_done()
                 else:
                     task.save()
-                
+
                 # Update tags
-                if tag_ids:
-                    task.tags.set(tag_ids)
+                resolved_tags = _resolve_tag_values(tag_values)
+                if resolved_tags:
+                    task.tags.set(resolved_tags)
                 else:
                     task.tags.clear()
-                
+
                 messages.success(request, f'Task "{title}" updated successfully!')
                 return redirect('main:task_detail', task_id=task.id)
-                
+
             except Exception as e:
                 messages.error(request, f'Error updating task: {str(e)}')
+                selected_tags_payload = _build_selected_tags_payload(tag_values)
     
     # Get all tags for the form
-    all_tags = Tag.objects.all()
+    all_tags = list(Tag.objects.values('id', 'name', 'color'))
     status_choices = Task.STATUS_CHOICES
-    
+
     context = {
         'task': task,
         'all_tags': all_tags,
+        'selected_tags': selected_tags_payload,
         'status_choices': status_choices,
     }
     
