@@ -710,6 +710,12 @@ def item_detail(request, item_id):
     # Get show_completed filter parameter (default: false - don't show completed)
     show_completed = request.GET.get('show_completed', 'false').lower() == 'true'
     
+    # Get search query parameter
+    search_query = request.GET.get('search', '').strip()
+    
+    # Get page parameter
+    page_number = request.GET.get('page', 1)
+    
     # Get related tasks
     tasks = item.tasks.all().select_related('assigned_to', 'created_by').prefetch_related('tags')
     
@@ -719,6 +725,17 @@ def item_detail(request, item_id):
         tasks = tasks.exclude(status='done')
     # else: show all tasks (both completed and non-completed)
     
+    # Filter by search query (search in title and description)
+    if search_query:
+        from django.db.models import Q
+        tasks = tasks.filter(
+            Q(title__icontains=search_query) | Q(description__icontains=search_query)
+        )
+    
+    # Paginate tasks (10 per page)
+    paginator = Paginator(tasks, 10)
+    tasks_page = paginator.get_page(page_number)
+    
     # Get all sections, tags, and status choices for the form
     sections = Section.objects.all()
     all_tags = list(Tag.objects.values('id', 'name', 'color'))
@@ -726,12 +743,13 @@ def item_detail(request, item_id):
 
     context = {
         'item': item,
-        'tasks': tasks,
+        'tasks': tasks_page,
         'sections': sections,
         'all_tags': all_tags,
         'selected_tags': selected_tags_payload,
         'status_choices': status_choices,
         'show_completed': show_completed,
+        'search_query': search_query,
     }
     
     return render(request, 'main/items/detail.html', context)
