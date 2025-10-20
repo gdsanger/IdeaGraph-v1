@@ -20,6 +20,8 @@ urlpatterns = [
     path('settings/tags/create/', views.tag_create, name='tag_create'),
     path('settings/tags/<uuid:tag_id>/edit/', views.tag_edit, name='tag_edit'),
     path('settings/tags/<uuid:tag_id>/delete/', views.tag_delete, name='tag_delete'),
+    path('settings/tags/<uuid:tag_id>/calculate-usage/', views.tag_calculate_usage, name='tag_calculate_usage'),
+    path('settings/tags/calculate-all-usage/', views.tag_calculate_all_usage, name='tag_calculate_all_usage'),
     
     # Section URLs
     path('settings/sections/', views.section_list, name='section_list'),
