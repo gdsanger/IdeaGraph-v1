@@ -96,7 +96,20 @@ def _build_selected_tags_payload(tag_values):
 
 def home(request):
     """Home page view"""
-    return render(request, 'main/home.html')
+    # Fetch statistics from database
+    total_items = Item.objects.count()
+    total_tasks = Task.objects.count()
+    github_issues = Task.objects.filter(github_issue_id__isnull=False).count()
+    completed_tasks = Task.objects.filter(status='done').count()
+    
+    context = {
+        'total_items': total_items,
+        'total_tasks': total_tasks,
+        'github_issues': github_issues,
+        'completed_tasks': completed_tasks,
+    }
+    
+    return render(request, 'main/home.html', context)
 
 
 def settings_view(request):
