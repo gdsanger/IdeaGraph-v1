@@ -1293,6 +1293,10 @@ def task_overview(request):
         'search_query': search_query,
     }
     
+    # If HTMX request, return only the partial template
+    if request.headers.get('HX-Request'):
+        return render(request, 'main/tasks/_task_table.html', context)
+    
     return render(request, 'main/tasks/overview.html', context)
 
 
