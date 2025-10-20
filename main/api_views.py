@@ -1473,10 +1473,14 @@ def api_task_optimize_description(request, task_id):
 
 
 @csrf_exempt
-@require_http_methods(["POST"])
+@require_http_methods(["GET", "POST"])
 def api_task_ai_enhance(request, task_id):
     """
     API endpoint to enhance task with AI.
+    
+    GET /api/tasks/{task_id}/ai-enhance
+    Returns endpoint information and usage instructions.
+    
     POST /api/tasks/{task_id}/ai-enhance
     Body: {"title": "...", "description": "..."}
     
@@ -1486,6 +1490,20 @@ def api_task_ai_enhance(request, task_id):
     3. Generate title from normalized text using "text-to-title-generator"
     4. Extract 5 tags using "text-keyword-extractor-de" and replace existing tags
     """
+    # Handle GET requests with endpoint information
+    if request.method == 'GET':
+        return JsonResponse({
+            'error': 'Method not allowed',
+            'message': 'This endpoint only accepts POST requests',
+            'method': 'POST',
+            'endpoint': f'/api/tasks/{task_id}/ai-enhance',
+            'required_body': {
+                'title': 'string (required)',
+                'description': 'string (required)'
+            },
+            'description': 'Enhances task with AI by normalizing text, generating title, and extracting tags'
+        }, status=405)
+    
     user = get_user_from_request(request)
     if not user:
         return JsonResponse({'error': 'Authentication required'}, status=401)
@@ -1839,7 +1857,7 @@ def api_item_optimize_description(request, item_id):
 
 
 @csrf_exempt
-@require_http_methods(["POST"])
+@require_http_methods(["GET", "POST"])
 def api_item_ai_enhance(request, item_id):
     """
     API endpoint to enhance item with AI using KiGate agents.
@@ -1852,12 +1870,29 @@ def api_item_ai_enhance(request, item_id):
     The generated tags replace any existing tags on the item to avoid duplicates.
     Tags are properly attached to the Item entity via the ManyToMany relationship.
     
+    GET /api/items/{item_id}/ai-enhance
+    Returns endpoint information and usage instructions.
+    
     POST /api/items/{item_id}/ai-enhance
     Body: {"title": "...", "description": "..."}
     
     Returns:
         JSON response with enhanced title, description, and tags list
     """
+    # Handle GET requests with endpoint information
+    if request.method == 'GET':
+        return JsonResponse({
+            'error': 'Method not allowed',
+            'message': 'This endpoint only accepts POST requests',
+            'method': 'POST',
+            'endpoint': f'/api/items/{item_id}/ai-enhance',
+            'required_body': {
+                'title': 'string (required)',
+                'description': 'string (required)'
+            },
+            'description': 'Enhances item with AI by normalizing text, generating title, and extracting tags'
+        }, status=405)
+    
     user = get_user_from_request(request)
     if not user:
         return JsonResponse({'error': 'Authentication required'}, status=401)
