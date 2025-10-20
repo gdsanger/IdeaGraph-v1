@@ -136,6 +136,21 @@ class TagDeletionProtectionTest(TestCase):
         # Check for error message
         messages = list(response.context['messages'])
         self.assertTrue(any('Cannot delete' in str(m) for m in messages))
+    
+    def test_get_request_redirects(self):
+        """Test that GET requests to delete endpoint redirect with warning"""
+        tag = Tag.objects.create(name='Test Tag')
+        
+        # Try to delete with GET request
+        response = self.client.get(reverse('main:tag_delete', args=[tag.id]), follow=True)
+        
+        # Should redirect and tag should still exist
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Tag.objects.filter(id=tag.id).exists())
+        
+        # Check for warning message
+        messages = list(response.context['messages'])
+        self.assertTrue(any('Invalid delete request' in str(m) for m in messages))
 
 
 class TagPaginationTest(TestCase):

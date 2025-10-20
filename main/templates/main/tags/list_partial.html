@@ -51,9 +51,18 @@
                                         <a href="{% url 'main:tag_edit' tag.id %}" class="btn btn-sm btn-outline-primary" title="Edit">
                                             <i class="bi bi-pencil-fill"></i>
                                         </a>
-                                        <a href="{% url 'main:tag_delete' tag.id %}" class="btn btn-sm btn-outline-danger" title="Delete">
+                                        {% if tag.usage_count > 0 %}
+                                        <button class="btn btn-sm btn-outline-danger" disabled title="Cannot delete: Tag is in use">
                                             <i class="bi bi-trash-fill"></i>
-                                        </a>
+                                        </button>
+                                        {% else %}
+                                        <form method="post" action="{% url 'main:tag_delete' tag.id %}" style="display: inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                                <i class="bi bi-trash-fill"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
                                     </div>
                                 </td>
                             </tr>
