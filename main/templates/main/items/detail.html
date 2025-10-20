@@ -109,6 +109,16 @@
         box-shadow: none;
     }
 
+    .htmx-indicator {
+        display: none;
+    }
+    .htmx-request .htmx-indicator {
+        display: block;
+    }
+    .htmx-request.htmx-indicator {
+        display: block;
+    }
+
 </style>
 {% endblock %}
 
@@ -314,148 +324,17 @@
                             </div>
                             {% endif %}
                             
-                            {% if tasks %}
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
-                                        <tr>
-                                            <th>Title</th>
-                                            <th>Status</th>
-                                            <th>GitHub</th>
-                                            <th>Assigned To</th>
-                                            <th>Created</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for task in tasks %}
-                                        <tr>
-                                            <td>
-                                                <a href="{% url 'main:task_detail' task.id %}" class="text-decoration-none">
-                                                    {{ task.title }}
-                                                </a>
-                                            </td>
-                                            <td>
-                                                {% if task.status == 'ready' %}
-                                                <span class="badge bg-success">🟢 Ready</span>
-                                                {% elif task.status == 'review' %}
-                                                <span class="badge bg-warning">🟡 Review</span>
-                                                {% elif task.status == 'working' %}
-                                                <span class="badge bg-primary">🔵 Working</span>
-                                                {% elif task.status == 'done' %}
-                                                <span class="badge bg-secondary">✅ Done</span>
-                                                {% else %}
-                                                <span class="badge bg-secondary">⚪ New</span>
-                                                {% endif %}
-                                            </td>
-                                            <td>
-                                                {% if task.github_issue_id %}
-                                                <a href="{{ task.github_issue_url }}" target="_blank" class="text-decoration-none">
-                                                    #{{ task.github_issue_id }} <i class="bi bi-box-arrow-up-right"></i>
-                                                </a>
-                                                {% else %}
-                                                <span class="text-muted">-</span>
-                                                {% endif %}
-                                            </td>
-                                            <td>
-                                                {% if task.assigned_to %}
-                                                {{ task.assigned_to.username }}
-                                                {% else %}
-                                                <span class="text-muted">Unassigned</span>
-                                                {% endif %}
-                                            </td>
-                                            <td>
-                                                <small class="text-muted">{{ task.created_at|date:"Y-m-d" }}</small>
-                                            </td>
-                                            <td>
-                                                <a href="{% url 'main:task_detail' task.id %}" class="btn btn-sm btn-outline-primary">
-                                                    <i class="bi bi-eye"></i>
-                                                </a>
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                            
-                            <!-- Pagination -->
-                            {% if tasks.paginator.num_pages > 1 %}
-                            <nav aria-label="Tasks pagination" class="mt-3">
-                                <ul class="pagination justify-content-center">
-                                    {% if tasks.has_previous %}
-                                    <li class="page-item">
-                                        <a class="page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if show_completed %}&show_completed=true{% endif %}" aria-label="First">
-                                            <span aria-hidden="true">&laquo;&laquo;</span>
-                                        </a>
-                                    </li>
-                                    <li class="page-item">
-                                        <a class="page-link" href="?page={{ tasks.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if show_completed %}&show_completed=true{% endif %}" aria-label="Previous">
-                                            <span aria-hidden="true">&laquo;</span>
-                                        </a>
-                                    </li>
-                                    {% else %}
-                                    <li class="page-item disabled">
-                                        <span class="page-link">&laquo;&laquo;</span>
-                                    </li>
-                                    <li class="page-item disabled">
-                                        <span class="page-link">&laquo;</span>
-                                    </li>
-                                    {% endif %}
-                                    
-                                    {% for page_num in tasks.paginator.page_range %}
-                                        {% if page_num == tasks.number %}
-                                        <li class="page-item active" aria-current="page">
-                                            <span class="page-link">{{ page_num }}</span>
-                                        </li>
-                                        {% elif page_num > tasks.number|add:'-3' and page_num < tasks.number|add:'3' %}
-                                        <li class="page-item">
-                                            <a class="page-link" href="?page={{ page_num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if show_completed %}&show_completed=true{% endif %}">{{ page_num }}</a>
-                                        </li>
-                                        {% endif %}
-                                    {% endfor %}
-                                    
-                                    {% if tasks.has_next %}
-                                    <li class="page-item">
-                                        <a class="page-link" href="?page={{ tasks.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if show_completed %}&show_completed=true{% endif %}" aria-label="Next">
-                                            <span aria-hidden="true">&raquo;</span>
-                                        </a>
-                                    </li>
-                                    <li class="page-item">
-                                        <a class="page-link" href="?page={{ tasks.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if show_completed %}&show_completed=true{% endif %}" aria-label="Last">
-                                            <span aria-hidden="true">&raquo;&raquo;</span>
-                                        </a>
-                                    </li>
-                                    {% else %}
-                                    <li class="page-item disabled">
-                                        <span class="page-link">&raquo;</span>
-                                    </li>
-                                    <li class="page-item disabled">
-                                        <span class="page-link">&raquo;&raquo;</span>
-                                    </li>
-                                    {% endif %}
-                                </ul>
-                                <div class="text-center text-muted small">
-                                    Seite {{ tasks.number }} von {{ tasks.paginator.num_pages }} ({{ tasks.paginator.count }} Task(s) gesamt)
+                            <!-- Loading indicator for HTMX requests -->
+                            <div id="tasks-loading-indicator" class="htmx-indicator text-center py-3">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
                                 </div>
-                            </nav>
-                            {% endif %}
+                            </div>
                             
-                            {% else %}
-                            {% if search_query %}
-                            <div class="text-center text-muted py-5">
-                                <i class="bi bi-search" style="font-size: 3rem;"></i>
-                                <p class="mt-3">Keine Tasks gefunden für "{{ search_query }}"</p>
-                                <a href="?{% if show_completed %}show_completed=true{% endif %}" class="btn btn-outline-secondary">
-                                    Suche zurücksetzen
-                                </a>
+                            <!-- Task table container for HTMX updates -->
+                            <div id="item-tasks-table-container">
+                                {% include 'main/items/_item_tasks_table.html' %}
                             </div>
-                            {% else %}
-                            <div class="text-center text-muted py-5">
-                                <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-                                <p class="mt-3">No tasks yet. Use "Build Tasks" to generate tasks from this item.</p>
-                            </div>
-                            {% endif %}
-                            {% endif %}
                         </div>
                     </div>
                 </div>

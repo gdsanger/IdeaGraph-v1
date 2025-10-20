@@ -752,6 +752,10 @@ def item_detail(request, item_id):
         'search_query': search_query,
     }
     
+    # If HTMX request, return only the partial template
+    if request.headers.get('HX-Request'):
+        return render(request, 'main/items/_item_tasks_table.html', context)
+    
     return render(request, 'main/items/detail.html', context)
 
 
