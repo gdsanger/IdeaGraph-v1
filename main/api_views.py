@@ -2148,29 +2148,28 @@ def api_tags_network_data(request):
     """
     API endpoint to fetch network graph data for tags, items, and tasks.
     Returns nodes and edges for visualization.
+    Only shows items and tasks owned by the current user, and only tags linked to those items/tasks.
     """
     try:
-        from .models import Tag, Item, Task
+        from .models import Tag, Item, Task, User
         
         nodes = []
         edges = []
         
-        # Add tag nodes
-        tags = Tag.objects.all()
-        for tag in tags:
-            nodes.append({
-                'id': f'tag-{tag.id}',
-                'label': tag.name[:20] + '...' if len(tag.name) > 20 else tag.name,
-                'title': tag.name,  # Full name on hover
-                'group': 'tag',
-                'color': tag.color,
-                'shape': 'dot',
-                'size': 30,
-                'font': {'size': 14, 'color': '#ffffff'}
-            })
+        # Get current user from session
+        user_id = request.session.get('user_id')
+        if not user_id:
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+        
+        try:
+            current_user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return JsonResponse({'error': 'User not found'}, status=404)
+        
+        # Filter items by current user ownership
+        items = Item.objects.filter(created_by=current_user).prefetch_related('tags')
         
         # Add item nodes and edges to tags
-        items = Item.objects.prefetch_related('tags').all()
         for item in items:
             # Truncate title if too long
             label = item.title[:25] + '...' if len(item.title) > 25 else item.title
@@ -2206,8 +2205,31 @@ def api_tags_network_data(request):
                     'width': 2
                 })
         
+        # Filter tasks by current user ownership
+        tasks = Task.objects.filter(created_by=current_user).prefetch_related('tags', 'item')
+        
+        # Collect all tag IDs that are actually used by items or tasks
+        used_tag_ids = set()
+        for item in items:
+            used_tag_ids.update(item.tags.values_list('id', flat=True))
+        for task in tasks:
+            used_tag_ids.update(task.tags.values_list('id', flat=True))
+        
+        # Add tag nodes only for tags that are linked to items or tasks
+        tags = Tag.objects.filter(id__in=used_tag_ids)
+        for tag in tags:
+            nodes.append({
+                'id': f'tag-{tag.id}',
+                'label': tag.name[:20] + '...' if len(tag.name) > 20 else tag.name,
+                'title': tag.name,  # Full name on hover
+                'group': 'tag',
+                'color': tag.color,
+                'shape': 'dot',
+                'size': 30,
+                'font': {'size': 14, 'color': '#ffffff'}
+            })
+        
         # Add task nodes and edges to items/tags
-        tasks = Task.objects.prefetch_related('tags', 'item').all()
         for task in tasks:
             # Truncate title if too long
             label = task.title[:20] + '...' if len(task.title) > 20 else task.title
