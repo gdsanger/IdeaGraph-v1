@@ -1107,6 +1107,17 @@ def task_create(request, item_id):
                 if resolved_tags:
                     task.tags.set(resolved_tags)
 
+                # Sync to ChromaDB
+                try:
+                    from core.services.chroma_task_sync_service import ChromaTaskSyncService
+                    sync_service = ChromaTaskSyncService()
+                    sync_service.sync_create(task)
+                except Exception as sync_error:
+                    # Log error but don't fail the task creation
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f'ChromaDB sync failed for task {task.id}: {str(sync_error)}')
+
                 messages.success(request, f'Task "{title}" created successfully!')
                 return redirect('main:task_detail', task_id=task.id)
 
@@ -1163,6 +1174,7 @@ def task_edit(request, task_id):
 
                 # Mark as done if status changed to done
                 if status == 'done' and previous_status != 'done':
+                    task.save()
                     task.mark_as_done()
                 else:
                     task.save()
@@ -1173,6 +1185,17 @@ def task_edit(request, task_id):
                     task.tags.set(resolved_tags)
                 else:
                     task.tags.clear()
+
+                # Sync update to ChromaDB
+                try:
+                    from core.services.chroma_task_sync_service import ChromaTaskSyncService
+                    sync_service = ChromaTaskSyncService()
+                    sync_service.sync_update(task)
+                except Exception as sync_error:
+                    # Log error but don't fail the task update
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f'ChromaDB sync failed for task {task.id}: {str(sync_error)}')
 
                 messages.success(request, f'Task "{title}" updated successfully!')
                 return redirect('main:task_detail', task_id=task.id)
@@ -1214,7 +1237,20 @@ def task_delete(request, task_id):
     
     if request.method == 'POST':
         task_title = task.title
+        task_id_str = str(task.id)
         task.delete()
+        
+        # Sync delete to ChromaDB
+        try:
+            from core.services.chroma_task_sync_service import ChromaTaskSyncService
+            sync_service = ChromaTaskSyncService()
+            sync_service.sync_delete(task_id_str)
+        except Exception as sync_error:
+            # Log error but don't fail the task deletion
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f'ChromaDB sync failed for task {task_id_str}: {str(sync_error)}')
+        
         messages.success(request, f'Task "{task_title}" deleted successfully!')
         return redirect('main:item_detail', item_id=item.id)
     
