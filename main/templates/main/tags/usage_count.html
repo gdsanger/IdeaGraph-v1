@@ -1,0 +1,9 @@
+<span class="badge bg-secondary">{{ tag.usage_count }}</span>
+<button 
+    class="btn btn-sm btn-outline-info" 
+    hx-get="{% url 'main:tag_calculate_usage' tag.id %}" 
+    hx-target="#usage-count-{{ tag.id }}"
+    hx-swap="innerHTML"
+    title="Refresh count">
+    <i class="bi bi-arrow-clockwise"></i>
+</button>

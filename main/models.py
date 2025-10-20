@@ -133,6 +133,7 @@ class Tag(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, unique=True)
     color = models.CharField(max_length=7, default='#3b82f6')  # Hex color code
+    usage_count = models.IntegerField(default=0)  # Count of items/tasks using this tag
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -147,6 +148,13 @@ class Tag(models.Model):
         if not self.color or self.color == '#3b82f6':
             self.color = random.choice(self.COLOR_PALETTE)
         super().save(*args, **kwargs)
+    
+    def calculate_usage_count(self):
+        """Calculate and update the usage count of this tag"""
+        count = self.items.count() + self.tasks.count()
+        self.usage_count = count
+        self.save(update_fields=['usage_count'])
+        return count
 class Section(models.Model):
     """Section model for categorizing items by their fundamental type
     

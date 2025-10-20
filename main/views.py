@@ -105,9 +105,31 @@ def settings_view(request):
 
 
 def tag_list(request):
-    """List all tags"""
+    """List all tags with pagination and search"""
+    search_query = request.GET.get('search', '').strip()
+    page_number = request.GET.get('page', 1)
+    
     tags = Tag.objects.all()
-    return render(request, 'main/tags/list.html', {'tags': tags})
+    
+    # Apply search filter
+    if search_query:
+        tags = tags.filter(name__icontains=search_query)
+    
+    # Pagination
+    paginator = Paginator(tags, 10)  # 10 tags per page
+    tags_page = paginator.get_page(page_number)
+    
+    context = {
+        'tags': tags_page,
+        'search_query': search_query,
+        'is_htmx': request.headers.get('HX-Request') == 'true'
+    }
+    
+    # Return partial template for HTMX requests
+    if context['is_htmx']:
+        return render(request, 'main/tags/list_partial.html', context)
+    
+    return render(request, 'main/tags/list.html', context)
 
 
 def tag_create(request):
@@ -159,16 +181,63 @@ def tag_edit(request, tag_id):
 
 
 def tag_delete(request, tag_id):
-    """Delete a tag"""
+    """Delete a tag (only if not in use)"""
     tag = get_object_or_404(Tag, id=tag_id)
     
+    # Calculate current usage
+    tag.calculate_usage_count()
+    
     if request.method == 'POST':
+        # Check if tag is in use
+        if tag.usage_count > 0:
+            messages.error(
+                request, 
+                f'Cannot delete tag "{tag.name}". It is currently used by {tag.usage_count} item(s)/task(s). '
+                f'Please remove the tag from all items and tasks before deleting it.'
+            )
+            return redirect('main:tag_list')
+        
+        # Tag not in use, delete it
         tag_name = tag.name
         tag.delete()
         messages.success(request, f'Tag "{tag_name}" deleted successfully!')
         return redirect('main:tag_list')
     
+    # GET request - check if tag is in use and show appropriate response
+    if tag.usage_count > 0:
+        # Show error for tags in use
+        messages.error(
+            request, 
+            f'Cannot delete tag "{tag.name}". It is currently used by {tag.usage_count} item(s)/task(s). '
+            f'Please remove the tag from all items and tasks before deleting it.'
+        )
+        return redirect('main:tag_list')
+    
+    # Tag not in use, show simple delete confirmation (no extra page needed)
     return render(request, 'main/tags/delete.html', {'tag': tag})
+
+
+def tag_calculate_usage(request, tag_id):
+    """Calculate and update the usage count for a specific tag"""
+    tag = get_object_or_404(Tag, id=tag_id)
+    count = tag.calculate_usage_count()
+    
+    if request.headers.get('HX-Request'):
+        # Return HTML fragment for HTMX
+        return render(request, 'main/tags/usage_count.html', {'tag': tag})
+    
+    messages.success(request, f'Usage count for tag "{tag.name}" updated: {count}')
+    return redirect('main:tag_list')
+
+
+def tag_calculate_all_usage(request):
+    """Calculate and update usage counts for all tags"""
+    tags = Tag.objects.all()
+    for tag in tags:
+        tag.calculate_usage_count()
+    
+    messages.success(request, 'Usage counts updated for all tags!')
+    return redirect('main:tag_list')
 
 
 def section_list(request):
