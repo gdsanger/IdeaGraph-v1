@@ -288,3 +288,23 @@ class TaskAIEnhanceTest(TestCase):
         data = json.loads(response.content)
         self.assertFalse(data['success'])
         self.assertIn('error', data)
+    
+    def test_api_task_ai_enhance_get_request_returns_info(self):
+        """Test that GET requests return helpful endpoint information"""
+        request = self.factory.get(
+            f'/api/tasks/{self.task.id}/ai-enhance'
+        )
+        request.session = {'user_id': str(self.user.id)}
+        
+        response = api_task_ai_enhance(request, self.task.id)
+        
+        # Should return 405 with helpful information
+        self.assertEqual(response.status_code, 405)
+        data = json.loads(response.content)
+        self.assertIn('error', data)
+        self.assertIn('message', data)
+        self.assertIn('POST', data['message'])
+        self.assertEqual(data['method'], 'POST')
+        self.assertIn('required_body', data)
+        self.assertIn('title', data['required_body'])
+        self.assertIn('description', data['required_body'])

@@ -534,3 +534,25 @@ class ItemAIFeaturesTestCase(TestCase):
             
             item2 = next(item for item in similar_items if item['id'] == 'similar-item-2')
             self.assertAlmostEqual(item2['relevance'], 0.8, places=2)
+    
+    def test_api_item_ai_enhance_get_request_returns_info(self):
+        """Test that GET requests return helpful endpoint information"""
+        from main.api_views import api_item_ai_enhance
+        
+        request = self.factory.get(
+            f'/api/items/{self.item.id}/ai-enhance'
+        )
+        request.session = {'user_id': str(self.user.id)}
+        
+        response = api_item_ai_enhance(request, self.item.id)
+        
+        # Should return 405 with helpful information
+        self.assertEqual(response.status_code, 405)
+        data = json.loads(response.content)
+        self.assertIn('error', data)
+        self.assertIn('message', data)
+        self.assertIn('POST', data['message'])
+        self.assertEqual(data['method'], 'POST')
+        self.assertIn('required_body', data)
+        self.assertIn('title', data['required_body'])
+        self.assertIn('description', data['required_body'])
