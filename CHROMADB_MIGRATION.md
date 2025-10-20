@@ -1,148 +1,251 @@
-# ChromaDB Migration: Cloud to Local Instance
+# Migration von ChromaDB zu Weaviate
 
 ## Übersicht
 
-Dieses Dokument beschreibt die Migration von ChromaDB von einer Cloud-basierten Lösung zu einer lokalen Instanz.
+Dieses Dokument beschreibt die vollständige Migration von ChromaDB zu Weaviate als Vectordatenbank für IdeaGraph.
 
 ## Änderungen
 
-### 1. ChromaDB Konfiguration
+### 1. Weaviate Konfiguration
 
-**Lokale Instanz Details:**
+**Weaviate Instance Details:**
 - **Host:** `localhost`
-- **Port:** `8003`
-- **Datenpfad:** `/opt/chromadb/data/chroma`
+- **Port:** `8081`
+- **Authentifizierung:** Keine (lokale Instanz)
+- **Vectorizer:** `text2vec-transformers` (lokal, kein OpenAI erforderlich)
 
-### 2. Embedding-Modell Upgrade
+### 2. Vectorisierung
 
-Das Embedding-Modell wurde von `text-embedding-ada-002` auf `text-embedding-3-large` aktualisiert:
-- **Vorher:** `text-embedding-ada-002` (1536 Dimensionen)
-- **Nachher:** `text-embedding-3-large` (3072 Dimensionen)
+Die Vectorisierung wird jetzt von Weaviate's `text2vec-transformers` übernommen:
+- **Vorher:** OpenAI `text-embedding-3-large` (3072 Dimensionen)
+- **Nachher:** text2vec-transformers (lokale Verarbeitung)
+- **Vorteil:** Keine externen API-Aufrufe, keine Kosten, konsistente Ergebnisse
 
-### 3. Geänderte Dateien
+### 3. Schema
 
-#### Backend Services
+Das Weaviate Schema wurde implementiert gemäß der Issue-Anforderung:
+- **Tag** Collection mit name und description
+- **Item** Collection mit cross-references zu Tags
+- **Task** Collection mit cross-references zu Items und Tags
+- **GitHubIssue** Collection mit cross-references zu Tasks und Items
 
-1. **core/services/chroma_sync_service.py**
-   - ChromaDB Client verwendet jetzt `localhost:8003`
-   - Embedding-Modell auf `text-embedding-3-large` aktualisiert
-   - Embedding-Vektorgröße auf 3072 aktualisiert
+### 4. Geänderte Dateien
 
-2. **core/services/chroma_task_sync_service.py**
-   - ChromaDB Client verwendet jetzt `localhost:8003`
-   - Embedding-Modell auf `text-embedding-3-large` aktualisiert
-   - Embedding-Vektorgröße auf 3072 aktualisiert
+#### Models
+1. **main/models.py**
+   - Tag-Modell erweitert um `description` Feld
 
-3. **core/services/github_issue_sync_service.py**
-   - ChromaDB Client verwendet jetzt `localhost:8003`
-   - Embedding-Modell auf `text-embedding-3-large` aktualisiert
-   - Embedding-Vektorgröße auf 3072 aktualisiert
+#### Migrations
+2. **main/migrations/0014_add_tag_description.py**
+   - Database Migration für Tag description Feld
 
-#### Frontend (UI)
+#### Services
+3. **core/services/weaviate_sync_service.py** (neu)
+   - Weaviate Item Synchronization Service
+   - Ersetzt ChromaItemSyncService
 
-4. **main/templates/main/settings_form.html**
-   - Warnung "Derzeit nicht verfügbar" hinzugefügt
-   - Cloud-ChromaDB Felder deaktiviert (disabled)
-   - Hilfetext aktualisiert mit "Derzeit nicht verfügbar"
+4. **core/services/weaviate_task_sync_service.py** (neu)
+   - Weaviate Task Synchronization Service
+   - Ersetzt ChromaTaskSyncService
 
-### 4. Beibehaltene Funktionen
+5. **core/services/weaviate_github_issue_sync_service.py** (neu)
+   - Weaviate GitHub Issue Synchronization Service
+   - Ersetzt GitHubIssueSyncService
 
-Die folgenden Methoden wurden beibehalten, obwohl sie nicht mehr aktiv verwendet werden:
-- `_resolve_cloud_credentials()` - Für mögliche zukünftige Cloud-Integration
-- `_build_cloud_client_kwargs()` - Für mögliche zukünftige Cloud-Integration
+6. **core/services/weaviate_tag_sync_service.py** (neu)
+   - Weaviate Tag Synchronization Service (neu)
+   - Ermöglicht Tag-Synchronisierung
 
-Die Cloud-Konfigurationsfelder im Settings-Modell bleiben ebenfalls erhalten.
+#### Views
+7. **main/views.py**
+   - Alle ChromaDB Service Imports ersetzt durch Weaviate Services
+   - sync_service.close() Aufrufe hinzugefügt
+
+8. **main/api_views.py**
+   - Alle ChromaDB Service Imports ersetzt durch Weaviate Services
+   - Alle Referenzen zu ChromaDB auf Weaviate aktualisiert
+
+#### Tests
+9. **main/test_settings_openai_toggle.py**
+   - Test aktualisiert für Weaviate (kein OpenAI erforderlich)
+
+#### Scripts
+10. **sync_github_issues.py**
+    - Kommentare und Logging auf Weaviate aktualisiert
+
+#### Management Commands
+11. **main/management/commands/sync_tags_to_weaviate.py** (neu)
+    - CLI Command zum Synchronisieren von Tags zu Weaviate
+    - Kann als Cron-Job ausgeführt werden
+
+#### Dependencies
+12. **requirements.txt**
+    - `chromadb>=0.4.0` entfernt
+    - `weaviate-client>=4.9.0` hinzugefügt
+
+#### Documentation
+13. **docs/WEAVIATE_SYNC.md** (neu)
+    - Vollständige Dokumentation der Weaviate Integration
+
+### 5. Entfernte Abhängigkeiten
+
+Die folgenden ChromaDB-bezogenen Services wurden beibehalten aber werden nicht mehr verwendet:
+- `core/services/chroma_sync_service.py`
+- `core/services/chroma_task_sync_service.py`
+- `core/services/github_issue_sync_service.py` (ChromaDB-Teile)
+
+**Hinweis:** Diese Dateien können später entfernt werden, nachdem die Migration erfolgreich abgeschlossen wurde.
 
 ## Verwendung
 
 ### Voraussetzungen
 
-1. ChromaDB muss lokal installiert sein unter `/opt/chromadb`
-2. ChromaDB Server muss auf Port 8003 laufen
-3. OpenAI API Key muss in den Settings konfiguriert sein (für Embeddings)
+1. Weaviate muss lokal auf Port 8081 laufen
+2. Schema muss in Weaviate angelegt sein (gemäß Issue-Beschreibung)
+3. **Keine** OpenAI API Key erforderlich (text2vec-transformers)
 
-### ChromaDB Server starten
+### Weaviate Server starten
 
 ```bash
-# Beispielbefehl (anpassen je nach Installation)
-cd /opt/chromadb
-chroma run --host localhost --port 8003 --path /opt/chromadb/data/chroma
+# Docker Compose Beispiel
+docker-compose up -d weaviate
+```
+
+### Tag-Synchronisierung
+
+Tags können jetzt synchronisiert werden:
+
+```bash
+# Alle Tags synchronisieren
+python manage.py sync_tags_to_weaviate
+
+# Spezifischen Tag synchronisieren
+python manage.py sync_tags_to_weaviate --tag-id <UUID>
+
+# Als Cron-Job (stündlich)
+0 * * * * cd /path/to/IdeaGraph-v1 && python manage.py sync_tags_to_weaviate
 ```
 
 ### Konfiguration prüfen
 
-Die ChromaDB-Verbindung wird automatisch beim Start der Services initialisiert. Logs überprüfen:
+Die Weaviate-Verbindung wird automatisch beim Start der Services initialisiert. Logs überprüfen:
 
 ```bash
-tail -f logs/ideagraph.log | grep -i chroma
+tail -f logs/ideagraph.log | grep -i weaviate
 ```
 
 Erwartete Log-Einträge:
 ```
-Initializing ChromaDB local client at localhost:8003
-ChromaDB collection 'items' initialized
-ChromaDB collection 'tasks' initialized
-ChromaDB collection 'GitHubIssues' initialized
+Initializing Weaviate client at localhost:8081
+Weaviate client initialized, collection 'Item' ready
+Weaviate client initialized, collection 'Task' ready
+Weaviate client initialized, collection 'GitHubIssue' ready
+Weaviate client initialized, collection 'Tag' ready
 ```
 
-## OpenAI API Integration
+## UUID Management
 
-Die Embeddings werden weiterhin über die OpenAI API generiert. Stellen Sie sicher, dass:
-1. `openai_api_enabled` auf `True` gesetzt ist
-2. `openai_api_key` konfiguriert ist
-3. `openai_api_base_url` korrekt ist (Standard: `https://api.openai.com/v1`)
+**Wichtig:** Wir verwenden immer unsere internen UUIDs als ID in Weaviate. Dies stellt sicher:
+
+1. Konsistenz zwischen unserer Datenbank und Weaviate
+2. Einfaches Mapping von Weaviate-Ergebnissen zu unseren Datensätzen
+3. Keine Duplikate beim erneuten Synchronisieren
+
+Beispiel:
+```python
+collection.data.insert(
+    properties=properties,
+    uuid=str(item.id)  # Immer unsere interne UUID verwenden
+)
+```
 
 ## Migrationshinweise
 
 ### Bestehende Daten
 
-- Alte Cloud-ChromaDB-Daten müssen **nicht** migriert werden
-- Das System erstellt neue Collections in der lokalen Instanz
-- Items, Tasks und GitHub Issues werden bei Bedarf neu synchronisiert
+- Alte ChromaDB-Daten müssen **nicht** migriert werden
+- Das System erstellt neue Einträge in Weaviate
+- Items, Tasks und GitHub Issues werden bei Bedarf automatisch synchronisiert
+- Tags müssen einmalig mit `sync_tags_to_weaviate` synchronisiert werden
 
-### Embedding-Größe
+### Cross-References
 
-**Wichtig:** Das neue Embedding-Modell `text-embedding-3-large` erzeugt 3072-dimensionale Vektoren (vorher 1536). Dies bedeutet:
-- Bessere semantische Genauigkeit
-- Höherer Speicherbedarf
-- Alle neuen Embeddings verwenden automatisch das neue Modell
+Weaviate unterstützt native Cross-References zwischen Collections:
+- Items haben Referenzen zu Tags
+- Tasks haben Referenzen zu Items und Tags
+- GitHubIssues haben Referenzen zu Tasks und Items
+
+### Keine OpenAI API mehr erforderlich
+
+Ein großer Vorteil: Die Vectorisierung erfolgt lokal durch Weaviate's text2vec-transformers. Das bedeutet:
+- Keine API-Kosten
+- Schnellere Verarbeitung
+- Keine Rate Limits
+- Konsistente Ergebnisse
 
 ## Fehlerbehebung
 
-### ChromaDB Verbindungsfehler
+### Weaviate Verbindungsfehler
 
-**Symptom:** `Failed to initialize ChromaDB client`
+**Symptom:** `Failed to initialize Weaviate client`
 
 **Lösung:**
-1. Prüfen Sie, ob ChromaDB läuft: `curl http://localhost:8003/api/v1/heartbeat`
+1. Prüfen Sie, ob Weaviate läuft: `curl http://localhost:8081/v1/.well-known/ready`
 2. Prüfen Sie die Logs: `tail -f logs/ideagraph.log`
-3. Starten Sie ChromaDB neu
+3. Starten Sie Weaviate neu
 
-### OpenAI API Fehler
+### Schema nicht gefunden
 
-**Symptom:** `Failed to generate embedding`
+**Symptom:** `Collection 'Item' not found`
 
 **Lösung:**
-1. Überprüfen Sie den API-Key in den Settings
-2. Prüfen Sie die Netzwerkverbindung zu OpenAI
-3. Überprüfen Sie das API-Rate-Limit
+1. Überprüfen Sie, ob das Schema in Weaviate angelegt ist
+2. Schema kann über Weaviate API angelegt werden
+3. Siehe Schema-Details in der Issue-Beschreibung
+
+### Tags werden nicht synchronisiert
+
+**Symptom:** Tags fehlen in Weaviate
+
+**Lösung:**
+1. Führen Sie `python manage.py sync_tags_to_weaviate` aus
+2. Überprüfen Sie die Logs
+3. Prüfen Sie, ob Tag-Einträge ein description Feld haben
 
 ## Tests
 
-Die bestehenden Tests verwenden Mocks für ChromaDB. Für echte Integrationstests:
+Die bestehenden Tests wurden angepasst:
 
 ```bash
-# ChromaDB Server muss laufen
-python manage.py test main.test_chroma_integration
-python manage.py test main.test_task_chroma_integration
+# Weaviate Service Tests
+python manage.py test main.test_weaviate*
+
+# Integration Tests
+python manage.py test main.test_weaviate_integration
 ```
 
 ## Rollback-Plan
 
-Falls ein Rollback zur Cloud-Version erforderlich ist:
+Falls ein Rollback erforderlich ist:
 
-1. Revertieren Sie die Änderungen an den drei Service-Dateien
-2. Konfigurieren Sie die Cloud-Credentials in den Settings
-3. Entfernen Sie das `disabled` Attribut von den UI-Feldern
+1. Requirements.txt auf chromadb zurücksetzen
+2. Views und API Views auf ChromaDB Services zurücksetzen
+3. Alte ChromaDB Services wieder aktivieren
 
-Die alten Methoden (`_resolve_cloud_credentials`, `_build_cloud_client_kwargs`) sind noch vorhanden und können wiederverwendet werden.
+Die alten Service-Dateien sind noch vorhanden und können wiederverwendet werden.
+
+## Vorteile der Migration
+
+1. **Keine externen API-Kosten**: Lokale Vectorisierung
+2. **Bessere Schema-Unterstützung**: Native Cross-References
+3. **Konsistente UUIDs**: Verwendung interner UUIDs
+4. **Automatische Vectorisierung**: text2vec-transformers
+5. **Mehrsprachige Unterstützung**: Inklusive Deutsch
+6. **Tag-Synchronisierung**: Neue Funktion für Tags
+
+## Offene Punkte
+
+- [ ] ChromaDB-Service Dateien können nach erfolgreicher Migration entfernt werden
+- [ ] ChromaDB Settings-Felder in UI können entfernt/deaktiviert werden
+- [ ] Alte ChromaDB-Dokumentation kann archiviert werden
+
