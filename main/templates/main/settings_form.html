@@ -281,6 +281,10 @@
                         <h5 class="mb-3" style="color: var(--autumn-accent);">
                             <i class="bi bi-database"></i> ChromaDB Configuration
                         </h5>
+                        <div class="alert alert-warning" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill"></i> <strong>Derzeit nicht verfügbar</strong>
+                            <p class="mb-0 mt-2">Die Cloud-basierte ChromaDB-Konfiguration ist derzeit nicht verfügbar. Das System verwendet eine lokale ChromaDB-Instanz.</p>
+                        </div>
                         <div class="row">
                             <div class="col-md-4 mb-3">
                                 <label for="chroma_api_key" class="form-label">CHROMA_API_KEY</label>
@@ -290,8 +294,9 @@
                                     id="chroma_api_key" 
                                     name="chroma_api_key" 
                                     value="{{ settings.chroma_api_key|default:'' }}"
-                                    placeholder="ChromaDB Api Key">
-                                <div class="form-text">ChromaDB Api Key (Cloud)</div>
+                                    placeholder="ChromaDB Api Key"
+                                    disabled>
+                                <div class="form-text">ChromaDB Api Key (Cloud) - Derzeit nicht verfügbar</div>
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label for="chroma_database" class="form-label">CHROMA_DATABASE</label>
@@ -301,8 +306,9 @@
                                     id="chroma_database" 
                                     name="chroma_database" 
                                     value="{{ settings.chroma_database|default:'' }}"
-                                    placeholder="Database name">
-                                <div class="form-text">ChromaDB Database</div>
+                                    placeholder="Database name"
+                                    disabled>
+                                <div class="form-text">ChromaDB Database - Derzeit nicht verfügbar</div>
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label for="chroma_tenant" class="form-label">CHROMA_TENANT</label>
@@ -312,8 +318,9 @@
                                     id="chroma_tenant" 
                                     name="chroma_tenant" 
                                     value="{{ settings.chroma_tenant|default:'' }}"
-                                    placeholder="Tenant name">
-                                <div class="form-text">ChromaDB Tenant</div>
+                                    placeholder="Tenant name"
+                                    disabled>
+                                <div class="form-text">ChromaDB Tenant - Derzeit nicht verfügbar</div>
                             </div>
                         </div>
                     </div>
