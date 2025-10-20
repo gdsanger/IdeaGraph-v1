@@ -451,6 +451,27 @@ class Settings(models.Model):
         help_text='Timeout for KiGate API requests in seconds'
     )
     
+    # Weaviate Configuration
+    weaviate_cloud_enabled = models.BooleanField(
+        default=False,
+        verbose_name='Cloud',
+        help_text='Enable Weaviate Cloud (if disabled, local configuration is used)'
+    )
+    weaviate_url = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='WEAVIATE_URL',
+        help_text='Weaviate Cloud URL'
+    )
+    weaviate_api_key = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='WEAVIATE_API_KEY',
+        help_text='Weaviate Cloud API Key'
+    )
+    
     # Additional Settings
     max_tags_per_idea = models.IntegerField(
         default=5,
