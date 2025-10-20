@@ -1256,6 +1256,224 @@ def api_task_detail(request, task_id):
 
 @csrf_exempt
 @require_http_methods(["POST"])
+def api_task_generate_title(request, task_id):
+    """
+    API endpoint to generate task title from description using AI.
+    POST /api/tasks/{task_id}/generate-title
+    Body: {"description": "..."}
+    
+    Uses KiGate API with "text-to-title-generator" agent.
+    Can work with unsaved tasks (task_id is optional in that case).
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Task
+    
+    try:
+        # Task ID might be "new" for unsaved tasks
+        if task_id != 'new':
+            task = Task.objects.get(id=task_id)
+            # Check ownership
+            if task.created_by != user:
+                return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        data = json.loads(request.body)
+        description = data.get('description', '').strip()
+        
+        if not description:
+            return JsonResponse({'error': 'Description is required'}, status=400)
+        
+        # Use KiGate service to generate title
+        kigate = KiGateService()
+        
+        title_result = kigate.execute_agent(
+            agent_name='text-to-title-generator',
+            provider='openai',
+            model='gpt-4',
+            message=description,
+            user_id=str(user.id),
+            parameters={'language': 'de'}
+        )
+        
+        if not title_result.get('success'):
+            return JsonResponse({'error': title_result.get('error', 'Failed to generate title')}, status=500)
+        
+        generated_title = title_result.get('result', title_result.get('response', '')).strip()
+        if generated_title:
+            generated_title = generated_title[:255]  # Limit to field max length
+        
+        return JsonResponse({
+            'success': True,
+            'title': generated_title
+        })
+        
+    except Task.DoesNotExist:
+        return JsonResponse({'error': 'Task not found'}, status=404)
+    except KiGateServiceError as e:
+        logger.error(f'KiGate API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f'Task title generation error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred during title generation'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_task_extract_tags(request, task_id):
+    """
+    API endpoint to extract tags from task description using AI.
+    POST /api/tasks/{task_id}/extract-tags
+    Body: {"description": "..."}
+    
+    Uses KiGate API with "text-keyword-extractor-de" agent.
+    Can work with unsaved tasks (task_id is optional in that case).
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Task, Tag, Settings
+    
+    try:
+        # Task ID might be "new" for unsaved tasks
+        if task_id != 'new':
+            task = Task.objects.get(id=task_id)
+            # Check ownership
+            if task.created_by != user:
+                return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        data = json.loads(request.body)
+        description = data.get('description', '').strip()
+        
+        if not description:
+            return JsonResponse({'error': 'Description is required'}, status=400)
+        
+        # Get settings for max tags
+        settings = Settings.objects.first()
+        max_tags = settings.max_tags_per_idea if settings else 5
+        
+        # Use KiGate service to extract tags
+        kigate = KiGateService()
+        
+        keyword_result = kigate.execute_agent(
+            agent_name='text-keyword-extractor-de',
+            provider='openai',
+            model='gpt-4',
+            message=description,
+            user_id=str(user.id),
+            parameters={'max_keywords': max_tags}
+        )
+        
+        if not keyword_result.get('success'):
+            return JsonResponse({'error': keyword_result.get('error', 'Failed to extract tags')}, status=500)
+        
+        # Parse keywords and create/get tags
+        tags_list = []
+        keywords_response = keyword_result.get('result', keyword_result.get('response', ''))
+        # Extract keywords from response (can be comma-separated or line-separated)
+        keywords = []
+        for line in keywords_response.split('\n'):
+            for k in line.split(','):
+                cleaned_keyword = clean_tag_name(k)
+                if cleaned_keyword and cleaned_keyword not in keywords:
+                    keywords.append(cleaned_keyword)
+        
+        # Get or create tags (avoid duplicates)
+        for keyword in keywords[:max_tags]:
+            # Check if tag already exists (case-insensitive to avoid duplicates)
+            tag = Tag.objects.filter(name__iexact=keyword).first()
+            if not tag:
+                tag = Tag.objects.create(name=keyword)
+            tags_list.append(tag.name)
+        
+        return JsonResponse({
+            'success': True,
+            'tags': tags_list
+        })
+        
+    except Task.DoesNotExist:
+        return JsonResponse({'error': 'Task not found'}, status=404)
+    except KiGateServiceError as e:
+        logger.error(f'KiGate API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f'Task tag extraction error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred during tag extraction'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_task_optimize_description(request, task_id):
+    """
+    API endpoint to optimize/normalize task description using AI.
+    POST /api/tasks/{task_id}/optimize-description
+    Body: {"description": "..."}
+    
+    Uses KiGate API with "text-optimization-agent" agent.
+    Can work with unsaved tasks (task_id is optional in that case).
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Task
+    
+    try:
+        # Task ID might be "new" for unsaved tasks
+        if task_id != 'new':
+            task = Task.objects.get(id=task_id)
+            # Check ownership
+            if task.created_by != user:
+                return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        data = json.loads(request.body)
+        description = data.get('description', '').strip()
+        
+        if not description:
+            return JsonResponse({'error': 'Description is required'}, status=400)
+        
+        # Use KiGate service to optimize description
+        kigate = KiGateService()
+        
+        text_result = kigate.execute_agent(
+            agent_name='text-optimization-agent',
+            provider='openai',
+            model='gpt-4',
+            message=description,
+            user_id=str(user.id),
+            parameters={'language': 'de'}
+        )
+        
+        if not text_result.get('success'):
+            return JsonResponse({'error': text_result.get('error', 'Failed to optimize description')}, status=500)
+        
+        optimized_text = text_result.get('result', text_result.get('response', description))
+        
+        return JsonResponse({
+            'success': True,
+            'description': optimized_text
+        })
+        
+    except Task.DoesNotExist:
+        return JsonResponse({'error': 'Task not found'}, status=404)
+    except KiGateServiceError as e:
+        logger.error(f'KiGate API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f'Task description optimization error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred during description optimization'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
 def api_task_ai_enhance(request, task_id):
     """
     API endpoint to enhance task with AI.
@@ -1400,6 +1618,224 @@ def api_task_ai_enhance(request, task_id):
     except Exception as e:
         logger.error(f'Task AI enhance error: {str(e)}')
         return JsonResponse({'error': 'An error occurred during AI enhancement'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_item_generate_title(request, item_id):
+    """
+    API endpoint to generate item title from description using AI.
+    POST /api/items/{item_id}/generate-title
+    Body: {"description": "..."}
+    
+    Uses KiGate API with "text-to-title-generator" agent.
+    Can work with unsaved items (item_id is optional in that case).
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Item
+    
+    try:
+        # Item ID might be "new" for unsaved items
+        if item_id != 'new':
+            item = Item.objects.get(id=item_id)
+            # Check ownership
+            if item.created_by != user:
+                return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        data = json.loads(request.body)
+        description = data.get('description', '').strip()
+        
+        if not description:
+            return JsonResponse({'error': 'Description is required'}, status=400)
+        
+        # Use KiGate service to generate title
+        kigate = KiGateService()
+        
+        title_result = kigate.execute_agent(
+            agent_name='text-to-title-generator',
+            provider='openai',
+            model='gpt-4',
+            message=description,
+            user_id=str(user.id),
+            parameters={'language': 'de'}
+        )
+        
+        if not title_result.get('success'):
+            return JsonResponse({'error': title_result.get('error', 'Failed to generate title')}, status=500)
+        
+        generated_title = title_result.get('result', title_result.get('response', '')).strip()
+        if generated_title:
+            generated_title = generated_title[:255]  # Limit to field max length
+        
+        return JsonResponse({
+            'success': True,
+            'title': generated_title
+        })
+        
+    except Item.DoesNotExist:
+        return JsonResponse({'error': 'Item not found'}, status=404)
+    except KiGateServiceError as e:
+        logger.error(f'KiGate API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f'Item title generation error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred during title generation'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_item_extract_tags(request, item_id):
+    """
+    API endpoint to extract tags from item description using AI.
+    POST /api/items/{item_id}/extract-tags
+    Body: {"description": "..."}
+    
+    Uses KiGate API with "text-keyword-extractor-de" agent.
+    Can work with unsaved items (item_id is optional in that case).
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Item, Tag, Settings
+    
+    try:
+        # Item ID might be "new" for unsaved items
+        if item_id != 'new':
+            item = Item.objects.get(id=item_id)
+            # Check ownership
+            if item.created_by != user:
+                return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        data = json.loads(request.body)
+        description = data.get('description', '').strip()
+        
+        if not description:
+            return JsonResponse({'error': 'Description is required'}, status=400)
+        
+        # Get settings for max tags
+        settings = Settings.objects.first()
+        max_tags = settings.max_tags_per_idea if settings else 5
+        
+        # Use KiGate service to extract tags
+        kigate = KiGateService()
+        
+        keyword_result = kigate.execute_agent(
+            agent_name='text-keyword-extractor-de',
+            provider='openai',
+            model='gpt-4',
+            message=description,
+            user_id=str(user.id),
+            parameters={'max_keywords': max_tags}
+        )
+        
+        if not keyword_result.get('success'):
+            return JsonResponse({'error': keyword_result.get('error', 'Failed to extract tags')}, status=500)
+        
+        # Parse keywords and create/get tags
+        tags_list = []
+        keywords_response = keyword_result.get('result', keyword_result.get('response', ''))
+        # Extract keywords from response (can be comma-separated or line-separated)
+        keywords = []
+        for line in keywords_response.split('\n'):
+            for k in line.split(','):
+                cleaned_keyword = clean_tag_name(k)
+                if cleaned_keyword and cleaned_keyword not in keywords:
+                    keywords.append(cleaned_keyword)
+        
+        # Get or create tags (avoid duplicates)
+        for keyword in keywords[:max_tags]:
+            # Check if tag already exists (case-insensitive to avoid duplicates)
+            tag = Tag.objects.filter(name__iexact=keyword).first()
+            if not tag:
+                tag = Tag.objects.create(name=keyword)
+            tags_list.append(tag.name)
+        
+        return JsonResponse({
+            'success': True,
+            'tags': tags_list
+        })
+        
+    except Item.DoesNotExist:
+        return JsonResponse({'error': 'Item not found'}, status=404)
+    except KiGateServiceError as e:
+        logger.error(f'KiGate API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f'Item tag extraction error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred during tag extraction'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_item_optimize_description(request, item_id):
+    """
+    API endpoint to optimize/normalize item description using AI.
+    POST /api/items/{item_id}/optimize-description
+    Body: {"description": "..."}
+    
+    Uses KiGate API with "text-optimization-agent" agent.
+    Can work with unsaved items (item_id is optional in that case).
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Item
+    
+    try:
+        # Item ID might be "new" for unsaved items
+        if item_id != 'new':
+            item = Item.objects.get(id=item_id)
+            # Check ownership
+            if item.created_by != user:
+                return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        data = json.loads(request.body)
+        description = data.get('description', '').strip()
+        
+        if not description:
+            return JsonResponse({'error': 'Description is required'}, status=400)
+        
+        # Use KiGate service to optimize description
+        kigate = KiGateService()
+        
+        text_result = kigate.execute_agent(
+            agent_name='text-optimization-agent',
+            provider='openai',
+            model='gpt-4',
+            message=description,
+            user_id=str(user.id),
+            parameters={'language': 'de'}
+        )
+        
+        if not text_result.get('success'):
+            return JsonResponse({'error': text_result.get('error', 'Failed to optimize description')}, status=500)
+        
+        optimized_text = text_result.get('result', text_result.get('response', description))
+        
+        return JsonResponse({
+            'success': True,
+            'description': optimized_text
+        })
+        
+    except Item.DoesNotExist:
+        return JsonResponse({'error': 'Item not found'}, status=404)
+    except KiGateServiceError as e:
+        logger.error(f'KiGate API error: {e.message}')
+        return JsonResponse(e.to_dict(), status=e.status_code or 500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f'Item description optimization error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred during description optimization'}, status=500)
 
 
 @csrf_exempt
