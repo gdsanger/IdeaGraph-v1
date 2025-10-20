@@ -2800,7 +2800,7 @@ def api_tags_network_data(request):
                 'group': 'item',
                 'color': status_colors.get(item.status, '#3b82f6'),
                 'shape': 'box',
-                'size': 20,
+                'size': 40,
                 'font': {'size': 12, 'color': '#ffffff'},
                 'url': f'/items/{item.id}/'
             })
@@ -2834,7 +2834,7 @@ def api_tags_network_data(request):
                 'group': 'tag',
                 'color': tag.color,
                 'shape': 'dot',
-                'size': 30,
+                'size': 15,
                 'font': {'size': 14, 'color': '#ffffff'}
             })
         
