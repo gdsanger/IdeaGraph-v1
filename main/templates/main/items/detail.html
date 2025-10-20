@@ -153,12 +153,24 @@
                         <!-- Title -->
                         <div class="mb-3">
                             <label for="title" class="form-label">Title</label>
-                            <input type="text" class="form-control" id="title" name="title" value="{{ item.title }}" required>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="title" name="title" value="{{ item.title }}" required>
+                                <button type="button" class="btn btn-outline-success ai-button" id="generateTitleBtn" title="Generate title from description using AI">
+                                    <i class="bi bi-stars"></i>
+                                    <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                                </button>
+                            </div>
                         </div>
 
                         <!-- Description with Toast UI Editor -->
                         <div class="mb-3">
-                            <label for="description" class="form-label">Description (Markdown)</label>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label for="description" class="form-label mb-0">Description (Markdown)</label>
+                                <button type="button" class="btn btn-sm btn-outline-success ai-button" id="optimizeDescriptionBtn" title="Optimize description using AI">
+                                    <i class="bi bi-stars"></i> Optimize Text
+                                    <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                                </button>
+                            </div>
                             <div id="editor"></div>
                             <textarea name="description" id="description" style="display: none;">{{ item.description }}</textarea>
                         </div>
@@ -193,7 +205,13 @@
 
                             <!-- Tags -->
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">Tags</label>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label class="form-label mb-0">Tags</label>
+                                    <button type="button" class="btn btn-sm btn-outline-success ai-button" id="extractTagsBtn" title="Extract tags from description using AI">
+                                        <i class="bi bi-stars"></i>
+                                        <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                                    </button>
+                                </div>
                                 <div id="itemDetailTagTokenBox" class="tag-token-box"></div>
                                 <div id="itemDetailTagHiddenInputs"></div>
                                 <small class="text-muted">Type a tag name and press Enter to add it. Existing tags will appear as suggestions.</small>
@@ -490,6 +508,165 @@ function showAlert(message, type = 'info') {
 function getCsrfToken() {
     return document.querySelector('[name=csrfmiddlewaretoken]').value;
 }
+
+// Generate Title Button
+document.querySelector('#generateTitleBtn').addEventListener('click', async function() {
+    const btn = this;
+    const spinner = btn.querySelector('.spinner-border');
+    btn.disabled = true;
+    spinner.style.display = 'inline-block';
+    
+    try {
+        const description = editor.getMarkdown();
+        
+        if (!description) {
+            showAlert('Please provide a description before generating title', 'warning');
+            return;
+        }
+        
+        const response = await fetch('/api/items/{{ item.id }}/generate-title', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                description: description
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            // Update title field with generated title
+            if (data.title) {
+                document.querySelector('#title').value = data.title;
+                showAlert('Title generated successfully!', 'success');
+            }
+        } else {
+            showAlert(data.error || 'Failed to generate title', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+    }
+});
+
+// Extract Tags Button
+document.querySelector('#extractTagsBtn').addEventListener('click', async function() {
+    const btn = this;
+    const spinner = btn.querySelector('.spinner-border');
+    btn.disabled = true;
+    spinner.style.display = 'inline-block';
+    
+    try {
+        const description = editor.getMarkdown();
+        
+        if (!description) {
+            showAlert('Please provide a description before extracting tags', 'warning');
+            return;
+        }
+        
+        const response = await fetch('/api/items/{{ item.id }}/extract-tags', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                description: description
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            // Update tag token box with extracted tags
+            if (data.tags && data.tags.length > 0) {
+                const tagTokenBox = document.getElementById('itemDetailTagTokenBox');
+                if (tagTokenBox) {
+                    // Clear existing tags by removing all tag tokens
+                    tagTokenBox.querySelectorAll('.tag-token').forEach(token => {
+                        token.remove();
+                    });
+                    
+                    // Re-initialize the tag token box with new tags
+                    const allTags = JSON.parse(document.getElementById('item-detail-all-tags').textContent || '[]');
+                    const newSelectedTags = data.tags.map(tagName => {
+                        // Find tag in all tags or create new one
+                        const existingTag = allTags.find(t => t.name === tagName);
+                        return existingTag || { name: tagName, color: '#3b82f6', isNew: true };
+                    });
+                    
+                    initializeTagTokenBox('itemDetailTagTokenBox', {
+                        allTags: allTags,
+                        selectedTags: newSelectedTags,
+                        hiddenInputContainerId: 'itemDetailTagHiddenInputs',
+                        inputPlaceholder: 'Add a tag and press Enter'
+                    });
+                }
+                showAlert('Tags extracted successfully!', 'success');
+            }
+        } else {
+            showAlert(data.error || 'Failed to extract tags', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+    }
+});
+
+// Optimize Description Button
+document.querySelector('#optimizeDescriptionBtn').addEventListener('click', async function() {
+    const btn = this;
+    const spinner = btn.querySelector('.spinner-border');
+    btn.disabled = true;
+    spinner.style.display = 'inline-block';
+    
+    try {
+        const description = editor.getMarkdown();
+        
+        if (!description) {
+            showAlert('Please provide a description before optimizing', 'warning');
+            return;
+        }
+        
+        const response = await fetch('/api/items/{{ item.id }}/optimize-description', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                description: description
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            // Update editor with optimized description
+            if (data.description) {
+                editor.setMarkdown(data.description);
+                showAlert('Description optimized successfully!', 'success');
+            }
+        } else {
+            showAlert(data.error || 'Failed to optimize description', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+    }
+});
 
 // AI Enhance Button
 document.querySelector('#aiEnhanceBtn').addEventListener('click', async function() {

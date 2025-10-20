@@ -51,6 +51,9 @@ urlpatterns = [
     
     # Item API Endpoints
     path('api/items/<uuid:item_id>/ai-enhance', api_views.api_item_ai_enhance, name='api_item_ai_enhance'),
+    path('api/items/<uuid:item_id>/generate-title', api_views.api_item_generate_title, name='api_item_generate_title'),
+    path('api/items/<uuid:item_id>/extract-tags', api_views.api_item_extract_tags, name='api_item_extract_tags'),
+    path('api/items/<uuid:item_id>/optimize-description', api_views.api_item_optimize_description, name='api_item_optimize_description'),
     path('api/items/<uuid:item_id>/build-tasks', api_views.api_item_build_tasks, name='api_item_build_tasks'),
     path('api/items/<uuid:item_id>/check-similarity', api_views.api_item_check_similarity, name='api_item_check_similarity'),
     path('api/items/<uuid:item_id>/send-email', api_views.api_send_item_email, name='api_send_item_email'),
@@ -100,6 +103,9 @@ urlpatterns = [
     path('api/tasks/<uuid:item_id>', api_views.api_tasks, name='api_tasks'),
     path('api/tasks/<uuid:task_id>/detail', api_views.api_task_detail, name='api_task_detail'),
     path('api/tasks/<uuid:task_id>/ai-enhance', api_views.api_task_ai_enhance, name='api_task_ai_enhance'),
+    path('api/tasks/<uuid:task_id>/generate-title', api_views.api_task_generate_title, name='api_task_generate_title'),
+    path('api/tasks/<uuid:task_id>/extract-tags', api_views.api_task_extract_tags, name='api_task_extract_tags'),
+    path('api/tasks/<uuid:task_id>/optimize-description', api_views.api_task_optimize_description, name='api_task_optimize_description'),
     path('api/tasks/<uuid:task_id>/create-github-issue', api_views.api_task_create_github_issue, name='api_task_create_github_issue'),
     path('api/tasks/<uuid:task_id>/similar', api_views.api_task_similar, name='api_task_similar'),
     path('api/tasks/overview', api_views.api_task_overview, name='api_task_overview'),
