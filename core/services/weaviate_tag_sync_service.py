@@ -75,13 +75,28 @@ class WeaviateTagSyncService:
             WeaviateTagSyncServiceError: If initialization fails
         """
         try:
-            # Use local Weaviate instance at localhost:8081 with no authentication
-            logger.info("Initializing Weaviate client at localhost:8081")
-            
-            self._client = weaviate.connect_to_local(
-                host="localhost",
-                port=8081
-            )
+            # Check if cloud mode is enabled
+            if self.settings.weaviate_cloud_enabled:
+                # Use cloud configuration
+                if not self.settings.weaviate_url or not self.settings.weaviate_api_key:
+                    raise WeaviateTagSyncServiceError(
+                        "Weaviate Cloud enabled but URL or API key not configured"
+                    )
+                
+                logger.info(f"Initializing Weaviate client for cloud: {self.settings.weaviate_url}")
+                
+                self._client = weaviate.connect_to_weaviate_cloud(
+                    cluster_url=self.settings.weaviate_url,
+                    auth_credentials=Auth.api_key(self.settings.weaviate_api_key)
+                )
+            else:
+                # Use local Weaviate instance at localhost:8081 with no authentication
+                logger.info("Initializing Weaviate client at localhost:8081")
+                
+                self._client = weaviate.connect_to_local(
+                    host="localhost",
+                    port=8081
+                )
 
             logger.info(f"Weaviate client initialized, collection '{self.COLLECTION_NAME}' ready")
 
