@@ -241,10 +241,17 @@ class ChromaTaskSyncService:
                 logger.info(f"Generated embedding for text (length: {len(text)})")
                 return embedding
             else:
-                logger.error(f"Embedding API failed: {response.status_code}")
+                # Try to get detailed error message from response
+                try:
+                    error_body = response.json()
+                    error_message = error_body.get('error', {}).get('message', response.text)
+                except:
+                    error_message = response.text
+                
+                logger.error(f"Embedding API failed: {response.status_code} - {error_message}")
                 raise ChromaTaskSyncServiceError(
                     "Failed to generate embedding",
-                    details=f"API returned status {response.status_code}"
+                    details=f"API returned status {response.status_code}: {error_message}"
                 )
                 
         except ChromaTaskSyncServiceError:
