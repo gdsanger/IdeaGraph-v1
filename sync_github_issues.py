@@ -7,7 +7,7 @@ It can be run manually or as a cron job.
 
 Features:
 - Monitors GitHub issues and updates task status when closed
-- Stores issue descriptions and PR information in ChromaDB
+- Stores issue descriptions and PR information in Weaviate
 - Supports filtering by repository and owner
 - Configurable via command-line arguments or environment variables
 
@@ -113,7 +113,7 @@ Environment Variables:
     parser.add_argument(
         '--dry-run',
         action='store_true',
-        help='Perform a dry run without updating tasks or ChromaDB'
+        help='Perform a dry run without updating tasks or Weaviate'
     )
     
     return parser.parse_args()
@@ -153,8 +153,8 @@ def main():
             logger.info("Synchronization Results:")
             logger.info(f"  Tasks checked: {results['tasks_checked']}")
             logger.info(f"  Tasks updated: {results['tasks_updated']}")
-            logger.info(f"  Issues synced to ChromaDB: {results['issues_synced']}")
-            logger.info(f"  Pull Requests synced to ChromaDB: {results['prs_synced']}")
+            logger.info(f"  Issues synced to Weaviate: {results['issues_synced']}")
+            logger.info(f"  Pull Requests synced to Weaviate: {results['prs_synced']}")
             
             if results['errors']:
                 logger.warning(f"  Errors encountered: {len(results['errors'])}")

@@ -120,30 +120,30 @@ class SettingsOpenAIToggleTestCase(TestCase):
         self.assertIsNotNone(service)
         self.assertEqual(service.api_key, 'sk-test-key-123')
     
-    def test_chroma_sync_respects_toggle(self):
-        """Test that ChromaDB sync service respects OpenAI toggle"""
-        from core.services.chroma_sync_service import ChromaItemSyncServiceError
+    def test_weaviate_sync_works_without_openai(self):
+        """Test that Weaviate sync service works without OpenAI (uses text2vec-transformers)"""
+        from core.services.weaviate_sync_service import WeaviateItemSyncService
         
         settings = Settings.objects.create(
             openai_api_enabled=False,
-            openai_api_key='sk-test-key-123',
-            chroma_api_key='test-chroma-key',
-            chroma_database='test-db',
-            chroma_tenant='test-tenant'
+            openai_api_key='',
         )
         
-        # The service should initialize (chroma doesn't check toggle in __init__)
-        # but embedding generation should fail
-        from unittest.mock import patch
-        with patch('core.services.chroma_sync_service.chromadb.HttpClient'):
-            from core.services.chroma_sync_service import ChromaItemSyncService
-            service = ChromaItemSyncService(settings)
+        # The service should initialize even without OpenAI (Weaviate handles embeddings)
+        from unittest.mock import patch, MagicMock
+        with patch('core.services.weaviate_sync_service.weaviate.connect_to_local') as mock_connect:
+            mock_client = MagicMock()
+            mock_connect.return_value = mock_client
             
-            # Try to generate embedding - should fail
-            with self.assertRaises(ChromaItemSyncServiceError) as context:
-                service._generate_embedding("test text")
+            service = WeaviateItemSyncService(settings)
             
-            self.assertIn("not enabled", str(context.exception))
+            # Service should initialize successfully
+            self.assertIsNotNone(service)
+            # Weaviate uses built-in text2vec-transformers, not OpenAI
+            embedding = service._generate_embedding("test text")
+            # Should return empty list (Weaviate handles vectorization)
+            self.assertEqual(embedding, [])
+
 
 
 class SettingsViewOpenAIToggleTestCase(TestCase):

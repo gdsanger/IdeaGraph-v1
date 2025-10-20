@@ -16,7 +16,7 @@ from core.services.graph_service import GraphService, GraphServiceError
 from core.services.github_service import GitHubService, GitHubServiceError
 from core.services.kigate_service import KiGateService, KiGateServiceError
 from core.services.openai_service import OpenAIService, OpenAIServiceError
-from core.services.chroma_task_sync_service import ChromaTaskSyncService, ChromaTaskSyncServiceError
+from core.services.weaviate_task_sync_service import WeaviateTaskSyncService, WeaviateTaskSyncServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -1088,21 +1088,21 @@ def api_tasks(request, item_id=None):
             if tag_ids:
                 task.tags.set(tag_ids)
             
-            # Sync with ChromaDB
+            # Sync with Weaviate
             try:
                 from main.models import Settings
                 settings = Settings.objects.first()
                 if settings:
-                    sync_service = ChromaTaskSyncService(settings)
+                    sync_service = WeaviateTaskSyncService(settings)
                     sync_service.sync_create(task)
-            except ChromaTaskSyncServiceError as e:
+            except WeaviateTaskSyncServiceError as e:
                 import logging
                 sync_logger = logging.getLogger(__name__)
-                sync_logger.warning(f'ChromaDB sync failed for task {task.id}: {e.message}')
+                sync_logger.warning(f'Weaviate sync failed for task {task.id}: {e.message}')
             except Exception as e:
                 import logging
                 sync_logger = logging.getLogger(__name__)
-                sync_logger.warning(f'ChromaDB sync error for task {task.id}: {str(e)}')
+                sync_logger.warning(f'Weaviate sync error for task {task.id}: {str(e)}')
             
             return JsonResponse({
                 'success': True,
@@ -1195,21 +1195,21 @@ def api_task_detail(request, task_id):
             else:
                 task.tags.clear()
             
-            # Sync with ChromaDB
+            # Sync with Weaviate
             try:
                 from main.models import Settings
                 settings = Settings.objects.first()
                 if settings:
-                    sync_service = ChromaTaskSyncService(settings)
+                    sync_service = WeaviateTaskSyncService(settings)
                     sync_service.sync_update(task)
-            except ChromaTaskSyncServiceError as e:
+            except WeaviateTaskSyncServiceError as e:
                 import logging
                 sync_logger = logging.getLogger(__name__)
-                sync_logger.warning(f'ChromaDB sync failed for task {task.id}: {e.message}')
+                sync_logger.warning(f'Weaviate sync failed for task {task.id}: {e.message}')
             except Exception as e:
                 import logging
                 sync_logger = logging.getLogger(__name__)
-                sync_logger.warning(f'ChromaDB sync error for task {task.id}: {str(e)}')
+                sync_logger.warning(f'Weaviate sync error for task {task.id}: {str(e)}')
             
             return JsonResponse({
                 'success': True,
@@ -1226,21 +1226,21 @@ def api_task_detail(request, task_id):
             task_id = str(task.id)
             task.delete()
             
-            # Sync with ChromaDB
+            # Sync with Weaviate
             try:
                 from main.models import Settings
                 settings = Settings.objects.first()
                 if settings:
-                    sync_service = ChromaTaskSyncService(settings)
+                    sync_service = WeaviateTaskSyncService(settings)
                     sync_service.sync_delete(task_id)
-            except ChromaTaskSyncServiceError as e:
+            except WeaviateTaskSyncServiceError as e:
                 import logging
                 sync_logger = logging.getLogger(__name__)
-                sync_logger.warning(f'ChromaDB sync failed for task {task_id}: {e.message}')
+                sync_logger.warning(f'Weaviate sync failed for task {task_id}: {e.message}')
             except Exception as e:
                 import logging
                 sync_logger = logging.getLogger(__name__)
-                sync_logger.warning(f'ChromaDB sync error for task {task_id}: {str(e)}')
+                sync_logger.warning(f'Weaviate sync error for task {task_id}: {str(e)}')
             
             return JsonResponse({'success': True, 'message': 'Task deleted successfully'})
     
@@ -1486,7 +1486,7 @@ def api_task_ai_enhance(request, task_id):
     Body: {"title": "...", "description": "..."}
     
     Process:
-    1. Query ChromaDB for similar tasks to provide context
+    1. Query Weaviate for similar tasks to provide context
     2. Normalize text using KiGate API with "github-issue-creation-agent" with context
     3. Generate title from normalized text using "text-to-title-generator"
     4. Extract 5 tags using "text-keyword-extractor-de" and replace existing tags
@@ -1529,12 +1529,12 @@ def api_task_ai_enhance(request, task_id):
         settings = Settings.objects.first()
         max_tags = settings.max_tags_per_idea if settings else 5
         
-        # Step 1: Query ChromaDB for similar tasks to provide context
+        # Step 1: Query Weaviate for similar tasks to provide context
         context_text = ""
         try:
-            chroma_service = ChromaTaskSyncService(settings)
+            weaviate_service = WeaviateTaskSyncService(settings)
             search_query = f"{title}\n{description}"
-            similar_results = chroma_service.search_similar(search_query, n_results=3)
+            similar_results = weaviate_service.search_similar(search_query, n_results=3)
             
             if similar_results.get('success') and similar_results.get('results'):
                 context_items = []
@@ -1546,8 +1546,8 @@ def api_task_ai_enhance(request, task_id):
                 context_text = "\n\n".join(context_items)
                 logger.info(f"Found {len(similar_results['results'])} similar tasks for context")
         except Exception as e:
-            logger.warning(f"Could not retrieve ChromaDB context: {str(e)}")
-            # Continue without context if ChromaDB fails
+            logger.warning(f"Could not retrieve Weaviate context: {str(e)}")
+            # Continue without context if Weaviate fails
         
         # Use KiGate service to enhance content
         kigate = KiGateService()
@@ -1629,9 +1629,9 @@ def api_task_ai_enhance(request, task_id):
     except KiGateServiceError as e:
         logger.error(f'KiGate API error: {e.message}')
         return JsonResponse(e.to_dict(), status=e.status_code or 500)
-    except ChromaTaskSyncServiceError as e:
-        logger.error(f'ChromaDB error: {e.message}')
-        return JsonResponse({'error': 'ChromaDB service error', 'details': e.message}, status=500)
+    except WeaviateTaskSyncServiceError as e:
+        logger.error(f'Weaviate error: {e.message}')
+        return JsonResponse({'error': 'Weaviate service error', 'details': e.message}, status=500)
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
@@ -2145,20 +2145,20 @@ def api_item_build_tasks(request, item_id):
 @require_http_methods(["POST"])
 def api_item_check_similarity(request, item_id):
     """
-    API endpoint to check similarity for an item using ChromaDB.
+    API endpoint to check similarity for an item using Weaviate.
     POST /api/items/{item_id}/check-similarity
     Body: {"title": "...", "description": "..."}
     
     Returns only items with a relevance/similarity score of at least 0.8.
     The relevance score is calculated as: relevance = 1 - (distance / 2)
-    where distance is the ChromaDB cosine distance (0-2 range).
+    where distance is the Weaviate cosine distance (0-2 range).
     """
     user = get_user_from_request(request)
     if not user:
         return JsonResponse({'error': 'Authentication required'}, status=401)
     
     from .models import Item, Settings
-    from core.services.chroma_sync_service import ChromaItemSyncService, ChromaItemSyncServiceError
+    from core.services.weaviate_sync_service import WeaviateItemSyncService, WeaviateItemSyncServiceError
     
     try:
         item = Item.objects.get(id=item_id)
@@ -2174,16 +2174,16 @@ def api_item_check_similarity(request, item_id):
         if not description:
             return JsonResponse({'error': 'Description is required'}, status=400)
         
-        # Use ChromaDB to find similar items
+        # Use Weaviate to find similar items
         settings = Settings.objects.first()
         if not settings:
             return JsonResponse({'error': 'Settings not configured'}, status=500)
         
-        chroma_service = ChromaItemSyncService(settings)
+        weaviate_service = WeaviateItemSyncService(settings)
         
         # Search for similar items (request more results to ensure we have enough after filtering)
         search_text = f"{title}\n\n{description}"
-        result = chroma_service.search_similar(search_text, n_results=20)
+        result = weaviate_service.search_similar(search_text, n_results=20)
         
         if not result.get('success'):
             return JsonResponse({'error': 'Failed to search for similar items'}, status=500)
@@ -2198,8 +2198,8 @@ def api_item_check_similarity(request, item_id):
             if similar_item.get('id') == str(item_id):
                 continue
             
-            # Convert ChromaDB distance to relevance/similarity score
-            # ChromaDB uses cosine distance where 0 = identical, 2 = opposite
+            # Convert Weaviate distance to relevance/similarity score
+            # Weaviate uses cosine distance where 0 = identical, 2 = opposite
             # Relevance formula: 1 - (distance / 2)
             distance = similar_item.get('distance', 2.0)
             relevance = 1.0 - (distance / 2.0)
@@ -2217,10 +2217,10 @@ def api_item_check_similarity(request, item_id):
         
     except Item.DoesNotExist:
         return JsonResponse({'error': 'Item not found'}, status=404)
-    except ChromaItemSyncServiceError as e:
+    except WeaviateItemSyncServiceError as e:
         import logging
         logger = logging.getLogger(__name__)
-        logger.error(f'ChromaDB error: {e.message}')
+        logger.error(f'Weaviate error: {e.message}')
         return JsonResponse(e.to_dict(), status=500)
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
@@ -2321,7 +2321,7 @@ def api_task_similar(request, task_id):
     API endpoint to get similar tasks and GitHub issues.
     GET /api/tasks/{task_id}/similar
     
-    Searches ChromaDB for:
+    Searches Weaviate for:
     1. Similar tasks from the Tasks collection
     2. Similar GitHub issues from the GitHubIssues collection
     
@@ -2352,9 +2352,9 @@ def api_task_similar(request, task_id):
                 'similar_tasks': []
             })
         
-        # Search for similar tasks in ChromaDB
+        # Search for similar tasks in Weaviate
         try:
-            task_sync_service = ChromaTaskSyncService()
+            task_sync_service = WeaviateTaskSyncService()
             task_results = task_sync_service.search_similar(query_text, n_results=10)
             
             if task_results.get('success') and task_results.get('results'):
@@ -2381,12 +2381,12 @@ def api_task_similar(request, task_id):
                             'type': 'task',
                             'url': f'/tasks/{result_id}/'
                         })
-        except ChromaTaskSyncServiceError as e:
+        except WeaviateTaskSyncServiceError as e:
             logger.warning(f'Failed to search similar tasks: {str(e)}')
         except Exception as e:
             logger.warning(f'Unexpected error searching similar tasks: {str(e)}')
         
-        # Search for similar GitHub issues in ChromaDB
+        # Search for similar GitHub issues in Weaviate
         try:
             github_sync_service = GitHubIssueSyncService()
             github_results = github_sync_service.search_similar(query_text, n_results=10)
@@ -2426,7 +2426,7 @@ def api_task_similar(request, task_id):
                             except Exception as e:
                                 logger.warning(f'Failed to parse GitHub URL: {str(e)}')
                         
-                        # Fetch current status from GitHub API and update ChromaDB
+                        # Fetch current status from GitHub API and update Weaviate
                         current_state = issue_state
                         try:
                             from core.services.github_service import GitHubService
@@ -2445,17 +2445,17 @@ def api_task_similar(request, task_id):
                                     issue_data = issue_result.get('issue', {})
                                     current_state = issue_data.get('state', issue_state)
                                     
-                                    # Update metadata in ChromaDB if state changed
+                                    # Update metadata in Weaviate if state changed
                                     if current_state != issue_state:
                                         metadata['github_issue_state'] = current_state
                                         chroma_id = result.get('id')
                                         
-                                        # Update ChromaDB with new state
+                                        # Update Weaviate with new state
                                         github_sync_service._collection.update(
                                             ids=[chroma_id],
                                             metadatas=[metadata]
                                         )
-                                        logger.info(f'Updated GitHub issue #{issue_number} state in ChromaDB: {issue_state} -> {current_state}')
+                                        logger.info(f'Updated GitHub issue #{issue_number} state in Weaviate: {issue_state} -> {current_state}')
                         except Exception as e:
                             logger.warning(f'Failed to fetch/update GitHub issue state: {str(e)}')
                         
@@ -2716,25 +2716,25 @@ def api_task_bulk_delete(request):
         if not tasks.exists():
             return JsonResponse({'error': 'No tasks found or access denied'}, status=404)
         
-        # Store task IDs for ChromaDB sync before deletion
+        # Store task IDs for Weaviate sync before deletion
         deleted_task_ids = [str(task.id) for task in tasks]
         deleted_count = tasks.count()
         
         # Delete tasks
         tasks.delete()
         
-        # Sync with ChromaDB
+        # Sync with Weaviate
         try:
             settings = Settings.objects.first()
             if settings:
-                sync_service = ChromaTaskSyncService(settings)
+                sync_service = WeaviateTaskSyncService(settings)
                 for task_id in deleted_task_ids:
                     try:
                         sync_service.sync_delete(task_id)
                     except Exception as sync_error:
-                        logger.warning(f'ChromaDB sync failed for task {task_id}: {str(sync_error)}')
+                        logger.warning(f'Weaviate sync failed for task {task_id}: {str(sync_error)}')
         except Exception as e:
-            logger.warning(f'ChromaDB sync error: {str(e)}')
+            logger.warning(f'Weaviate sync error: {str(e)}')
         
         logger.info(f'User {user.username} deleted {deleted_count} task(s)')
         
