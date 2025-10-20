@@ -150,6 +150,35 @@ class ChromaTaskSyncServiceTest(TestCase):
         self.assertEqual(len(embedding), 1536)
         self.assertEqual(embedding[0], 0.0)
     
+    @patch('core.services.chroma_task_sync_service.requests.post')
+    @patch('core.services.chroma_task_sync_service.chromadb.HttpClient')
+    def test_generate_embedding_detailed_error(self, mock_client, mock_post):
+        """Test embedding generation includes detailed error message from API"""
+        mock_collection = Mock()
+        mock_client.return_value.get_or_create_collection.return_value = mock_collection
+        
+        # Mock API error response with detailed error message
+        mock_response = Mock()
+        mock_response.status_code = 401
+        mock_response.json.return_value = {
+            'error': {
+                'message': 'Incorrect API key provided',
+                'type': 'invalid_request_error',
+                'code': 'invalid_api_key'
+            }
+        }
+        mock_response.text = '{"error": {"message": "Incorrect API key provided"}}'
+        mock_post.return_value = mock_response
+        
+        service = ChromaTaskSyncService(self.settings)
+        
+        with self.assertRaises(ChromaTaskSyncServiceError) as context:
+            service._generate_embedding("Test text")
+        
+        # Verify detailed error message is included
+        self.assertIn('401', str(context.exception.details))
+        self.assertIn('Incorrect API key provided', str(context.exception.details))
+    
     @patch('core.services.chroma_task_sync_service.chromadb.HttpClient')
     def test_task_to_metadata(self, mock_client):
         """Test task metadata conversion"""
