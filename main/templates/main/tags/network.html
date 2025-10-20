@@ -97,6 +97,9 @@
                                 </p>
                             </div>
                             <div class="col-md-4 text-end">
+                                <button id="rearrangeBtn" class="btn btn-outline-success me-2">
+                                    <i class="bi bi-shuffle"></i> Neu anordnen
+                                </button>
                                 <button id="resetViewBtn" class="btn btn-outline-primary">
                                     <i class="bi bi-arrow-clockwise"></i> Ansicht zurücksetzen
                                 </button>
@@ -120,19 +123,25 @@
                                 <h6>Knotentypen:</h6>
                                 <div class="legend-item">
                                     <span class="legend-icon">
-                                        <span class="legend-dot" style="background: #f59e0b;"></span>
+                                        <svg width="24" height="24" viewBox="0 0 24 24">
+                                            <circle cx="12" cy="12" r="10" fill="#f59e0b" stroke="#fff" stroke-width="2"/>
+                                        </svg>
                                     </span>
                                     <span>Tag</span>
                                 </div>
                                 <div class="legend-item">
                                     <span class="legend-icon">
-                                        <span class="legend-box" style="background: #3b82f6;"></span>
+                                        <svg width="24" height="24" viewBox="0 0 24 24">
+                                            <rect x="2" y="6" width="20" height="12" fill="#3b82f6" stroke="#fff" stroke-width="2" rx="2"/>
+                                        </svg>
                                     </span>
                                     <span>Item</span>
                                 </div>
                                 <div class="legend-item">
                                     <span class="legend-icon">
-                                        <span class="legend-diamond" style="background: #8b5cf6;"></span>
+                                        <svg width="24" height="24" viewBox="0 0 24 24">
+                                            <polygon points="12,2 22,12 12,22 2,12" fill="#8b5cf6" stroke="#fff" stroke-width="2"/>
+                                        </svg>
                                     </span>
                                     <span>Task</span>
                                 </div>
@@ -141,25 +150,33 @@
                                 <h6>Item Status:</h6>
                                 <div class="legend-item">
                                     <span class="legend-icon">
-                                        <span class="legend-box" style="background: #6366f1;"></span>
+                                        <svg width="24" height="24" viewBox="0 0 24 24">
+                                            <rect x="2" y="6" width="20" height="12" fill="#6366f1" stroke="#fff" stroke-width="2" rx="2"/>
+                                        </svg>
                                     </span>
                                     <span>Neu</span>
                                 </div>
                                 <div class="legend-item">
                                     <span class="legend-icon">
-                                        <span class="legend-box" style="background: #f59e0b;"></span>
+                                        <svg width="24" height="24" viewBox="0 0 24 24">
+                                            <rect x="2" y="6" width="20" height="12" fill="#f59e0b" stroke="#fff" stroke-width="2" rx="2"/>
+                                        </svg>
                                     </span>
                                     <span>Working</span>
                                 </div>
                                 <div class="legend-item">
                                     <span class="legend-icon">
-                                        <span class="legend-box" style="background: #22c55e;"></span>
+                                        <svg width="24" height="24" viewBox="0 0 24 24">
+                                            <rect x="2" y="6" width="20" height="12" fill="#22c55e" stroke="#fff" stroke-width="2" rx="2"/>
+                                        </svg>
                                     </span>
                                     <span>Ready</span>
                                 </div>
                                 <div class="legend-item">
                                     <span class="legend-icon">
-                                        <span class="legend-box" style="background: #10b981;"></span>
+                                        <svg width="24" height="24" viewBox="0 0 24 24">
+                                            <rect x="2" y="6" width="20" height="12" fill="#10b981" stroke="#fff" stroke-width="2" rx="2"/>
+                                        </svg>
                                     </span>
                                     <span>Erledigt</span>
                                 </div>
@@ -168,25 +185,33 @@
                                 <h6>Task Status:</h6>
                                 <div class="legend-item">
                                     <span class="legend-icon">
-                                        <span class="legend-diamond" style="background: #6366f1;"></span>
+                                        <svg width="24" height="24" viewBox="0 0 24 24">
+                                            <polygon points="12,2 22,12 12,22 2,12" fill="#6366f1" stroke="#fff" stroke-width="2"/>
+                                        </svg>
                                     </span>
                                     <span>Neu</span>
                                 </div>
                                 <div class="legend-item">
                                     <span class="legend-icon">
-                                        <span class="legend-diamond" style="background: #f59e0b;"></span>
+                                        <svg width="24" height="24" viewBox="0 0 24 24">
+                                            <polygon points="12,2 22,12 12,22 2,12" fill="#f59e0b" stroke="#fff" stroke-width="2"/>
+                                        </svg>
                                     </span>
                                     <span>Working</span>
                                 </div>
                                 <div class="legend-item">
                                     <span class="legend-icon">
-                                        <span class="legend-diamond" style="background: #22c55e;"></span>
+                                        <svg width="24" height="24" viewBox="0 0 24 24">
+                                            <polygon points="12,2 22,12 12,22 2,12" fill="#22c55e" stroke="#fff" stroke-width="2"/>
+                                        </svg>
                                     </span>
                                     <span>Ready</span>
                                 </div>
                                 <div class="legend-item">
                                     <span class="legend-icon">
-                                        <span class="legend-diamond" style="background: #10b981;"></span>
+                                        <svg width="24" height="24" viewBox="0 0 24 24">
+                                            <polygon points="12,2 22,12 12,22 2,12" fill="#10b981" stroke="#fff" stroke-width="2"/>
+                                        </svg>
                                     </span>
                                     <span>Erledigt</span>
                                 </div>
@@ -408,7 +433,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Run simulation
             let iterations = 0;
             const maxIterations = 500;
-            const interval = setInterval(() => {
+            let interval = setInterval(() => {
                 forceSimulation();
                 iterations++;
                 if (iterations >= maxIterations) {
@@ -463,6 +488,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 translateX = 0;
                 translateY = 0;
                 updateTransform();
+            });
+            
+            // Rearrange button - restart simulation with new random positions
+            const rearrangeBtn = document.getElementById('rearrangeBtn');
+            rearrangeBtn.addEventListener('click', function() {
+                // Randomize positions
+                nodes.forEach(node => {
+                    node.x = Math.random() * width;
+                    node.y = Math.random() * height;
+                    node.vx = 0;
+                    node.vy = 0;
+                });
+                
+                // Restart simulation
+                clearInterval(interval);
+                iterations = 0;
+                interval = setInterval(() => {
+                    forceSimulation();
+                    iterations++;
+                    if (iterations >= maxIterations) {
+                        clearInterval(interval);
+                    }
+                }, 16);
             });
         })
         .catch(error => {
