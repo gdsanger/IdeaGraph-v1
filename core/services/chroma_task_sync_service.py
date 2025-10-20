@@ -79,15 +79,13 @@ class ChromaTaskSyncService:
             ChromaTaskSyncServiceError: If initialization fails
         """
         try:
-            credentials = self._resolve_cloud_credentials()
-
-            logger.info("Initializing ChromaDB cloud client")
-            client_kwargs = self._build_cloud_client_kwargs(
-                database_value=credentials['database'],
-                api_key=credentials['api_key'],
-                tenant=credentials['tenant'],
+            # Use local ChromaDB instance
+            logger.info("Initializing ChromaDB local client at localhost:8003")
+            
+            self._client = chromadb.HttpClient(
+                host="localhost",
+                port=8003
             )
-            self._client = chromadb.HttpClient(**client_kwargs)
 
             # Get or create collection
             self._collection = self._client.get_or_create_collection(
@@ -97,8 +95,6 @@ class ChromaTaskSyncService:
 
             logger.info(f"ChromaDB collection '{self.COLLECTION_NAME}' initialized")
             
-        except ChromaTaskSyncServiceError:
-            raise
         except Exception as e:
             logger.error(f"Failed to initialize ChromaDB: {str(e)}")
             raise ChromaTaskSyncServiceError(
@@ -212,7 +208,7 @@ class ChromaTaskSyncService:
         """
         if not text or not text.strip():
             # Return zero vector for empty text
-            return [0.0] * 1536  # OpenAI ada-002 embedding size
+            return [0.0] * 3072  # OpenAI text-embedding-3-large embedding size
         
         # Check if OpenAI API is enabled
         if not self.settings.openai_api_enabled or not self.settings.openai_api_key:
@@ -233,7 +229,7 @@ class ChromaTaskSyncService:
             }
             
             data = {
-                'model': 'text-embedding-ada-002',
+                'model': 'text-embedding-3-large',
                 'input': text
             }
             
