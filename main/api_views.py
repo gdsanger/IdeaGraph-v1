@@ -2365,16 +2365,68 @@ def api_task_similar(request, task_id):
                     if similarity >= 0.8:
                         metadata = result.get('metadata', {})
                         # GitHub issues have different metadata structure
-                        issue_number = metadata.get('number', 0)
-                        issue_url = metadata.get('html_url', '')
-                        issue_state = metadata.get('state', 'open')
+                        issue_number = metadata.get('github_issue_id', 0)
+                        issue_url = metadata.get('github_issue_url', '')
+                        issue_state = metadata.get('github_issue_state', 'open')
+                        issue_title = metadata.get('github_issue_title', 'Unbekanntes Problem')
+                        
+                        # Extract owner/repo from URL for formatted title
+                        # URL format: https://github.com/owner/repo/issues/123
+                        formatted_title = issue_title
+                        if issue_url:
+                            try:
+                                url_parts = issue_url.split('/')
+                                if len(url_parts) >= 5 and 'github.com' in issue_url:
+                                    owner = url_parts[3]
+                                    repo = url_parts[4]
+                                    formatted_title = f"{owner}/{repo}#{issue_number} {issue_title}"
+                            except Exception as e:
+                                logger.warning(f'Failed to parse GitHub URL: {str(e)}')
+                        
+                        # Fetch current status from GitHub API and update ChromaDB
+                        current_state = issue_state
+                        try:
+                            from core.services.github_service import GitHubService
+                            github_service = GitHubService()
+                            
+                            # Extract owner and repo from URL
+                            if issue_url and 'github.com' in issue_url:
+                                url_parts = issue_url.split('/')
+                                if len(url_parts) >= 5:
+                                    owner = url_parts[3]
+                                    repo = url_parts[4]
+                                    
+                                    # Get current issue state from GitHub API
+                                    issue_result = github_service.get_issue(
+                                        issue_number=issue_number,
+                                        repo=repo,
+                                        owner=owner
+                                    )
+                                    
+                                    if issue_result.get('success'):
+                                        issue_data = issue_result.get('issue', {})
+                                        current_state = issue_data.get('state', issue_state)
+                                        
+                                        # Update metadata in ChromaDB if state changed
+                                        if current_state != issue_state:
+                                            metadata['github_issue_state'] = current_state
+                                            chroma_id = result.get('id')
+                                            
+                                            # Update ChromaDB with new state
+                                            github_sync_service._collection.update(
+                                                ids=[chroma_id],
+                                                metadatas=[metadata]
+                                            )
+                                            logger.info(f'Updated GitHub issue #{issue_number} state in ChromaDB: {issue_state} -> {current_state}')
+                        except Exception as e:
+                            logger.warning(f'Failed to fetch/update GitHub issue state: {str(e)}')
                         
                         similar_items.append({
                             'id': result.get('id'),
-                            'title': metadata.get('title', 'Untitled Issue'),
+                            'title': formatted_title,
                             'similarity': similarity,
-                            'status': 'done' if issue_state == 'closed' else 'working',
-                            'status_display': 'Closed' if issue_state == 'closed' else 'Open',
+                            'status': 'done' if current_state == 'closed' else 'working',
+                            'status_display': 'Closed' if current_state == 'closed' else 'Open',
                             'type': 'github_issue',
                             'issue_number': issue_number,
                             'url': issue_url
