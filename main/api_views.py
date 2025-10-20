@@ -1098,7 +1098,8 @@ def api_tasks(request, item_id=None):
             except ChromaTaskSyncServiceError as e:
                 import logging
                 sync_logger = logging.getLogger(__name__)
-                sync_logger.warning(f'ChromaDB sync failed for task {task.id}: {e.message}')
+                error_details = f" - {e.details}" if e.details else ""
+                sync_logger.warning(f'ChromaDB sync failed for task {task.id}: {e.message}{error_details}')
             except Exception as e:
                 import logging
                 sync_logger = logging.getLogger(__name__)
@@ -1205,7 +1206,8 @@ def api_task_detail(request, task_id):
             except ChromaTaskSyncServiceError as e:
                 import logging
                 sync_logger = logging.getLogger(__name__)
-                sync_logger.warning(f'ChromaDB sync failed for task {task.id}: {e.message}')
+                error_details = f" - {e.details}" if e.details else ""
+                sync_logger.warning(f'ChromaDB sync failed for task {task.id}: {e.message}{error_details}')
             except Exception as e:
                 import logging
                 sync_logger = logging.getLogger(__name__)
@@ -1236,7 +1238,8 @@ def api_task_detail(request, task_id):
             except ChromaTaskSyncServiceError as e:
                 import logging
                 sync_logger = logging.getLogger(__name__)
-                sync_logger.warning(f'ChromaDB sync failed for task {task_id}: {e.message}')
+                error_details = f" - {e.details}" if e.details else ""
+                sync_logger.warning(f'ChromaDB sync failed for task {task_id}: {e.message}{error_details}')
             except Exception as e:
                 import logging
                 sync_logger = logging.getLogger(__name__)
