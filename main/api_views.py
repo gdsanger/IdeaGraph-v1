@@ -2282,14 +2282,21 @@ def api_task_create_github_issue(request, task_id):
 @require_http_methods(["GET"])
 def api_task_similar(request, task_id):
     """
-    API endpoint to get similar tasks.
+    API endpoint to get similar tasks and GitHub issues.
     GET /api/tasks/{task_id}/similar
+    
+    Searches ChromaDB for:
+    1. Similar tasks from the Tasks collection
+    2. Similar GitHub issues from the GitHubIssues collection
+    
+    Only returns items with similarity >= 0.8 (distance <= 0.2)
     """
     user = get_user_from_request(request)
     if not user:
         return JsonResponse({'error': 'Authentication required'}, status=401)
     
     from .models import Task
+    from core.services.github_issue_sync_service import GitHubIssueSyncService, GitHubIssueSyncServiceError
     
     try:
         task = Task.objects.get(id=task_id)
@@ -2298,20 +2305,96 @@ def api_task_similar(request, task_id):
         if task.created_by != user:
             return JsonResponse({'error': 'Access denied'}, status=403)
         
-        # TODO: Implement ChromaDB similarity search
-        # For now, return empty list
-        # In future, use ChromaDB to find similar tasks based on description
+        similar_items = []
+        
+        # Use task description as query text
+        query_text = task.description
+        if not query_text or not query_text.strip():
+            # If description is empty, return empty results
+            return JsonResponse({
+                'success': True,
+                'similar_tasks': []
+            })
+        
+        # Search for similar tasks in ChromaDB
+        try:
+            task_sync_service = ChromaTaskSyncService()
+            task_results = task_sync_service.search_similar(query_text, n_results=10)
+            
+            if task_results.get('success') and task_results.get('results'):
+                for result in task_results['results']:
+                    # Convert distance to similarity (distance: 0=identical, 2=opposite)
+                    # similarity = 1 - (distance / 2)
+                    distance = result.get('distance', 2.0)
+                    similarity = 1.0 - (distance / 2.0)
+                    
+                    # Filter by minimum similarity of 0.8
+                    if similarity >= 0.8:
+                        # Skip the current task itself
+                        result_id = result.get('id')
+                        if result_id and str(result_id) == str(task_id):
+                            continue
+                        
+                        metadata = result.get('metadata', {})
+                        similar_items.append({
+                            'id': result_id,
+                            'title': metadata.get('title', 'Untitled Task'),
+                            'similarity': similarity,
+                            'status': metadata.get('status', 'new'),
+                            'status_display': dict(Task.STATUS_CHOICES).get(metadata.get('status', 'new'), 'New'),
+                            'type': 'task',
+                            'url': f'/tasks/{result_id}/'
+                        })
+        except ChromaTaskSyncServiceError as e:
+            logger.warning(f'Failed to search similar tasks: {str(e)}')
+        except Exception as e:
+            logger.warning(f'Unexpected error searching similar tasks: {str(e)}')
+        
+        # Search for similar GitHub issues in ChromaDB
+        try:
+            github_sync_service = GitHubIssueSyncService()
+            github_results = github_sync_service.search_similar(query_text, n_results=10)
+            
+            if github_results.get('success') and github_results.get('results'):
+                for result in github_results['results']:
+                    # Convert distance to similarity
+                    distance = result.get('distance', 2.0)
+                    similarity = 1.0 - (distance / 2.0)
+                    
+                    # Filter by minimum similarity of 0.8
+                    if similarity >= 0.8:
+                        metadata = result.get('metadata', {})
+                        # GitHub issues have different metadata structure
+                        issue_number = metadata.get('number', 0)
+                        issue_url = metadata.get('html_url', '')
+                        issue_state = metadata.get('state', 'open')
+                        
+                        similar_items.append({
+                            'id': result.get('id'),
+                            'title': metadata.get('title', 'Untitled Issue'),
+                            'similarity': similarity,
+                            'status': 'done' if issue_state == 'closed' else 'working',
+                            'status_display': 'Closed' if issue_state == 'closed' else 'Open',
+                            'type': 'github_issue',
+                            'issue_number': issue_number,
+                            'url': issue_url
+                        })
+        except GitHubIssueSyncServiceError as e:
+            logger.warning(f'Failed to search similar GitHub issues: {str(e)}')
+        except Exception as e:
+            logger.warning(f'Unexpected error searching similar GitHub issues: {str(e)}')
+        
+        # Sort by similarity (highest first)
+        similar_items.sort(key=lambda x: x['similarity'], reverse=True)
         
         return JsonResponse({
             'success': True,
-            'similar_tasks': []
+            'similar_tasks': similar_items
         })
         
     except Task.DoesNotExist:
         return JsonResponse({'error': 'Task not found'}, status=404)
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f'Task similarity error: {str(e)}')
         return JsonResponse({'error': 'An error occurred while finding similar tasks'}, status=500)
 
