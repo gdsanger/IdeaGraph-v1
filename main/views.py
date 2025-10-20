@@ -181,12 +181,13 @@ def tag_edit(request, tag_id):
 
 
 def tag_delete(request, tag_id):
-    """Delete a tag (only if not in use)"""
+    """Delete a tag (only if not in use) - direct deletion without confirmation"""
     tag = get_object_or_404(Tag, id=tag_id)
     
     # Calculate current usage
     tag.calculate_usage_count()
     
+    # Only allow POST requests for deletion
     if request.method == 'POST':
         # Check if tag is in use
         if tag.usage_count > 0:
@@ -203,18 +204,9 @@ def tag_delete(request, tag_id):
         messages.success(request, f'Tag "{tag_name}" deleted successfully!')
         return redirect('main:tag_list')
     
-    # GET request - check if tag is in use and show appropriate response
-    if tag.usage_count > 0:
-        # Show error for tags in use
-        messages.error(
-            request, 
-            f'Cannot delete tag "{tag.name}". It is currently used by {tag.usage_count} item(s)/task(s). '
-            f'Please remove the tag from all items and tasks before deleting it.'
-        )
-        return redirect('main:tag_list')
-    
-    # Tag not in use, show simple delete confirmation (no extra page needed)
-    return render(request, 'main/tags/delete.html', {'tag': tag})
+    # GET request not allowed - redirect to tag list
+    messages.warning(request, 'Invalid delete request. Please use the delete button.')
+    return redirect('main:tag_list')
 
 
 def tag_calculate_usage(request, tag_id):
