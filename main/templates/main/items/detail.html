@@ -371,7 +371,7 @@
                                                 {{ milestone.due_date|date:"d.m.Y" }}
                                                 {% if milestone.due_date < today %}
                                                     <span class="badge bg-danger ms-1">Überfällig</span>
-                                                {% elif milestone.due_date <= today|add_days:7 %}
+                                                {% elif milestone.due_date <= week_from_today %}
                                                     <span class="badge bg-warning ms-1">Bald fällig</span>
                                                 {% endif %}
                                             </td>

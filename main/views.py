@@ -943,6 +943,10 @@ def item_detail(request, item_id):
     status_choices = Item.STATUS_CHOICES
 
     from django.utils import timezone
+    from datetime import timedelta
+    
+    today = timezone.now().date()
+    week_from_today = today + timedelta(days=7)
     
     context = {
         'item': item,
@@ -953,7 +957,8 @@ def item_detail(request, item_id):
         'status_choices': status_choices,
         'show_completed': show_completed,
         'search_query': search_query,
-        'today': timezone.now().date(),
+        'today': today,
+        'week_from_today': week_from_today,
     }
     
     # If HTMX request, return only the partial template

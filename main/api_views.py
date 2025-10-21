@@ -2274,6 +2274,10 @@ def api_task_create_github_issue(request, task_id):
         labels = [tag.name for tag in task.tags.all()]
         
         # Create GitHub issue
+        # NOTE: GitHub milestone support is available but requires:
+        # 1. Milestone must exist in GitHub repository first
+        # 2. GitHub milestone number (not name) must be used
+        # To enable: Add milestone_number field to Milestone model or map by name
         github = GitHubService()
         result = github.create_issue(
             title=task.title,
