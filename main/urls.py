@@ -126,4 +126,7 @@ urlpatterns = [
     
     # Tags Network Graph API
     path('api/tags/network-data', api_views.api_tags_network_data, name='api_tags_network_data'),
+    
+    # Semantic Network API
+    path('api/semantic-network/<str:object_type>/<uuid:object_id>', api_views.api_semantic_network, name='api_semantic_network'),
 ]
