@@ -1313,6 +1313,21 @@ def task_detail(request, task_id):
                 else:
                     task.tags.clear()
 
+                # Sync update to Weaviate
+                sync_service = None
+                try:
+                    from core.services.weaviate_task_sync_service import WeaviateTaskSyncService
+                    sync_service = WeaviateTaskSyncService()
+                    sync_service.sync_update(task)
+                except Exception as sync_error:
+                    # Log error but don't fail the task update
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f'Weaviate sync failed for task {task.id}: {str(sync_error)}')
+                finally:
+                    if sync_service:
+                        sync_service.close()
+
                 messages.success(request, f'Task "{title}" updated successfully!')
                 selected_tags_payload = list(task.tags.values('id', 'name', 'color'))
 
