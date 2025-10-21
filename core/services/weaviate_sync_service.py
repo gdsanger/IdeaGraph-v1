@@ -252,6 +252,8 @@ class WeaviateItemSyncService:
         """
         Synchronize an updated item to Weaviate
         
+        If the item doesn't exist in Weaviate, it will be created instead.
+        
         Args:
             item: Item model instance
         
@@ -266,11 +268,24 @@ class WeaviateItemSyncService:
         try:
             logger.info(f"Updating item in Weaviate: {item.id} - {item.title}")
             
-            # Prepare properties
-            properties = self._item_to_properties(item)
-            
             # Get collection
             collection = self._client.collections.get(self.COLLECTION_NAME)
+            
+            # Check if item exists in Weaviate
+            try:
+                existing_obj = collection.query.fetch_object_by_id(str(item.id))
+                item_exists = existing_obj is not None
+            except Exception as e:
+                logger.debug(f"Error checking if item exists: {str(e)}")
+                item_exists = False
+            
+            if not item_exists:
+                # Item doesn't exist, create it instead
+                logger.info(f"Item {item.id} not found in Weaviate, creating instead of updating")
+                return self.sync_create(item)
+            
+            # Prepare properties
+            properties = self._item_to_properties(item)
             
             # Update in collection
             collection.data.update(
