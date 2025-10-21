@@ -274,10 +274,9 @@ def send_password_reset_email(user, reset_url):
         
         # Send email
         result = graph_service.send_mail(
-            to_email=user.email,
+            to=[user.email],
             subject='Password Reset Request - IdeaGraph',
-            body=html_content,
-            content_type='HTML'
+            body=html_content
         )
         
         if not result.get('success'):
