@@ -271,6 +271,32 @@ class TaskViewTest(TestCase):
         # Verify the messages template code is present
         self.assertContains(response, 'alert alert-')
     
+    def test_task_detail_inline_edit(self):
+        """Test inline editing of task in task_detail view"""
+        self.login()
+        url = reverse('main:task_detail', args=[self.task1.id])
+        
+        # POST request to update task inline
+        response = self.client.post(url, {
+            'title': 'Inline Updated Task',
+            'description': 'Updated via inline edit',
+            'status': 'working',
+            'tags': [str(self.tag.id)]
+        })
+        
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify task was updated
+        self.task1.refresh_from_db()
+        self.assertEqual(self.task1.title, 'Inline Updated Task')
+        self.assertEqual(self.task1.description, 'Updated via inline edit')
+        self.assertEqual(self.task1.status, 'working')
+        
+        # Check for success message using Django's messages framework
+        messages = list(response.wsgi_request._messages)
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(str(messages[0]), 'Task "Inline Updated Task" updated successfully!')
+    
     def test_task_delete_view(self):
         """Test task deletion"""
         self.login()
