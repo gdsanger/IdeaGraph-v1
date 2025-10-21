@@ -184,8 +184,8 @@ class WeaviateItemSyncService:
         properties = {
             'title': item.title,
             'description': item.description or '',
-            'section': str(item.section.id) if item.section else '',
-            'owner': str(item.created_by.id) if item.created_by else '',
+            'section': item.section.name if item.section else '',
+            'owner': item.created_by.username if item.created_by else '',
             'status': item.status,
             'createdAt': item.created_at.isoformat(),
         }
