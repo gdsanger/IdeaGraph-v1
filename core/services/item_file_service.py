@@ -290,6 +290,7 @@ class ItemFileService:
             from core.services.weaviate_sync_service import WeaviateItemSyncService
             
             weaviate_service = WeaviateItemSyncService(self.settings)
+            collection = weaviate_service._client.collections.get(weaviate_service.COLLECTION_NAME)
             
             for i, chunk in enumerate(text_chunks):
                 # Create KnowledgeObject for each chunk
@@ -298,21 +299,27 @@ class ItemFileService:
                 
                 chunk_title = filename if len(text_chunks) == 1 else f"{filename} (Part {i+1}/{len(text_chunks)})"
                 
-                knowledge_object = {
-                    'uuid': f"{item_file.id}_{i}" if len(text_chunks) > 1 else str(item_file.id),
+                # Prepare properties for Weaviate KnowledgeObject schema
+                properties = {
                     'title': chunk_title,
                     'description': chunk,
                     'type': 'File',
-                    'itemID': str(item.id),
                     'url': item_file.sharepoint_url,
                     'owner': item.created_by.username if item.created_by else '',
                     'section': item.section.name if item.section else '',
                     'status': item.status,
                     'tags': [tag.name for tag in item.tags.all()],
+                    'createdAt': item_file.created_at.isoformat(),
                 }
                 
-                # Use the sync service to add to Weaviate
-                weaviate_service._add_or_update_object(knowledge_object)
+                # Generate UUID for this chunk (file ID + chunk index)
+                chunk_uuid = f"{item_file.id}_{i}" if len(text_chunks) > 1 else str(item_file.id)
+                
+                # Add to Weaviate collection
+                collection.data.insert(
+                    properties=properties,
+                    uuid=chunk_uuid
+                )
             
             weaviate_service.close()
             
@@ -365,9 +372,29 @@ class ItemFileService:
                     from core.services.weaviate_sync_service import WeaviateItemSyncService
                     
                     weaviate_service = WeaviateItemSyncService(self.settings)
-                    # Delete the KnowledgeObject(s) associated with this file
-                    # This assumes single object per file for now
-                    weaviate_service.sync_delete(str(file_id))
+                    collection = weaviate_service._client.collections.get(weaviate_service.COLLECTION_NAME)
+                    
+                    # Delete main file object
+                    try:
+                        collection.data.delete_by_id(str(file_id))
+                        logger.info(f"Deleted main file object from Weaviate: {file_id}")
+                    except Exception as e:
+                        logger.warning(f"Main file object not found in Weaviate: {e}")
+                    
+                    # Also try to delete potential chunk objects (file_id_0, file_id_1, etc.)
+                    # We'll try up to 10 chunks as that should be more than enough
+                    for i in range(10):
+                        chunk_uuid = f"{file_id}_{i}"
+                        try:
+                            collection.data.delete_by_id(chunk_uuid)
+                            logger.info(f"Deleted chunk from Weaviate: {chunk_uuid}")
+                        except Exception:
+                            # Chunk doesn't exist, stop trying
+                            if i == 0:
+                                # If first chunk doesn't exist, likely single-object file
+                                pass
+                            break
+                    
                     weaviate_service.close()
                     logger.info(f"Deleted file from Weaviate: {file_id}")
                 except Exception as e:
