@@ -17,6 +17,7 @@ class AuthenticationMiddleware:
         '/forgot-password/',
         '/reset-password/',
         '/api/',  # API uses JWT auth
+        '/static/',  # Static files should be publicly accessible
     ]
     
     def __init__(self, get_response):
