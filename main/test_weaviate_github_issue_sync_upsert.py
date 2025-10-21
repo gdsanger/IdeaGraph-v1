@@ -190,7 +190,7 @@ class WeaviateGitHubIssueSyncUpsertTestCase(TestCase):
     
     @patch('core.services.weaviate_github_issue_sync_service.weaviate.connect_to_local')
     def test_sync_issue_handles_references(self, mock_connect):
-        """Test that sync properly handles task and item references"""
+        """Test that sync properly includes task and item IDs in properties"""
         # Setup mocks
         mock_client = MagicMock()
         mock_collection = MagicMock()
@@ -220,12 +220,17 @@ class WeaviateGitHubIssueSyncUpsertTestCase(TestCase):
         # Verify success
         self.assertTrue(result['success'])
         
-        # Verify reference_add was called for both task and item
-        self.assertEqual(mock_data.reference_add.call_count, 2)
+        # Verify insert was called with properties including taskId and itemId
+        mock_data.insert.assert_called_once()
+        call_kwargs = mock_data.insert.call_args[1]
+        self.assertIn('taskId', call_kwargs['properties'])
+        self.assertEqual(call_kwargs['properties']['taskId'], 'task-123')
+        self.assertIn('itemId', call_kwargs['properties'])
+        self.assertEqual(call_kwargs['properties']['itemId'], 'item-456')
     
     @patch('core.services.weaviate_github_issue_sync_service.weaviate.connect_to_local')
-    def test_sync_continues_on_reference_error(self, mock_connect):
-        """Test that sync continues even if reference addition fails"""
+    def test_sync_continues_on_insert_success(self, mock_connect):
+        """Test that sync completes successfully with task reference"""
         # Setup mocks
         mock_client = MagicMock()
         mock_collection = MagicMock()
@@ -235,7 +240,6 @@ class WeaviateGitHubIssueSyncUpsertTestCase(TestCase):
         mock_client.collections.get.return_value = mock_collection
         mock_collection.data = mock_data
         mock_data.exists.return_value = False
-        mock_data.reference_add.side_effect = Exception("Reference error")
         
         # Create mock task
         mock_task = MagicMock()
@@ -244,7 +248,7 @@ class WeaviateGitHubIssueSyncUpsertTestCase(TestCase):
         # Create service
         service = WeaviateGitHubIssueSyncService(self.settings)
         
-        # Sync with task - should not raise exception
+        # Sync with task - should succeed
         result = service.sync_issue_to_weaviate(self.sample_issue, task=mock_task)
         
         # Should still succeed
