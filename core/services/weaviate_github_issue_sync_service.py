@@ -154,11 +154,23 @@ class WeaviateGitHubIssueSyncService:
                 # Create a deterministic UUID based on issue number and URL
                 uuid = str(uuid_lib.uuid5(uuid_lib.NAMESPACE_URL, issue_url))
             
-            # Upsert to collection with our UUID
-            collection.data.insert(
-                properties=properties,
-                uuid=uuid
-            )
+            # Check if object already exists
+            exists = collection.data.exists(uuid)
+            
+            if exists:
+                # Update existing object (PATCH operation)
+                logger.info(f"Issue #{issue_number} already exists in Weaviate, updating...")
+                collection.data.update(
+                    uuid=uuid,
+                    properties=properties
+                )
+            else:
+                # Insert new object (POST operation)
+                logger.info(f"Issue #{issue_number} is new, inserting into Weaviate...")
+                collection.data.insert(
+                    properties=properties,
+                    uuid=uuid
+                )
             
             # Add task reference if exists
             if task:
@@ -241,11 +253,23 @@ class WeaviateGitHubIssueSyncService:
             if not uuid:
                 uuid = str(uuid_lib.uuid5(uuid_lib.NAMESPACE_URL, pr_url))
             
-            # Upsert to collection
-            collection.data.insert(
-                properties=properties,
-                uuid=uuid
-            )
+            # Check if object already exists
+            exists = collection.data.exists(uuid)
+            
+            if exists:
+                # Update existing object (PATCH operation)
+                logger.info(f"PR #{pr_number} already exists in Weaviate, updating...")
+                collection.data.update(
+                    uuid=uuid,
+                    properties=properties
+                )
+            else:
+                # Insert new object (POST operation)
+                logger.info(f"PR #{pr_number} is new, inserting into Weaviate...")
+                collection.data.insert(
+                    properties=properties,
+                    uuid=uuid
+                )
             
             # Add task reference if exists
             if task:
