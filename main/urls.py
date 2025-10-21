@@ -129,4 +129,10 @@ urlpatterns = [
     
     # Semantic Network API
     path('api/semantic-network/<str:object_type>/<uuid:object_id>', api_views.api_semantic_network, name='api_semantic_network'),
+    
+    # Item File Upload API Endpoints
+    path('api/items/<uuid:item_id>/files/upload', api_views.api_item_file_upload, name='api_item_file_upload'),
+    path('api/items/<uuid:item_id>/files', api_views.api_item_file_list, name='api_item_file_list'),
+    path('api/files/<uuid:file_id>', api_views.api_item_file_download, name='api_item_file_download'),
+    path('api/files/<uuid:file_id>/delete', api_views.api_item_file_delete, name='api_item_file_delete'),
 ]

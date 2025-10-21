@@ -235,6 +235,30 @@ class Item(models.Model):
         return self.title
 
 
+class ItemFile(models.Model):
+    """ItemFile model for managing file uploads associated with items"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='files')
+    filename = models.CharField(max_length=255)
+    file_size = models.BigIntegerField()  # Size in bytes
+    sharepoint_file_id = models.CharField(max_length=255, blank=True, default='')
+    sharepoint_url = models.URLField(max_length=1000, blank=True, default='')
+    content_type = models.CharField(max_length=100, blank=True, default='')
+    weaviate_synced = models.BooleanField(default=False)
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='uploaded_files')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Item File'
+        verbose_name_plural = 'Item Files'
+    
+    def __str__(self):
+        return f"{self.filename} ({self.item.title})"
+
+
 class Relation(models.Model):
     """Relation model for managing relationships between items"""
     
