@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Tag, User, Settings, Section, Item, Task, Relation
+from .models import Tag, User, Settings, Section, Item, Task, Relation, Milestone
 
 
 @admin.register(Tag)
@@ -67,9 +67,28 @@ class ItemAdmin(admin.ModelAdmin):
     )
 
 
+@admin.register(Milestone)
+class MilestoneAdmin(admin.ModelAdmin):
+    list_display = ['name', 'due_date', 'item', 'created_at', 'updated_at']
+    list_filter = ['due_date', 'created_at']
+    search_fields = ['name', 'item__title']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('id', 'name', 'due_date')
+        }),
+        ('Relations', {
+            'fields': ('item',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+
 @admin.register(Task)
 class TaskAdmin(admin.ModelAdmin):
-    list_display = ['title', 'status', 'item', 'assigned_to', 'github_issue_id', 'ai_generated', 'created_at', 'updated_at']
+    list_display = ['title', 'status', 'item', 'milestone', 'assigned_to', 'github_issue_id', 'ai_generated', 'created_at', 'updated_at']
     list_filter = ['status', 'ai_enhanced', 'ai_generated', 'created_at']
     search_fields = ['title', 'description', 'github_issue_url']
     readonly_fields = ['id', 'created_at', 'updated_at', 'completed_at', 'github_synced_at']
@@ -79,7 +98,7 @@ class TaskAdmin(admin.ModelAdmin):
             'fields': ('id', 'title', 'description', 'status')
         }),
         ('Relations', {
-            'fields': ('item', 'assigned_to', 'created_by')
+            'fields': ('item', 'milestone', 'assigned_to', 'created_by')
         }),
         ('GitHub Integration', {
             'fields': ('github_issue_id', 'github_issue_url', 'github_synced_at')

@@ -274,6 +274,11 @@
                                 <i class="bi bi-list-task"></i> Tasks ({{ tasks.paginator.count }})
                             </button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="milestones-tab" data-bs-toggle="tab" data-bs-target="#milestones" type="button" role="tab">
+                                <i class="bi bi-flag"></i> Milestones
+                            </button>
+                        </li>
                     </ul>
                     
                     <div class="tab-content mt-3" id="itemTabsContent">
@@ -335,6 +340,67 @@
                             <div id="item-tasks-table-container">
                                 {% include 'main/items/_item_tasks_table.html' %}
                             </div>
+                        </div>
+                        
+                        <!-- Milestones Tab -->
+                        <div class="tab-pane fade" id="milestones" role="tabpanel">
+                            <div class="mb-3">
+                                <a href="{% url 'main:milestone_create' item.id %}" class="btn btn-primary">
+                                    <i class="bi bi-plus-circle"></i> New Milestone
+                                </a>
+                            </div>
+                            
+                            {% if item.milestones.all %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Due Date</th>
+                                            <th>Tasks</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for milestone in item.milestones.all %}
+                                        <tr>
+                                            <td>
+                                                <strong>{{ milestone.name }}</strong>
+                                            </td>
+                                            <td>
+                                                {{ milestone.due_date|date:"d.m.Y" }}
+                                                {% if milestone.due_date < today %}
+                                                    <span class="badge bg-danger ms-1">Überfällig</span>
+                                                {% elif milestone.due_date <= week_from_today %}
+                                                    <span class="badge bg-warning ms-1">Bald fällig</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {{ milestone.tasks.count }}
+                                            </td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm" role="group">
+                                                    <a href="{% url 'main:milestone_edit' milestone.id %}" 
+                                                       class="btn btn-outline-primary" title="Edit">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </a>
+                                                    <a href="{% url 'main:milestone_delete' milestone.id %}" 
+                                                       class="btn btn-outline-danger" title="Delete">
+                                                        <i class="bi bi-trash"></i>
+                                                    </a>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i>
+                                No milestones yet. Click "New Milestone" to create one.
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
                 </div>

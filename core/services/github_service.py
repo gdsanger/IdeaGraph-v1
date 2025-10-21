@@ -219,7 +219,8 @@ class GitHubService:
         repo: Optional[str] = None,
         owner: Optional[str] = None,
         labels: Optional[List[str]] = None,
-        assignees: Optional[List[str]] = None
+        assignees: Optional[List[str]] = None,
+        milestone: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Create a new issue in a GitHub repository
@@ -231,6 +232,7 @@ class GitHubService:
             owner: Repository owner (uses default if not provided)
             labels: List of label names
             assignees: List of assignee usernames
+            milestone: Milestone number (GitHub milestone number, not ID)
             
         Returns:
             Dict with success status and created issue data
@@ -256,6 +258,9 @@ class GitHubService:
         
         if assignees:
             issue_data['assignees'] = assignees
+        
+        if milestone:
+            issue_data['milestone'] = milestone
         
         try:
             response = self._make_request('POST', endpoint, json_data=issue_data)

@@ -161,6 +161,19 @@
                                 </select>
                             </div>
 
+                            <!-- Milestone -->
+                            <div class="col-md-6 mb-3">
+                                <label for="milestone" class="form-label">Milestone</label>
+                                <select class="form-select" id="milestone" name="milestone">
+                                    <option value="">No Milestone</option>
+                                    {% for milestone in milestones %}
+                                    <option value="{{ milestone.id }}" 
+                                            {% if task and task.milestone and task.milestone.id == milestone.id %}selected{% endif %}>
+                                        {{ milestone.name }} ({{ milestone.due_date|date:"d.m.Y" }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Select a milestone for this task.</small>
                             <!-- Requester -->
                             <div class="col-md-6 mb-3">
                                 <label for="requester" class="form-label">Requester</label>

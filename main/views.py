@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.core.paginator import Paginator
 from .auth_utils import validate_password
-from .models import Tag, Settings, Section, User, Item, Task, Client
+from .models import Tag, Settings, Section, User, Item, Task, Client, Milestone
 
 
 def _separate_tag_values(tag_values):
@@ -942,6 +942,12 @@ def item_detail(request, item_id):
     all_tags = list(Tag.objects.values('id', 'name', 'color'))
     status_choices = Item.STATUS_CHOICES
 
+    from django.utils import timezone
+    from datetime import timedelta
+    
+    today = timezone.now().date()
+    week_from_today = today + timedelta(days=7)
+    
     context = {
         'item': item,
         'tasks': tasks_page,
@@ -951,6 +957,8 @@ def item_detail(request, item_id):
         'status_choices': status_choices,
         'show_completed': show_completed,
         'search_query': search_query,
+        'today': today,
+        'week_from_today': week_from_today,
     }
     
     # If HTMX request, return only the partial template
@@ -1339,6 +1347,7 @@ def task_create(request, item_id):
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '').strip()
         status = request.POST.get('status', 'new')
+        milestone_id = request.POST.get('milestone', '').strip()
         tag_values = request.POST.getlist('tags')
         requester_id = request.POST.get('requester', None)
 
@@ -1365,6 +1374,15 @@ def task_create(request, item_id):
                     assigned_to=user,
                     requester=requester
                 )
+                
+                # Set milestone if provided
+                if milestone_id:
+                    try:
+                        milestone = Milestone.objects.get(id=milestone_id, item=item)
+                        task.milestone = milestone
+                    except Milestone.DoesNotExist:
+                        pass
+                
                 task.save()
 
                 # Add tags
@@ -1391,8 +1409,9 @@ def task_create(request, item_id):
                 messages.error(request, f'Error creating task: {str(e)}')
                 selected_tags_payload = _build_selected_tags_payload(tag_values)
     
-    # Get all tags for the form
+    # Get all tags and milestones for the form
     all_tags = list(Tag.objects.values('id', 'name', 'color'))
+    milestones = item.milestones.all()
     status_choices = Task.STATUS_CHOICES
     
     # Get all active users for requester selection
@@ -1403,6 +1422,7 @@ def task_create(request, item_id):
         'all_tags': all_tags,
         'selected_tags': selected_tags_payload,
         'status_choices': status_choices,
+        'milestones': milestones,
         'all_users': all_users,
     }
     
@@ -1430,6 +1450,7 @@ def task_edit(request, task_id):
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '').strip()
         status = request.POST.get('status', task.status)
+        milestone_id = request.POST.get('milestone', '').strip()
         tag_values = request.POST.getlist('tags')
         requester_id = request.POST.get('requester', None)
 
@@ -1450,6 +1471,16 @@ def task_edit(request, task_id):
                 task.title = title
                 task.description = description
                 task.status = status
+                
+                # Set milestone
+                if milestone_id:
+                    try:
+                        milestone = Milestone.objects.get(id=milestone_id, item=task.item)
+                        task.milestone = milestone
+                    except Milestone.DoesNotExist:
+                        task.milestone = None
+                else:
+                    task.milestone = None
                 task.requester = requester
 
                 # Mark as done if status changed to done
@@ -1485,8 +1516,9 @@ def task_edit(request, task_id):
                 messages.error(request, f'Error updating task: {str(e)}')
                 selected_tags_payload = _build_selected_tags_payload(tag_values)
     
-    # Get all tags for the form
+    # Get all tags and milestones for the form
     all_tags = list(Tag.objects.values('id', 'name', 'color'))
+    milestones = task.item.milestones.all() if task.item else []
     status_choices = Task.STATUS_CHOICES
     
     # Get all active users for requester selection
@@ -1497,6 +1529,7 @@ def task_edit(request, task_id):
         'all_tags': all_tags,
         'selected_tags': selected_tags_payload,
         'status_choices': status_choices,
+        'milestones': milestones,
         'all_users': all_users,
     }
     
@@ -1629,4 +1662,122 @@ def task_overview(request):
 def tags_network_view(request):
     """Tags network graph visualization view"""
     return render(request, 'main/tags/network.html')
+
+
+def milestone_create(request, item_id):
+    """Create a new milestone for an item"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Get item - check ownership unless admin
+    item = get_object_or_404(Item, id=item_id)
+    if user.role != 'admin' and item.created_by != user:
+        messages.error(request, 'You do not have permission to create milestones for this item.')
+        return redirect('main:item_detail', item_id=item_id)
+    
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        due_date = request.POST.get('due_date', '').strip()
+        
+        if not name:
+            messages.error(request, 'Name is required.')
+        elif not due_date:
+            messages.error(request, 'Due date is required.')
+        else:
+            try:
+                # Create milestone
+                milestone = Milestone(
+                    name=name,
+                    due_date=due_date,
+                    item=item
+                )
+                milestone.save()
+                
+                messages.success(request, f'Milestone "{name}" created successfully!')
+                return redirect('main:item_detail', item_id=item_id)
+            except Exception as e:
+                messages.error(request, f'Error creating milestone: {str(e)}')
+    
+    context = {
+        'item': item,
+    }
+    
+    return render(request, 'main/milestones/form.html', context)
+
+
+def milestone_edit(request, milestone_id):
+    """Edit an existing milestone"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    milestone = get_object_or_404(Milestone, id=milestone_id)
+    item = milestone.item
+    
+    # Check ownership unless admin
+    if user.role != 'admin' and item.created_by != user:
+        messages.error(request, 'You do not have permission to edit this milestone.')
+        return redirect('main:item_detail', item_id=item.id)
+    
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        due_date = request.POST.get('due_date', '').strip()
+        
+        if not name:
+            messages.error(request, 'Name is required.')
+        elif not due_date:
+            messages.error(request, 'Due date is required.')
+        else:
+            try:
+                milestone.name = name
+                milestone.due_date = due_date
+                milestone.save()
+                
+                messages.success(request, f'Milestone "{name}" updated successfully!')
+                return redirect('main:item_detail', item_id=item.id)
+            except Exception as e:
+                messages.error(request, f'Error updating milestone: {str(e)}')
+    
+    context = {
+        'milestone': milestone,
+        'item': item,
+    }
+    
+    return render(request, 'main/milestones/form.html', context)
+
+
+def milestone_delete(request, milestone_id):
+    """Delete a milestone"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    milestone = get_object_or_404(Milestone, id=milestone_id)
+    item = milestone.item
+    
+    # Check ownership unless admin
+    if user.role != 'admin' and item.created_by != user:
+        messages.error(request, 'You do not have permission to delete this milestone.')
+        return redirect('main:item_detail', item_id=item.id)
+    
+    if request.method == 'POST':
+        milestone_name = milestone.name
+        milestone.delete()
+        messages.success(request, f'Milestone "{milestone_name}" deleted successfully!')
+        return redirect('main:item_detail', item_id=item.id)
+    
+    context = {
+        'milestone': milestone,
+        'item': item,
+    }
+    
+    return render(request, 'main/milestones/delete.html', context)
 
