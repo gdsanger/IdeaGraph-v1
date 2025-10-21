@@ -327,6 +327,59 @@
 
                     <hr style="border-color: var(--autumn-primary);">
 
+                    <!-- Weaviate Configuration -->
+                    <div class="mb-4">
+                        <h5 class="mb-3" style="color: var(--autumn-accent);">
+                            <i class="bi bi-database-fill-gear"></i> Weaviate Configuration
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <div class="form-check form-switch">
+                                    <input 
+                                        class="form-check-input" 
+                                        type="checkbox" 
+                                        id="weaviate_cloud_enabled" 
+                                        name="weaviate_cloud_enabled"
+                                        {% if settings.weaviate_cloud_enabled %}checked{% endif %}>
+                                    <label class="form-check-label" for="weaviate_cloud_enabled">
+                                        Enable Weaviate Cloud
+                                    </label>
+                                    <div class="form-text">Enable Weaviate Cloud (if disabled, local configuration is used)</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="weaviate_url" class="form-label">WEAVIATE_URL</label>
+                                <input 
+                                    type="url" 
+                                    class="form-control" 
+                                    id="weaviate_url" 
+                                    name="weaviate_url" 
+                                    value="{{ settings.weaviate_url|default:'' }}"
+                                    placeholder="https://my-cluster.weaviate.network">
+                                <div class="form-text">Weaviate Cloud URL (includes automatic gRPC support)</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="weaviate_api_key" class="form-label">WEAVIATE_API_KEY</label>
+                                <input 
+                                    type="password" 
+                                    class="form-control" 
+                                    id="weaviate_api_key" 
+                                    name="weaviate_api_key" 
+                                    value="{{ settings.weaviate_api_key|default:'' }}"
+                                    placeholder="Weaviate Cloud API Key">
+                                <div class="form-text">Weaviate Cloud API Key</div>
+                            </div>
+                        </div>
+                        <div class="alert alert-info" role="alert">
+                            <i class="bi bi-info-circle-fill"></i> <strong>gRPC Support</strong>
+                            <p class="mb-0 mt-2">gRPC is automatically enabled with Weaviate Cloud for improved performance. The client handles port configuration (HTTPS on 443, gRPC on 50051) automatically.</p>
+                        </div>
+                    </div>
+
+                    <hr style="border-color: var(--autumn-primary);">
+
                     <!-- KiGate Configuration -->
                     <div class="mb-4">
                         <h5 class="mb-3" style="color: var(--autumn-accent);">

@@ -56,6 +56,7 @@
                                     <th>OpenAI</th>
                                     <th>GitHub</th>
                                     <th>ChromaDB</th>
+                                    <th>Weaviate</th>
                                     <th>KiGate</th>
                                     <th>Max Tags</th>
                                     <th>Created</th>
@@ -87,6 +88,15 @@
                                         <i class="bi bi-check-circle-fill text-success" title="Configured"></i>
                                         {% else %}
                                         <i class="bi bi-x-circle-fill text-danger" title="Not configured"></i>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if setting.weaviate_cloud_enabled and setting.weaviate_url and setting.weaviate_api_key %}
+                                        <i class="bi bi-cloud-check-fill text-success" title="Cloud configured"></i>
+                                        {% elif not setting.weaviate_cloud_enabled %}
+                                        <i class="bi bi-hdd-fill text-info" title="Local mode"></i>
+                                        {% else %}
+                                        <i class="bi bi-exclamation-triangle-fill text-warning" title="Cloud enabled but incomplete"></i>
                                         {% endif %}
                                     </td>
                                     <td>
