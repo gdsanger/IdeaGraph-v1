@@ -1269,16 +1269,26 @@ def task_detail(request, task_id):
         description = request.POST.get('description', '').strip()
         status = request.POST.get('status', task.status)
         tag_values = request.POST.getlist('tags')
+        requester_id = request.POST.get('requester', None)
 
         if not title:
             messages.error(request, 'Title is required.')
             selected_tags_payload = _build_selected_tags_payload(tag_values)
         else:
             try:
+                # Get requester if provided
+                requester = None
+                if requester_id:
+                    try:
+                        requester = User.objects.get(id=requester_id)
+                    except User.DoesNotExist:
+                        pass
+                
                 previous_status = task.status
                 task.title = title
                 task.description = description
                 task.status = status
+                task.requester = requester
 
                 if status == 'done' and previous_status != 'done':
                     task.mark_as_done()
@@ -1301,12 +1311,16 @@ def task_detail(request, task_id):
     # Get all tags and status choices
     all_tags = list(Tag.objects.values('id', 'name', 'color'))
     status_choices = Task.STATUS_CHOICES
+    
+    # Get all active users for requester selection
+    all_users = User.objects.filter(is_active=True).order_by('username')
 
     context = {
         'task': task,
         'all_tags': all_tags,
         'selected_tags': selected_tags_payload,
         'status_choices': status_choices,
+        'all_users': all_users,
     }
 
     return render(request, 'main/tasks/detail.html', context)
@@ -1335,12 +1349,21 @@ def task_create(request, item_id):
         status = request.POST.get('status', 'new')
         milestone_id = request.POST.get('milestone', '').strip()
         tag_values = request.POST.getlist('tags')
+        requester_id = request.POST.get('requester', None)
 
         if not title:
             messages.error(request, 'Title is required.')
             selected_tags_payload = _build_selected_tags_payload(tag_values)
         else:
             try:
+                # Get requester if provided
+                requester = None
+                if requester_id:
+                    try:
+                        requester = User.objects.get(id=requester_id)
+                    except User.DoesNotExist:
+                        pass
+                
                 # Create task
                 task = Task(
                     title=title,
@@ -1348,7 +1371,8 @@ def task_create(request, item_id):
                     status=status,
                     item=item,
                     created_by=user,
-                    assigned_to=user
+                    assigned_to=user,
+                    requester=requester
                 )
                 
                 # Set milestone if provided
@@ -1389,6 +1413,9 @@ def task_create(request, item_id):
     all_tags = list(Tag.objects.values('id', 'name', 'color'))
     milestones = item.milestones.all()
     status_choices = Task.STATUS_CHOICES
+    
+    # Get all active users for requester selection
+    all_users = User.objects.filter(is_active=True).order_by('username')
 
     context = {
         'item': item,
@@ -1396,6 +1423,7 @@ def task_create(request, item_id):
         'selected_tags': selected_tags_payload,
         'status_choices': status_choices,
         'milestones': milestones,
+        'all_users': all_users,
     }
     
     return render(request, 'main/tasks/form.html', context)
@@ -1424,12 +1452,21 @@ def task_edit(request, task_id):
         status = request.POST.get('status', task.status)
         milestone_id = request.POST.get('milestone', '').strip()
         tag_values = request.POST.getlist('tags')
+        requester_id = request.POST.get('requester', None)
 
         if not title:
             messages.error(request, 'Title is required.')
             selected_tags_payload = _build_selected_tags_payload(tag_values)
         else:
             try:
+                # Get requester if provided
+                requester = None
+                if requester_id:
+                    try:
+                        requester = User.objects.get(id=requester_id)
+                    except User.DoesNotExist:
+                        pass
+                
                 previous_status = task.status
                 task.title = title
                 task.description = description
@@ -1444,6 +1481,7 @@ def task_edit(request, task_id):
                         task.milestone = None
                 else:
                     task.milestone = None
+                task.requester = requester
 
                 # Mark as done if status changed to done
                 if status == 'done' and previous_status != 'done':
@@ -1482,6 +1520,9 @@ def task_edit(request, task_id):
     all_tags = list(Tag.objects.values('id', 'name', 'color'))
     milestones = task.item.milestones.all() if task.item else []
     status_choices = Task.STATUS_CHOICES
+    
+    # Get all active users for requester selection
+    all_users = User.objects.filter(is_active=True).order_by('username')
 
     context = {
         'task': task,
@@ -1489,6 +1530,7 @@ def task_edit(request, task_id):
         'selected_tags': selected_tags_payload,
         'status_choices': status_choices,
         'milestones': milestones,
+        'all_users': all_users,
     }
     
     return render(request, 'main/tasks/form.html', context)
