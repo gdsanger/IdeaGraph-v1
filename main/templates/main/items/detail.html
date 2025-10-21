@@ -6,6 +6,8 @@
 {% block extra_css %}
 <!-- Toast UI Editor CSS -->
 <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
+<!-- Semantic Network CSS -->
+<link rel="stylesheet" href="{% static 'main/css/semantic-network.css' %}" />
 
 <style>
     .item-detail-card {
@@ -123,7 +125,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container-fluid">
     <!-- Breadcrumb -->
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
@@ -132,6 +134,10 @@
         </ol>
     </nav>
 
+    <!-- Two-Column Layout: Details + Semantic Network -->
+    <div class="detail-container-with-network">
+        <!-- Left Column: Item Details -->
+        <div class="detail-left-column">
     <!-- Item Details Card -->
     <div class="row mb-4">
         <div class="col-12">
@@ -407,6 +413,16 @@
             </div>
         </div>
     </div>
+        </div>
+        <!-- End Left Column -->
+        
+        <!-- Right Column: Semantic Network -->
+        <div class="detail-right-column">
+            <div id="semanticNetworkContainer"></div>
+        </div>
+        <!-- End Right Column -->
+    </div>
+    <!-- End Two-Column Layout -->
 
     <!-- Send Email Modal -->
     <div class="modal fade" id="sendEmailModal" tabindex="-1" aria-labelledby="sendEmailModalLabel" aria-hidden="true">
@@ -445,6 +461,12 @@
 {{ all_tags|json_script:"item-detail-all-tags" }}
 {{ selected_tags|json_script:"item-detail-selected-tags" }}
 <script src="{% static 'main/js/tag-token.js' %}"></script>
+
+<!-- Sigma.js and dependencies for semantic network -->
+<script src="https://cdn.jsdelivr.net/npm/graphology@0.25.1/dist/graphology.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/dist/graphology-layout-forceatlas2.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0-alpha3/build/sigma.min.js"></script>
+<script src="{% static 'main/js/semantic-network.js' %}"></script>
 
 <script>
 // Tab state persistence: Save and restore last opened tab
@@ -961,5 +983,31 @@ if (showCompletedSwitch) {
         window.location.href = currentUrl.toString();
     });
 }
+
+// Initialize Semantic Network Viewer
+let semanticNetworkViewer;
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize the semantic network viewer
+    semanticNetworkViewer = new SemanticNetworkViewer('semanticNetworkContainer', {
+        objectType: 'item',
+        objectId: '{{ item.id }}',
+        depth: 3,
+        generateSummaries: true,
+        onNodeClick: function(nodeData) {
+            // Custom click handler - navigate to the clicked object
+            const type = nodeData.type;
+            const id = nodeData.id;
+            
+            if (type === 'item') {
+                window.location.href = `/items/${id}/`;
+            } else if (type === 'task') {
+                window.location.href = `/tasks/${id}/`;
+            }
+        }
+    });
+    
+    // Load the semantic network
+    semanticNetworkViewer.load('item', '{{ item.id }}');
+});
 </script>
 {% endblock %}
