@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.core.paginator import Paginator
 from .auth_utils import validate_password
-from .models import Tag, Settings, Section, User, Item, Task
+from .models import Tag, Settings, Section, User, Item, Task, Client
 
 
 def _separate_tag_values(tag_values):
@@ -304,6 +304,65 @@ def section_delete(request, section_id):
     return render(request, 'main/sections/delete.html', {'section': section})
 
 
+def client_list(request):
+    """List all clients"""
+    clients = Client.objects.all()
+    return render(request, 'main/clients/list.html', {'clients': clients})
+
+
+def client_create(request):
+    """Create a new client"""
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        
+        if name:
+            try:
+                client = Client(name=name)
+                client.save()
+                messages.success(request, f'Client "{name}" created successfully!')
+                return redirect('main:client_list')
+            except Exception as e:
+                messages.error(request, f'Error creating client: {str(e)}')
+        else:
+            messages.error(request, 'Client name is required.')
+    
+    return render(request, 'main/clients/form.html')
+
+
+def client_edit(request, client_id):
+    """Edit an existing client"""
+    client = get_object_or_404(Client, id=client_id)
+    
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        
+        if name:
+            try:
+                client.name = name
+                client.save()
+                messages.success(request, f'Client "{name}" updated successfully!')
+                return redirect('main:client_list')
+            except Exception as e:
+                messages.error(request, f'Error updating client: {str(e)}')
+        else:
+            messages.error(request, 'Client name is required.')
+    
+    return render(request, 'main/clients/form.html', {'client': client})
+
+
+def client_delete(request, client_id):
+    """Delete a client"""
+    client = get_object_or_404(Client, id=client_id)
+    
+    if request.method == 'POST':
+        client_name = client.name
+        client.delete()
+        messages.success(request, f'Client "{client_name}" deleted successfully!')
+        return redirect('main:client_list')
+    
+    return render(request, 'main/clients/delete.html', {'client': client})
+
+
 def settings_list(request):
     """List all settings"""
     settings = Settings.objects.all()
@@ -456,6 +515,7 @@ def user_create(request):
         role = request.POST.get('role', 'user')
         is_active = request.POST.get('is_active') == 'on'
         ai_classification = request.POST.get('ai_classification', '').strip()
+        client_id = request.POST.get('client', '').strip()
         
         # Validation
         if not username:
@@ -484,6 +544,10 @@ def user_create(request):
                         is_active=is_active,
                         ai_classification=ai_classification
                     )
+                    
+                    if client_id:
+                        user.client_id = client_id
+                    
                     user.set_password(password)
                     user.save()
                     messages.success(request, f'User "{username}" created successfully!')
@@ -493,6 +557,7 @@ def user_create(request):
     
     context = {
         'role_choices': User.ROLE_CHOICES,
+        'clients': Client.objects.all(),
     }
     return render(request, 'main/users/user_create.html', context)
 
@@ -508,6 +573,7 @@ def user_edit(request, user_id):
         ai_classification = request.POST.get('ai_classification', '').strip()
         password = request.POST.get('password', '')
         password_confirm = request.POST.get('password_confirm', '')
+        client_id = request.POST.get('client', '').strip()
         
         # Validation
         if not email:
@@ -525,6 +591,7 @@ def user_edit(request, user_id):
                     context = {
                         'user': user,
                         'role_choices': User.ROLE_CHOICES,
+                        'clients': Client.objects.all(),
                     }
                     return render(request, 'main/users/user_edit.html', context)
             
@@ -533,6 +600,11 @@ def user_edit(request, user_id):
                 user.role = role
                 user.is_active = is_active
                 user.ai_classification = ai_classification
+                
+                if client_id:
+                    user.client_id = client_id
+                else:
+                    user.client = None
                 
                 if password:
                     user.set_password(password)
@@ -546,6 +618,7 @@ def user_edit(request, user_id):
     context = {
         'user': user,
         'role_choices': User.ROLE_CHOICES,
+        'clients': Client.objects.all(),
     }
     return render(request, 'main/users/user_edit.html', context)
 

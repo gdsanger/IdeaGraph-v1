@@ -29,6 +29,12 @@ urlpatterns = [
     path('settings/sections/<uuid:section_id>/edit/', views.section_edit, name='section_edit'),
     path('settings/sections/<uuid:section_id>/delete/', views.section_delete, name='section_delete'),
     
+    # Client URLs
+    path('settings/clients/', views.client_list, name='client_list'),
+    path('settings/clients/create/', views.client_create, name='client_create'),
+    path('settings/clients/<uuid:client_id>/edit/', views.client_edit, name='client_edit'),
+    path('settings/clients/<uuid:client_id>/delete/', views.client_delete, name='client_delete'),
+    
     # Settings URLs
     path('admin/settings/', views.settings_list, name='settings_list'),
     path('admin/settings/create/', views.settings_create, name='settings_create'),

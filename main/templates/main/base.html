@@ -274,6 +274,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if 'client' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'main:client_list' %}">
+                            <i class="bi bi-building"></i> Clients
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.resolver_match.url_name == 'settings' or 'tag' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'main:settings' %}">
                             <i class="bi bi-gear-fill"></i> Settings
                         </a>
