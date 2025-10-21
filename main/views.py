@@ -94,6 +94,53 @@ def _build_selected_tags_payload(tag_values):
 
     return payload
 
+
+def _resolve_client_values(client_values):
+    """Return Client objects for submitted form values."""
+    if not client_values:
+        return []
+    
+    resolved_clients = []
+    seen_ids = set()
+    
+    for value in client_values:
+        if not value:
+            continue
+        # Client values should only be existing IDs (no creation like tags)
+        if str(value) not in seen_ids:
+            try:
+                client = Client.objects.get(id=value)
+                resolved_clients.append(client)
+                seen_ids.add(str(value))
+            except Client.DoesNotExist:
+                continue
+    
+    return resolved_clients
+
+
+def _build_selected_clients_payload(client_values):
+    """Return dictionaries for rendering selected clients."""
+    if not client_values:
+        return []
+    
+    payload = []
+    seen_ids = set()
+    
+    existing_clients = {
+        str(client['id']): client
+        for client in Client.objects.filter(id__in=client_values).values('id', 'name')
+    }
+    
+    for client_id in client_values:
+        if str(client_id) not in seen_ids:
+            client = existing_clients.get(str(client_id))
+            if client:
+                payload.append(client)
+                seen_ids.add(str(client_id))
+    
+    return payload
+
+
 def home(request):
     """Home page view"""
     # Fetch statistics from database
@@ -923,6 +970,7 @@ def item_create(request):
     user = get_object_or_404(User, id=user_id)
     
     selected_tags_payload = []
+    selected_clients_payload = []
 
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
@@ -931,10 +979,12 @@ def item_create(request):
         section_id = request.POST.get('section')
         status = request.POST.get('status', 'new')
         tag_values = request.POST.getlist('tags')
+        client_values = request.POST.getlist('clients')
 
         if not title:
             messages.error(request, 'Title is required.')
             selected_tags_payload = _build_selected_tags_payload(tag_values)
+            selected_clients_payload = _build_selected_clients_payload(client_values)
         else:
             try:
                 # Create item
@@ -956,6 +1006,11 @@ def item_create(request):
                 if resolved_tags:
                     item.tags.set(resolved_tags)
 
+                # Add clients
+                resolved_clients = _resolve_client_values(client_values)
+                if resolved_clients:
+                    item.clients.set(resolved_clients)
+
                 # Sync to Weaviate
                 try:
                     from core.services.weaviate_sync_service import WeaviateItemSyncService
@@ -974,16 +1029,20 @@ def item_create(request):
             except Exception as e:
                 messages.error(request, f'Error creating item: {str(e)}')
                 selected_tags_payload = _build_selected_tags_payload(tag_values)
+                selected_clients_payload = _build_selected_clients_payload(client_values)
     
-    # Get all sections and tags for the form
+    # Get all sections, tags, clients and status choices for the form
     sections = Section.objects.all()
     all_tags = list(Tag.objects.values('id', 'name', 'color'))
+    all_clients = list(Client.objects.values('id', 'name'))
     status_choices = Item.STATUS_CHOICES
 
     context = {
         'sections': sections,
         'all_tags': all_tags,
+        'all_clients': all_clients,
         'selected_tags': selected_tags_payload,
+        'selected_clients': selected_clients_payload,
         'status_choices': status_choices,
     }
     
@@ -1006,6 +1065,7 @@ def item_edit(request, item_id):
         return redirect('main:item_list')
     
     selected_tags_payload = list(item.tags.values('id', 'name', 'color'))
+    selected_clients_payload = list(item.clients.values('id', 'name'))
 
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
@@ -1014,10 +1074,12 @@ def item_edit(request, item_id):
         section_id = request.POST.get('section')
         status = request.POST.get('status', item.status)
         tag_values = request.POST.getlist('tags')
+        client_values = request.POST.getlist('clients')
 
         if not title:
             messages.error(request, 'Title is required.')
             selected_tags_payload = _build_selected_tags_payload(tag_values)
+            selected_clients_payload = _build_selected_clients_payload(client_values)
         else:
             try:
                 item.title = title
@@ -1039,6 +1101,13 @@ def item_edit(request, item_id):
                 else:
                     item.tags.clear()
 
+                # Update clients
+                resolved_clients = _resolve_client_values(client_values)
+                if resolved_clients:
+                    item.clients.set(resolved_clients)
+                else:
+                    item.clients.clear()
+
                 # Sync update to Weaviate
                 try:
                     from core.services.weaviate_sync_service import WeaviateItemSyncService
@@ -1057,10 +1126,25 @@ def item_edit(request, item_id):
             except Exception as e:
                 messages.error(request, f'Error updating item: {str(e)}')
                 selected_tags_payload = _build_selected_tags_payload(tag_values)
+                selected_clients_payload = _build_selected_clients_payload(client_values)
     
-    # Get all sections and tags for the form
+    # Get all sections, tags, clients and status choices for the form
     sections = Section.objects.all()
     all_tags = list(Tag.objects.values('id', 'name', 'color'))
+    all_clients = list(Client.objects.values('id', 'name'))
+    status_choices = Item.STATUS_CHOICES
+
+    context = {
+        'item': item,
+        'sections': sections,
+        'all_tags': all_tags,
+        'all_clients': all_clients,
+        'selected_tags': selected_tags_payload,
+        'selected_clients': selected_clients_payload,
+        'status_choices': status_choices,
+    }
+    
+    return render(request, 'main/items/form.html', context)
     status_choices = Item.STATUS_CHOICES
 
     context = {

@@ -175,6 +175,16 @@
                             </div>
                         </div>
 
+                        <!-- Clients (full width row) -->
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label"><i class="bi bi-building"></i> Clients</label>
+                                <div id="itemClientTokenBox" class="tag-token-box"></div>
+                                <div id="itemClientHiddenInputs"></div>
+                                <small class="text-muted">Select clients from the list. Items can be associated with multiple clients.</small>
+                            </div>
+                        </div>
+
                         <!-- Action Buttons -->
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-primary">
@@ -199,6 +209,8 @@
 <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
 {{ all_tags|json_script:"item-all-tags" }}
 {{ selected_tags|json_script:"item-selected-tags" }}
+{{ all_clients|json_script:"item-all-clients" }}
+{{ selected_clients|json_script:"item-selected-clients" }}
 <script src="{% static 'main/js/tag-token.js' %}"></script>
 
 <script>
@@ -224,6 +236,26 @@ initializeTagTokenBox('itemTagTokenBox', {
     selectedTags: itemSelectedTags,
     hiddenInputContainerId: 'itemTagHiddenInputs',
     inputPlaceholder: 'Add a tag and press Enter'
+});
+
+// Initialize client token box (reusing tag-token.js but for clients)
+const itemAllClients = JSON.parse(document.getElementById('item-all-clients').textContent || '[]');
+const itemSelectedClients = JSON.parse(document.getElementById('item-selected-clients').textContent || '[]');
+// Add dummy color property to clients for compatibility with tag-token.js
+const itemAllClientsWithColor = itemAllClients.map(client => ({
+    ...client,
+    color: '#6366f1' // Default indigo color for all clients
+}));
+const itemSelectedClientsWithColor = itemSelectedClients.map(client => ({
+    ...client,
+    color: '#6366f1'
+}));
+initializeTagTokenBox('itemClientTokenBox', {
+    allTags: itemAllClientsWithColor,
+    selectedTags: itemSelectedClientsWithColor,
+    fieldName: 'clients',
+    hiddenInputContainerId: 'itemClientHiddenInputs',
+    inputPlaceholder: 'Select a client'
 });
 </script>
 {% endblock %}
