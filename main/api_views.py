@@ -2336,7 +2336,7 @@ def api_task_similar(request, task_id):
         return JsonResponse({'error': 'Authentication required'}, status=401)
     
     from .models import Task
-    from core.services.github_issue_sync_service import GitHubIssueSyncService, GitHubIssueSyncServiceError
+    from core.services.weaviate_github_issue_sync_service import WeaviateGitHubIssueSyncService, WeaviateGitHubIssueSyncServiceError
     
     try:
         task = Task.objects.get(id=task_id)
@@ -2392,8 +2392,8 @@ def api_task_similar(request, task_id):
         
         # Search for similar GitHub issues in Weaviate
         try:
-            github_sync_service = GitHubIssueSyncService()
-            github_results = github_sync_service.search_similar(query_text, n_results=10)
+            github_sync_service = WeaviateGitHubIssueSyncService()
+            github_results = github_sync_service.search_similar_issues(query_text, n_results=10)
             
             if github_results.get('success') and github_results.get('results'):
                 for result in github_results['results']:
@@ -2405,10 +2405,10 @@ def api_task_similar(request, task_id):
                     if similarity >= 0.8:
                         metadata = result.get('metadata', {})
                         # GitHub issues have different metadata structure
-                        issue_number = metadata.get('github_issue_id', 0)
-                        issue_url = metadata.get('github_issue_url', '')
-                        issue_state = metadata.get('github_issue_state', 'open')
-                        issue_title = metadata.get('github_issue_title', 'Unbekanntes Problem')
+                        issue_number = metadata.get('issue_number', 0)
+                        issue_url = metadata.get('issue_url', '')
+                        issue_state = metadata.get('issue_state', 'open')
+                        issue_title = metadata.get('issue_title', 'Unbekanntes Problem')
                         
                         # Extract owner/repo from URL for formatted title
                         # URL format: https://github.com/owner/repo/issues/123
@@ -2449,17 +2449,10 @@ def api_task_similar(request, task_id):
                                     issue_data = issue_result.get('issue', {})
                                     current_state = issue_data.get('state', issue_state)
                                     
-                                    # Update metadata in Weaviate if state changed
+                                    # Note: Weaviate update would require re-syncing the full issue
+                                    # For now, we just use the current state from GitHub
                                     if current_state != issue_state:
-                                        metadata['github_issue_state'] = current_state
-                                        chroma_id = result.get('id')
-                                        
-                                        # Update Weaviate with new state
-                                        github_sync_service._collection.update(
-                                            ids=[chroma_id],
-                                            metadatas=[metadata]
-                                        )
-                                        logger.info(f'Updated GitHub issue #{issue_number} state in Weaviate: {issue_state} -> {current_state}')
+                                        logger.info(f'GitHub issue #{issue_number} state changed: {issue_state} -> {current_state}')
                         except Exception as e:
                             logger.warning(f'Failed to fetch/update GitHub issue state: {str(e)}')
                         
@@ -2473,7 +2466,7 @@ def api_task_similar(request, task_id):
                             'issue_number': issue_number,
                             'url': issue_url
                         })
-        except GitHubIssueSyncServiceError as e:
+        except WeaviateGitHubIssueSyncServiceError as e:
             logger.warning(f'Failed to search similar GitHub issues: {str(e)}')
         except Exception as e:
             logger.warning(f'Unexpected error searching similar GitHub issues: {str(e)}')

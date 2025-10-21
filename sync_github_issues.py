@@ -41,7 +41,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ideagraph.settings')
 import django
 django.setup()
 
-from core.services.github_issue_sync_service import GitHubIssueSyncService, GitHubIssueSyncServiceError
+from core.services.weaviate_github_issue_sync_service import WeaviateGitHubIssueSyncService, WeaviateGitHubIssueSyncServiceError
 
 
 def setup_logging(verbose: bool = False):
@@ -137,7 +137,7 @@ def main():
     try:
         # Initialize sync service
         logger.info("Initializing GitHub Issue Sync Service...")
-        sync_service = GitHubIssueSyncService()
+        sync_service = WeaviateGitHubIssueSyncService()
         
         # Run synchronization
         logger.info("Starting synchronization...")
@@ -170,7 +170,7 @@ def main():
             logger.error("Synchronization failed")
             return 1
             
-    except GitHubIssueSyncServiceError as e:
+    except WeaviateGitHubIssueSyncServiceError as e:
         logger.error(f"Sync service error: {e.message}")
         if e.details:
             logger.error(f"Details: {e.details}")
