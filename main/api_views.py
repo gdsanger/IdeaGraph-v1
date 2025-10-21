@@ -2892,3 +2892,81 @@ def api_tags_network_data(request):
         return JsonResponse({'error': 'Failed to load network data'}, status=500)
 
 
+@require_http_methods(["GET"])
+def api_semantic_network(request, object_type, object_id):
+    """
+    Generate semantic network for an object (Item, Task, etc.)
+    
+    Query parameters:
+        - depth: Network depth (1-3, default: 3)
+        - threshold_1: Similarity threshold for level 1 (default: 0.8)
+        - threshold_2: Similarity threshold for level 2 (default: 0.7)
+        - threshold_3: Similarity threshold for level 3 (default: 0.6)
+        - summaries: Generate AI summaries ('true'/'false', default: 'true')
+    
+    Returns:
+        JSON response with:
+            - nodes: List of graph nodes
+            - edges: List of graph edges
+            - levels: Level-by-level breakdown with summaries
+            - source_id: ID of the source object
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from core.services.semantic_network_service import SemanticNetworkService, SemanticNetworkServiceError
+        
+        # Parse query parameters
+        depth = int(request.GET.get('depth', 3))
+        generate_summaries = request.GET.get('summaries', 'true').lower() == 'true'
+        
+        # Custom thresholds if provided
+        thresholds = {}
+        for level in [1, 2, 3]:
+            threshold_key = f'threshold_{level}'
+            if threshold_key in request.GET:
+                try:
+                    thresholds[level] = float(request.GET[threshold_key])
+                except ValueError:
+                    pass
+        
+        # Generate semantic network
+        service = SemanticNetworkService()
+        try:
+            result = service.generate_network(
+                object_type=object_type,
+                object_id=str(object_id),
+                depth=depth,
+                user_id=str(user.id),
+                thresholds=thresholds if thresholds else None,
+                generate_summaries=generate_summaries
+            )
+            
+            return JsonResponse(result)
+            
+        finally:
+            service.close()
+    
+    except SemanticNetworkServiceError as e:
+        logger.error(f'Semantic network service error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error generating semantic network: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to generate semantic network',
+            'details': str(e)
+        }, status=500)
+
+
