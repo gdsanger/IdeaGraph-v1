@@ -6,7 +6,7 @@ Includes automatic fallback to KiGate agents when available.
 """
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 import requests
 
