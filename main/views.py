@@ -890,16 +890,19 @@ def item_detail(request, item_id):
                     item.tags.clear()
 
                 # Sync update to Weaviate
+                sync_service = None
                 try:
                     from core.services.weaviate_sync_service import WeaviateItemSyncService
                     sync_service = WeaviateItemSyncService()
                     sync_service.sync_update(item)
-                    sync_service.close()
                 except Exception as sync_error:
                     # Log error but don't fail the item update
                     import logging
                     logger = logging.getLogger(__name__)
                     logger.warning(f'Weaviate sync failed for item {item.id}: {str(sync_error)}')
+                finally:
+                    if sync_service:
+                        sync_service.close()
 
                 messages.success(request, f'Item "{title}" updated successfully!')
                 selected_tags_payload = list(item.tags.values('id', 'name', 'color'))
@@ -1020,16 +1023,19 @@ def item_create(request):
                     item.clients.set(resolved_clients)
 
                 # Sync to Weaviate
+                sync_service = None
                 try:
                     from core.services.weaviate_sync_service import WeaviateItemSyncService
                     sync_service = WeaviateItemSyncService()
                     sync_service.sync_create(item)
-                    sync_service.close()
                 except Exception as sync_error:
                     # Log error but don't fail the item creation
                     import logging
                     logger = logging.getLogger(__name__)
                     logger.warning(f'Weaviate sync failed for item {item.id}: {str(sync_error)}')
+                finally:
+                    if sync_service:
+                        sync_service.close()
 
                 messages.success(request, f'Item "{title}" created successfully!')
                 return redirect('main:item_detail', item_id=item.id)
@@ -1117,16 +1123,19 @@ def item_edit(request, item_id):
                     item.clients.clear()
 
                 # Sync update to Weaviate
+                sync_service = None
                 try:
                     from core.services.weaviate_sync_service import WeaviateItemSyncService
                     sync_service = WeaviateItemSyncService()
                     sync_service.sync_update(item)
-                    sync_service.close()
                 except Exception as sync_error:
                     # Log error but don't fail the item update
                     import logging
                     logger = logging.getLogger(__name__)
                     logger.warning(f'Weaviate sync failed for item {item.id}: {str(sync_error)}')
+                finally:
+                    if sync_service:
+                        sync_service.close()
 
                 messages.success(request, f'Item "{title}" updated successfully!')
                 return redirect('main:item_detail', item_id=item.id)
@@ -1187,16 +1196,19 @@ def item_delete(request, item_id):
         item.delete()
         
         # Sync delete to Weaviate
+        sync_service = None
         try:
             from core.services.weaviate_sync_service import WeaviateItemSyncService
             sync_service = WeaviateItemSyncService()
             sync_service.sync_delete(item_id_str)
-            sync_service.close()
         except Exception as sync_error:
             # Log error but don't fail the item deletion
             import logging
             logger = logging.getLogger(__name__)
             logger.warning(f'Weaviate sync failed for item {item_id_str}: {str(sync_error)}')
+        finally:
+            if sync_service:
+                sync_service.close()
         
         messages.success(request, f'Item "{item_title}" deleted successfully!')
         return redirect('main:item_list')
@@ -1391,16 +1403,19 @@ def task_create(request, item_id):
                     task.tags.set(resolved_tags)
 
                 # Sync to Weaviate
+                sync_service = None
                 try:
                     from core.services.weaviate_task_sync_service import WeaviateTaskSyncService
                     sync_service = WeaviateTaskSyncService()
                     sync_service.sync_create(task)
-                    sync_service.close()
                 except Exception as sync_error:
                     # Log error but don't fail the task creation
                     import logging
                     logger = logging.getLogger(__name__)
                     logger.warning(f'Weaviate sync failed for task {task.id}: {str(sync_error)}')
+                finally:
+                    if sync_service:
+                        sync_service.close()
 
                 messages.success(request, f'Task "{title}" created successfully!')
                 return redirect('main:task_detail', task_id=task.id)
@@ -1498,16 +1513,19 @@ def task_edit(request, task_id):
                     task.tags.clear()
 
                 # Sync update to Weaviate
+                sync_service = None
                 try:
                     from core.services.weaviate_task_sync_service import WeaviateTaskSyncService
                     sync_service = WeaviateTaskSyncService()
                     sync_service.sync_update(task)
-                    sync_service.close()
                 except Exception as sync_error:
                     # Log error but don't fail the task update
                     import logging
                     logger = logging.getLogger(__name__)
                     logger.warning(f'Weaviate sync failed for task {task.id}: {str(sync_error)}')
+                finally:
+                    if sync_service:
+                        sync_service.close()
 
                 messages.success(request, f'Task "{title}" updated successfully!')
                 return redirect('main:task_detail', task_id=task.id)
@@ -1559,16 +1577,19 @@ def task_delete(request, task_id):
         task.delete()
         
         # Sync delete to Weaviate
+        sync_service = None
         try:
             from core.services.weaviate_task_sync_service import WeaviateTaskSyncService
             sync_service = WeaviateTaskSyncService()
             sync_service.sync_delete(task_id_str)
-            sync_service.close()
         except Exception as sync_error:
             # Log error but don't fail the task deletion
             import logging
             logger = logging.getLogger(__name__)
             logger.warning(f'Weaviate sync failed for task {task_id_str}: {str(sync_error)}')
+        finally:
+            if sync_service:
+                sync_service.close()
         
         messages.success(request, f'Task "{task_title}" deleted successfully!')
         return redirect('main:item_detail', item_id=item.id)
