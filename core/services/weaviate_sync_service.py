@@ -11,7 +11,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 import weaviate
 from weaviate.classes.init import Auth
-from weaviate.classes.query import MetadataQuery
+from weaviate.classes.query import MetadataQuery, Filter
 
 
 logger = logging.getLogger('weaviate_sync_service')
@@ -38,13 +38,13 @@ class WeaviateItemSyncService:
     """
     Weaviate Item Synchronization Service
     
-    Synchronizes Items with Weaviate vector database:
+    Synchronizes Items with Weaviate vector database using KnowledgeObject schema:
     - Stores item description as embedding
     - Stores item metadata (title, description, section, owner, status, tags, timestamps)
     - Supports create, update, and delete operations
     """
     
-    COLLECTION_NAME = 'Item'
+    COLLECTION_NAME = 'KnowledgeObject'
     
     def __init__(self, settings=None):
         """
@@ -167,34 +167,34 @@ class WeaviateItemSyncService:
     
     def _item_to_properties(self, item) -> Dict[str, Any]:
         """
-        Convert Item object to Weaviate properties dictionary
+        Convert Item object to Weaviate KnowledgeObject properties dictionary
         
         Args:
             item: Item model instance
         
         Returns:
-            Dictionary of properties
+            Dictionary of properties for KnowledgeObject schema
         """
-        # Get tag references (UUIDs)
-        from main.models import Tag
-        tag_refs = []
-        for tag in item.tags.all():
-            tag_refs.append(str(tag.id))
+        # Get tags as list of names
+        tag_names = [tag.name for tag in item.tags.all()]
         
         properties = {
+            'type': 'Item',
             'title': item.title,
             'description': item.description or '',
             'section': item.section.name if item.section else '',
             'owner': item.created_by.username if item.created_by else '',
             'status': item.status,
             'createdAt': item.created_at.isoformat(),
+            'tags': tag_names,
+            'url': f'/items/{item.id}/',
         }
         
         return properties
     
     def sync_create(self, item) -> Dict[str, Any]:
         """
-        Synchronize a newly created item to Weaviate
+        Synchronize a newly created item to Weaviate KnowledgeObject
         
         Args:
             item: Item model instance
@@ -208,7 +208,7 @@ class WeaviateItemSyncService:
             WeaviateItemSyncServiceError: If sync fails
         """
         try:
-            logger.info(f"Syncing new item to Weaviate: {item.id} - {item.title}")
+            logger.info(f"Syncing new item to Weaviate KnowledgeObject: {item.id} - {item.title}")
             
             # Prepare properties
             properties = self._item_to_properties(item)
@@ -222,19 +222,7 @@ class WeaviateItemSyncService:
                 uuid=str(item.id)
             )
             
-            # Add tag references after creation
-            tag_refs = [str(tag.id) for tag in item.tags.all()]
-            if tag_refs:
-                try:
-                    collection.data.reference_add_many(
-                        from_uuid=str(item.id),
-                        from_property="tagRefs",
-                        to_uuids=tag_refs
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to add tag references: {str(e)}")
-            
-            logger.info(f"Successfully synced item {item.id} to Weaviate")
+            logger.info(f"Successfully synced item {item.id} to Weaviate KnowledgeObject")
             
             return {
                 'success': True,
@@ -250,7 +238,7 @@ class WeaviateItemSyncService:
     
     def sync_update(self, item) -> Dict[str, Any]:
         """
-        Synchronize an updated item to Weaviate
+        Synchronize an updated item to Weaviate KnowledgeObject
         
         If the item doesn't exist in Weaviate, it will be created instead.
         
@@ -266,7 +254,7 @@ class WeaviateItemSyncService:
             WeaviateItemSyncServiceError: If sync fails
         """
         try:
-            logger.info(f"Updating item in Weaviate: {item.id} - {item.title}")
+            logger.info(f"Updating item in Weaviate KnowledgeObject: {item.id} - {item.title}")
             
             # Get collection
             collection = self._client.collections.get(self.COLLECTION_NAME)
@@ -293,29 +281,7 @@ class WeaviateItemSyncService:
                 properties=properties
             )
             
-            # Update tag references
-            # First, delete all existing references
-            try:
-                collection.data.reference_delete(
-                    from_uuid=str(item.id),
-                    from_property="tagRefs"
-                )
-            except Exception as e:
-                logger.debug(f"No existing references to delete: {str(e)}")
-            
-            # Add new tag references
-            tag_refs = [str(tag.id) for tag in item.tags.all()]
-            if tag_refs:
-                try:
-                    collection.data.reference_add_many(
-                        from_uuid=str(item.id),
-                        from_property="tagRefs",
-                        to_uuids=tag_refs
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to add tag references: {str(e)}")
-            
-            logger.info(f"Successfully updated item {item.id} in Weaviate")
+            logger.info(f"Successfully updated item {item.id} in Weaviate KnowledgeObject")
             
             return {
                 'success': True,
@@ -331,7 +297,7 @@ class WeaviateItemSyncService:
     
     def sync_delete(self, item_id: str) -> Dict[str, Any]:
         """
-        Delete an item from Weaviate
+        Delete an item from Weaviate KnowledgeObject
         
         Args:
             item_id: UUID string of the item to delete
@@ -345,7 +311,7 @@ class WeaviateItemSyncService:
             WeaviateItemSyncServiceError: If deletion fails
         """
         try:
-            logger.info(f"Deleting item from Weaviate: {item_id}")
+            logger.info(f"Deleting item from Weaviate KnowledgeObject: {item_id}")
             
             # Get collection
             collection = self._client.collections.get(self.COLLECTION_NAME)
@@ -353,7 +319,7 @@ class WeaviateItemSyncService:
             # Delete from collection
             collection.data.delete_by_id(str(item_id))
             
-            logger.info(f"Successfully deleted item {item_id} from Weaviate")
+            logger.info(f"Successfully deleted item {item_id} from Weaviate KnowledgeObject")
             
             return {
                 'success': True,
@@ -369,7 +335,7 @@ class WeaviateItemSyncService:
     
     def search_similar(self, query_text: str, n_results: int = 5) -> Dict[str, Any]:
         """
-        Search for similar items using semantic similarity
+        Search for similar items using semantic similarity in KnowledgeObject
         
         Args:
             query_text: Text to search for
@@ -384,16 +350,18 @@ class WeaviateItemSyncService:
             WeaviateItemSyncServiceError: If search fails
         """
         try:
-            logger.info(f"Searching for similar items: '{query_text[:50]}...'")
+            logger.info(f"Searching for similar items in KnowledgeObject: '{query_text[:50]}...'")
             
             # Get collection
             collection = self._client.collections.get(self.COLLECTION_NAME)
             
-            # Search using near_text
+            # Search using near_text with filter for type='Item'
+            from weaviate.classes.query import Filter
             response = collection.query.near_text(
                 query=query_text,
                 limit=n_results,
-                return_metadata=MetadataQuery(distance=True)
+                return_metadata=MetadataQuery(distance=True),
+                filters=Filter.by_property("type").equal("Item")
             )
             
             # Format results
