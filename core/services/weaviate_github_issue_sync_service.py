@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 import weaviate
 from weaviate.classes.init import Auth
-from weaviate.classes.query import MetadataQuery
+from weaviate.classes.query import MetadataQuery, Filter
 
 
 logger = logging.getLogger('weaviate_github_issue_sync_service')
@@ -37,13 +37,13 @@ class WeaviateGitHubIssueSyncService:
     """
     Weaviate GitHub Issue Synchronization Service
     
-    Synchronizes GitHub Issues and Pull Requests with Weaviate vector database:
+    Synchronizes GitHub Issues and Pull Requests with Weaviate vector database using KnowledgeObject schema:
     - Stores issue/PR descriptions as embeddings
     - Stores metadata (title, state, URL, issue number, references to tasks/items)
     - Supports create, update, and delete operations
     """
     
-    COLLECTION_NAME = 'GitHubIssue'
+    COLLECTION_NAME = 'KnowledgeObject'
     
     def __init__(self, settings=None):
         """
@@ -111,7 +111,7 @@ class WeaviateGitHubIssueSyncService:
     
     def sync_issue_to_weaviate(self, issue: Dict[str, Any], task=None, item=None, uuid: str = None) -> Dict[str, Any]:
         """
-        Synchronize a GitHub issue to Weaviate
+        Synchronize a GitHub issue to Weaviate KnowledgeObject
         
         Args:
             issue: GitHub issue data from API
@@ -133,17 +133,27 @@ class WeaviateGitHubIssueSyncService:
             issue_url = issue.get('html_url', '')
             created_at = issue.get('created_at', datetime.now().isoformat())
             
-            logger.info(f"Syncing issue #{issue_number} to Weaviate: {issue_title}")
+            logger.info(f"Syncing issue #{issue_number} to Weaviate KnowledgeObject: {issue_title}")
             
-            # Prepare properties
+            # Prepare properties for KnowledgeObject schema
             properties = {
-                'issue_title': issue_title,
-                'issue_description': issue_body or '',
-                'issue_state': issue_state,
-                'issue_url': issue_url,
-                'issue_number': issue_number,
+                'type': 'GitHubIssue',
+                'title': issue_title,
+                'description': issue_body or '',
+                'status': issue_state,
                 'createdAt': created_at,
+                'githubIssueId': issue_number,
+                'url': issue_url,
+                'tags': [],  # GitHub issues don't have tags in our system
             }
+            
+            # Add taskId if linked to a task
+            if task:
+                properties['taskId'] = str(task.id)
+            
+            # Add itemId if linked to an item
+            if item:
+                properties['itemId'] = str(item.id)
             
             # Get collection
             collection = self._client.collections.get(self.COLLECTION_NAME)
@@ -172,29 +182,7 @@ class WeaviateGitHubIssueSyncService:
                     uuid=uuid
                 )
             
-            # Add task reference if exists
-            if task:
-                try:
-                    collection.data.reference_add(
-                        from_uuid=uuid,
-                        from_property="task",
-                        to=str(task.id)
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to add task reference: {str(e)}")
-            
-            # Add item reference if exists
-            if item:
-                try:
-                    collection.data.reference_add(
-                        from_uuid=uuid,
-                        from_property="item",
-                        to=str(item.id)
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to add item reference: {str(e)}")
-            
-            logger.info(f"Successfully synced issue #{issue_number} to Weaviate")
+            logger.info(f"Successfully synced issue #{issue_number} to Weaviate KnowledgeObject")
             
             return {
                 'success': True,
@@ -211,7 +199,7 @@ class WeaviateGitHubIssueSyncService:
     
     def sync_pull_request_to_weaviate(self, pr: Dict[str, Any], task=None, item=None, uuid: str = None) -> Dict[str, Any]:
         """
-        Synchronize a GitHub pull request to Weaviate
+        Synchronize a GitHub pull request to Weaviate KnowledgeObject
         
         Args:
             pr: GitHub pull request data from API
@@ -233,17 +221,27 @@ class WeaviateGitHubIssueSyncService:
             pr_url = pr.get('html_url', '')
             created_at = pr.get('created_at', datetime.now().isoformat())
             
-            logger.info(f"Syncing PR #{pr_number} to Weaviate: {pr_title}")
+            logger.info(f"Syncing PR #{pr_number} to Weaviate KnowledgeObject: {pr_title}")
             
-            # Prepare properties (same as issue since PRs are issues in GitHub)
+            # Prepare properties for KnowledgeObject schema (same as issue since PRs are issues in GitHub)
             properties = {
-                'issue_title': pr_title,
-                'issue_description': pr_body or '',
-                'issue_state': pr_state,
-                'issue_url': pr_url,
-                'issue_number': pr_number,
+                'type': 'GitHubIssue',
+                'title': pr_title,
+                'description': pr_body or '',
+                'status': pr_state,
                 'createdAt': created_at,
+                'githubIssueId': pr_number,
+                'url': pr_url,
+                'tags': [],  # GitHub PRs don't have tags in our system
             }
+            
+            # Add taskId if linked to a task
+            if task:
+                properties['taskId'] = str(task.id)
+            
+            # Add itemId if linked to an item
+            if item:
+                properties['itemId'] = str(item.id)
             
             # Get collection
             collection = self._client.collections.get(self.COLLECTION_NAME)
@@ -271,29 +269,7 @@ class WeaviateGitHubIssueSyncService:
                     uuid=uuid
                 )
             
-            # Add task reference if exists
-            if task:
-                try:
-                    collection.data.reference_add(
-                        from_uuid=uuid,
-                        from_property="task",
-                        to=str(task.id)
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to add task reference: {str(e)}")
-            
-            # Add item reference if exists
-            if item:
-                try:
-                    collection.data.reference_add(
-                        from_uuid=uuid,
-                        from_property="item",
-                        to=str(item.id)
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to add item reference: {str(e)}")
-            
-            logger.info(f"Successfully synced PR #{pr_number} to Weaviate")
+            logger.info(f"Successfully synced PR #{pr_number} to Weaviate KnowledgeObject")
             
             return {
                 'success': True,
@@ -310,7 +286,7 @@ class WeaviateGitHubIssueSyncService:
     
     def delete_issue(self, uuid: str) -> Dict[str, Any]:
         """
-        Delete a GitHub issue from Weaviate
+        Delete a GitHub issue from Weaviate KnowledgeObject
         
         Args:
             uuid: UUID string of the issue to delete
@@ -322,7 +298,7 @@ class WeaviateGitHubIssueSyncService:
             WeaviateGitHubIssueSyncServiceError: If deletion fails
         """
         try:
-            logger.info(f"Deleting issue from Weaviate: {uuid}")
+            logger.info(f"Deleting issue from Weaviate KnowledgeObject: {uuid}")
             
             # Get collection
             collection = self._client.collections.get(self.COLLECTION_NAME)
@@ -330,7 +306,7 @@ class WeaviateGitHubIssueSyncService:
             # Delete from collection
             collection.data.delete_by_id(str(uuid))
             
-            logger.info(f"Successfully deleted issue {uuid} from Weaviate")
+            logger.info(f"Successfully deleted issue {uuid} from Weaviate KnowledgeObject")
             
             return {
                 'success': True,
@@ -346,7 +322,7 @@ class WeaviateGitHubIssueSyncService:
     
     def search_similar_issues(self, query_text: str, n_results: int = 5) -> Dict[str, Any]:
         """
-        Search for similar GitHub issues using semantic similarity
+        Search for similar GitHub issues using semantic similarity in KnowledgeObject
         
         Args:
             query_text: Text to search for
@@ -361,16 +337,17 @@ class WeaviateGitHubIssueSyncService:
             WeaviateGitHubIssueSyncServiceError: If search fails
         """
         try:
-            logger.info(f"Searching for similar GitHub issues: '{query_text[:50]}...'")
+            logger.info(f"Searching for similar GitHub issues in KnowledgeObject: '{query_text[:50]}...'")
             
             # Get collection
             collection = self._client.collections.get(self.COLLECTION_NAME)
             
-            # Search using near_text
+            # Search using near_text with filter for type='GitHubIssue'
             response = collection.query.near_text(
                 query=query_text,
                 limit=n_results,
-                return_metadata=MetadataQuery(distance=True)
+                return_metadata=MetadataQuery(distance=True),
+                filters=Filter.by_property("type").equal("GitHubIssue")
             )
             
             # Format results
@@ -379,14 +356,14 @@ class WeaviateGitHubIssueSyncService:
                 similar_issues.append({
                     'id': str(obj.uuid),
                     'metadata': {
-                        'issue_title': obj.properties.get('issue_title', ''),
-                        'issue_description': obj.properties.get('issue_description', ''),
-                        'issue_state': obj.properties.get('issue_state', ''),
-                        'issue_url': obj.properties.get('issue_url', ''),
-                        'issue_number': obj.properties.get('issue_number', 0),
+                        'issue_title': obj.properties.get('title', ''),
+                        'issue_description': obj.properties.get('description', ''),
+                        'issue_state': obj.properties.get('status', ''),
+                        'issue_url': obj.properties.get('url', ''),
+                        'issue_number': obj.properties.get('githubIssueId', 0),
                         'created_at': obj.properties.get('createdAt', ''),
                     },
-                    'document': obj.properties.get('issue_description', ''),
+                    'document': obj.properties.get('description', ''),
                     'distance': obj.metadata.distance if obj.metadata else 0.0
                 })
             

@@ -11,7 +11,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 import weaviate
 from weaviate.classes.init import Auth
-from weaviate.classes.query import MetadataQuery
+from weaviate.classes.query import MetadataQuery, Filter
 
 
 logger = logging.getLogger('weaviate_task_sync_service')
@@ -38,13 +38,13 @@ class WeaviateTaskSyncService:
     """
     Weaviate Task Synchronization Service
     
-    Synchronizes Tasks with Weaviate vector database:
+    Synchronizes Tasks with Weaviate vector database using KnowledgeObject schema:
     - Stores task description as embedding
     - Stores task metadata (title, description, status, owner, item, tags, timestamps)
     - Supports create, update, and delete operations
     """
     
-    COLLECTION_NAME = 'Task'
+    COLLECTION_NAME = 'KnowledgeObject'
     
     def __init__(self, settings=None):
         """
@@ -112,27 +112,41 @@ class WeaviateTaskSyncService:
     
     def _task_to_properties(self, task) -> Dict[str, Any]:
         """
-        Convert Task object to Weaviate properties dictionary
+        Convert Task object to Weaviate KnowledgeObject properties dictionary
         
         Args:
             task: Task model instance
         
         Returns:
-            Dictionary of properties
+            Dictionary of properties for KnowledgeObject schema
         """
+        # Get tags as list of names
+        tag_names = [tag.name for tag in task.tags.all()]
+        
         properties = {
+            'type': 'Task',
             'title': task.title,
             'description': task.description or '',
             'status': task.status,
             'owner': task.created_by.username if task.created_by else '',
             'createdAt': task.created_at.isoformat(),
+            'tags': tag_names,
+            'url': f'/tasks/{task.id}/',
         }
+        
+        # Add itemId if task belongs to an item
+        if task.item:
+            properties['itemId'] = str(task.item.id)
+        
+        # Add githubIssueId if task has a linked GitHub issue
+        if task.github_issue_id:
+            properties['githubIssueId'] = task.github_issue_id
         
         return properties
     
     def sync_create(self, task) -> Dict[str, Any]:
         """
-        Synchronize a newly created task to Weaviate
+        Synchronize a newly created task to Weaviate KnowledgeObject
         
         Args:
             task: Task model instance
@@ -146,7 +160,7 @@ class WeaviateTaskSyncService:
             WeaviateTaskSyncServiceError: If sync fails
         """
         try:
-            logger.info(f"Syncing new task to Weaviate: {task.id} - {task.title}")
+            logger.info(f"Syncing new task to Weaviate KnowledgeObject: {task.id} - {task.title}")
             
             # Prepare properties
             properties = self._task_to_properties(task)
@@ -160,36 +174,7 @@ class WeaviateTaskSyncService:
                 uuid=str(task.id)
             )
             
-            # Add item reference if exists
-            if task.item:
-                try:
-                    collection.data.reference_add(
-                        from_uuid=str(task.id),
-                        from_property="item",
-                        to=str(task.item.id)
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to add item reference: {str(e)}")
-            
-            # Add tag references
-            tag_refs = [str(tag.id) for tag in task.tags.all()]
-            if tag_refs:
-                try:
-                    collection.data.reference_add_many(
-                        from_uuid=str(task.id),
-                        from_property="tagRefs",
-                        to_uuids=tag_refs
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to add tag references: {str(e)}")
-            
-            # Add github issue reference if exists
-            if task.github_issue_id:
-                # Note: We'll need to check if GitHubIssue with this issue_number exists in Weaviate
-                # For now, we just log it
-                logger.info(f"Task {task.id} has GitHub issue ID: {task.github_issue_id}")
-            
-            logger.info(f"Successfully synced task {task.id} to Weaviate")
+            logger.info(f"Successfully synced task {task.id} to Weaviate KnowledgeObject")
             
             return {
                 'success': True,
@@ -205,7 +190,7 @@ class WeaviateTaskSyncService:
     
     def sync_update(self, task) -> Dict[str, Any]:
         """
-        Synchronize an updated task to Weaviate
+        Synchronize an updated task to Weaviate KnowledgeObject
         
         If the task doesn't exist in Weaviate, it will be created instead.
         
@@ -221,7 +206,7 @@ class WeaviateTaskSyncService:
             WeaviateTaskSyncServiceError: If sync fails
         """
         try:
-            logger.info(f"Updating task in Weaviate: {task.id} - {task.title}")
+            logger.info(f"Updating task in Weaviate KnowledgeObject: {task.id} - {task.title}")
             
             # Get collection
             collection = self._client.collections.get(self.COLLECTION_NAME)
@@ -248,46 +233,7 @@ class WeaviateTaskSyncService:
                 properties=properties
             )
             
-            # Update item reference
-            try:
-                collection.data.reference_delete(
-                    from_uuid=str(task.id),
-                    from_property="item"
-                )
-            except Exception as e:
-                logger.debug(f"No existing item reference to delete: {str(e)}")
-            
-            if task.item:
-                try:
-                    collection.data.reference_add(
-                        from_uuid=str(task.id),
-                        from_property="item",
-                        to=str(task.item.id)
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to add item reference: {str(e)}")
-            
-            # Update tag references
-            try:
-                collection.data.reference_delete(
-                    from_uuid=str(task.id),
-                    from_property="tagRefs"
-                )
-            except Exception as e:
-                logger.debug(f"No existing tag references to delete: {str(e)}")
-            
-            tag_refs = [str(tag.id) for tag in task.tags.all()]
-            if tag_refs:
-                try:
-                    collection.data.reference_add_many(
-                        from_uuid=str(task.id),
-                        from_property="tagRefs",
-                        to_uuids=tag_refs
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to add tag references: {str(e)}")
-            
-            logger.info(f"Successfully updated task {task.id} in Weaviate")
+            logger.info(f"Successfully updated task {task.id} in Weaviate KnowledgeObject")
             
             return {
                 'success': True,
@@ -303,7 +249,7 @@ class WeaviateTaskSyncService:
     
     def sync_delete(self, task_id: str) -> Dict[str, Any]:
         """
-        Delete a task from Weaviate
+        Delete a task from Weaviate KnowledgeObject
         
         Args:
             task_id: UUID string of the task to delete
@@ -317,7 +263,7 @@ class WeaviateTaskSyncService:
             WeaviateTaskSyncServiceError: If deletion fails
         """
         try:
-            logger.info(f"Deleting task from Weaviate: {task_id}")
+            logger.info(f"Deleting task from Weaviate KnowledgeObject: {task_id}")
             
             # Get collection
             collection = self._client.collections.get(self.COLLECTION_NAME)
@@ -325,7 +271,7 @@ class WeaviateTaskSyncService:
             # Delete from collection
             collection.data.delete_by_id(str(task_id))
             
-            logger.info(f"Successfully deleted task {task_id} from Weaviate")
+            logger.info(f"Successfully deleted task {task_id} from Weaviate KnowledgeObject")
             
             return {
                 'success': True,
@@ -341,7 +287,7 @@ class WeaviateTaskSyncService:
     
     def search_similar(self, query_text: str, n_results: int = 5) -> Dict[str, Any]:
         """
-        Search for similar tasks using semantic similarity
+        Search for similar tasks using semantic similarity in KnowledgeObject
         
         Args:
             query_text: Text to search for
@@ -356,16 +302,17 @@ class WeaviateTaskSyncService:
             WeaviateTaskSyncServiceError: If search fails
         """
         try:
-            logger.info(f"Searching for similar tasks: '{query_text[:50]}...'")
+            logger.info(f"Searching for similar tasks in KnowledgeObject: '{query_text[:50]}...'")
             
             # Get collection
             collection = self._client.collections.get(self.COLLECTION_NAME)
             
-            # Search using near_text
+            # Search using near_text with filter for type='Task'
             response = collection.query.near_text(
                 query=query_text,
                 limit=n_results,
-                return_metadata=MetadataQuery(distance=True)
+                return_metadata=MetadataQuery(distance=True),
+                filters=Filter.by_property("type").equal("Task")
             )
             
             # Format results
