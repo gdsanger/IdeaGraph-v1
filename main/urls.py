@@ -76,6 +76,11 @@ urlpatterns = [
     # Global Task Overview
     path('admin/tasks/overview/', views.task_overview, name='task_overview'),
     
+    # Milestone Management URLs
+    path('items/<uuid:item_id>/milestones/create/', views.milestone_create, name='milestone_create'),
+    path('milestones/<uuid:milestone_id>/edit/', views.milestone_edit, name='milestone_edit'),
+    path('milestones/<uuid:milestone_id>/delete/', views.milestone_delete, name='milestone_delete'),
+    
     # API Authentication Endpoints
     path('api/auth/login', api_views.api_login, name='api_login'),
     path('api/auth/logout', api_views.api_logout, name='api_logout'),

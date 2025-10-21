@@ -264,6 +264,25 @@ class Relation(models.Model):
         return f"{self.source.title} -> {self.target.title} ({self.get_type_display()})"
 
 
+class Milestone(models.Model):
+    """Milestone model for tracking important deadlines within items"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255)
+    due_date = models.DateField()
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='milestones')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['due_date']
+        verbose_name = 'Milestone'
+        verbose_name_plural = 'Milestones'
+    
+    def __str__(self):
+        return self.name
+
+
 class Task(models.Model):
     """Task model for managing action items derived from Ideas"""
     
@@ -282,6 +301,7 @@ class Task(models.Model):
     
     # Relations
     item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
+    milestone = models.ForeignKey(Milestone, on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks')
     tags = models.ManyToManyField(Tag, blank=True, related_name='tasks')
     assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_tasks')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_tasks')

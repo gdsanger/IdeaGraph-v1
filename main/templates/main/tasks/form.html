@@ -161,8 +161,25 @@
                                 </select>
                             </div>
 
-                            <!-- Tags -->
+                            <!-- Milestone -->
                             <div class="col-md-6 mb-3">
+                                <label for="milestone" class="form-label">Milestone</label>
+                                <select class="form-select" id="milestone" name="milestone">
+                                    <option value="">No Milestone</option>
+                                    {% for milestone in milestones %}
+                                    <option value="{{ milestone.id }}" 
+                                            {% if task and task.milestone and task.milestone.id == milestone.id %}selected{% endif %}>
+                                        {{ milestone.name }} ({{ milestone.due_date|date:"d.m.Y" }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Select a milestone for this task.</small>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Tags -->
+                            <div class="col-md-12 mb-3">
                                 <label class="form-label">Tags</label>
                                 <div id="taskTagTokenBox" class="tag-token-box"></div>
                                 <div id="taskTagHiddenInputs"></div>
