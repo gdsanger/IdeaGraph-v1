@@ -106,6 +106,9 @@ class ItemFileService:
         # Replace multiple underscores with single underscore
         name = re.sub(r'_{2,}', '_', name)
         
+        # Remove leading/trailing underscores
+        name = name.strip('_')
+        
         # Limit length to 255 characters (SharePoint limit)
         if len(name) > 255:
             name = name[:255]
@@ -114,6 +117,7 @@ class ItemFileService:
         if not name:
             name = 'Untitled'
         
+        return name
         return name
     
     def _ensure_folder_exists(self, folder_path: str) -> Dict[str, Any]:
