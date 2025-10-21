@@ -33,12 +33,13 @@ class SemanticNetworkServiceTest(TestCase):
         self.assertEqual(service.settings, self.settings)
         mock_weaviate.connect_to_local.assert_called_once()
     
-    def test_collection_names(self):
-        """Test that collection names are defined"""
-        self.assertIn('item', SemanticNetworkService.COLLECTIONS)
-        self.assertIn('task', SemanticNetworkService.COLLECTIONS)
-        self.assertEqual(SemanticNetworkService.COLLECTIONS['item'], 'Item')
-        self.assertEqual(SemanticNetworkService.COLLECTIONS['task'], 'Task')
+    def test_type_mapping(self):
+        """Test that type mapping is defined"""
+        self.assertIn('item', SemanticNetworkService.TYPE_MAPPING)
+        self.assertIn('task', SemanticNetworkService.TYPE_MAPPING)
+        self.assertEqual(SemanticNetworkService.TYPE_MAPPING['item'], 'Item')
+        self.assertEqual(SemanticNetworkService.TYPE_MAPPING['task'], 'Task')
+        self.assertEqual(SemanticNetworkService.COLLECTION_NAME, 'KnowledgeObject')
     
     def test_default_thresholds(self):
         """Test that default similarity thresholds are defined"""
