@@ -2965,8 +2965,7 @@ def api_semantic_network(request, object_type, object_id):
         logger.error(f'Error generating semantic network: {str(e)}')
         return JsonResponse({
             'success': False,
-            'error': 'Failed to generate semantic network',
-            'details': str(e)
+            'error': 'Failed to generate semantic network'
         }, status=500)
 
 
