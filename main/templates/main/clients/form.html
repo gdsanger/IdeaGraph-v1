@@ -1,0 +1,86 @@
+{% extends "main/base.html" %}
+
+{% block title %}{% if client %}Edit Client{% else %}Create Client{% endif %} - IdeaGraph v1.0{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header -->
+    <div class="row mb-4 fade-in-up">
+        <div class="col-lg-12">
+            <h1 class="display-4 fw-bold mb-2" style="color: var(--autumn-light);">
+                <i class="bi bi-{% if client %}pencil-fill{% else %}plus-circle-fill{% endif %}"></i>
+                {% if client %}Edit Client{% else %}Create New Client{% endif %}
+            </h1>
+            <p class="lead" style="color: #d1d5db;">
+                {% if client %}Update the client information{% else %}Add a new client to your organization{% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Form -->
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card fade-in-up" style="animation-delay: 0.1s;">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-{% if client %}pencil{% else %}plus{% endif %}-circle"></i>
+                        Client Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="clientForm">
+                        {% csrf_token %}
+                        
+                        <!-- Name Field -->
+                        <div class="mb-4">
+                            <label for="name" class="form-label" style="color: var(--autumn-light);">
+                                <i class="bi bi-building"></i> Client Name *
+                            </label>
+                            <input type="text" 
+                                   class="form-control form-control-lg" 
+                                   id="name" 
+                                   name="name" 
+                                   value="{% if client %}{{ client.name }}{% endif %}"
+                                   placeholder="Enter client name (e.g., Acme Corporation, Tech Startup Inc.)"
+                                   required>
+                            <small class="text-muted">
+                                Choose a descriptive name for your client. This will help organize users and items.
+                            </small>
+                        </div>
+
+                        <!-- Info Box -->
+                        <div class="mb-4 p-3 rounded" style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--autumn-accent);">
+                            <p class="mb-2" style="color: var(--autumn-light);">
+                                <i class="bi bi-info-circle-fill"></i> <strong>About Clients:</strong>
+                            </p>
+                            <p class="mb-0 text-muted" style="font-size: 0.95rem;">
+                                Clients represent customers or organizations. Users can be assigned to a single client, while items can be associated with multiple clients for cross-organization projects.
+                            </p>
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="d-flex gap-2 justify-content-end">
+                            <a href="{% url 'main:client_list' %}" class="btn btn-outline-secondary btn-lg">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-check-circle-fill"></i> {% if client %}Update Client{% else %}Create Client{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

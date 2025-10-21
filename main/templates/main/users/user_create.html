@@ -91,6 +91,24 @@
                             </select>
                         </div>
 
+                        <!-- Client -->
+                        <div class="mb-3">
+                            <label for="client" class="form-label">
+                                <i class="bi bi-building"></i> Client (Optional)
+                            </label>
+                            <select class="form-select" id="client" name="client">
+                                <option value="">No Client</option>
+                                {% for client in clients %}
+                                    <option value="{{ client.id }}">
+                                        {{ client.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">
+                                <i class="bi bi-info-circle"></i> Assign this user to a client organization.
+                            </div>
+                        </div>
+
                         <!-- Is Active -->
                         <div class="mb-3 form-check">
                             <input type="checkbox" class="form-check-input" id="is_active" name="is_active" checked>

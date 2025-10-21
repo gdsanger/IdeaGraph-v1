@@ -22,6 +22,7 @@ class User(models.Model):
     password_hash = models.CharField(max_length=128)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='user')
     is_active = models.BooleanField(default=True)
+    client = models.ForeignKey('Client', on_delete=models.SET_NULL, null=True, blank=True, related_name='users')
     created_at = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(null=True, blank=True)
     ai_classification = models.CharField(max_length=255, blank=True, default='')
@@ -156,6 +157,23 @@ class Tag(models.Model):
         self.usage_count = count
         self.save(update_fields=['usage_count'])
         return count
+class Client(models.Model):
+    """Client model for managing customers/clients"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Client'
+        verbose_name_plural = 'Clients'
+        
+    def __str__(self):
+        return self.name
+
+
 class Section(models.Model):
     """Section model for categorizing items by their fundamental type
     
@@ -198,6 +216,7 @@ class Item(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='new')
     section = models.ForeignKey(Section, on_delete=models.SET_NULL, null=True, blank=True, related_name='items')
     tags = models.ManyToManyField(Tag, blank=True, related_name='items')
+    clients = models.ManyToManyField('Client', blank=True, related_name='items')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_items')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

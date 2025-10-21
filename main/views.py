@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.core.paginator import Paginator
 from .auth_utils import validate_password
-from .models import Tag, Settings, Section, User, Item, Task
+from .models import Tag, Settings, Section, User, Item, Task, Client
 
 
 def _separate_tag_values(tag_values):
@@ -93,6 +93,53 @@ def _build_selected_tags_payload(tag_values):
         seen_names.add(lower_name)
 
     return payload
+
+
+def _resolve_client_values(client_values):
+    """Return Client objects for submitted form values."""
+    if not client_values:
+        return []
+    
+    resolved_clients = []
+    seen_ids = set()
+    
+    for value in client_values:
+        if not value:
+            continue
+        # Client values should only be existing IDs (no creation like tags)
+        if str(value) not in seen_ids:
+            try:
+                client = Client.objects.get(id=value)
+                resolved_clients.append(client)
+                seen_ids.add(str(value))
+            except Client.DoesNotExist:
+                continue
+    
+    return resolved_clients
+
+
+def _build_selected_clients_payload(client_values):
+    """Return dictionaries for rendering selected clients."""
+    if not client_values:
+        return []
+    
+    payload = []
+    seen_ids = set()
+    
+    existing_clients = {
+        str(client['id']): client
+        for client in Client.objects.filter(id__in=client_values).values('id', 'name')
+    }
+    
+    for client_id in client_values:
+        if str(client_id) not in seen_ids:
+            client = existing_clients.get(str(client_id))
+            if client:
+                payload.append(client)
+                seen_ids.add(str(client_id))
+    
+    return payload
+
 
 def home(request):
     """Home page view"""
@@ -304,6 +351,65 @@ def section_delete(request, section_id):
     return render(request, 'main/sections/delete.html', {'section': section})
 
 
+def client_list(request):
+    """List all clients"""
+    clients = Client.objects.all()
+    return render(request, 'main/clients/list.html', {'clients': clients})
+
+
+def client_create(request):
+    """Create a new client"""
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        
+        if name:
+            try:
+                client = Client(name=name)
+                client.save()
+                messages.success(request, f'Client "{name}" created successfully!')
+                return redirect('main:client_list')
+            except Exception as e:
+                messages.error(request, f'Error creating client: {str(e)}')
+        else:
+            messages.error(request, 'Client name is required.')
+    
+    return render(request, 'main/clients/form.html')
+
+
+def client_edit(request, client_id):
+    """Edit an existing client"""
+    client = get_object_or_404(Client, id=client_id)
+    
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        
+        if name:
+            try:
+                client.name = name
+                client.save()
+                messages.success(request, f'Client "{name}" updated successfully!')
+                return redirect('main:client_list')
+            except Exception as e:
+                messages.error(request, f'Error updating client: {str(e)}')
+        else:
+            messages.error(request, 'Client name is required.')
+    
+    return render(request, 'main/clients/form.html', {'client': client})
+
+
+def client_delete(request, client_id):
+    """Delete a client"""
+    client = get_object_or_404(Client, id=client_id)
+    
+    if request.method == 'POST':
+        client_name = client.name
+        client.delete()
+        messages.success(request, f'Client "{client_name}" deleted successfully!')
+        return redirect('main:client_list')
+    
+    return render(request, 'main/clients/delete.html', {'client': client})
+
+
 def settings_list(request):
     """List all settings"""
     settings = Settings.objects.all()
@@ -456,6 +562,7 @@ def user_create(request):
         role = request.POST.get('role', 'user')
         is_active = request.POST.get('is_active') == 'on'
         ai_classification = request.POST.get('ai_classification', '').strip()
+        client_id = request.POST.get('client', '').strip()
         
         # Validation
         if not username:
@@ -484,6 +591,10 @@ def user_create(request):
                         is_active=is_active,
                         ai_classification=ai_classification
                     )
+                    
+                    if client_id:
+                        user.client_id = client_id
+                    
                     user.set_password(password)
                     user.save()
                     messages.success(request, f'User "{username}" created successfully!')
@@ -493,6 +604,7 @@ def user_create(request):
     
     context = {
         'role_choices': User.ROLE_CHOICES,
+        'clients': Client.objects.all(),
     }
     return render(request, 'main/users/user_create.html', context)
 
@@ -508,6 +620,7 @@ def user_edit(request, user_id):
         ai_classification = request.POST.get('ai_classification', '').strip()
         password = request.POST.get('password', '')
         password_confirm = request.POST.get('password_confirm', '')
+        client_id = request.POST.get('client', '').strip()
         
         # Validation
         if not email:
@@ -525,6 +638,7 @@ def user_edit(request, user_id):
                     context = {
                         'user': user,
                         'role_choices': User.ROLE_CHOICES,
+                        'clients': Client.objects.all(),
                     }
                     return render(request, 'main/users/user_edit.html', context)
             
@@ -533,6 +647,11 @@ def user_edit(request, user_id):
                 user.role = role
                 user.is_active = is_active
                 user.ai_classification = ai_classification
+                
+                if client_id:
+                    user.client_id = client_id
+                else:
+                    user.client = None
                 
                 if password:
                     user.set_password(password)
@@ -546,6 +665,7 @@ def user_edit(request, user_id):
     context = {
         'user': user,
         'role_choices': User.ROLE_CHOICES,
+        'clients': Client.objects.all(),
     }
     return render(request, 'main/users/user_edit.html', context)
 
@@ -850,6 +970,7 @@ def item_create(request):
     user = get_object_or_404(User, id=user_id)
     
     selected_tags_payload = []
+    selected_clients_payload = []
 
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
@@ -858,10 +979,12 @@ def item_create(request):
         section_id = request.POST.get('section')
         status = request.POST.get('status', 'new')
         tag_values = request.POST.getlist('tags')
+        client_values = request.POST.getlist('clients')
 
         if not title:
             messages.error(request, 'Title is required.')
             selected_tags_payload = _build_selected_tags_payload(tag_values)
+            selected_clients_payload = _build_selected_clients_payload(client_values)
         else:
             try:
                 # Create item
@@ -883,6 +1006,11 @@ def item_create(request):
                 if resolved_tags:
                     item.tags.set(resolved_tags)
 
+                # Add clients
+                resolved_clients = _resolve_client_values(client_values)
+                if resolved_clients:
+                    item.clients.set(resolved_clients)
+
                 # Sync to Weaviate
                 try:
                     from core.services.weaviate_sync_service import WeaviateItemSyncService
@@ -901,16 +1029,20 @@ def item_create(request):
             except Exception as e:
                 messages.error(request, f'Error creating item: {str(e)}')
                 selected_tags_payload = _build_selected_tags_payload(tag_values)
+                selected_clients_payload = _build_selected_clients_payload(client_values)
     
-    # Get all sections and tags for the form
+    # Get all sections, tags, clients and status choices for the form
     sections = Section.objects.all()
     all_tags = list(Tag.objects.values('id', 'name', 'color'))
+    all_clients = list(Client.objects.values('id', 'name'))
     status_choices = Item.STATUS_CHOICES
 
     context = {
         'sections': sections,
         'all_tags': all_tags,
+        'all_clients': all_clients,
         'selected_tags': selected_tags_payload,
+        'selected_clients': selected_clients_payload,
         'status_choices': status_choices,
     }
     
@@ -933,6 +1065,7 @@ def item_edit(request, item_id):
         return redirect('main:item_list')
     
     selected_tags_payload = list(item.tags.values('id', 'name', 'color'))
+    selected_clients_payload = list(item.clients.values('id', 'name'))
 
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
@@ -941,10 +1074,12 @@ def item_edit(request, item_id):
         section_id = request.POST.get('section')
         status = request.POST.get('status', item.status)
         tag_values = request.POST.getlist('tags')
+        client_values = request.POST.getlist('clients')
 
         if not title:
             messages.error(request, 'Title is required.')
             selected_tags_payload = _build_selected_tags_payload(tag_values)
+            selected_clients_payload = _build_selected_clients_payload(client_values)
         else:
             try:
                 item.title = title
@@ -966,6 +1101,13 @@ def item_edit(request, item_id):
                 else:
                     item.tags.clear()
 
+                # Update clients
+                resolved_clients = _resolve_client_values(client_values)
+                if resolved_clients:
+                    item.clients.set(resolved_clients)
+                else:
+                    item.clients.clear()
+
                 # Sync update to Weaviate
                 try:
                     from core.services.weaviate_sync_service import WeaviateItemSyncService
@@ -984,10 +1126,25 @@ def item_edit(request, item_id):
             except Exception as e:
                 messages.error(request, f'Error updating item: {str(e)}')
                 selected_tags_payload = _build_selected_tags_payload(tag_values)
+                selected_clients_payload = _build_selected_clients_payload(client_values)
     
-    # Get all sections and tags for the form
+    # Get all sections, tags, clients and status choices for the form
     sections = Section.objects.all()
     all_tags = list(Tag.objects.values('id', 'name', 'color'))
+    all_clients = list(Client.objects.values('id', 'name'))
+    status_choices = Item.STATUS_CHOICES
+
+    context = {
+        'item': item,
+        'sections': sections,
+        'all_tags': all_tags,
+        'all_clients': all_clients,
+        'selected_tags': selected_tags_payload,
+        'selected_clients': selected_clients_payload,
+        'status_choices': status_choices,
+    }
+    
+    return render(request, 'main/items/form.html', context)
     status_choices = Item.STATUS_CHOICES
 
     context = {
