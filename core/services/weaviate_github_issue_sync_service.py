@@ -380,6 +380,118 @@ class WeaviateGitHubIssueSyncService:
                 details=str(e)
             )
     
+    def sync_tasks_with_github_issues(
+        self,
+        repo: Optional[str] = None,
+        owner: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Synchronize tasks with their linked GitHub issues
+        Updates task status when GitHub issue is closed
+        Stores issue and PR data in Weaviate
+        
+        Args:
+            repo: Repository name (uses default if not provided)
+            owner: Repository owner (uses default if not provided)
+        
+        Returns:
+            Dictionary with sync results
+        
+        Raises:
+            WeaviateGitHubIssueSyncServiceError: If sync fails
+        """
+        try:
+            from main.models import Task
+            from core.services.github_service import GitHubService
+            
+            logger.info("Starting GitHub issues and tasks synchronization")
+            
+            # Initialize GitHub service
+            github_service = GitHubService(self.settings)
+            
+            # Find all tasks with linked GitHub issues that are not done
+            # This optimization skips tasks that are already completed to save resources
+            tasks_with_issues = Task.objects.filter(
+                github_issue_id__isnull=False
+            ).exclude(
+                status='done'
+            ).select_related('item', 'created_by').prefetch_related('tags')
+            
+            results = {
+                'tasks_checked': 0,
+                'tasks_updated': 0,
+                'issues_synced': 0,
+                'prs_synced': 0,
+                'errors': []
+            }
+            
+            for task in tasks_with_issues:
+                results['tasks_checked'] += 1
+                
+                try:
+                    # Get issue from GitHub
+                    issue_result = github_service.get_issue(
+                        issue_number=task.github_issue_id,
+                        repo=repo,
+                        owner=owner
+                    )
+                    
+                    if issue_result['success']:
+                        issue = issue_result['issue']
+                        
+                        # Check if it's a pull request (GitHub API returns PRs as issues too)
+                        is_pr = 'pull_request' in issue
+                        
+                        if is_pr:
+                            # Fetch full PR data
+                            pr_result = github_service.get_pull_request(
+                                pr_number=task.github_issue_id,
+                                repo=repo,
+                                owner=owner
+                            )
+                            if pr_result['success']:
+                                pr = pr_result['pull_request']
+                                # Sync PR to Weaviate
+                                self.sync_pull_request_to_weaviate(pr, task, task.item if task.item else None)
+                                results['prs_synced'] += 1
+                        else:
+                            # Sync issue to Weaviate
+                            self.sync_issue_to_weaviate(issue, task, task.item if task.item else None)
+                            results['issues_synced'] += 1
+                        
+                        # Update task status if issue/PR is closed and task is not done
+                        issue_state = issue.get('state', 'open')
+                        if issue_state == 'closed' and task.status != 'done':
+                            task.mark_as_done()
+                            results['tasks_updated'] += 1
+                            logger.info(
+                                f"Task {task.id} marked as done (GitHub issue #{task.github_issue_id} closed)"
+                            )
+                
+                except Exception as e:
+                    error_msg = f"Error syncing task {task.id}: {str(e)}"
+                    logger.error(error_msg)
+                    results['errors'].append(error_msg)
+            
+            logger.info(
+                f"Synchronization complete: {results['tasks_checked']} tasks checked, "
+                f"{results['tasks_updated']} tasks updated, "
+                f"{results['issues_synced']} issues synced, "
+                f"{results['prs_synced']} PRs synced"
+            )
+            
+            return {
+                'success': True,
+                'results': results
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to sync tasks with GitHub issues: {str(e)}")
+            raise WeaviateGitHubIssueSyncServiceError(
+                "Failed to sync tasks with GitHub issues",
+                details=str(e)
+            )
+    
     def close(self):
         """Close the Weaviate client connection"""
         if self._client:
