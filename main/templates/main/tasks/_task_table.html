@@ -3,18 +3,19 @@
     <table class="table table-hover">
         <thead>
             <tr>
-                <th style="width: 5%;">
+                <th style="width: 3%;">
                     <input type="checkbox" 
                            id="selectAllCheckbox" 
                            class="form-check-input" 
                            onchange="toggleSelectAll(this)">
                 </th>
-                <th style="width: 25%;">Title</th>
-                <th style="width: 15%;">Status</th>
-                <th style="width: 20%;">Item</th>
-                <th style="width: 15%;">GitHub Issue</th>
+                <th style="width: 22%;">Title</th>
+                <th style="width: 12%;">Status</th>
+                <th style="width: 12%;">Requester</th>
+                <th style="width: 17%;">Item</th>
+                <th style="width: 12%;">GitHub Issue</th>
                 <th style="width: 10%;">Updated</th>
-                <th style="width: 10%;">Actions</th>
+                <th style="width: 12%;">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -56,6 +57,13 @@
                     <span class="badge bg-secondary">✅ Done</span>
                     {% else %}
                     <span class="badge bg-secondary">⚪ New</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if task.requester %}
+                    <i class="bi bi-person"></i> {{ task.requester.username }}
+                    {% else %}
+                    <span class="text-muted">-</span>
                     {% endif %}
                 </td>
                 <td>
