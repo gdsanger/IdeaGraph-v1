@@ -134,6 +134,7 @@ def main():
     if args.dry_run:
         logger.info("DRY RUN MODE - No changes will be made")
     
+    sync_service = None
     try:
         # Initialize sync service
         logger.info("Initializing GitHub Issue Sync Service...")
@@ -181,6 +182,9 @@ def main():
         return 1
     
     finally:
+        # Ensure Weaviate client connection is properly closed
+        if sync_service:
+            sync_service.close()
         logger.info(f"Finished at: {datetime.now().isoformat()}")
         logger.info("=" * 80)
 
