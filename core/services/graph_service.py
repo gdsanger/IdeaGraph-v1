@@ -566,3 +566,116 @@ class GraphService:
             subject=subject,
             body=body
         )
+    
+    def get_mailbox_messages(
+        self,
+        mailbox: Optional[str] = None,
+        folder: str = 'inbox',
+        top: int = 10,
+        unread_only: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Retrieve messages from a mailbox via Microsoft Graph API
+        
+        Args:
+            mailbox: Email address of the mailbox (uses default_sender if not provided)
+            folder: Folder to retrieve from (default: 'inbox')
+            top: Number of messages to retrieve (default: 10)
+            unread_only: Only retrieve unread messages (default: True)
+            
+        Returns:
+            Dict with success status and list of messages
+        """
+        mailbox_address = mailbox or self.default_sender
+        
+        if not mailbox_address:
+            raise GraphServiceError(
+                "No mailbox specified",
+                details="mailbox parameter or default_mail_sender must be set"
+            )
+        
+        # Build endpoint
+        endpoint = f"users/{mailbox_address}/mailFolders/{folder}/messages"
+        
+        # Build query parameters
+        params = {
+            '$top': top,
+            '$orderby': 'receivedDateTime desc',
+            '$select': 'id,subject,bodyPreview,body,from,toRecipients,receivedDateTime,isRead,hasAttachments'
+        }
+        
+        if unread_only:
+            params['$filter'] = 'isRead eq false'
+        
+        try:
+            response = self._make_request('GET', endpoint)
+            
+            if response.status_code == 200:
+                data = response.json()
+                messages = data.get('value', [])
+                logger.info(f"Retrieved {len(messages)} messages from mailbox {mailbox_address}")
+                return {
+                    'success': True,
+                    'messages': messages,
+                    'count': len(messages)
+                }
+            else:
+                raise GraphServiceError(
+                    "Failed to retrieve messages",
+                    status_code=response.status_code,
+                    details=response.text
+                )
+                
+        except GraphServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error retrieving messages: {str(e)}")
+            raise GraphServiceError("Error retrieving messages", details=str(e))
+    
+    def mark_message_as_read(
+        self,
+        message_id: str,
+        mailbox: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Mark a message as read
+        
+        Args:
+            message_id: ID of the message to mark as read
+            mailbox: Email address of the mailbox (uses default_sender if not provided)
+            
+        Returns:
+            Dict with success status
+        """
+        mailbox_address = mailbox or self.default_sender
+        
+        if not mailbox_address:
+            raise GraphServiceError(
+                "No mailbox specified",
+                details="mailbox parameter or default_mail_sender must be set"
+            )
+        
+        endpoint = f"users/{mailbox_address}/messages/{message_id}"
+        data = {'isRead': True}
+        
+        try:
+            response = self._make_request('PATCH', endpoint, json_data=data)
+            
+            if response.status_code in [200, 204]:
+                logger.info(f"Message {message_id} marked as read")
+                return {
+                    'success': True,
+                    'message': 'Message marked as read'
+                }
+            else:
+                raise GraphServiceError(
+                    "Failed to mark message as read",
+                    status_code=response.status_code,
+                    details=response.text
+                )
+                
+        except GraphServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error marking message as read: {str(e)}")
+            raise GraphServiceError("Error marking message as read", details=str(e))

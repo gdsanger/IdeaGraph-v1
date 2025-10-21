@@ -355,6 +355,70 @@ class OpenAIService:
         result['agent_requested'] = agent_name
         return result
     
+    def chat_completion(
+        self,
+        messages: List[Dict[str, str]],
+        model: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Execute a chat completion request to OpenAI API
+        
+        Args:
+            messages: List of message dicts with 'role' and 'content' keys
+            model: Model to use (defaults to settings default_model)
+            temperature: Sampling temperature (0-2)
+            max_tokens: Maximum tokens in response
+        
+        Returns:
+            Dictionary containing:
+                - success: bool
+                - content: str (AI response text)
+                - tokens_used: int
+                - model: str
+        
+        Raises:
+            OpenAIServiceError: If request fails
+        """
+        if not messages:
+            raise OpenAIServiceError("messages list is required", status_code=400)
+        
+        model_name = model or self.default_model
+        
+        # Prepare request data
+        data = {
+            'model': model_name,
+            'messages': messages,
+            'temperature': temperature
+        }
+        
+        if max_tokens:
+            data['max_tokens'] = max_tokens
+        
+        try:
+            logger.info(f"Chat completion with model: {model_name}")
+            response = self._make_request('POST', '/chat/completions', data=data)
+            
+            # Extract result
+            content = response['choices'][0]['message']['content']
+            tokens_used = response['usage']['total_tokens']
+            
+            logger.info(f"Chat completion successful. Tokens used: {tokens_used}")
+            
+            return {
+                'success': True,
+                'content': content,
+                'tokens_used': tokens_used,
+                'model': model_name
+            }
+            
+        except OpenAIServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in chat_completion: {str(e)}")
+            raise OpenAIServiceError("Failed to execute chat completion", details=str(e))
+    
     def get_models(self) -> Dict[str, Any]:
         """
         Get list of available OpenAI models
