@@ -148,6 +148,19 @@ class SemanticNetworkViewer {
         const graphContainer = document.getElementById('snGraph');
         if (!graphContainer) return;
         
+        // Ensure container is visible and has dimensions
+        graphContainer.style.display = 'block';
+        
+        // Check if container has width
+        const containerWidth = graphContainer.offsetWidth;
+        const containerHeight = graphContainer.offsetHeight;
+        
+        if (containerWidth === 0 || containerHeight === 0) {
+            console.warn('Container has no dimensions, retrying in 100ms...');
+            setTimeout(() => this.renderNetwork(), 100);
+            return;
+        }
+        
         // Clear existing graph
         if (this.sigma) {
             this.sigma.kill();
@@ -219,7 +232,8 @@ class SemanticNetworkViewer {
             labelWeight: 'normal',
             enableEdgeClickEvents: false,
             enableEdgeWheelEvents: false,
-            enableEdgeHoverEvents: false
+            enableEdgeHoverEvents: false,
+            allowInvalidContainer: true  // Allow rendering even if container size is temporarily invalid
         });
         
         // Bind Sigma events
@@ -232,13 +246,16 @@ class SemanticNetworkViewer {
         let forceAtlas2;
         
         // Try different possible namespaces for the UMD bundle
-        if (typeof graphologyLibrary !== 'undefined' && graphologyLibrary.layoutForceAtlas2) {
-            forceAtlas2 = graphologyLibrary.layoutForceAtlas2;
+        // The graphology-layout-forceatlas2 UMD bundle exposes GraphologyLayoutForceAtlas2
+        if (typeof GraphologyLayoutForceAtlas2 !== 'undefined') {
+            forceAtlas2 = GraphologyLayoutForceAtlas2;
         } else if (typeof graphologyLayoutForceAtlas2 !== 'undefined') {
             forceAtlas2 = graphologyLayoutForceAtlas2;
+        } else if (typeof graphologyLibrary !== 'undefined' && graphologyLibrary.layoutForceAtlas2) {
+            forceAtlas2 = graphologyLibrary.layoutForceAtlas2;
         } else {
-            console.error('ForceAtlas2 layout library not found. Available namespaces:', 
-                typeof graphologyLibrary !== 'undefined' ? Object.keys(graphologyLibrary) : 'graphologyLibrary not defined');
+            console.warn('ForceAtlas2 layout library not found. Skipping layout optimization.');
+            console.warn('Available globals:', Object.keys(window).filter(k => k.toLowerCase().includes('graph')));
             return; // Skip layout if library not available
         }
         

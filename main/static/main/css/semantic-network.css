@@ -50,6 +50,7 @@
     background: rgba(15, 23, 42, 0.8);
     border-radius: 0.5rem;
     min-height: 400px;
+    width: 100%;  /* Ensure explicit width */
     overflow: hidden;
 }
 
@@ -132,6 +133,7 @@
 
 .detail-right-column {
     min-width: 0;
+    width: 100%;  /* Ensure explicit width for the column */
     position: sticky;
     top: 1rem;
     align-self: start;
