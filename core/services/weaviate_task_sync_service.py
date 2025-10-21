@@ -124,7 +124,7 @@ class WeaviateTaskSyncService:
             'title': task.title,
             'description': task.description or '',
             'status': task.status,
-            'owner': str(task.created_by.id) if task.created_by else '',
+            'owner': task.created_by.username if task.created_by else '',
             'createdAt': task.created_at.isoformat(),
         }
         
