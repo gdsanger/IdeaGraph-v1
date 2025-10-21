@@ -228,8 +228,20 @@ class SemanticNetworkViewer {
     
     applyLayout() {
         // Use circular layout with ForceAtlas2 refinement
-        // Access forceAtlas2 from the graphologyLibrary namespace (UMD bundle)
-        const forceAtlas2 = graphologyLibrary.layoutForceAtlas2;
+        // Access forceAtlas2 from the correct namespace based on UMD bundle
+        let forceAtlas2;
+        
+        // Try different possible namespaces for the UMD bundle
+        if (typeof graphologyLibrary !== 'undefined' && graphologyLibrary.layoutForceAtlas2) {
+            forceAtlas2 = graphologyLibrary.layoutForceAtlas2;
+        } else if (typeof graphologyLayoutForceAtlas2 !== 'undefined') {
+            forceAtlas2 = graphologyLayoutForceAtlas2;
+        } else {
+            console.error('ForceAtlas2 layout library not found. Available namespaces:', 
+                typeof graphologyLibrary !== 'undefined' ? Object.keys(graphologyLibrary) : 'graphologyLibrary not defined');
+            return; // Skip layout if library not available
+        }
+        
         const settings = forceAtlas2.inferSettings(this.graph);
         forceAtlas2.assign(this.graph, {
             iterations: 100,
