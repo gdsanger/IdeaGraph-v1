@@ -207,6 +207,8 @@ class WeaviateTaskSyncService:
         """
         Synchronize an updated task to Weaviate
         
+        If the task doesn't exist in Weaviate, it will be created instead.
+        
         Args:
             task: Task model instance
         
@@ -221,11 +223,24 @@ class WeaviateTaskSyncService:
         try:
             logger.info(f"Updating task in Weaviate: {task.id} - {task.title}")
             
-            # Prepare properties
-            properties = self._task_to_properties(task)
-            
             # Get collection
             collection = self._client.collections.get(self.COLLECTION_NAME)
+            
+            # Check if task exists in Weaviate
+            try:
+                existing_obj = collection.query.fetch_object_by_id(str(task.id))
+                task_exists = existing_obj is not None
+            except Exception as e:
+                logger.debug(f"Error checking if task exists: {str(e)}")
+                task_exists = False
+            
+            if not task_exists:
+                # Task doesn't exist, create it instead
+                logger.info(f"Task {task.id} not found in Weaviate, creating instead of updating")
+                return self.sync_create(task)
+            
+            # Prepare properties
+            properties = self._task_to_properties(task)
             
             # Update in collection
             collection.data.update(
