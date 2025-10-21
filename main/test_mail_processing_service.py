@@ -62,17 +62,16 @@ class MailProcessingServiceTestCase(TestCase):
         """Clean up after tests"""
         cache.clear()
     
-    def test_init_without_settings(self):
+    def test_init_without_settings(self, mock_weaviate_init):
         """Test MailProcessingService initialization without settings object"""
         with patch('main.models.Settings') as mock_settings_model:
             mock_settings_model.objects.first.return_value = self.settings
-            with patch('core.services.weaviate_sync_service.WeaviateItemSyncService._initialize_client'):
-                service = MailProcessingService()
-                self.assertIsNotNone(service.settings)
-                self.assertIsNotNone(service.graph_service)
-                self.assertIsNotNone(service.weaviate_service)
-                self.assertIsNotNone(service.kigate_service)
-                self.assertIsNotNone(service.openai_service)
+            service = MailProcessingService()
+            self.assertIsNotNone(service.settings)
+            self.assertIsNotNone(service.graph_service)
+            self.assertIsNotNone(service.weaviate_service)
+            self.assertIsNotNone(service.kigate_service)
+            self.assertIsNotNone(service.openai_service)
     
     def test_init_with_disabled_services(self, mock_weaviate_init):
         """Test MailProcessingService initialization with some services disabled"""
