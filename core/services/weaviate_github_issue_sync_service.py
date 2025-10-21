@@ -6,7 +6,7 @@ This module provides synchronization of GitHub Issues and Pull Requests with Wea
 
 import logging
 import requests
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime
 import weaviate
 from weaviate.classes.init import Auth
@@ -381,6 +381,33 @@ class WeaviateGitHubIssueSyncService:
                 details=str(e)
             )
     
+    def _parse_github_repo(self, github_repo: str) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Parse github_repo field to extract owner and repo name
+        
+        Args:
+            github_repo: Repository string in format "owner/repo" or full URL
+        
+        Returns:
+            Tuple of (owner, repo) or (None, None) if parsing fails
+        """
+        if not github_repo:
+            return None, None
+        
+        # Remove common GitHub URL prefixes
+        repo_str = github_repo.strip()
+        repo_str = repo_str.replace('https://github.com/', '')
+        repo_str = repo_str.replace('http://github.com/', '')
+        repo_str = repo_str.replace('github.com/', '')
+        repo_str = repo_str.strip('/')
+        
+        # Split by '/' to get owner and repo
+        parts = repo_str.split('/')
+        if len(parts) >= 2:
+            return parts[0], parts[1]
+        
+        return None, None
+    
     def sync_tasks_with_github_issues(
         self,
         repo: Optional[str] = None,
@@ -392,8 +419,8 @@ class WeaviateGitHubIssueSyncService:
         Stores issue and PR data in Weaviate
         
         Args:
-            repo: Repository name (uses default if not provided)
-            owner: Repository owner (uses default if not provided)
+            repo: Repository name (overrides item's repository if provided)
+            owner: Repository owner (overrides item's repository if provided)
         
         Returns:
             Dictionary with sync results
@@ -430,11 +457,39 @@ class WeaviateGitHubIssueSyncService:
                 results['tasks_checked'] += 1
                 
                 try:
+                    # Determine which repository to use
+                    task_owner = owner
+                    task_repo = repo
+                    
+                    # If not provided as arguments, try to get from task's item
+                    if not task_owner or not task_repo:
+                        if task.item and task.item.github_repo:
+                            item_owner, item_repo = self._parse_github_repo(task.item.github_repo)
+                            if not task_owner:
+                                task_owner = item_owner
+                            if not task_repo:
+                                task_repo = item_repo
+                            logger.debug(
+                                f"Task {task.id} using repository from item: {task_owner}/{task_repo}"
+                            )
+                    
+                    # Log which repository we're using for this task
+                    if task_owner and task_repo:
+                        logger.info(
+                            f"Syncing task {task.id} (issue #{task.github_issue_id}) "
+                            f"from repository {task_owner}/{task_repo}"
+                        )
+                    else:
+                        logger.warning(
+                            f"Task {task.id} has no repository information in item, "
+                            f"falling back to default settings"
+                        )
+                    
                     # Get issue from GitHub
                     issue_result = github_service.get_issue(
                         issue_number=task.github_issue_id,
-                        repo=repo,
-                        owner=owner
+                        repo=task_repo,
+                        owner=task_owner
                     )
                     
                     if issue_result['success']:
@@ -447,8 +502,8 @@ class WeaviateGitHubIssueSyncService:
                             # Fetch full PR data
                             pr_result = github_service.get_pull_request(
                                 pr_number=task.github_issue_id,
-                                repo=repo,
-                                owner=owner
+                                repo=task_repo,
+                                owner=task_owner
                             )
                             if pr_result['success']:
                                 pr = pr_result['pull_request']
