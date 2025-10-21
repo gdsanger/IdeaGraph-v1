@@ -3,7 +3,6 @@ Tests for Semantic Network Service
 
 This module tests the semantic network generation functionality.
 """
-import pytest
 from django.test import TestCase
 from unittest.mock import Mock, MagicMock, patch
 from core.services.semantic_network_service import SemanticNetworkService, SemanticNetworkServiceError
