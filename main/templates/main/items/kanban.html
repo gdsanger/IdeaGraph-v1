@@ -1,44 +1,93 @@
 {% extends "main/base.html" %}
 
-{% block title %}Items - Kanban View{% endblock %}
+{% block title %}Items - Tile View{% endblock %}
 
 {% block extra_css %}
 <style>
-    .kanban-column {
-        min-height: 500px;
-        background: rgba(31, 41, 55, 0.5);
-        border-radius: 10px;
-        padding: 1rem;
-    }
-    
-    .kanban-column-header {
-        background: linear-gradient(135deg, var(--autumn-secondary), var(--autumn-muted));
-        border-radius: 8px;
-        padding: 0.75rem 1rem;
-        margin-bottom: 1rem;
-        font-weight: 600;
-        color: var(--autumn-light);
-    }
-    
-    .kanban-card {
+    .tile-card {
         background: rgba(31, 41, 55, 0.9);
         border: 1px solid var(--autumn-primary);
         border-radius: 8px;
         padding: 1rem;
-        margin-bottom: 1rem;
         cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
     }
     
-    .kanban-card-title {
+    .tile-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(217, 119, 6, 0.3);
+        border-color: var(--autumn-accent);
+    }
+    
+    .tile-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 0.75rem;
+    }
+    
+    .tile-card-status {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    
+    .tile-card-title {
         font-weight: 600;
         color: var(--autumn-light);
         margin-bottom: 0.5rem;
+        flex-grow: 1;
     }
     
-    .kanban-card-section {
+    .tile-card-section {
         font-size: 0.875rem;
         color: #9ca3af;
         margin-bottom: 0.5rem;
+    }
+    
+    .tile-card-tags {
+        margin-top: auto;
+    }
+    
+    .status-ready {
+        background: rgba(5, 150, 105, 0.2);
+        color: #10b981;
+        border: 1px solid #10b981;
+    }
+    
+    .status-spec_review {
+        background: rgba(245, 158, 11, 0.2);
+        color: #f59e0b;
+        border: 1px solid #f59e0b;
+    }
+    
+    .status-working {
+        background: rgba(59, 130, 246, 0.2);
+        color: #3b82f6;
+        border: 1px solid #3b82f6;
+    }
+    
+    .status-rejected {
+        background: rgba(220, 38, 38, 0.2);
+        color: #dc2626;
+        border: 1px solid #dc2626;
+    }
+    
+    .status-done {
+        background: rgba(34, 197, 94, 0.2);
+        color: #22c55e;
+        border: 1px solid #22c55e;
+    }
+    
+    .status-new {
+        background: rgba(156, 163, 175, 0.2);
+        color: #9ca3af;
+        border: 1px solid #9ca3af;
     }
 </style>
 {% endblock %}
@@ -49,7 +98,7 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
                 <h1 class="mb-0">
-                    <i class="bi bi-kanban"></i> Items - Kanban View
+                    <i class="bi bi-grid-3x3-gap"></i> Items - Tile View
                 </h1>
                 <div>
                     <a href="{% url 'main:item_create' %}" class="btn btn-primary me-2">
@@ -68,55 +117,55 @@
         </div>
     </div>
 
-    <!-- Kanban Board -->
+    <!-- Tile View -->
     <div class="row g-3">
         {% for status_key, status_data in items_by_status.items %}
-        <div class="col-12 col-md-6 col-lg-4 col-xl-2">
-            <div class="kanban-column" data-status="{{ status_key }}">
-                <div class="kanban-column-header">
-                    {% if status_key == 'ready' %}
-                    🟢 {{ status_data.label }}
-                    {% elif status_key == 'spec_review' %}
-                    🟡 {{ status_data.label }}
-                    {% elif status_key == 'working' %}
-                    🔵 {{ status_data.label }}
-                    {% elif status_key == 'rejected' %}
-                    🔴 {{ status_data.label }}
-                    {% elif status_key == 'done' %}
-                    ✅ {{ status_data.label }}
-                    {% else %}
-                    ⚪ {{ status_data.label }}
+            {% for item in status_data.items %}
+            <div class="col-auto">
+                <div class="tile-card" data-item-id="{{ item.id }}" onclick="window.location.href='{% url 'main:item_detail' item.id %}'" style="width: 280px;">
+                    <div class="tile-card-header">
+                        <span class="tile-card-status status-{{ status_key }}">
+                            {% if status_key == 'ready' %}
+                            🟢 {{ status_data.label }}
+                            {% elif status_key == 'spec_review' %}
+                            🟡 {{ status_data.label }}
+                            {% elif status_key == 'working' %}
+                            🔵 {{ status_data.label }}
+                            {% elif status_key == 'rejected' %}
+                            🔴 {{ status_data.label }}
+                            {% elif status_key == 'done' %}
+                            ✅ {{ status_data.label }}
+                            {% else %}
+                            ⚪ {{ status_data.label }}
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="tile-card-title">
+                        {{ item.title }}
+                    </div>
+                    {% if item.section %}
+                    <div class="tile-card-section">
+                        <i class="bi bi-folder"></i> {{ item.section.name }}
+                    </div>
                     {% endif %}
-                    <span class="badge bg-secondary float-end">{{ status_data.items|length }}</span>
-                </div>
-                
-                <div class="kanban-cards">
-                    {% for item in status_data.items %}
-                    <div class="kanban-card" data-item-id="{{ item.id }}" onclick="window.location.href='{% url 'main:item_detail' item.id %}'">
-                        <div class="kanban-card-title">
-                            {{ item.title }}
-                        </div>
-                        {% if item.section %}
-                        <div class="kanban-card-section">
-                            <i class="bi bi-folder"></i> {{ item.section.name }}
-                        </div>
-                        {% endif %}
-                        <div class="d-flex flex-wrap gap-1">
-                            {% for tag in item.tags.all %}
-                            <span class="badge" style="background-color: {{ tag.color }}; font-size: 0.7rem;">{{ tag.name }}</span>
-                            {% endfor %}
-                        </div>
+                    <div class="tile-card-tags d-flex flex-wrap gap-1">
+                        {% for tag in item.tags.all %}
+                        <span class="badge" style="background-color: {{ tag.color }}; font-size: 0.7rem;">{{ tag.name }}</span>
+                        {% endfor %}
                     </div>
-                    {% empty %}
-                    <div class="text-center text-muted py-3">
-                        <i class="bi bi-inbox"></i>
-                        <p class="mb-0 small">No items</p>
-                    </div>
-                    {% endfor %}
                 </div>
             </div>
-        </div>
+            {% endfor %}
         {% endfor %}
+        
+        {% if not items_by_status or not items_by_status.items %}
+        <div class="col-12">
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                <p class="mb-0 mt-3">No items found</p>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -124,7 +173,7 @@
 
 {% block extra_js %}
 <script>
-// Future: Add drag & drop functionality with HTMX or vanilla JS
-// For now, clicking on a card opens the detail view where status can be changed
+// Tile view: Items are displayed in a responsive grid layout
+// Clicking on a tile opens the detail view where status can be changed
 </script>
 {% endblock %}

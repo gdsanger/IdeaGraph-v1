@@ -67,11 +67,11 @@ class ItemViewsTest(TestCase):
         self.assertContains(response, 'Test Item')
     
     def test_item_kanban_view(self):
-        """Test item kanban view"""
+        """Test item tile view (converted from kanban)"""
         self.login_user(self.user)
         response = self.client.get('/items/kanban/')
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Items - Kanban View')
+        self.assertContains(response, 'Items - Tile View')
         self.assertContains(response, 'Test Item')
     
     def test_item_detail_view(self):
