@@ -538,3 +538,129 @@ class GraphAPIEndpointsTestCase(TestCase):
         )
         
         self.assertEqual(response.status_code, 400)
+    
+    @patch('core.services.graph_service.requests.request')
+    @patch('core.services.graph_service.requests.post')
+    def test_get_mailbox_messages_success(self, mock_post, mock_request):
+        """Test retrieving mailbox messages successfully"""
+        mock_post.return_value = Mock(
+            status_code=200,
+            json=lambda: {'access_token': 'test-token', 'expires_in': 3600}
+        )
+        
+        mock_request.return_value = Mock(
+            status_code=200,
+            json=lambda: {
+                'value': [
+                    {
+                        'id': 'msg-1',
+                        'subject': 'Test Email 1',
+                        'bodyPreview': 'Preview 1',
+                        'body': {'content': '<p>Content 1</p>', 'contentType': 'HTML'},
+                        'from': {'emailAddress': {'address': 'sender@example.com'}},
+                        'receivedDateTime': '2024-01-01T10:00:00Z',
+                        'isRead': False
+                    },
+                    {
+                        'id': 'msg-2',
+                        'subject': 'Test Email 2',
+                        'bodyPreview': 'Preview 2',
+                        'body': {'content': '<p>Content 2</p>', 'contentType': 'HTML'},
+                        'from': {'emailAddress': {'address': 'sender@example.com'}},
+                        'receivedDateTime': '2024-01-01T11:00:00Z',
+                        'isRead': False
+                    }
+                ]
+            }
+        )
+        
+        service = GraphService(self.settings)
+        result = service.get_mailbox_messages(top=10, unread_only=True)
+        
+        self.assertTrue(result['success'])
+        self.assertEqual(result['count'], 2)
+        self.assertEqual(len(result['messages']), 2)
+        self.assertEqual(result['messages'][0]['subject'], 'Test Email 1')
+    
+    @patch('core.services.graph_service.requests.request')
+    @patch('core.services.graph_service.requests.post')
+    def test_get_mailbox_messages_custom_mailbox(self, mock_post, mock_request):
+        """Test retrieving messages from custom mailbox"""
+        mock_post.return_value = Mock(
+            status_code=200,
+            json=lambda: {'access_token': 'test-token', 'expires_in': 3600}
+        )
+        
+        mock_request.return_value = Mock(
+            status_code=200,
+            json=lambda: {'value': []}
+        )
+        
+        service = GraphService(self.settings)
+        result = service.get_mailbox_messages(
+            mailbox='custom@example.com',
+            folder='inbox',
+            top=5
+        )
+        
+        self.assertTrue(result['success'])
+        self.assertEqual(result['count'], 0)
+    
+    @patch('core.services.graph_service.requests.request')
+    @patch('core.services.graph_service.requests.post')
+    def test_get_mailbox_messages_error(self, mock_post, mock_request):
+        """Test error handling when retrieving messages"""
+        mock_post.return_value = Mock(
+            status_code=200,
+            json=lambda: {'access_token': 'test-token', 'expires_in': 3600}
+        )
+        
+        mock_request.return_value = Mock(
+            status_code=403,
+            text='Access denied'
+        )
+        
+        service = GraphService(self.settings)
+        
+        with self.assertRaises(GraphServiceError) as context:
+            service.get_mailbox_messages()
+        
+        self.assertIn("Failed to retrieve messages", str(context.exception))
+    
+    @patch('core.services.graph_service.requests.request')
+    @patch('core.services.graph_service.requests.post')
+    def test_mark_message_as_read_success(self, mock_post, mock_request):
+        """Test marking message as read successfully"""
+        mock_post.return_value = Mock(
+            status_code=200,
+            json=lambda: {'access_token': 'test-token', 'expires_in': 3600}
+        )
+        
+        mock_request.return_value = Mock(status_code=200)
+        
+        service = GraphService(self.settings)
+        result = service.mark_message_as_read('msg-123')
+        
+        self.assertTrue(result['success'])
+        self.assertIn('marked as read', result['message'])
+    
+    @patch('core.services.graph_service.requests.request')
+    @patch('core.services.graph_service.requests.post')
+    def test_mark_message_as_read_error(self, mock_post, mock_request):
+        """Test error handling when marking message as read"""
+        mock_post.return_value = Mock(
+            status_code=200,
+            json=lambda: {'access_token': 'test-token', 'expires_in': 3600}
+        )
+        
+        mock_request.return_value = Mock(
+            status_code=404,
+            text='Message not found'
+        )
+        
+        service = GraphService(self.settings)
+        
+        with self.assertRaises(GraphServiceError) as context:
+            service.mark_message_as_read('invalid-msg-id')
+        
+        self.assertIn("Failed to mark message as read", str(context.exception))
