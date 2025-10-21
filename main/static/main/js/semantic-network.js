@@ -228,6 +228,8 @@ class SemanticNetworkViewer {
     
     applyLayout() {
         // Use circular layout with ForceAtlas2 refinement
+        // Access forceAtlas2 from the graphologyLibrary namespace (UMD bundle)
+        const forceAtlas2 = graphologyLibrary.layoutForceAtlas2;
         const settings = forceAtlas2.inferSettings(this.graph);
         forceAtlas2.assign(this.graph, {
             iterations: 100,
