@@ -86,6 +86,20 @@ python manage.py runserver
 
 ---
 
+## 🛠️ CLI Scripts & Automatisierung
+
+IdeaGraph bietet umfangreiche CLI-Scripts für Automatisierung und Wartung:
+
+- **Cleanup Scripts**: Bereinigung ungenutzter Tags und fehlerhafter Tasks
+- **Synchronisations-Scripts**: GitHub Issues, Weaviate, E-Mail-Verarbeitung
+- **Log-Analyse**: Automatische Fehleranalyse und Task-Erstellung
+- **Management Commands**: Django-basierte Verwaltungskommandos
+- **Cron-Integration**: Vollständige Beispiele für automatisierte Ausführung
+
+📚 **[Vollständige CLI Scripts Dokumentation →](CLI_SCRIPTS_DOCUMENTATION.md)**
+
+---
+
 ## 🔐 Konfiguration
 
 Bearbeite `.env` oder Settings in der Datenbank (Adminbereich):
