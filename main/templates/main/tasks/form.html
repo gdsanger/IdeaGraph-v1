@@ -161,8 +161,23 @@
                                 </select>
                             </div>
 
-                            <!-- Tags -->
+                            <!-- Requester -->
                             <div class="col-md-6 mb-3">
+                                <label for="requester" class="form-label">Requester</label>
+                                <select class="form-select" id="requester" name="requester">
+                                    <option value="">-- No Requester --</option>
+                                    {% for user in all_users %}
+                                    <option value="{{ user.id }}" {% if task and task.requester.id == user.id %}selected{% endif %}>
+                                        {{ user.username }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Tags -->
+                            <div class="col-md-12 mb-3">
                                 <label class="form-label">Tags</label>
                                 <div id="taskTagTokenBox" class="tag-token-box"></div>
                                 <div id="taskTagHiddenInputs"></div>

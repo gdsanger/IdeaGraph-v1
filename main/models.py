@@ -285,6 +285,7 @@ class Task(models.Model):
     tags = models.ManyToManyField(Tag, blank=True, related_name='tasks')
     assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_tasks')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_tasks')
+    requester = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='requested_tasks')
     
     # GitHub Integration
     github_issue_id = models.IntegerField(null=True, blank=True)
