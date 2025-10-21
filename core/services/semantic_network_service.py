@@ -11,7 +11,7 @@ from typing import Optional, Dict, Any, List, Set
 from datetime import datetime
 import weaviate
 from weaviate.classes.init import Auth
-from weaviate.classes.query import MetadataQuery
+from weaviate.classes.query import MetadataQuery, Filter
 
 
 logger = logging.getLogger('semantic_network_service')
@@ -44,8 +44,12 @@ class SemanticNetworkService:
     - Generates AI summaries for each level using KiGate
     """
     
-    # Collection names in Weaviate
-    COLLECTIONS = {
+    # All objects are stored in the KnowledgeObject collection
+    # and differentiated by their 'type' property
+    COLLECTION_NAME = 'KnowledgeObject'
+    
+    # Type values in the KnowledgeObject collection
+    TYPE_MAPPING = {
         'item': 'Item',
         'task': 'Task',
         'github_issue': 'GitHubIssue',
@@ -127,47 +131,52 @@ class SemanticNetworkService:
                 details=str(e)
             )
     
-    def _get_object_by_id(self, collection_name: str, object_id: str) -> Optional[Dict[str, Any]]:
+    def _get_object_by_id(self, object_type: str, object_id: str) -> Optional[Dict[str, Any]]:
         """
-        Get object from Weaviate by ID
+        Get object from Weaviate by ID and verify its type
         
         Args:
-            collection_name: Name of the collection
+            object_type: Type value to verify (e.g., 'Item', 'Task')
             object_id: UUID of the object
         
         Returns:
-            Object data or None if not found
+            Object data or None if not found or type mismatch
         """
         try:
-            collection = self._client.collections.get(collection_name)
+            collection = self._client.collections.get(self.COLLECTION_NAME)
             obj = collection.query.fetch_object_by_id(object_id)
             
             if obj:
-                return {
-                    'id': str(obj.uuid),
-                    'type': collection_name.lower(),
-                    'properties': obj.properties,
-                    'vector': obj.vector if hasattr(obj, 'vector') else None
-                }
+                # Verify the object has the correct type
+                obj_type = obj.properties.get('type', '')
+                if obj_type == object_type:
+                    return {
+                        'id': str(obj.uuid),
+                        'type': object_type.lower(),
+                        'properties': obj.properties,
+                        'vector': obj.vector if hasattr(obj, 'vector') else None
+                    }
+                else:
+                    logger.warning(f"Object {object_id} has type '{obj_type}', expected '{object_type}'")
             return None
             
         except Exception as e:
-            logger.error(f"Error fetching object {object_id} from {collection_name}: {str(e)}")
+            logger.error(f"Error fetching object {object_id} from {self.COLLECTION_NAME}: {str(e)}")
             return None
     
     def _find_similar_objects(
         self,
-        collection_name: str,
+        object_type: str,
         source_uuid: str,
         similarity_threshold: float,
         limit: int = 10,
         exclude_ids: Optional[Set[str]] = None
     ) -> List[Dict[str, Any]]:
         """
-        Find similar objects using nearObject query
+        Find similar objects using nearObject query, filtered by type
         
         Args:
-            collection_name: Name of the collection to search
+            object_type: Type value to filter by (e.g., 'Item', 'Task')
             source_uuid: UUID of the source object
             similarity_threshold: Minimum similarity (1 - distance)
             limit: Maximum number of results
@@ -177,13 +186,14 @@ class SemanticNetworkService:
             List of similar objects with metadata
         """
         try:
-            collection = self._client.collections.get(collection_name)
+            collection = self._client.collections.get(self.COLLECTION_NAME)
             
-            # Use nearObject to find similar items
+            # Use nearObject to find similar items, filtered by type
             response = collection.query.near_object(
                 near_object=source_uuid,
                 limit=limit + 20,  # Get extra to account for filtering
-                return_metadata=MetadataQuery(distance=True)
+                return_metadata=MetadataQuery(distance=True),
+                filters=Filter.by_property("type").equal(object_type)
             )
             
             similar_objects = []
@@ -204,7 +214,7 @@ class SemanticNetworkService:
                 if similarity >= similarity_threshold:
                     similar_objects.append({
                         'id': obj_id,
-                        'type': collection_name.lower(),
+                        'type': object_type.lower(),
                         'properties': obj.properties,
                         'similarity': similarity,
                         'distance': distance
@@ -214,13 +224,13 @@ class SemanticNetworkService:
                 if len(similar_objects) >= limit:
                     break
             
-            logger.info(f"Found {len(similar_objects)} similar objects in {collection_name} "
+            logger.info(f"Found {len(similar_objects)} similar objects of type {object_type} "
                        f"(threshold: {similarity_threshold})")
             
             return similar_objects
             
         except Exception as e:
-            logger.error(f"Error finding similar objects in {collection_name}: {str(e)}")
+            logger.error(f"Error finding similar objects of type {object_type}: {str(e)}")
             return []
     
     def _generate_level_summary(self, level: int, objects: List[Dict[str, Any]], user_id: str) -> str:
@@ -309,24 +319,24 @@ Bitte antworte in 2-3 kurzen Sätzen auf Deutsch."""
         """
         try:
             # Validate object type
-            if object_type not in self.COLLECTIONS:
+            if object_type not in self.TYPE_MAPPING:
                 raise SemanticNetworkServiceError(
                     f"Invalid object type: {object_type}",
-                    details=f"Must be one of: {', '.join(self.COLLECTIONS.keys())}"
+                    details=f"Must be one of: {', '.join(self.TYPE_MAPPING.keys())}"
                 )
             
-            collection_name = self.COLLECTIONS[object_type]
+            type_value = self.TYPE_MAPPING[object_type]
             thresholds = thresholds or self.DEFAULT_THRESHOLDS
             depth = min(max(depth, 1), 3)  # Clamp to 1-3
             
             logger.info(f"Generating semantic network for {object_type}/{object_id}, depth={depth}")
             
             # Get source object
-            source_obj = self._get_object_by_id(collection_name, object_id)
+            source_obj = self._get_object_by_id(type_value, object_id)
             if not source_obj:
                 raise SemanticNetworkServiceError(
                     f"Source object not found: {object_id}",
-                    details=f"Object not found in {collection_name}"
+                    details=f"Object not found in {self.COLLECTION_NAME} or type mismatch"
                 )
             
             # Initialize graph structure
@@ -357,7 +367,7 @@ Bitte antworte in 2-3 kurzen Sätzen auf Deutsch."""
                 # Find similar objects for each node in current level
                 for node_id in current_level_ids:
                     similar = self._find_similar_objects(
-                        collection_name,
+                        type_value,
                         node_id,
                         threshold,
                         limit=self.MAX_RESULTS_PER_LEVEL,
