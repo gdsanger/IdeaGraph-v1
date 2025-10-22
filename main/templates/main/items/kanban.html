@@ -100,18 +100,47 @@
                 <h1 class="mb-0">
                     <i class="bi bi-grid-3x3-gap"></i> Items - Tile View
                 </h1>
-                <div>
-                    <a href="{% url 'main:item_create' %}" class="btn btn-primary me-2">
-                        <i class="bi bi-plus-circle"></i> New Item
-                    </a>
-                    <div class="form-check form-switch d-inline-block">
-                        <input class="form-check-input" type="checkbox" id="showCompleted" 
-                               {% if show_completed %}checked{% endif %}
-                               onchange="window.location.href='?show_completed=' + (this.checked ? 'true' : 'false')">
-                        <label class="form-check-label" for="showCompleted">
-                            Show Completed
-                        </label>
-                    </div>
+                <a href="{% url 'main:item_create' %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> New Item
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="search" class="form-label">Search</label>
+                            <input type="text" class="form-control" id="search" name="search" value="{{ search_query }}" placeholder="Search by title or description">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="status" class="form-label">Status</label>
+                            <select class="form-select" id="status" name="status">
+                                <option value="">All Statuses</option>
+                                {% for value, label in status_choices %}
+                                <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="section" class="form-label">Section</label>
+                            <select class="form-select" id="section" name="section">
+                                <option value="">All Sections</option>
+                                {% for section in sections %}
+                                <option value="{{ section.id }}" {% if section_filter == section.id|stringformat:"s" %}selected{% endif %}>{{ section.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-funnel"></i> Filter
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -119,24 +148,24 @@
 
     <!-- Tile View -->
     <div class="row g-3">
-        {% for status_key, status_data in items_by_status.items %}
-            {% for item in status_data.items %}
+        {% if items %}
+            {% for item in items %}
             <div class="col-auto">
                 <div class="tile-card" data-item-id="{{ item.id }}" onclick="window.location.href='{% url 'main:item_detail' item.id %}'" style="width: 280px;">
                     <div class="tile-card-header">
-                        <span class="tile-card-status status-{{ status_key }}">
-                            {% if status_key == 'ready' %}
-                            🟢 {{ status_data.label }}
-                            {% elif status_key == 'spec_review' %}
-                            🟡 {{ status_data.label }}
-                            {% elif status_key == 'working' %}
-                            🔵 {{ status_data.label }}
-                            {% elif status_key == 'rejected' %}
-                            🔴 {{ status_data.label }}
-                            {% elif status_key == 'done' %}
-                            ✅ {{ status_data.label }}
+                        <span class="tile-card-status status-{{ item.status }}">
+                            {% if item.status == 'ready' %}
+                            🟢 {{ item.get_status_display }}
+                            {% elif item.status == 'spec_review' %}
+                            🟡 {{ item.get_status_display }}
+                            {% elif item.status == 'working' %}
+                            🔵 {{ item.get_status_display }}
+                            {% elif item.status == 'rejected' %}
+                            🔴 {{ item.get_status_display }}
+                            {% elif item.status == 'done' %}
+                            ✅ {{ item.get_status_display }}
                             {% else %}
-                            ⚪ {{ status_data.label }}
+                            ⚪ {{ item.get_status_display }}
                             {% endif %}
                         </span>
                     </div>
@@ -156,13 +185,14 @@
                 </div>
             </div>
             {% endfor %}
-        {% endfor %}
-        
-        {% if not items_by_status or not items_by_status.items %}
+        {% else %}
         <div class="col-12">
             <div class="text-center text-muted py-5">
                 <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-                <p class="mb-0 mt-3">No items found</p>
+                <p class="mb-0 mt-3">No items found matching your search criteria</p>
+                <a href="{% url 'main:item_kanban' %}" class="btn btn-outline-primary mt-3">
+                    <i class="bi bi-arrow-counterclockwise"></i> Clear Filters
+                </a>
             </div>
         </div>
         {% endif %}

@@ -800,7 +800,7 @@ def item_list(request):
 
 
 def item_kanban(request):
-    """Kanban view for items"""
+    """Tile view for items with search and filter functionality"""
     # Get current user from session
     user_id = request.session.get('user_id')
     if not user_id:
@@ -808,8 +808,10 @@ def item_kanban(request):
     
     user = get_object_or_404(User, id=user_id)
     
-    # Get filter parameter for showing completed items
-    show_completed = request.GET.get('show_completed', 'false') == 'true'
+    # Get filter parameters
+    status_filter = request.GET.get('status', '')
+    section_filter = request.GET.get('section', '')
+    search_query = request.GET.get('search', '').strip()
     
     # Base query - show only user's items unless admin
     if user.role == 'admin':
@@ -817,30 +819,41 @@ def item_kanban(request):
     else:
         items = Item.objects.filter(created_by=user)
     
+    # Apply filters
+    if status_filter:
+        items = items.filter(status=status_filter)
+    
+    if section_filter:
+        items = items.filter(section_id=section_filter)
+    
+    if search_query:
+        from django.db.models import Q
+        items = items.filter(
+            Q(title__icontains=search_query) | 
+            Q(description__icontains=search_query)
+        )
+    
     # Prefetch related data
     items = items.select_related('section', 'created_by').prefetch_related('tags')
     
-    # Group items by status
-    items_by_status = {}
-    for status_key, status_label in Item.STATUS_CHOICES:
-        status_items = items.filter(status=status_key)
-        
-        # Hide completed/rejected unless show_completed is true
-        if not show_completed and status_key in ['done', 'rejected']:
-            status_items = []
-        
-        items_by_status[status_key] = {
-            'label': status_label,
-            'items': list(status_items)
-        }
+    # Order by creation date (most recent first)
+    items = items.order_by('-created_at')
+    
+    # Get all sections and status choices for filters
+    sections = Section.objects.all()
+    status_choices = Item.STATUS_CHOICES
     
     context = {
-        'items_by_status': items_by_status,
-        'show_completed': show_completed,
-        'status_choices': Item.STATUS_CHOICES,
+        'items': items,
+        'sections': sections,
+        'status_choices': status_choices,
+        'status_filter': status_filter,
+        'section_filter': section_filter,
+        'search_query': search_query,
     }
     
     return render(request, 'main/items/kanban.html', context)
+
 
 
 def item_detail(request, item_id):
