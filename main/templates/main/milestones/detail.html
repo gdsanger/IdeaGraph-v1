@@ -501,6 +501,52 @@
 const csrfToken = '{{ csrf_token }}';
 const milestoneId = '{{ milestone.id }}';
 
+// Toast notification utility
+function showToast(message, type = 'info') {
+    // Create toast container if it doesn't exist
+    let toastContainer = document.querySelector('.toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
+    
+    // Map type to Bootstrap classes
+    const typeClass = {
+        'success': 'text-bg-success',
+        'error': 'text-bg-danger',
+        'danger': 'text-bg-danger',
+        'warning': 'text-bg-warning',
+        'info': 'text-bg-info'
+    }[type] || 'text-bg-info';
+    
+    // Create toast element
+    const toastEl = document.createElement('div');
+    toastEl.className = `toast align-items-center ${typeClass} border-0`;
+    toastEl.setAttribute('role', 'alert');
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
+    toastEl.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    `;
+    
+    // Add to container
+    toastContainer.appendChild(toastEl);
+    
+    // Initialize and show toast
+    const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+    toast.show();
+    
+    // Remove from DOM after hidden
+    toastEl.addEventListener('hidden.bs.toast', () => {
+        toastEl.remove();
+    });
+}
+
 // File upload handling
 document.getElementById('fileUploadArea')?.addEventListener('click', function() {
     document.getElementById('fileInput').click();
@@ -540,12 +586,12 @@ function handleFiles(files) {
     
     Promise.all(uploadPromises)
         .then(() => {
-            alert('All files uploaded successfully!');
-            location.reload();
+            showToast('All files uploaded successfully!', 'success');
+            setTimeout(() => location.reload(), 1000);
         })
         .catch(error => {
-            alert('Some files failed to upload: ' + error);
-            location.reload();
+            showToast('Some files failed to upload: ' + error, 'error');
+            setTimeout(() => location.reload(), 1500);
         });
 }
 
@@ -576,7 +622,7 @@ document.getElementById('addNoteBtn')?.addEventListener('click', function() {
     const content = document.getElementById('noteContent').value.trim();
     
     if (!title || !content) {
-        alert('Please provide both title and content.');
+        showToast('Please provide both title and content.', 'warning');
         return;
     }
     
@@ -589,7 +635,7 @@ document.getElementById('addTranscriptBtn')?.addEventListener('click', function(
     const content = document.getElementById('transcriptContent').value.trim();
     
     if (!title || !content) {
-        alert('Please provide both title and transcript content.');
+        showToast('Please provide both title and transcript content.', 'warning');
         return;
     }
     
@@ -602,7 +648,7 @@ document.getElementById('addEmailBtn')?.addEventListener('click', function() {
     const content = document.getElementById('emailContent').value.trim();
     
     if (!title || !content) {
-        alert('Please provide both subject and email content.');
+        showToast('Please provide both subject and email content.', 'warning');
         return;
     }
     
@@ -632,14 +678,14 @@ function uploadContextObject(type, title, content, sourceId, url) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert(`${type.charAt(0).toUpperCase() + type.slice(1)} added successfully!`);
-            location.reload();
+            showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} added successfully!`, 'success');
+            setTimeout(() => location.reload(), 1000);
         } else {
-            alert('Error: ' + data.error);
+            showToast('Error: ' + data.error, 'error');
         }
     })
     .catch(error => {
-        alert('Error uploading context object: ' + error);
+        showToast('Error uploading context object: ' + error, 'error');
     })
     .finally(() => {
         if (btn) setLoading(btn, false);
@@ -667,14 +713,14 @@ function analyzeContext(contextId, btn) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('Analysis complete! ' + data.task_count + ' tasks derived.');
-            location.reload();
+            showToast('Analysis complete! ' + data.task_count + ' tasks derived.', 'success');
+            setTimeout(() => location.reload(), 1000);
         } else {
-            alert('Error: ' + data.error);
+            showToast('Error: ' + data.error, 'error');
         }
     })
     .catch(error => {
-        alert('Error analyzing context: ' + error);
+        showToast('Error analyzing context: ' + error, 'error');
     })
     .finally(() => {
         setLoading(btn, false);
@@ -702,14 +748,14 @@ function createTasks(contextId, btn) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert(data.tasks_created + ' task(s) created successfully!');
-            location.reload();
+            showToast(data.tasks_created + ' task(s) created successfully!', 'success');
+            setTimeout(() => location.reload(), 1000);
         } else {
-            alert('Error: ' + data.error);
+            showToast('Error: ' + data.error, 'error');
         }
     })
     .catch(error => {
-        alert('Error creating tasks: ' + error);
+        showToast('Error creating tasks: ' + error, 'error');
     })
     .finally(() => {
         setLoading(btn, false);
@@ -740,14 +786,14 @@ function deleteContext(contextId, btn) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('Context object deleted successfully!');
-            location.reload();
+            showToast('Context object deleted successfully!', 'success');
+            setTimeout(() => location.reload(), 1000);
         } else {
-            alert('Error: ' + data.error);
+            showToast('Error: ' + data.error, 'error');
         }
     })
     .catch(error => {
-        alert('Error deleting context: ' + error);
+        showToast('Error deleting context: ' + error, 'error');
     })
     .finally(() => {
         setLoading(btn, false);
@@ -772,14 +818,14 @@ function regenerateSummary(btn) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('Summary regenerated successfully!');
-            location.reload();
+            showToast('Summary regenerated successfully!', 'success');
+            setTimeout(() => location.reload(), 1000);
         } else {
-            alert('Error: ' + data.error);
+            showToast('Error: ' + data.error, 'error');
         }
     })
     .catch(error => {
-        alert('Error regenerating summary: ' + error);
+        showToast('Error regenerating summary: ' + error, 'error');
     })
     .finally(() => {
         setLoading(btn, false);
