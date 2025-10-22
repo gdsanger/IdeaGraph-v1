@@ -182,10 +182,16 @@ class ItemFileService:
         folder_path = f"{self.IDEAGRAPH_FOLDER}/{normalized_folder_name}"
         
         logger.info(f"Uploading file {filename} ({file_size} bytes) to {folder_path}")
+        logger.debug(f"Item ID: {item.id}, Item title: {item.title}")
+        logger.debug(f"Normalized folder name: {normalized_folder_name}")
+        logger.debug(f"Content type: {content_type}")
         
         try:
             # Upload to SharePoint
             graph_service = self._get_graph_service()
+            logger.debug(f"Graph service initialized with base URL: {graph_service.base_url}")
+            logger.debug(f"SharePoint site ID: {graph_service.sharepoint_site_id}")
+            
             upload_result = graph_service.upload_sharepoint_file(
                 folder_path=folder_path,
                 file_name=filename,
@@ -193,6 +199,8 @@ class ItemFileService:
             )
             
             if not upload_result['success']:
+                logger.error(f"SharePoint upload failed for {filename}")
+                logger.error(f"Upload result: {upload_result}")
                 raise ItemFileServiceError("Failed to upload file to SharePoint")
             
             # Extract file metadata from upload result
@@ -239,9 +247,14 @@ class ItemFileService:
             
         except GraphServiceError as e:
             logger.error(f"Graph service error during upload: {e.message}")
+            logger.error(f"Status code: {e.status_code}")
+            logger.error(f"Details: {e.details}")
+            logger.error(f"File: {filename}, Folder: {folder_path}")
             raise ItemFileServiceError(f"Upload failed: {e.message}", details=e.details)
         except Exception as e:
             logger.error(f"Unexpected error during upload: {str(e)}")
+            logger.error(f"File: {filename}, Size: {file_size}, Folder: {folder_path}")
+            logger.error(f"Item: {item.id} ({item.title})")
             raise ItemFileServiceError(f"Upload failed: {str(e)}")
     
     def _sync_to_weaviate(
