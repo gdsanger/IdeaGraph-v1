@@ -839,12 +839,17 @@ def item_kanban(request):
     # Order by creation date (most recent first)
     items = items.order_by('-created_at')
     
+    # Pagination
+    paginator = Paginator(items, 24)  # 24 items per page (4 columns x 6 rows)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
     # Get all sections and status choices for filters
     sections = Section.objects.all()
     status_choices = Item.STATUS_CHOICES
     
     context = {
-        'items': items,
+        'items': page_obj,
         'sections': sections,
         'status_choices': status_choices,
         'status_filter': status_filter,

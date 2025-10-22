@@ -352,3 +352,37 @@ class ItemTileViewFilterTest(TestCase):
         self.assertContains(response, 'value="test"')
         self.assertContains(response, 'value="ready" selected')
         self.assertContains(response, f'value="{self.section1.id}" selected')
+    
+    def test_tile_view_pagination(self):
+        """Test that pagination works in tile view"""
+        self.login_user()
+        
+        # Create more items to test pagination (need more than 24 items)
+        for i in range(30):
+            Item.objects.create(
+                title=f'Pagination Item {i}',
+                description=f'Description {i}',
+                status='new',
+                section=self.section1,
+                created_by=self.user
+            )
+        
+        # Get first page
+        response = self.client.get('/items/kanban/')
+        self.assertEqual(response.status_code, 200)
+        # Should have pagination controls
+        self.assertContains(response, 'pagination')
+        self.assertContains(response, 'Next')
+        
+        # Get second page
+        response = self.client.get('/items/kanban/?page=2')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Previous')
+    
+    def test_tile_view_shows_item_count(self):
+        """Test that tile view shows total item count"""
+        self.login_user()
+        response = self.client.get('/items/kanban/')
+        self.assertEqual(response.status_code, 200)
+        # Should show item count badge (4 items in setup)
+        self.assertContains(response, '4 items')

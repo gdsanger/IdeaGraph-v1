@@ -99,6 +99,9 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h1 class="mb-0">
                     <i class="bi bi-grid-3x3-gap"></i> Items - Tile View
+                    {% if items %}
+                    <span class="badge bg-secondary ms-2" style="font-size: 0.6em;">{{ items.paginator.count }} item{{ items.paginator.count|pluralize }}</span>
+                    {% endif %}
                 </h1>
                 <a href="{% url 'main:item_create' %}" class="btn btn-primary">
                     <i class="bi bi-plus-circle"></i> New Item
@@ -135,10 +138,15 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-2 d-flex align-items-end">
-                            <button type="submit" class="btn btn-primary w-100">
+                        <div class="col-md-2 d-flex align-items-end gap-2">
+                            <button type="submit" class="btn btn-primary flex-grow-1">
                                 <i class="bi bi-funnel"></i> Filter
                             </button>
+                            {% if search_query or status_filter or section_filter %}
+                            <a href="{% url 'main:item_kanban' %}" class="btn btn-outline-secondary" title="Clear Filters">
+                                <i class="bi bi-x-circle"></i>
+                            </a>
+                            {% endif %}
                         </div>
                     </form>
                 </div>
@@ -197,6 +205,41 @@
         </div>
         {% endif %}
     </div>
+
+    <!-- Pagination -->
+    {% if items.has_other_pages %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if items.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ items.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if section_filter %}&section={{ section_filter }}{% endif %}">Previous</a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in items.paginator.page_range %}
+                    {% if items.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% elif num > items.number|add:'-3' and num < items.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if section_filter %}&section={{ section_filter }}{% endif %}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if items.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ items.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if section_filter %}&section={{ section_filter }}{% endif %}">Next</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 {% endblock %}
