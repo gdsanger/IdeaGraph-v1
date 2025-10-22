@@ -150,4 +150,12 @@ urlpatterns = [
     path('api/zammad/test-connection', api_views.api_zammad_test_connection, name='api_zammad_test_connection'),
     path('api/zammad/sync', api_views.api_zammad_sync, name='api_zammad_sync'),
     path('api/zammad/status', api_views.api_zammad_status, name='api_zammad_status'),
+    
+    # Milestone Knowledge Hub API Endpoints
+    path('api/milestones/<uuid:milestone_id>/context/add', api_views.api_milestone_context_add, name='api_milestone_context_add'),
+    path('api/milestones/context/<uuid:context_id>/remove', api_views.api_milestone_context_remove, name='api_milestone_context_remove'),
+    path('api/milestones/<uuid:milestone_id>/context/summarize', api_views.api_milestone_context_summarize, name='api_milestone_context_summarize'),
+    path('api/milestones/context/<uuid:context_id>/analyze', api_views.api_milestone_context_analyze, name='api_milestone_context_analyze'),
+    path('api/milestones/<uuid:milestone_id>/context', api_views.api_milestone_context_list, name='api_milestone_context_list'),
+    path('api/milestones/context/<uuid:context_id>/create-tasks', api_views.api_milestone_context_create_tasks, name='api_milestone_context_create_tasks'),
 ]

@@ -1762,7 +1762,9 @@ def milestone_create(request, item_id):
     
     if request.method == 'POST':
         name = request.POST.get('name', '').strip()
+        description = request.POST.get('description', '').strip()
         due_date = request.POST.get('due_date', '').strip()
+        status = request.POST.get('status', 'planned').strip()
         
         if not name:
             messages.error(request, 'Name is required.')
@@ -1773,7 +1775,9 @@ def milestone_create(request, item_id):
                 # Create milestone
                 milestone = Milestone(
                     name=name,
+                    description=description,
                     due_date=due_date,
+                    status=status,
                     item=item
                 )
                 milestone.save()
@@ -1785,6 +1789,7 @@ def milestone_create(request, item_id):
     
     context = {
         'item': item,
+        'status_choices': Milestone.STATUS_CHOICES,
     }
     
     return render(request, 'main/milestones/form.html', context)
@@ -1808,7 +1813,9 @@ def milestone_edit(request, milestone_id):
     
     if request.method == 'POST':
         name = request.POST.get('name', '').strip()
+        description = request.POST.get('description', '').strip()
         due_date = request.POST.get('due_date', '').strip()
+        status = request.POST.get('status', 'planned').strip()
         
         if not name:
             messages.error(request, 'Name is required.')
@@ -1817,7 +1824,9 @@ def milestone_edit(request, milestone_id):
         else:
             try:
                 milestone.name = name
+                milestone.description = description
                 milestone.due_date = due_date
+                milestone.status = status
                 milestone.save()
                 
                 messages.success(request, f'Milestone "{name}" updated successfully!')
@@ -1828,6 +1837,7 @@ def milestone_edit(request, milestone_id):
     context = {
         'milestone': milestone,
         'item': item,
+        'status_choices': Milestone.STATUS_CHOICES,
     }
     
     return render(request, 'main/milestones/form.html', context)

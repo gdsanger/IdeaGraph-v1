@@ -3697,3 +3697,376 @@ def api_task_file_download(request, file_id):
             'success': False,
             'error': 'Failed to get download URL'
         }, status=500)
+
+
+# ===== Milestone Knowledge Hub API Endpoints =====
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_milestone_context_add(request, milestone_id):
+    """
+    Add a context object to a milestone
+    
+    POST /api/milestones/<milestone_id>/context/add
+    
+    Request body:
+    {
+        "type": "file|email|transcript|note",
+        "title": "Context title",
+        "content": "Text content",
+        "source_id": "Optional source ID",
+        "url": "Optional URL",
+        "auto_analyze": true
+    }
+    """
+    from main.models import Milestone, MilestoneContextObject
+    from core.services.milestone_knowledge_service import MilestoneKnowledgeService, MilestoneKnowledgeServiceError
+    
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        milestone = Milestone.objects.get(id=milestone_id)
+        
+        # Check permissions
+        if user.role != 'admin' and milestone.item.created_by != user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=403)
+        
+        # Parse request body
+        data = json.loads(request.body)
+        
+        context_type = data.get('type', '')
+        title = data.get('title', '').strip()
+        content = data.get('content', '').strip()
+        source_id = data.get('source_id', '').strip()
+        url = data.get('url', '').strip()
+        auto_analyze = data.get('auto_analyze', True)
+        
+        if not context_type or not title:
+            return JsonResponse({
+                'success': False,
+                'error': 'Type and title are required'
+            }, status=400)
+        
+        # Add context object using service
+        service = MilestoneKnowledgeService()
+        result = service.add_context_object(
+            milestone=milestone,
+            context_type=context_type,
+            title=title,
+            content=content,
+            source_id=source_id,
+            url=url,
+            user=user,
+            auto_analyze=auto_analyze
+        )
+        
+        return JsonResponse(result)
+        
+    except Milestone.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Milestone not found'
+        }, status=404)
+    
+    except MilestoneKnowledgeServiceError as e:
+        logger.error(f'Milestone knowledge service error: {str(e)}')
+        return JsonResponse(e.to_dict(), status=400)
+    
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error adding context object: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to add context object',
+            'details': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(['DELETE'])
+def api_milestone_context_remove(request, context_id):
+    """
+    Remove a context object from a milestone
+    
+    DELETE /api/milestones/context/<context_id>/remove
+    """
+    from main.models import MilestoneContextObject
+    
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        context_obj = MilestoneContextObject.objects.get(id=context_id)
+        milestone = context_obj.milestone
+        
+        # Check permissions
+        if user.role != 'admin' and milestone.item.created_by != user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=403)
+        
+        context_obj.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Context object removed successfully'
+        })
+        
+    except MilestoneContextObject.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Context object not found'
+        }, status=404)
+    
+    except Exception as e:
+        logger.error(f'Error removing context object: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to remove context object'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_milestone_context_summarize(request, milestone_id):
+    """
+    Generate AI summary for all context objects in a milestone
+    
+    POST /api/milestones/<milestone_id>/context/summarize
+    """
+    from main.models import Milestone
+    from core.services.milestone_knowledge_service import MilestoneKnowledgeService, MilestoneKnowledgeServiceError
+    
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        milestone = Milestone.objects.get(id=milestone_id)
+        
+        # Check permissions
+        if user.role != 'admin' and milestone.item.created_by != user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=403)
+        
+        # Generate summary using service
+        service = MilestoneKnowledgeService()
+        result = service.generate_milestone_summary(milestone)
+        
+        return JsonResponse(result)
+        
+    except Milestone.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Milestone not found'
+        }, status=404)
+    
+    except MilestoneKnowledgeServiceError as e:
+        logger.error(f'Milestone knowledge service error: {str(e)}')
+        return JsonResponse(e.to_dict(), status=400)
+    
+    except Exception as e:
+        logger.error(f'Error generating summary: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to generate summary',
+            'details': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_milestone_context_analyze(request, context_id):
+    """
+    Analyze a specific context object (summary + task derivation)
+    
+    POST /api/milestones/context/<context_id>/analyze
+    """
+    from main.models import MilestoneContextObject
+    from core.services.milestone_knowledge_service import MilestoneKnowledgeService, MilestoneKnowledgeServiceError
+    
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        context_obj = MilestoneContextObject.objects.get(id=context_id)
+        milestone = context_obj.milestone
+        
+        # Check permissions
+        if user.role != 'admin' and milestone.item.created_by != user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=403)
+        
+        # Analyze context object using service
+        service = MilestoneKnowledgeService()
+        result = service.analyze_context_object(context_obj)
+        
+        return JsonResponse(result)
+        
+    except MilestoneContextObject.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Context object not found'
+        }, status=404)
+    
+    except MilestoneKnowledgeServiceError as e:
+        logger.error(f'Milestone knowledge service error: {str(e)}')
+        return JsonResponse(e.to_dict(), status=400)
+    
+    except Exception as e:
+        logger.error(f'Error analyzing context object: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to analyze context object',
+            'details': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(['GET'])
+def api_milestone_context_list(request, milestone_id):
+    """
+    Get list of context objects for a milestone
+    
+    GET /api/milestones/<milestone_id>/context
+    """
+    from main.models import Milestone
+    
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        milestone = Milestone.objects.get(id=milestone_id)
+        
+        # Check permissions
+        if user.role != 'admin' and milestone.item.created_by != user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=403)
+        
+        # Get all context objects
+        context_objects = milestone.context_objects.all()
+        
+        result = {
+            'success': True,
+            'milestone_id': str(milestone.id),
+            'milestone_name': milestone.name,
+            'context_objects': []
+        }
+        
+        for ctx in context_objects:
+            result['context_objects'].append({
+                'id': str(ctx.id),
+                'type': ctx.type,
+                'type_display': ctx.get_type_display(),
+                'title': ctx.title,
+                'url': ctx.url,
+                'summary': ctx.summary,
+                'analyzed': ctx.analyzed,
+                'derived_tasks_count': len(ctx.derived_tasks) if ctx.derived_tasks else 0,
+                'created_at': ctx.created_at.isoformat(),
+                'uploaded_by': ctx.uploaded_by.username if ctx.uploaded_by else None
+            })
+        
+        return JsonResponse(result)
+        
+    except Milestone.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Milestone not found'
+        }, status=404)
+    
+    except Exception as e:
+        logger.error(f'Error listing context objects: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to list context objects'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_milestone_context_create_tasks(request, context_id):
+    """
+    Create tasks from derived tasks in a context object
+    
+    POST /api/milestones/context/<context_id>/create-tasks
+    """
+    from main.models import MilestoneContextObject
+    from core.services.milestone_knowledge_service import MilestoneKnowledgeService, MilestoneKnowledgeServiceError
+    
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        context_obj = MilestoneContextObject.objects.get(id=context_id)
+        milestone = context_obj.milestone
+        
+        # Check permissions
+        if user.role != 'admin' and milestone.item.created_by != user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=403)
+        
+        # Create tasks using service
+        service = MilestoneKnowledgeService()
+        result = service.create_tasks_from_context(context_obj, milestone, user)
+        
+        return JsonResponse(result)
+        
+    except MilestoneContextObject.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Context object not found'
+        }, status=404)
+    
+    except MilestoneKnowledgeServiceError as e:
+        logger.error(f'Milestone knowledge service error: {str(e)}')
+        return JsonResponse(e.to_dict(), status=400)
+    
+    except Exception as e:
+        logger.error(f'Error creating tasks from context: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to create tasks',
+            'details': str(e)
+        }, status=500)
