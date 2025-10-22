@@ -1887,3 +1887,38 @@ def milestone_delete(request, milestone_id):
     
     return render(request, 'main/milestones/delete.html', context)
 
+
+def milestone_detail(request, milestone_id):
+    """Show detailed view of a milestone with tabs for Summary, Tasks, and Context"""
+    from datetime import date, timedelta
+    
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    milestone = get_object_or_404(Milestone, id=milestone_id)
+    item = milestone.item
+    
+    # Check ownership unless admin
+    if user.role != 'admin' and item.created_by != user:
+        messages.error(request, 'You do not have permission to view this milestone.')
+        return redirect('main:item_detail', item_id=item.id)
+    
+    # Calculate some helper dates for the template
+    today = date.today()
+    week_from_today = today + timedelta(days=7)
+    
+    # Count analyzed context objects
+    analyzed_count = milestone.context_objects.filter(analyzed=True).count()
+    
+    context = {
+        'milestone': milestone,
+        'today': today,
+        'week_from_today': week_from_today,
+        'analyzed_count': analyzed_count,
+    }
+    
+    return render(request, 'main/milestones/detail.html', context)
+

@@ -3813,18 +3813,24 @@ def api_milestone_context_add(request, milestone_id):
     
     POST /api/milestones/<milestone_id>/context/add
     
-    Request body:
+    Supports two modes:
+    1. JSON body (for note/email/transcript):
     {
-        "type": "file|email|transcript|note",
+        "type": "email|transcript|note",
         "title": "Context title",
         "content": "Text content",
         "source_id": "Optional source ID",
         "url": "Optional URL",
         "auto_analyze": true
     }
+    
+    2. Multipart form data (for file uploads):
+    - file: uploaded file
+    - auto_analyze: true/false (optional, default true)
     """
     from main.models import Milestone, MilestoneContextObject
     from core.services.milestone_knowledge_service import MilestoneKnowledgeService, MilestoneKnowledgeServiceError
+    from core.services.file_extraction_service import FileExtractionService
     
     user = get_user_from_request(request)
     if not user:
@@ -3843,15 +3849,49 @@ def api_milestone_context_add(request, milestone_id):
                 'error': 'Permission denied'
             }, status=403)
         
-        # Parse request body
-        data = json.loads(request.body)
-        
-        context_type = data.get('type', '')
-        title = data.get('title', '').strip()
-        content = data.get('content', '').strip()
-        source_id = data.get('source_id', '').strip()
-        url = data.get('url', '').strip()
-        auto_analyze = data.get('auto_analyze', True)
+        # Check if this is a file upload or JSON request
+        if request.FILES.get('file'):
+            # Handle file upload
+            uploaded_file = request.FILES['file']
+            auto_analyze = request.POST.get('auto_analyze', 'true').lower() == 'true'
+            
+            # Extract text from file
+            file_service = FileExtractionService()
+            if not file_service.can_extract_text(uploaded_file.name):
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Unsupported file type: {uploaded_file.name}'
+                }, status=400)
+            
+            # Read file content
+            file_content = uploaded_file.read()
+            
+            # Extract text
+            extraction_result = file_service.extract_text(file_content, uploaded_file.name)
+            
+            if not extraction_result.get('success'):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Failed to extract text from file',
+                    'details': extraction_result.get('error', '')
+                }, status=400)
+            
+            # Use extracted text as content
+            context_type = 'file'
+            title = uploaded_file.name
+            content = extraction_result.get('text', '')
+            source_id = ''
+            url = ''
+        else:
+            # Handle JSON request
+            data = json.loads(request.body)
+            
+            context_type = data.get('type', '')
+            title = data.get('title', '').strip()
+            content = data.get('content', '').strip()
+            source_id = data.get('source_id', '').strip()
+            url = data.get('url', '').strip()
+            auto_analyze = data.get('auto_analyze', True)
         
         if not context_type or not title:
             return JsonResponse({
