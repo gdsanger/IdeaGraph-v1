@@ -670,6 +670,11 @@ class Settings(models.Model):
         verbose_name='KiGate API Timeout',
         help_text='Timeout for KiGate API requests in seconds'
     )
+    kigate_max_tokens = models.IntegerField(
+        default=10000,
+        verbose_name='KiGate Max Tokens per Request',
+        help_text='Maximum number of tokens to send per KiGate API request (content will be chunked if larger)'
+    )
     
     # Weaviate Configuration
     weaviate_cloud_enabled = models.BooleanField(
