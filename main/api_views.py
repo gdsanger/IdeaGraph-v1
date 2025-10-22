@@ -2969,3 +2969,230 @@ def api_semantic_network(request, object_type, object_id):
         }, status=500)
 
 
+
+
+# File Upload API Endpoints
+
+@require_http_methods(["POST"])
+def api_item_file_upload(request, item_id):
+    """
+    Upload a file for an item
+    
+    POST data:
+        - file: File upload
+    
+    Returns:
+        JSON response with upload result
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from main.models import Item
+        from core.services.item_file_service import ItemFileService, ItemFileServiceError
+        
+        # Get item
+        try:
+            item = Item.objects.get(id=item_id)
+        except Item.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Item not found'
+            }, status=404)
+        
+        # Check permission
+        if user.role != 'admin' and item.created_by != user:
+            return JsonResponse({
+                'success': False,
+                'error': 'You do not have permission to upload files for this item'
+            }, status=403)
+        
+        # Get uploaded file
+        if 'file' not in request.FILES:
+            return JsonResponse({
+                'success': False,
+                'error': 'No file provided'
+            }, status=400)
+        
+        uploaded_file = request.FILES['file']
+        
+        # Read file content
+        file_content = uploaded_file.read()
+        filename = uploaded_file.name
+        content_type = uploaded_file.content_type or 'application/octet-stream'
+        
+        # Upload file
+        service = ItemFileService()
+        result = service.upload_file(
+            item=item,
+            file_content=file_content,
+            filename=filename,
+            content_type=content_type,
+            user=user
+        )
+        
+        logger.info(f'File uploaded for item {item_id}: {filename}')
+        
+        return JsonResponse(result)
+    
+    except ItemFileServiceError as e:
+        logger.error(f'File upload error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error uploading file: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to upload file'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def api_item_file_list(request, item_id):
+    """
+    List all files for an item
+    
+    Returns:
+        JSON response with list of files
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from main.models import Item
+        from core.services.item_file_service import ItemFileService, ItemFileServiceError
+        
+        # Get item
+        try:
+            item = Item.objects.get(id=item_id)
+        except Item.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Item not found'
+            }, status=404)
+        
+        # Check permission
+        if user.role != 'admin' and item.created_by != user:
+            return JsonResponse({
+                'success': False,
+                'error': 'You do not have permission to view files for this item'
+            }, status=403)
+        
+        # List files
+        service = ItemFileService()
+        result = service.list_files(str(item_id))
+        
+        return JsonResponse(result)
+    
+    except ItemFileServiceError as e:
+        logger.error(f'File list error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error listing files: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to list files'
+        }, status=500)
+
+
+@require_http_methods(["DELETE"])
+def api_item_file_delete(request, file_id):
+    """
+    Delete a file
+    
+    Returns:
+        JSON response with deletion result
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from core.services.item_file_service import ItemFileService, ItemFileServiceError
+        
+        # Delete file
+        service = ItemFileService()
+        result = service.delete_file(file_id, user)
+        
+        logger.info(f'File deleted: {file_id}')
+        
+        return JsonResponse(result)
+    
+    except ItemFileServiceError as e:
+        logger.error(f'File delete error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error deleting file: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to delete file'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def api_item_file_download(request, file_id):
+    """
+    Get download URL for a file
+    
+    Returns:
+        JSON response with download URL
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from core.services.item_file_service import ItemFileService, ItemFileServiceError
+        
+        # Get download URL
+        service = ItemFileService()
+        result = service.get_download_url(file_id, user)
+        
+        return JsonResponse(result)
+    
+    except ItemFileServiceError as e:
+        logger.error(f'File download error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error getting download URL: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to get download URL'
+        }, status=500)

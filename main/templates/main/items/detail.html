@@ -271,8 +271,8 @@
                 <div class="card-body">
                     <ul class="nav nav-tabs" id="itemTabs" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="similar-tab" data-bs-toggle="tab" data-bs-target="#similar" type="button" role="tab">
-                                <i class="bi bi-diagram-3"></i> Similar Items
+                            <button class="nav-link active" id="files-tab" data-bs-toggle="tab" data-bs-target="#files" type="button" role="tab">
+                                <i class="bi bi-file-earmark"></i> Files
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
@@ -288,12 +288,31 @@
                     </ul>
                     
                     <div class="tab-content mt-3" id="itemTabsContent">
-                        <!-- Similar Items Tab -->
-                        <div class="tab-pane fade show active" id="similar" role="tabpanel">
-                            <div id="similarItemsContainer">
+                        <!-- Files Tab -->
+                        <div class="tab-pane fade show active" id="files" role="tabpanel">
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-primary" id="uploadFileBtn">
+                                    <i class="bi bi-upload"></i> Upload File
+                                </button>
+                                <small class="text-muted ms-2">Maximum file size: 25 MB</small>
+                            </div>
+                            
+                            <!-- Hidden file input -->
+                            <input type="file" id="fileInput" style="display: none;" />
+                            
+                            <!-- Upload progress -->
+                            <div id="uploadProgress" style="display: none;" class="mb-3">
+                                <div class="progress">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                                </div>
+                                <small class="text-muted">Uploading file...</small>
+                            </div>
+                            
+                            <!-- Files list -->
+                            <div id="filesListContainer">
                                 <div class="text-center text-muted py-5">
-                                    <i class="bi bi-diagram-3" style="font-size: 3rem;"></i>
-                                    <p class="mt-3">Click "Check Similarity" to find related items</p>
+                                    <i class="bi bi-file-earmark" style="font-size: 3rem;"></i>
+                                    <p class="mt-3">No files uploaded yet</p>
                                 </div>
                             </div>
                         </div>
@@ -1009,5 +1028,181 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load the semantic network
     semanticNetworkViewer.load('item', '{{ item.id }}');
 });
+
+// File Upload Functionality
+(function() {
+    const uploadBtn = document.getElementById('uploadFileBtn');
+    const fileInput = document.getElementById('fileInput');
+    const uploadProgress = document.getElementById('uploadProgress');
+    const filesListContainer = document.getElementById('filesListContainer');
+    const itemId = '{{ item.id }}';
+    
+    // Load files list on page load
+    loadFilesList();
+    
+    // Upload button click handler
+    uploadBtn.addEventListener('click', function() {
+        fileInput.click();
+    });
+    
+    // File input change handler
+    fileInput.addEventListener('change', function() {
+        const file = this.files[0];
+        if (file) {
+            uploadFile(file);
+        }
+    });
+    
+    function uploadFile(file) {
+        // Validate file size (25MB max)
+        const maxSize = 25 * 1024 * 1024;
+        if (file.size > maxSize) {
+            showToast('error', 'File too large', 'Maximum file size is 25 MB');
+            return;
+        }
+        
+        // Show progress
+        uploadProgress.style.display = 'block';
+        
+        // Prepare form data
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // Upload file
+        fetch(`/api/items/${itemId}/files/upload`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            uploadProgress.style.display = 'none';
+            
+            if (data.success) {
+                showToast('success', 'Success', 'File uploaded successfully');
+                loadFilesList();
+                fileInput.value = ''; // Clear input
+            } else {
+                showToast('error', 'Upload failed', data.error || 'Failed to upload file');
+            }
+        })
+        .catch(error => {
+            uploadProgress.style.display = 'none';
+            showToast('error', 'Upload failed', 'Network error');
+            console.error('Upload error:', error);
+        });
+    }
+    
+    function loadFilesList() {
+        fetch(`/api/items/${itemId}/files`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderFilesList(data.files);
+            } else {
+                console.error('Failed to load files:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading files:', error);
+        });
+    }
+    
+    function renderFilesList(files) {
+        if (files.length === 0) {
+            filesListContainer.innerHTML = `
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-file-earmark" style="font-size: 3rem;"></i>
+                    <p class="mt-3">No files uploaded yet</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="table-responsive"><table class="table table-hover">';
+        html += '<thead><tr>';
+        html += '<th>Filename</th>';
+        html += '<th>Size</th>';
+        html += '<th>Uploaded By</th>';
+        html += '<th>Date</th>';
+        html += '<th>Weaviate</th>';
+        html += '<th>Actions</th>';
+        html += '</tr></thead><tbody>';
+        
+        files.forEach(file => {
+            const date = new Date(file.created_at).toLocaleString();
+            const syncBadge = file.weaviate_synced 
+                ? '<span class="badge bg-success">Synced</span>' 
+                : '<span class="badge bg-secondary">Not synced</span>';
+            
+            html += '<tr>';
+            html += `<td><i class="bi bi-file-earmark"></i> ${escapeHtml(file.filename)}</td>`;
+            html += `<td>${file.file_size_mb} MB</td>`;
+            html += `<td>${escapeHtml(file.uploaded_by)}</td>`;
+            html += `<td>${date}</td>`;
+            html += `<td>${syncBadge}</td>`;
+            html += `<td>`;
+            html += `<a href="${file.sharepoint_url}" target="_blank" class="btn btn-sm btn-outline-primary" title="Open in SharePoint">`;
+            html += '<i class="bi bi-download"></i></a> ';
+            html += `<button class="btn btn-sm btn-outline-danger" onclick="deleteFile('${file.id}')" title="Delete">`;
+            html += '<i class="bi bi-trash"></i></button>';
+            html += '</td>';
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table></div>';
+        filesListContainer.innerHTML = html;
+    }
+    
+    window.deleteFile = function(fileId) {
+        if (!confirm('Are you sure you want to delete this file?')) {
+            return;
+        }
+        
+        fetch(`/api/files/${fileId}/delete`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('success', 'Success', data.message || 'File deleted successfully');
+                loadFilesList();
+            } else {
+                showToast('error', 'Delete failed', data.error || 'Failed to delete file');
+            }
+        })
+        .catch(error => {
+            showToast('error', 'Delete failed', 'Network error');
+            console.error('Delete error:', error);
+        });
+    };
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+})();
 </script>
 {% endblock %}
