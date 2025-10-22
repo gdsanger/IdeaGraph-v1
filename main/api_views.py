@@ -2669,6 +2669,7 @@ def api_send_item_email(request, item_id):
         return JsonResponse({'error': 'An error occurred while sending email'}, status=500)
 
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def api_task_bulk_delete(request):
     """
@@ -2977,6 +2978,7 @@ def api_semantic_network(request, object_type, object_id):
 
 # File Upload API Endpoints
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def api_item_file_upload(request, item_id):
     """
@@ -3083,6 +3085,7 @@ def api_item_file_upload(request, item_id):
         }, status=500)
 
 
+@csrf_exempt
 @require_http_methods(["GET"])
 def api_item_file_list(request, item_id):
     """
@@ -3162,6 +3165,7 @@ def api_item_file_list(request, item_id):
         }, status=500)
 
 
+@csrf_exempt
 @require_http_methods(["DELETE"])
 def api_item_file_delete(request, file_id):
     """
@@ -3235,6 +3239,7 @@ def api_item_file_delete(request, file_id):
         }, status=500)
 
 
+@csrf_exempt
 @require_http_methods(["GET"])
 def api_item_file_download(request, file_id):
     """
