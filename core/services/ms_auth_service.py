@@ -32,7 +32,9 @@ class MSAuthService:
     
     GRAPH_API_ENDPOINT = 'https://graph.microsoft.com/v1.0'
     AUTHORITY_BASE = 'https://login.microsoftonline.com'
-    SCOPES = ['User.Read', 'openid', 'profile', 'email']
+    # Note: 'openid', 'profile', and 'email' are reserved scopes automatically handled by MSAL
+    # Only specify the Graph API scopes needed
+    SCOPES = ['User.Read']
     
     def __init__(self, client_id: str = None, tenant_id: str = None, client_secret: str = None):
         """
@@ -80,16 +82,17 @@ class MSAuthService:
         """Check if MS SSO is properly configured."""
         return bool(self.enabled and self.client_id and self.tenant_id and self.msal_app)
     
-    def get_authorization_url(self, redirect_uri: str, state: str = None) -> Tuple[str, str]:
+    def get_authorization_url(self, redirect_uri: str, state: str = None) -> Tuple[str, Dict]:
         """
-        Generate the authorization URL for user login.
+        Generate the authorization URL for user login using the recommended auth code flow.
         
         Args:
             redirect_uri: The URI to redirect to after authentication
             state: Optional state parameter for CSRF protection
             
         Returns:
-            Tuple of (authorization_url, state)
+            Tuple of (authorization_url, flow_dict) where flow_dict contains the flow 
+            information needed for token acquisition
             
         Raises:
             MSAuthServiceError: If the service is not configured
@@ -98,12 +101,26 @@ class MSAuthService:
             raise MSAuthServiceError('MS SSO is not properly configured')
         
         try:
-            auth_result = self.msal_app.get_authorization_request_url(
+            # Use initiate_auth_code_flow instead of deprecated get_authorization_request_url
+            # This method automatically handles reserved scopes (openid, profile, offline_access)
+            flow = self.msal_app.initiate_auth_code_flow(
                 scopes=self.SCOPES,
-                state=state,
-                redirect_uri=redirect_uri
+                redirect_uri=redirect_uri,
+                state=state
             )
-            return auth_result, state
+            
+            if 'error' in flow:
+                error_desc = flow.get('error_description', 'Unknown error')
+                logger.error(f'Failed to initiate auth code flow: {error_desc}')
+                raise MSAuthServiceError(f'Failed to initiate auth code flow: {error_desc}')
+            
+            auth_url = flow.get('auth_uri')
+            if not auth_url:
+                raise MSAuthServiceError('No authorization URL in flow response')
+            
+            return auth_url, flow
+        except MSAuthServiceError:
+            raise
         except Exception as e:
             logger.error(f'Failed to generate authorization URL: {e}')
             raise MSAuthServiceError(f'Failed to generate authorization URL: {e}')
@@ -111,14 +128,15 @@ class MSAuthService:
     def acquire_token_by_authorization_code(
         self, 
         authorization_code: str, 
-        redirect_uri: str
+        flow: Dict = None
     ) -> Dict:
         """
-        Exchange authorization code for access token.
+        Exchange authorization code for access token using the auth code flow.
         
         Args:
             authorization_code: The authorization code from the callback
-            redirect_uri: The same redirect URI used in authorization request
+            flow: The flow dictionary returned from initiate_auth_code_flow (optional)
+                  If not provided, will use basic token acquisition
             
         Returns:
             Token response dictionary containing access_token, id_token, etc.
@@ -130,11 +148,20 @@ class MSAuthService:
             raise MSAuthServiceError('MS SSO is not properly configured')
         
         try:
-            result = self.msal_app.acquire_token_by_authorization_code(
-                code=authorization_code,
-                scopes=self.SCOPES,
-                redirect_uri=redirect_uri
-            )
+            # Use acquire_token_by_auth_code_flow if flow is provided (recommended)
+            # Otherwise fall back to acquire_token_by_authorization_code
+            if flow:
+                result = self.msal_app.acquire_token_by_auth_code_flow(
+                    auth_code_flow=flow,
+                    auth_response={'code': authorization_code}
+                )
+            else:
+                # Fallback for backward compatibility
+                logger.warning('Using acquire_token_by_authorization_code without flow - consider passing flow parameter')
+                result = self.msal_app.acquire_token_by_authorization_code(
+                    code=authorization_code,
+                    scopes=self.SCOPES
+                )
             
             if 'error' in result:
                 error_desc = result.get('error_description', 'Unknown error')

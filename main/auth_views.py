@@ -332,8 +332,11 @@ def ms_sso_login(request):
         # Build redirect URI
         redirect_uri = request.build_absolute_uri(reverse('main:ms_sso_callback'))
         
-        # Get authorization URL
-        auth_url, _ = ms_auth.get_authorization_url(redirect_uri, state)
+        # Get authorization URL and flow
+        auth_url, flow = ms_auth.get_authorization_url(redirect_uri, state)
+        
+        # Store flow in session for token acquisition
+        request.session['ms_auth_flow'] = flow
         
         logger.info('Redirecting to Microsoft SSO login')
         return redirect(auth_url)
@@ -376,6 +379,9 @@ def ms_sso_callback(request):
         # Clean up state from session
         request.session.pop('ms_auth_state', None)
         
+        # Get flow from session
+        flow = request.session.pop('ms_auth_flow', None)
+        
         # Initialize MS Auth Service
         ms_auth = MSAuthService()
         
@@ -383,11 +389,8 @@ def ms_sso_callback(request):
             messages.error(request, 'Microsoft SSO is not properly configured.')
             return redirect('main:login')
         
-        # Build redirect URI (must match the one used in authorization)
-        redirect_uri = request.build_absolute_uri(reverse('main:ms_sso_callback'))
-        
-        # Exchange code for token
-        token_response = ms_auth.acquire_token_by_authorization_code(code, redirect_uri)
+        # Exchange code for token using the stored flow
+        token_response = ms_auth.acquire_token_by_authorization_code(code, flow)
         
         # Create or update user
         user = ms_auth.create_or_update_user(token_response)
