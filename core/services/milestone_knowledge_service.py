@@ -20,6 +20,69 @@ from core.services.weaviate_sync_service import WeaviateItemSyncService, Weaviat
 logger = logging.getLogger('milestone_knowledge_service')
 
 
+def estimate_token_count(text: str) -> int:
+    """
+    Estimate the number of tokens in a text string.
+    Uses a simple heuristic: ~4 characters per token (works well for English/German)
+    
+    Args:
+        text: Input text string
+        
+    Returns:
+        Estimated token count
+    """
+    return len(text) // 4
+
+
+def chunk_text(text: str, max_tokens: int, overlap: int = 200) -> List[str]:
+    """
+    Split text into chunks that fit within token limit with overlap.
+    
+    Args:
+        text: Text to chunk
+        max_tokens: Maximum tokens per chunk
+        overlap: Number of tokens to overlap between chunks
+        
+    Returns:
+        List of text chunks
+    """
+    # Convert max_tokens to approximate character count
+    max_chars = max_tokens * 4
+    overlap_chars = overlap * 4
+    
+    if len(text) <= max_chars:
+        return [text]
+    
+    chunks = []
+    start = 0
+    
+    while start < len(text):
+        end = start + max_chars
+        
+        # If this is not the last chunk, try to break at sentence boundary
+        if end < len(text):
+            # Look for sentence endings near the end of the chunk
+            sentence_endings = ['. ', '.\n', '! ', '!\n', '? ', '?\n']
+            best_break = end
+            
+            # Search backwards from end for a sentence boundary
+            for i in range(end, max(start + max_chars // 2, end - 500), -1):
+                if any(text[i:i+2] == ending for ending in sentence_endings):
+                    best_break = i + 2
+                    break
+            
+            end = best_break
+        
+        chunks.append(text[start:end])
+        
+        # Move start forward, accounting for overlap
+        start = end - overlap_chars
+        if start >= len(text):
+            break
+    
+    return chunks
+
+
 class MilestoneKnowledgeServiceError(Exception):
     """Base exception for Milestone Knowledge Service errors"""
     
@@ -154,6 +217,7 @@ class MilestoneKnowledgeService:
         1. Generates a summary using text-summary-agent
         2. Derives tasks using text-analysis-task-derivation-agent
         3. Updates the context object with results
+        4. Handles content chunking if it exceeds token limits
         
         Args:
             context_obj: MilestoneContextObject instance
@@ -175,62 +239,115 @@ class MilestoneKnowledgeService:
             # Get default model from settings
             default_model = getattr(self.settings, 'openai_default_model', 'gpt-4') or 'gpt-4'
             
+            # Get max tokens limit from settings
+            max_tokens = getattr(self.settings, 'kigate_max_tokens', 10000)
+            
+            # Check if content needs chunking
+            content_tokens = estimate_token_count(context_obj.content)
+            needs_chunking = content_tokens > max_tokens
+            
+            if needs_chunking:
+                logger.info(f"Content exceeds {max_tokens} tokens ({content_tokens} estimated), will chunk")
+                chunks = chunk_text(context_obj.content, max_tokens)
+                logger.info(f"Split content into {len(chunks)} chunks")
+            else:
+                chunks = [context_obj.content]
+            
             # Step 1: Generate summary using text-summary-agent
             logger.info(f"Generating summary for context object {context_obj.id}")
-            summary_result = kigate.execute_agent(
-                agent_name='text-summary-agent',
-                provider='openai',
-                model=default_model,
-                message=context_obj.content,
-                user_id='system',
-                parameters={
-                    'max_length': 500
-                }
-            )
             
-            summary = ""
-            if summary_result.get('success') and 'result' in summary_result:
-                if isinstance(summary_result['result'], dict):
-                    summary = summary_result['result'].get('summary', '')
-                else:
-                    summary = str(summary_result['result'])
+            all_summaries = []
+            for i, chunk in enumerate(chunks):
+                logger.info(f"Processing chunk {i+1}/{len(chunks)} for summary")
+                
+                summary_result = kigate.execute_agent(
+                    agent_name='text-summary-agent',
+                    provider='openai',
+                    model=default_model,
+                    message=chunk,
+                    user_id='system',
+                    parameters={
+                        'max_length': 500
+                    }
+                )
+                
+                if summary_result.get('success') and 'result' in summary_result:
+                    if isinstance(summary_result['result'], dict):
+                        chunk_summary = summary_result['result'].get('summary', '')
+                    else:
+                        chunk_summary = str(summary_result['result'])
+                    
+                    if chunk_summary:
+                        all_summaries.append(chunk_summary)
+            
+            # Merge summaries
+            if len(all_summaries) > 1:
+                # If we have multiple summaries, combine them
+                summary = "\n\n".join([f"Teil {i+1}: {s}" for i, s in enumerate(all_summaries)])
+            elif all_summaries:
+                summary = all_summaries[0]
+            else:
+                summary = ""
             
             # Step 2: Derive tasks using text-analysis-task-derivation-agent
             logger.info(f"Deriving tasks for context object {context_obj.id}")
             
-            # Build message with context
-            task_message = f"Milestone: {context_obj.milestone.name}\n\nContent:\n{context_obj.content}"
+            all_derived_tasks = []
+            for i, chunk in enumerate(chunks):
+                logger.info(f"Processing chunk {i+1}/{len(chunks)} for task derivation")
+                
+                # Build message with context
+                task_message = f"Milestone: {context_obj.milestone.name}\n\nContent:\n{chunk}"
+                
+                task_derivation_result = kigate.execute_agent(
+                    agent_name='text-analysis-task-derivation-agent',
+                    provider='openai',
+                    model=default_model,
+                    message=task_message,
+                    user_id='system'
+                )
+                
+                derived_tasks = []
+                if task_derivation_result.get('success') and 'result' in task_derivation_result:
+                    result_data = task_derivation_result['result']
+                    
+                    # Handle different response formats
+                    if isinstance(result_data, dict):
+                        # Response is a dict with 'tasks' key
+                        derived_tasks = result_data.get('tasks', [])
+                    elif isinstance(result_data, list):
+                        # Response is directly a list of tasks
+                        derived_tasks = result_data
+                    elif isinstance(result_data, str):
+                        # Try to parse as JSON if it's a string
+                        try:
+                            parsed = json.loads(result_data)
+                            if isinstance(parsed, list):
+                                derived_tasks = parsed
+                            elif isinstance(parsed, dict):
+                                derived_tasks = parsed.get('tasks', [])
+                        except json.JSONDecodeError:
+                            logger.warning(f"Could not parse task derivation result as JSON: {result_data}")
+                
+                all_derived_tasks.extend(derived_tasks)
             
-            task_derivation_result = kigate.execute_agent(
-                agent_name='text-analysis-task-derivation-agent',
-                provider='openai',
-                model=default_model,
-                message=task_message,
-                user_id='system'
-            )
-            
-            derived_tasks = []
-            if task_derivation_result.get('success') and 'result' in task_derivation_result:
-                result_data = task_derivation_result['result']
-                if isinstance(result_data, dict):
-                    derived_tasks = result_data.get('tasks', [])
-                elif isinstance(result_data, list):
-                    derived_tasks = result_data
+            logger.info(f"Parsed {len(all_derived_tasks)} total derived tasks from all chunks")
             
             # Update context object
             context_obj.summary = summary
-            context_obj.derived_tasks = derived_tasks
+            context_obj.derived_tasks = all_derived_tasks
             context_obj.analyzed = True
             context_obj.save()
             
             logger.info(f"Analysis complete for context object {context_obj.id}: "
-                       f"{len(derived_tasks)} tasks derived")
+                       f"{len(all_derived_tasks)} tasks derived")
             
             return {
                 'success': True,
                 'summary': summary,
-                'derived_tasks': derived_tasks,
-                'task_count': len(derived_tasks)
+                'derived_tasks': all_derived_tasks,
+                'task_count': len(all_derived_tasks),
+                'chunks_processed': len(chunks)
             }
             
         except KiGateServiceError as e:
@@ -431,10 +548,11 @@ class MilestoneKnowledgeService:
             created_tasks = []
             
             for task_data in context_obj.derived_tasks:
-                # Extract task information
+                # Extract task information - support both German and English keys
                 if isinstance(task_data, dict):
-                    title = task_data.get('title', '')
-                    description = task_data.get('description', '')
+                    # Try German keys first (from text-analysis-task-derivation-agent)
+                    title = task_data.get('Titel') or task_data.get('titel') or task_data.get('title', '')
+                    description = task_data.get('Beschreibung') or task_data.get('beschreibung') or task_data.get('description', '')
                 else:
                     title = str(task_data)
                     description = f"Abgeleitet aus: {context_obj.title}"

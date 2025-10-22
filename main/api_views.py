@@ -3881,12 +3881,44 @@ def api_milestone_context_add(request, milestone_id):
                     'error': 'Failed to extract text from file'
                 }, status=400)
             
+            # Upload to SharePoint if configured
+            sharepoint_file_id = ''
+            sharepoint_url = ''
+            try:
+                from core.services.graph_service import GraphService, GraphServiceError
+                graph = GraphService()
+                
+                # Create milestone-specific folder path
+                # Format: Milestones/<ItemID>/<MilestoneID>
+                folder_path = f"Milestones/{milestone.item.id}/{milestone.id}"
+                
+                # Upload file to SharePoint
+                upload_result = graph.upload_sharepoint_file(
+                    folder_path=folder_path,
+                    file_name=uploaded_file.name,
+                    content=file_content
+                )
+                
+                if upload_result.get('success'):
+                    sharepoint_file_id = upload_result.get('file_id', '')
+                    # Construct SharePoint URL
+                    if 'metadata' in upload_result and 'webUrl' in upload_result['metadata']:
+                        sharepoint_url = upload_result['metadata']['webUrl']
+                    
+                    logger.info(f'File uploaded to SharePoint: {uploaded_file.name} (ID: {sharepoint_file_id})')
+            except GraphServiceError as e:
+                logger.warning(f'SharePoint upload failed, continuing without SharePoint storage: {str(e)}')
+                # Continue without SharePoint - not a critical error
+            except Exception as e:
+                logger.warning(f'Unexpected error during SharePoint upload: {str(e)}')
+                # Continue without SharePoint - not a critical error
+            
             # Use extracted text as content
             context_type = 'file'
             title = uploaded_file.name
             content = extraction_result.get('text', '')
-            source_id = ''
-            url = ''
+            source_id = sharepoint_file_id
+            url = sharepoint_url
         else:
             # Handle JSON request
             data = json.loads(request.body)
@@ -4219,3 +4251,88 @@ def api_milestone_context_create_tasks(request, context_id):
             'error': 'Failed to create tasks',
             'details': 'An error occurred'
         }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(['GET'])
+def api_milestone_context_download(request, context_id):
+    """
+    Download a file from SharePoint for a context object
+    
+    GET /api/milestones/context/<context_id>/download
+    """
+    from main.models import MilestoneContextObject
+    from core.services.graph_service import GraphService, GraphServiceError
+    from django.http import HttpResponse
+    
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        context_obj = MilestoneContextObject.objects.get(id=context_id)
+        milestone = context_obj.milestone
+        
+        # Check permissions
+        if user.role != 'admin' and milestone.item.created_by != user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=403)
+        
+        # Check if file has SharePoint ID
+        if not context_obj.source_id or context_obj.type != 'file':
+            return JsonResponse({
+                'success': False,
+                'error': 'File not available for download'
+            }, status=400)
+        
+        # Download from SharePoint
+        try:
+            graph = GraphService()
+            download_result = graph.get_sharepoint_file(context_obj.source_id)
+            
+            if download_result.get('success'):
+                file_content = download_result.get('content')
+                file_name = download_result.get('file_name', context_obj.title)
+                
+                # Determine content type based on file extension
+                import mimetypes
+                content_type, _ = mimetypes.guess_type(file_name)
+                if not content_type:
+                    content_type = 'application/octet-stream'
+                
+                # Create HTTP response with file
+                response = HttpResponse(file_content, content_type=content_type)
+                response['Content-Disposition'] = f'attachment; filename="{file_name}"'
+                return response
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Failed to download file from SharePoint'
+                }, status=500)
+                
+        except GraphServiceError as e:
+            logger.error(f'SharePoint download error: {str(e)}')
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to download file'
+            }, status=500)
+        
+    except MilestoneContextObject.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Context object not found'
+        }, status=404)
+    
+    except Exception as e:
+        logger.error(f'Error downloading file: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to download file',
+            'details': 'An error occurred'
+        }, status=500)
+

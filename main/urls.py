@@ -160,4 +160,5 @@ urlpatterns = [
     path('api/milestones/context/<uuid:context_id>/analyze', api_views.api_milestone_context_analyze, name='api_milestone_context_analyze'),
     path('api/milestones/<uuid:milestone_id>/context', api_views.api_milestone_context_list, name='api_milestone_context_list'),
     path('api/milestones/context/<uuid:context_id>/create-tasks', api_views.api_milestone_context_create_tasks, name='api_milestone_context_create_tasks'),
+    path('api/milestones/context/<uuid:context_id>/download', api_views.api_milestone_context_download, name='api_milestone_context_download'),
 ]
