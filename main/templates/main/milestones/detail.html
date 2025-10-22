@@ -313,21 +313,9 @@
                                                 </button>
                                             </li>
                                             <li class="nav-item" role="presentation">
-                                                <button class="nav-link" id="note-tab-btn" data-bs-toggle="pill" 
-                                                        data-bs-target="#note-input" type="button" role="tab">
-                                                    🗒️ Note
-                                                </button>
-                                            </li>
-                                            <li class="nav-item" role="presentation">
-                                                <button class="nav-link" id="transcript-tab-btn" data-bs-toggle="pill" 
-                                                        data-bs-target="#transcript-input" type="button" role="tab">
-                                                    🎙️ Transcript
-                                                </button>
-                                            </li>
-                                            <li class="nav-item" role="presentation">
-                                                <button class="nav-link" id="email-tab-btn" data-bs-toggle="pill" 
-                                                        data-bs-target="#email-input" type="button" role="tab">
-                                                    ✉️ Email
+                                                <button class="nav-link" id="text-tab-btn" data-bs-toggle="pill" 
+                                                        data-bs-target="#text-input" type="button" role="tab">
+                                                    📝 Note / Transcript / Email
                                                 </button>
                                             </li>
                                         </ul>
@@ -345,54 +333,28 @@
                                                 <div id="fileList" class="mt-3"></div>
                                             </div>
                                             
-                                            <!-- Note Input -->
-                                            <div class="tab-pane fade" id="note-input" role="tabpanel">
+                                            <!-- Unified Text Input -->
+                                            <div class="tab-pane fade" id="text-input" role="tabpanel">
                                                 <div class="mb-3">
-                                                    <label for="noteTitle" class="form-label">Title</label>
-                                                    <input type="text" class="form-control" id="noteTitle" 
-                                                           placeholder="Note title">
+                                                    <label for="textObjectType" class="form-label">Type</label>
+                                                    <select class="form-select" id="textObjectType">
+                                                        <option value="note">🗒️ Note</option>
+                                                        <option value="transcript">🎙️ Transcript</option>
+                                                        <option value="email">✉️ Email</option>
+                                                    </select>
                                                 </div>
                                                 <div class="mb-3">
-                                                    <label for="noteContent" class="form-label">Content</label>
-                                                    <textarea class="form-control" id="noteContent" rows="5" 
-                                                              placeholder="Note content"></textarea>
-                                                </div>
-                                                <button type="button" class="btn btn-primary" id="addNoteBtn">
-                                                    <i class="bi bi-save"></i> Add Note
-                                                </button>
-                                            </div>
-                                            
-                                            <!-- Transcript Input -->
-                                            <div class="tab-pane fade" id="transcript-input" role="tabpanel">
-                                                <div class="mb-3">
-                                                    <label for="transcriptTitle" class="form-label">Title</label>
-                                                    <input type="text" class="form-control" id="transcriptTitle" 
-                                                           placeholder="Meeting name or transcript title">
+                                                    <label for="textObjectTitle" class="form-label">Title / Subject</label>
+                                                    <input type="text" class="form-control" id="textObjectTitle" 
+                                                           placeholder="Enter title or subject">
                                                 </div>
                                                 <div class="mb-3">
-                                                    <label for="transcriptContent" class="form-label">Transcript</label>
-                                                    <textarea class="form-control" id="transcriptContent" rows="8" 
-                                                              placeholder="Paste transcript content here"></textarea>
+                                                    <label for="textObjectContent" class="form-label">Content</label>
+                                                    <textarea class="form-control" id="textObjectContent" rows="8" 
+                                                              placeholder="Enter content here"></textarea>
                                                 </div>
-                                                <button type="button" class="btn btn-primary" id="addTranscriptBtn">
-                                                    <i class="bi bi-save"></i> Add Transcript
-                                                </button>
-                                            </div>
-                                            
-                                            <!-- Email Input -->
-                                            <div class="tab-pane fade" id="email-input" role="tabpanel">
-                                                <div class="mb-3">
-                                                    <label for="emailTitle" class="form-label">Subject</label>
-                                                    <input type="text" class="form-control" id="emailTitle" 
-                                                           placeholder="Email subject">
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label for="emailContent" class="form-label">Email Content</label>
-                                                    <textarea class="form-control" id="emailContent" rows="6" 
-                                                              placeholder="Paste email content here"></textarea>
-                                                </div>
-                                                <button type="button" class="btn btn-primary" id="addEmailBtn">
-                                                    <i class="bi bi-save"></i> Add Email
+                                                <button type="button" class="btn btn-primary" id="addTextObjectBtn">
+                                                    <i class="bi bi-save"></i> Add Context Object
                                                 </button>
                                             </div>
                                         </div>
@@ -616,43 +578,18 @@ function uploadFile(file) {
     });
 }
 
-// Add Note
-document.getElementById('addNoteBtn')?.addEventListener('click', function() {
-    const title = document.getElementById('noteTitle').value.trim();
-    const content = document.getElementById('noteContent').value.trim();
+// Add unified text object (Note, Transcript, Email)
+document.getElementById('addTextObjectBtn')?.addEventListener('click', function() {
+    const type = document.getElementById('textObjectType').value;
+    const title = document.getElementById('textObjectTitle').value.trim();
+    const content = document.getElementById('textObjectContent').value.trim();
     
     if (!title || !content) {
         showToast('Please provide both title and content.', 'warning');
         return;
     }
     
-    uploadContextObject('note', title, content, '', '');
-});
-
-// Add Transcript
-document.getElementById('addTranscriptBtn')?.addEventListener('click', function() {
-    const title = document.getElementById('transcriptTitle').value.trim();
-    const content = document.getElementById('transcriptContent').value.trim();
-    
-    if (!title || !content) {
-        showToast('Please provide both title and transcript content.', 'warning');
-        return;
-    }
-    
-    uploadContextObject('transcript', title, content, '', '');
-});
-
-// Add Email
-document.getElementById('addEmailBtn')?.addEventListener('click', function() {
-    const title = document.getElementById('emailTitle').value.trim();
-    const content = document.getElementById('emailContent').value.trim();
-    
-    if (!title || !content) {
-        showToast('Please provide both subject and email content.', 'warning');
-        return;
-    }
-    
-    uploadContextObject('email', title, content, '', '');
+    uploadContextObject(type, title, content, '', '');
 });
 
 // Upload context object via API
