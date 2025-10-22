@@ -555,6 +555,80 @@
 
                     <hr style="border-color: var(--autumn-primary);">
 
+                    <!-- Zammad Configuration -->
+                    <div class="mb-4">
+                        <h5 class="mb-3" style="color: var(--autumn-accent);">
+                            <i class="bi bi-headset"></i> Zammad Configuration
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <div class="form-check form-switch">
+                                    <input 
+                                        class="form-check-input" 
+                                        type="checkbox" 
+                                        id="zammad_enabled" 
+                                        name="zammad_enabled"
+                                        {% if settings.zammad_enabled %}checked{% endif %}>
+                                    <label class="form-check-label" for="zammad_enabled">
+                                        Enable Zammad Integration
+                                    </label>
+                                    <div class="form-text">Enable Zammad ticket synchronization</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="zammad_api_url" class="form-label">Zammad API URL</label>
+                                <input 
+                                    type="url" 
+                                    class="form-control" 
+                                    id="zammad_api_url" 
+                                    name="zammad_api_url" 
+                                    value="{{ settings.zammad_api_url|default:'' }}"
+                                    placeholder="https://your-zammad-instance.com">
+                                <div class="form-text">Base URL of the Zammad instance</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="zammad_api_token" class="form-label">Zammad API Token</label>
+                                <input 
+                                    type="password" 
+                                    class="form-control" 
+                                    id="zammad_api_token" 
+                                    name="zammad_api_token" 
+                                    value="{{ settings.zammad_api_token|default:'' }}"
+                                    placeholder="API token for authentication">
+                                <div class="form-text">API token for authentication</div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="zammad_groups" class="form-label">Zammad Groups</label>
+                                <textarea 
+                                    class="form-control" 
+                                    id="zammad_groups" 
+                                    name="zammad_groups" 
+                                    rows="3"
+                                    placeholder="Support, Development, Maintenance">{{ settings.zammad_groups|default:'' }}</textarea>
+                                <div class="form-text">Comma-separated list of group names to monitor</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="zammad_sync_interval" class="form-label">Zammad Sync Interval</label>
+                                <input 
+                                    type="number" 
+                                    class="form-control" 
+                                    id="zammad_sync_interval" 
+                                    name="zammad_sync_interval" 
+                                    value="{{ settings.zammad_sync_interval|default:15 }}"
+                                    min="5" 
+                                    max="1440"
+                                    placeholder="15">
+                                <div class="form-text">Interval in minutes for periodic synchronization</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr style="border-color: var(--autumn-primary);">
+
                     <!-- Additional Settings -->
                     <div class="mb-4">
                         <h5 class="mb-3" style="color: var(--autumn-accent);">
