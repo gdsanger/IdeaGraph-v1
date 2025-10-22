@@ -212,3 +212,143 @@ class ItemViewsTest(TestCase):
         # Check success message
         messages_list = list(response.context['messages'])
         self.assertTrue(any('updated successfully' in str(m) for m in messages_list))
+
+
+class ItemTileViewFilterTest(TestCase):
+    """Test TileView (Kanban) search and filter functionality"""
+    
+    def setUp(self):
+        """Set up test data"""
+        # Create test user
+        self.user = User.objects.create(
+            username='testuser',
+            email='test@example.com',
+            role='user'
+        )
+        self.user.set_password('Test@123')
+        self.user.save()
+        
+        # Create sections
+        self.section1 = Section.objects.create(name='Section A')
+        self.section2 = Section.objects.create(name='Section B')
+        
+        # Create tags
+        self.tag1 = Tag.objects.create(name='Tag 1', color='#3b82f6')
+        self.tag2 = Tag.objects.create(name='Tag 2', color='#f59e0b')
+        
+        # Create test items with different statuses and sections
+        self.item1 = Item.objects.create(
+            title='First Item',
+            description='Description for first item',
+            status='new',
+            section=self.section1,
+            created_by=self.user
+        )
+        self.item1.tags.add(self.tag1)
+        
+        self.item2 = Item.objects.create(
+            title='Second Item',
+            description='Description for second item',
+            status='ready',
+            section=self.section2,
+            created_by=self.user
+        )
+        self.item2.tags.add(self.tag2)
+        
+        self.item3 = Item.objects.create(
+            title='Third Item',
+            description='Special keyword in description',
+            status='working',
+            section=self.section1,
+            created_by=self.user
+        )
+        self.item3.tags.add(self.tag1, self.tag2)
+        
+        self.item4 = Item.objects.create(
+            title='Fourth Item',
+            description='Another description',
+            status='done',
+            section=self.section2,
+            created_by=self.user
+        )
+        
+        self.client = Client()
+    
+    def login_user(self):
+        """Helper to log in the test user"""
+        self.client.post('/login/', {
+            'username': self.user.username,
+            'password': 'Test@123'
+        })
+    
+    def test_tile_view_search_by_title(self):
+        """Test search functionality by title"""
+        self.login_user()
+        response = self.client.get('/items/kanban/?search=First')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'First Item')
+        self.assertNotContains(response, 'Second Item')
+        self.assertNotContains(response, 'Third Item')
+    
+    def test_tile_view_search_by_description(self):
+        """Test search functionality by description"""
+        self.login_user()
+        response = self.client.get('/items/kanban/?search=Special keyword')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Third Item')
+        self.assertNotContains(response, 'First Item')
+    
+    def test_tile_view_filter_by_status(self):
+        """Test filter by status"""
+        self.login_user()
+        response = self.client.get('/items/kanban/?status=ready')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Second Item')
+        self.assertNotContains(response, 'First Item')
+        self.assertNotContains(response, 'Third Item')
+    
+    def test_tile_view_filter_by_section(self):
+        """Test filter by section"""
+        self.login_user()
+        response = self.client.get(f'/items/kanban/?section={self.section1.id}')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'First Item')
+        self.assertContains(response, 'Third Item')
+        self.assertNotContains(response, 'Second Item')
+    
+    def test_tile_view_combined_filters(self):
+        """Test combined search and filters"""
+        self.login_user()
+        response = self.client.get(f'/items/kanban/?search=Item&status=new&section={self.section1.id}')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'First Item')
+        self.assertNotContains(response, 'Second Item')
+        self.assertNotContains(response, 'Third Item')
+    
+    def test_tile_view_no_results(self):
+        """Test when no items match the filters"""
+        self.login_user()
+        response = self.client.get('/items/kanban/?search=NonExistentItem')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'No items found matching your search criteria')
+        self.assertContains(response, 'Clear Filters')
+    
+    def test_tile_view_has_filter_form(self):
+        """Test that tile view has filter form elements"""
+        self.login_user()
+        response = self.client.get('/items/kanban/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="search"')
+        self.assertContains(response, 'name="status"')
+        self.assertContains(response, 'name="section"')
+        self.assertContains(response, '<i class="bi bi-funnel"></i> Filter')
+    
+    def test_tile_view_preserves_filter_values(self):
+        """Test that filter values are preserved in the form"""
+        self.login_user()
+        response = self.client.get(f'/items/kanban/?search=test&status=ready&section={self.section1.id}')
+        self.assertEqual(response.status_code, 200)
+        # Check that filter values are preserved
+        self.assertContains(response, 'value="test"')
+        self.assertContains(response, 'value="ready" selected')
+        self.assertContains(response, f'value="{self.section1.id}" selected')
