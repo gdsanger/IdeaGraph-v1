@@ -10,6 +10,7 @@ import logging
 from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime
 from difflib import SequenceMatcher
+from django.utils import timezone
 
 
 logger = logging.getLogger('github_task_sync_service')
@@ -278,7 +279,7 @@ class GitHubTaskSyncService:
                         status='done' if issue_state == 'closed' else 'new',
                         type='task',
                         created_by=created_by,
-                        github_synced_at=datetime.now()
+                        github_synced_at=timezone.now()
                     )
                     
                     results['tasks_created'] += 1
