@@ -64,6 +64,61 @@ class MSAuthServiceTest(TestCase):
         mock_app.initiate_auth_code_flow.assert_called_once()
     
     @patch('core.services.ms_auth_service.msal.ConfidentialClientApplication')
+    def test_acquire_token_with_flow(self, mock_msal):
+        """Test token acquisition with auth code flow and full auth_response"""
+        mock_app = MagicMock()
+        mock_app.acquire_token_by_auth_code_flow.return_value = {
+            'access_token': 'test-access-token',
+            'id_token': 'test-id-token',
+            'token_type': 'Bearer'
+        }
+        mock_msal.return_value = mock_app
+        
+        service = MSAuthService()
+        flow = {
+            'auth_uri': 'https://login.microsoft.com/authorize',
+            'state': 'test-state',
+            'nonce': 'test-nonce'
+        }
+        auth_response = {
+            'code': 'test-auth-code',
+            'state': 'test-state'
+        }
+        
+        result = service.acquire_token_by_authorization_code(auth_response, flow)
+        
+        self.assertEqual(result['access_token'], 'test-access-token')
+        mock_app.acquire_token_by_auth_code_flow.assert_called_once_with(
+            auth_code_flow=flow,
+            auth_response=auth_response
+        )
+    
+    @patch('core.services.ms_auth_service.msal.ConfidentialClientApplication')
+    def test_acquire_token_without_flow(self, mock_msal):
+        """Test token acquisition without flow (fallback mode)"""
+        mock_app = MagicMock()
+        mock_app.acquire_token_by_authorization_code.return_value = {
+            'access_token': 'test-access-token',
+            'id_token': 'test-id-token',
+            'token_type': 'Bearer'
+        }
+        mock_msal.return_value = mock_app
+        
+        service = MSAuthService()
+        auth_response = {
+            'code': 'test-auth-code',
+            'state': 'test-state'
+        }
+        
+        result = service.acquire_token_by_authorization_code(auth_response, None)
+        
+        self.assertEqual(result['access_token'], 'test-access-token')
+        mock_app.acquire_token_by_authorization_code.assert_called_once_with(
+            code='test-auth-code',
+            scopes=service.SCOPES
+        )
+    
+    @patch('core.services.ms_auth_service.msal.ConfidentialClientApplication')
     @patch('core.services.ms_auth_service.requests.get')
     def test_get_user_profile(self, mock_get, mock_msal):
         """Test retrieving user profile from Microsoft Graph"""
@@ -190,6 +245,74 @@ class MSAuthViewTest(TestCase):
         """Test MS SSO callback requires authorization code"""
         response = self.client.get(reverse('main:ms_sso_callback'))
         self.assertEqual(response.status_code, 302)
+    
+    @patch('main.auth_views.MSAuthService')
+    def test_ms_sso_callback_with_state_validation(self, mock_service_class):
+        """Test MS SSO callback validates state and passes full auth_response"""
+        # Set up session with state and flow
+        session = self.client.session
+        test_state = 'test-state-12345'
+        test_flow = {
+            'auth_uri': 'https://login.microsoft.com/authorize',
+            'state': test_state,
+            'nonce': 'test-nonce'
+        }
+        session['ms_auth_state'] = test_state
+        session['ms_auth_flow'] = test_flow
+        session.save()
+        
+        # Mock the service
+        mock_service = MagicMock()
+        mock_service.is_configured.return_value = True
+        mock_service.acquire_token_by_authorization_code.return_value = {
+            'access_token': 'test-access-token',
+            'id_token': 'test-id-token'
+        }
+        mock_service.create_or_update_user.return_value = User.objects.create(
+            username='testuser@example.com',
+            email='testuser@example.com',
+            auth_type='msauth',
+            role='user',
+            is_active=True
+        )
+        mock_service_class.return_value = mock_service
+        
+        # Simulate callback with code and state
+        response = self.client.get(
+            reverse('main:ms_sso_callback'),
+            {'code': 'test-auth-code', 'state': test_state}
+        )
+        
+        # Verify the service was called with full auth_response including state
+        mock_service.acquire_token_by_authorization_code.assert_called_once()
+        call_args = mock_service.acquire_token_by_authorization_code.call_args
+        auth_response = call_args[0][0]
+        self.assertIn('code', auth_response)
+        self.assertIn('state', auth_response)
+        self.assertEqual(auth_response['code'], 'test-auth-code')
+        self.assertEqual(auth_response['state'], test_state)
+        
+        # Verify successful redirect
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.endswith(reverse('main:home')))
+    
+    def test_ms_sso_callback_state_mismatch(self):
+        """Test MS SSO callback rejects mismatched state"""
+        # Set up session with different state
+        session = self.client.session
+        session['ms_auth_state'] = 'expected-state'
+        session['ms_auth_flow'] = {'state': 'expected-state'}
+        session.save()
+        
+        # Attempt callback with wrong state
+        response = self.client.get(
+            reverse('main:ms_sso_callback'),
+            {'code': 'test-auth-code', 'state': 'wrong-state'}
+        )
+        
+        # Should redirect to login with error
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.endswith(reverse('main:login')))
         
     def test_login_page_shows_ms_sso_button(self):
         """Test login page shows MS SSO button when enabled"""
