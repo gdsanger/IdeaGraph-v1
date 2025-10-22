@@ -426,6 +426,7 @@ def settings_create(request):
             openai_default_model=request.POST.get('openai_default_model', 'gpt-4'),
             openai_api_base_url=request.POST.get('openai_api_base_url', 'https://api.openai.com/v1'),
             openai_api_timeout=int(request.POST.get('openai_api_timeout') or 30),
+            openai_max_tokens=int(request.POST.get('openai_max_tokens') or 10000),
             client_id=request.POST.get('client_id', ''),
             client_secret=request.POST.get('client_secret', ''),
             tenant_id=request.POST.get('tenant_id', ''),
@@ -441,6 +442,7 @@ def settings_create(request):
             kigate_api_base_url=request.POST.get('kigate_api_base_url', 'http://localhost:8000'),
             kigate_api_token=request.POST.get('kigate_api_token', ''),
             kigate_api_timeout=int(request.POST.get('kigate_api_timeout') or 30),
+            kigate_max_tokens=int(request.POST.get('kigate_max_tokens') or 10000),
             weaviate_cloud_enabled=request.POST.get('weaviate_cloud_enabled') == 'on',
             weaviate_url=request.POST.get('weaviate_url', ''),
             weaviate_api_key=request.POST.get('weaviate_api_key', ''),
@@ -448,6 +450,10 @@ def settings_create(request):
             graph_api_enabled=request.POST.get('graph_api_enabled') == 'on',
             sharepoint_site_id=request.POST.get('sharepoint_site_id', ''),
             default_mail_sender=request.POST.get('default_mail_sender', ''),
+            ms_sso_enabled=request.POST.get('ms_sso_enabled') == 'on',
+            ms_sso_client_id=request.POST.get('ms_sso_client_id', ''),
+            ms_sso_tenant_id=request.POST.get('ms_sso_tenant_id', ''),
+            ms_sso_client_secret=request.POST.get('ms_sso_client_secret', ''),
             zammad_enabled=request.POST.get('zammad_enabled') == 'on',
             zammad_api_url=request.POST.get('zammad_api_url', ''),
             zammad_api_token=request.POST.get('zammad_api_token', ''),
@@ -471,6 +477,7 @@ def settings_update(request, pk):
         settings.openai_default_model = request.POST.get('openai_default_model', 'gpt-4')
         settings.openai_api_base_url = request.POST.get('openai_api_base_url', 'https://api.openai.com/v1')
         settings.openai_api_timeout = int(request.POST.get('openai_api_timeout') or 30)
+        settings.openai_max_tokens = int(request.POST.get('openai_max_tokens') or 10000)
         settings.client_id = request.POST.get('client_id', '')
         settings.client_secret = request.POST.get('client_secret', '')
         settings.tenant_id = request.POST.get('tenant_id', '')
@@ -486,6 +493,7 @@ def settings_update(request, pk):
         settings.kigate_api_base_url = request.POST.get('kigate_api_base_url', 'http://localhost:8000')
         settings.kigate_api_token = request.POST.get('kigate_api_token', '')
         settings.kigate_api_timeout = int(request.POST.get('kigate_api_timeout') or 30)
+        settings.kigate_max_tokens = int(request.POST.get('kigate_max_tokens') or 10000)
         settings.weaviate_cloud_enabled = request.POST.get('weaviate_cloud_enabled') == 'on'
         settings.weaviate_url = request.POST.get('weaviate_url', '')
         settings.weaviate_api_key = request.POST.get('weaviate_api_key', '')

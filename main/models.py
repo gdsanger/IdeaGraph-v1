@@ -561,6 +561,11 @@ class Settings(models.Model):
         verbose_name='OpenAI API Timeout',
         help_text='Timeout for OpenAI API requests in seconds'
     )
+    openai_max_tokens = models.IntegerField(
+        default=10000,
+        verbose_name='OpenAI Max Tokens per Request',
+        help_text='Maximum number of tokens to send per OpenAI API request (content will be chunked if larger)'
+    )
     
     # Graph API Credentials
     client_id = models.CharField(
