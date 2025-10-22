@@ -3274,3 +3274,170 @@ def api_item_file_download(request, file_id):
             'success': False,
             'error': 'Failed to get download URL'
         }, status=500)
+
+
+# ==================== Zammad Integration API ====================
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_admin
+def api_zammad_test_connection(request):
+    """
+    Test connection to Zammad API
+    POST /api/zammad/test-connection
+    
+    Returns:
+        JSON response with connection status
+    """
+    try:
+        from core.services.zammad_sync_service import ZammadSyncService, ZammadSyncServiceError
+        
+        service = ZammadSyncService()
+        result = service.test_connection()
+        
+        return JsonResponse(result)
+    
+    except ZammadSyncServiceError as e:
+        logger.error(f'Zammad connection test error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error testing Zammad connection: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to test connection'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_admin
+def api_zammad_sync(request):
+    """
+    Manually trigger Zammad ticket synchronization
+    POST /api/zammad/sync
+    Body (optional): {"groups": ["Group1", "Group2"]}
+    
+    Returns:
+        JSON response with sync results
+    """
+    try:
+        from core.services.zammad_sync_service import ZammadSyncService, ZammadSyncServiceError
+        
+        # Parse optional group filter
+        groups = None
+        if request.body:
+            try:
+                data = json.loads(request.body)
+                groups = data.get('groups')
+            except json.JSONDecodeError:
+                pass
+        
+        service = ZammadSyncService()
+        
+        if groups:
+            # Fetch and sync specific groups
+            tickets = service.fetch_open_tickets(groups)
+            
+            results = {
+                'success': True,
+                'total_tickets': len(tickets),
+                'created': 0,
+                'updated': 0,
+                'failed': 0,
+                'errors': []
+            }
+            
+            for ticket in tickets:
+                result = service.sync_ticket_to_task(ticket)
+                if result.get('success'):
+                    if result.get('action') == 'created':
+                        results['created'] += 1
+                    elif result.get('action') == 'updated':
+                        results['updated'] += 1
+                else:
+                    results['failed'] += 1
+                    results['errors'].append({
+                        'ticket_id': result.get('ticket_id'),
+                        'error': result.get('error')
+                    })
+        else:
+            # Sync all configured groups
+            results = service.sync_all_tickets()
+        
+        return JsonResponse(results)
+    
+    except ZammadSyncServiceError as e:
+        logger.error(f'Zammad sync error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error syncing Zammad tickets: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to sync tickets'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+@require_admin
+def api_zammad_status(request):
+    """
+    Get Zammad synchronization status
+    GET /api/zammad/status
+    
+    Returns:
+        JSON response with sync status and statistics
+    """
+    try:
+        from main.models import Task, Settings
+        
+        # Get settings
+        settings = Settings.objects.first()
+        if not settings:
+            return JsonResponse({
+                'success': False,
+                'error': 'Settings not found'
+            }, status=404)
+        
+        # Get statistics about Zammad-synced tasks
+        zammad_tasks = Task.objects.filter(type='ticket').exclude(external_id='')
+        
+        total_tasks = zammad_tasks.count()
+        new_tasks = zammad_tasks.filter(status='new').count()
+        working_tasks = zammad_tasks.filter(status='working').count()
+        done_tasks = zammad_tasks.filter(status='done').count()
+        
+        # Get last synced task
+        last_synced = zammad_tasks.order_by('-updated_at').first()
+        last_sync_time = last_synced.updated_at.isoformat() if last_synced else None
+        
+        return JsonResponse({
+            'success': True,
+            'enabled': settings.zammad_enabled,
+            'api_url': settings.zammad_api_url,
+            'configured_groups': [g.strip() for g in settings.zammad_groups.split(',') if g.strip()],
+            'sync_interval_minutes': settings.zammad_sync_interval,
+            'statistics': {
+                'total_tasks': total_tasks,
+                'new': new_tasks,
+                'working': working_tasks,
+                'done': done_tasks,
+                'last_sync': last_sync_time
+            }
+        })
+    
+    except Exception as e:
+        logger.error(f'Error getting Zammad status: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to get status'
+        }, status=500)
