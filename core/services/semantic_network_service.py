@@ -221,6 +221,8 @@ class SemanticNetworkService:
         except Exception as e:
             logger.error(f"Error finding hierarchical relations: {str(e)}")
             return relations
+    
+    def _find_similar_objects(
         self,
         object_type: str,
         source_uuid: str,
