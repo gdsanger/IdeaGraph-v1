@@ -1,0 +1,802 @@
+{% extends "main/base.html" %}
+{% load static %}
+
+{% block title %}{{ milestone.name }} - Milestone Details{% endblock %}
+
+{% block extra_css %}
+<style>
+    .milestone-detail-card {
+        background: rgba(31, 41, 55, 0.9);
+    }
+    
+    .context-object-card {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+    }
+    
+    .context-object-card:hover {
+        border-color: var(--autumn-accent);
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+    }
+    
+    .context-type-icon {
+        font-size: 2rem;
+        display: inline-block;
+        margin-right: 0.5rem;
+    }
+    
+    .ai-button {
+        position: relative;
+    }
+    
+    .ai-button .spinner-border {
+        display: none;
+        width: 1rem;
+        height: 1rem;
+        margin-left: 0.5rem;
+    }
+    
+    .ai-button.loading .spinner-border {
+        display: inline-block;
+    }
+    
+    .ai-button.loading .button-text {
+        opacity: 0.7;
+    }
+    
+    .file-upload-area {
+        border: 2px dashed rgba(255, 255, 255, 0.3);
+        border-radius: 0.5rem;
+        padding: 2rem;
+        text-align: center;
+        background: rgba(15, 23, 42, 0.4);
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .file-upload-area:hover {
+        border-color: var(--autumn-accent);
+        background: rgba(15, 23, 42, 0.6);
+    }
+    
+    .file-upload-area.dragover {
+        border-color: var(--autumn-accent);
+        background: rgba(245, 158, 11, 0.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'main:item_list' %}">Items</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'main:item_detail' milestone.item.id %}">{{ milestone.item.title }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ milestone.name }}</li>
+        </ol>
+    </nav>
+
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Milestone Header -->
+    <div class="card milestone-detail-card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h2 class="mb-2">
+                        <i class="bi bi-flag-fill text-warning"></i>
+                        {{ milestone.name }}
+                    </h2>
+                    <div class="mb-3">
+                        <span class="badge 
+                            {% if milestone.status == 'planned' %}bg-secondary
+                            {% elif milestone.status == 'in_progress' %}bg-primary
+                            {% elif milestone.status == 'completed' %}bg-success
+                            {% endif %} me-2">
+                            {{ milestone.get_status_display }}
+                        </span>
+                        <span class="text-muted">
+                            <i class="bi bi-calendar"></i> {{ milestone.due_date|date:"d.m.Y" }}
+                            {% if milestone.due_date < today %}
+                                <span class="badge bg-danger ms-1">Überfällig</span>
+                            {% elif milestone.due_date <= week_from_today %}
+                                <span class="badge bg-warning ms-1">Bald fällig</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% if milestone.description %}
+                    <p class="text-muted mb-0">{{ milestone.description }}</p>
+                    {% endif %}
+                </div>
+                <div class="btn-group" role="group">
+                    <a href="{% url 'main:milestone_edit' milestone.id %}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil"></i> Edit
+                    </a>
+                    <a href="{% url 'main:milestone_delete' milestone.id %}" class="btn btn-outline-danger">
+                        <i class="bi bi-trash"></i> Delete
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <ul class="nav nav-tabs mb-4" id="milestoneTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary" 
+                    type="button" role="tab" aria-controls="summary" aria-selected="true">
+                <i class="bi bi-file-text"></i> Summary
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tasks-tab" data-bs-toggle="tab" data-bs-target="#tasks" 
+                    type="button" role="tab" aria-controls="tasks" aria-selected="false">
+                <i class="bi bi-list-task"></i> Tasks ({{ milestone.tasks.count }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="context-tab" data-bs-toggle="tab" data-bs-target="#context" 
+                    type="button" role="tab" aria-controls="context" aria-selected="false">
+                <i class="bi bi-collection"></i> Context ({{ milestone.context_objects.count }})
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="milestoneTabsContent">
+        <!-- Summary Tab -->
+        <div class="tab-pane fade show active" id="summary" role="tabpanel" aria-labelledby="summary-tab">
+            <div class="card milestone-detail-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4><i class="bi bi-robot"></i> AI-Generated Summary</h4>
+                        <button class="btn btn-primary ai-button" id="regenerateSummaryBtn">
+                            <span class="button-text">
+                                <i class="bi bi-arrow-clockwise"></i> Regenerate Summary
+                            </span>
+                            <span class="spinner-border" role="status" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    
+                    <div id="summaryContent">
+                        {% if milestone.summary %}
+                        <div class="alert alert-info">
+                            {{ milestone.summary }}
+                        </div>
+                        {% else %}
+                        <div class="alert alert-secondary">
+                            <i class="bi bi-info-circle"></i>
+                            No summary generated yet. Add context objects and click "Regenerate Summary" to create one.
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Statistics -->
+                    <div class="row mt-4">
+                        <div class="col-md-4">
+                            <div class="card bg-dark">
+                                <div class="card-body text-center">
+                                    <h3 class="text-primary">{{ milestone.context_objects.count }}</h3>
+                                    <p class="text-muted mb-0">Context Objects</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-dark">
+                                <div class="card-body text-center">
+                                    <h3 class="text-success">{{ milestone.tasks.count }}</h3>
+                                    <p class="text-muted mb-0">Total Tasks</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-dark">
+                                <div class="card-body text-center">
+                                    <h3 class="text-warning">{{ analyzed_count }}</h3>
+                                    <p class="text-muted mb-0">Analyzed Objects</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tasks Tab -->
+        <div class="tab-pane fade" id="tasks" role="tabpanel" aria-labelledby="tasks-tab">
+            <div class="card milestone-detail-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4><i class="bi bi-list-task"></i> Tasks</h4>
+                        <a href="{% url 'main:task_create' milestone.item.id %}?milestone={{ milestone.id }}" 
+                           class="btn btn-primary">
+                            <i class="bi bi-plus-circle"></i> New Task
+                        </a>
+                    </div>
+                    
+                    {% if milestone.tasks.all %}
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Status</th>
+                                    <th>Type</th>
+                                    <th>AI Generated</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for task in milestone.tasks.all %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'main:task_detail' task.id %}">{{ task.title }}</a>
+                                    </td>
+                                    <td>
+                                        <span class="badge 
+                                            {% if task.status == 'new' %}bg-secondary
+                                            {% elif task.status == 'working' %}bg-primary
+                                            {% elif task.status == 'review' %}bg-warning
+                                            {% elif task.status == 'ready' %}bg-info
+                                            {% elif task.status == 'done' %}bg-success
+                                            {% endif %}">
+                                            {{ task.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-dark">{{ task.get_type_display }}</span>
+                                    </td>
+                                    <td>
+                                        {% if task.ai_generated %}
+                                        <i class="bi bi-robot text-success"></i>
+                                        {% else %}
+                                        <i class="bi bi-person text-muted"></i>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'main:task_detail' task.id %}" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-secondary">
+                        <i class="bi bi-info-circle"></i>
+                        No tasks assigned to this milestone yet. Create tasks manually or derive them from context objects.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Context Tab -->
+        <div class="tab-pane fade" id="context" role="tabpanel" aria-labelledby="context-tab">
+            <div class="card milestone-detail-card">
+                <div class="card-body">
+                    <h4 class="mb-3"><i class="bi bi-collection"></i> Context Objects</h4>
+                    
+                    <!-- Add Context Object Section -->
+                    <div class="mb-4">
+                        <button class="btn btn-primary mb-3" data-bs-toggle="collapse" data-bs-target="#addContextForm">
+                            <i class="bi bi-plus-circle"></i> Add Context Object
+                        </button>
+                        
+                        <div class="collapse" id="addContextForm">
+                            <div class="card bg-dark">
+                                <div class="card-body">
+                                    <form id="contextObjectForm">
+                                        {% csrf_token %}
+                                        
+                                        <ul class="nav nav-pills mb-3" id="contextTypeTabs" role="tablist">
+                                            <li class="nav-item" role="presentation">
+                                                <button class="nav-link active" id="file-tab-btn" data-bs-toggle="pill" 
+                                                        data-bs-target="#file-upload" type="button" role="tab">
+                                                    📄 File
+                                                </button>
+                                            </li>
+                                            <li class="nav-item" role="presentation">
+                                                <button class="nav-link" id="note-tab-btn" data-bs-toggle="pill" 
+                                                        data-bs-target="#note-input" type="button" role="tab">
+                                                    🗒️ Note
+                                                </button>
+                                            </li>
+                                            <li class="nav-item" role="presentation">
+                                                <button class="nav-link" id="transcript-tab-btn" data-bs-toggle="pill" 
+                                                        data-bs-target="#transcript-input" type="button" role="tab">
+                                                    🎙️ Transcript
+                                                </button>
+                                            </li>
+                                            <li class="nav-item" role="presentation">
+                                                <button class="nav-link" id="email-tab-btn" data-bs-toggle="pill" 
+                                                        data-bs-target="#email-input" type="button" role="tab">
+                                                    ✉️ Email
+                                                </button>
+                                            </li>
+                                        </ul>
+                                        
+                                        <div class="tab-content" id="contextTypeContent">
+                                            <!-- File Upload -->
+                                            <div class="tab-pane fade show active" id="file-upload" role="tabpanel">
+                                                <div class="file-upload-area" id="fileUploadArea">
+                                                    <input type="file" id="fileInput" class="d-none" multiple 
+                                                           accept=".txt,.pdf,.docx,.md">
+                                                    <i class="bi bi-cloud-upload" style="font-size: 3rem;"></i>
+                                                    <p class="mb-0">Click to select files or drag and drop</p>
+                                                    <small class="text-muted">Supported: .txt, .pdf, .docx, .md</small>
+                                                </div>
+                                                <div id="fileList" class="mt-3"></div>
+                                            </div>
+                                            
+                                            <!-- Note Input -->
+                                            <div class="tab-pane fade" id="note-input" role="tabpanel">
+                                                <div class="mb-3">
+                                                    <label for="noteTitle" class="form-label">Title</label>
+                                                    <input type="text" class="form-control" id="noteTitle" 
+                                                           placeholder="Note title">
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label for="noteContent" class="form-label">Content</label>
+                                                    <textarea class="form-control" id="noteContent" rows="5" 
+                                                              placeholder="Note content"></textarea>
+                                                </div>
+                                                <button type="button" class="btn btn-primary" id="addNoteBtn">
+                                                    <i class="bi bi-save"></i> Add Note
+                                                </button>
+                                            </div>
+                                            
+                                            <!-- Transcript Input -->
+                                            <div class="tab-pane fade" id="transcript-input" role="tabpanel">
+                                                <div class="mb-3">
+                                                    <label for="transcriptTitle" class="form-label">Title</label>
+                                                    <input type="text" class="form-control" id="transcriptTitle" 
+                                                           placeholder="Meeting name or transcript title">
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label for="transcriptContent" class="form-label">Transcript</label>
+                                                    <textarea class="form-control" id="transcriptContent" rows="8" 
+                                                              placeholder="Paste transcript content here"></textarea>
+                                                </div>
+                                                <button type="button" class="btn btn-primary" id="addTranscriptBtn">
+                                                    <i class="bi bi-save"></i> Add Transcript
+                                                </button>
+                                            </div>
+                                            
+                                            <!-- Email Input -->
+                                            <div class="tab-pane fade" id="email-input" role="tabpanel">
+                                                <div class="mb-3">
+                                                    <label for="emailTitle" class="form-label">Subject</label>
+                                                    <input type="text" class="form-control" id="emailTitle" 
+                                                           placeholder="Email subject">
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label for="emailContent" class="form-label">Email Content</label>
+                                                    <textarea class="form-control" id="emailContent" rows="6" 
+                                                              placeholder="Paste email content here"></textarea>
+                                                </div>
+                                                <button type="button" class="btn btn-primary" id="addEmailBtn">
+                                                    <i class="bi bi-save"></i> Add Email
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Context Objects List -->
+                    <div id="contextObjectsList">
+                        {% if milestone.context_objects.all %}
+                            {% for context in milestone.context_objects.all %}
+                            <div class="context-object-card" data-context-id="{{ context.id }}">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <span class="context-type-icon">
+                                                {% if context.type == 'file' %}📄
+                                                {% elif context.type == 'email' %}✉️
+                                                {% elif context.type == 'transcript' %}🎙️
+                                                {% elif context.type == 'note' %}🗒️
+                                                {% endif %}
+                                            </span>
+                                            <div>
+                                                <h5 class="mb-0">{{ context.title }}</h5>
+                                                <small class="text-muted">
+                                                    {{ context.get_type_display }} • {{ context.created_at|date:"d.m.Y H:i" }}
+                                                    {% if context.uploaded_by %}
+                                                    • by {{ context.uploaded_by.username }}
+                                                    {% endif %}
+                                                </small>
+                                            </div>
+                                        </div>
+                                        
+                                        {% if context.analyzed %}
+                                        <span class="badge bg-success mb-2">
+                                            <i class="bi bi-check-circle"></i> Analyzed
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-secondary mb-2">
+                                            <i class="bi bi-clock"></i> Not Analyzed
+                                        </span>
+                                        {% endif %}
+                                        
+                                        {% if context.summary %}
+                                        <div class="mb-2">
+                                            <strong>Summary:</strong>
+                                            <p class="text-muted mb-0">{{ context.summary }}</p>
+                                        </div>
+                                        {% endif %}
+                                        
+                                        {% if context.derived_tasks %}
+                                        <div class="mb-2">
+                                            <span class="badge bg-warning">
+                                                <i class="bi bi-list-task"></i> {{ context.derived_tasks|length }} task(s) derived
+                                            </span>
+                                        </div>
+                                        {% endif %}
+                                        
+                                        {% if context.url %}
+                                        <div class="mb-2">
+                                            <a href="{{ context.url }}" target="_blank" class="text-info">
+                                                <i class="bi bi-link-45deg"></i> View Source
+                                            </a>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="btn-group-vertical" role="group">
+                                        {% if not context.analyzed %}
+                                        <button class="btn btn-sm btn-outline-primary analyze-context-btn" 
+                                                data-context-id="{{ context.id }}" title="Analyze with AI">
+                                            <i class="bi bi-robot"></i> Analyze
+                                        </button>
+                                        {% endif %}
+                                        {% if context.derived_tasks %}
+                                        <button class="btn btn-sm btn-outline-success create-tasks-btn" 
+                                                data-context-id="{{ context.id }}" title="Create tasks from analysis">
+                                            <i class="bi bi-plus-circle"></i> Create Tasks
+                                        </button>
+                                        {% endif %}
+                                        <button class="btn btn-sm btn-outline-danger delete-context-btn" 
+                                                data-context-id="{{ context.id }}" title="Delete">
+                                            <i class="bi bi-trash"></i> Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                        <div class="alert alert-secondary">
+                            <i class="bi bi-info-circle"></i>
+                            No context objects yet. Click "Add Context Object" to add files, notes, transcripts, or emails.
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// CSRF token for AJAX requests
+const csrfToken = '{{ csrf_token }}';
+const milestoneId = '{{ milestone.id }}';
+
+// File upload handling
+document.getElementById('fileUploadArea')?.addEventListener('click', function() {
+    document.getElementById('fileInput').click();
+});
+
+document.getElementById('fileInput')?.addEventListener('change', function(e) {
+    handleFiles(e.target.files);
+});
+
+// Drag and drop
+const uploadArea = document.getElementById('fileUploadArea');
+uploadArea?.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    this.classList.add('dragover');
+});
+
+uploadArea?.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    this.classList.remove('dragover');
+});
+
+uploadArea?.addEventListener('drop', function(e) {
+    e.preventDefault();
+    this.classList.remove('dragover');
+    handleFiles(e.dataTransfer.files);
+});
+
+function handleFiles(files) {
+    const fileList = document.getElementById('fileList');
+    fileList.innerHTML = '<p class="text-muted">Uploading files...</p>';
+    
+    let uploadPromises = [];
+    
+    Array.from(files).forEach(file => {
+        uploadPromises.push(uploadFile(file));
+    });
+    
+    Promise.all(uploadPromises)
+        .then(() => {
+            alert('All files uploaded successfully!');
+            location.reload();
+        })
+        .catch(error => {
+            alert('Some files failed to upload: ' + error);
+            location.reload();
+        });
+}
+
+function uploadFile(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('auto_analyze', 'true');
+    
+    return fetch(`/api/milestones/${milestoneId}/context/add`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(data.error || 'Upload failed');
+        }
+        return data;
+    });
+}
+
+// Add Note
+document.getElementById('addNoteBtn')?.addEventListener('click', function() {
+    const title = document.getElementById('noteTitle').value.trim();
+    const content = document.getElementById('noteContent').value.trim();
+    
+    if (!title || !content) {
+        alert('Please provide both title and content.');
+        return;
+    }
+    
+    uploadContextObject('note', title, content, '', '');
+});
+
+// Add Transcript
+document.getElementById('addTranscriptBtn')?.addEventListener('click', function() {
+    const title = document.getElementById('transcriptTitle').value.trim();
+    const content = document.getElementById('transcriptContent').value.trim();
+    
+    if (!title || !content) {
+        alert('Please provide both title and transcript content.');
+        return;
+    }
+    
+    uploadContextObject('transcript', title, content, '', '');
+});
+
+// Add Email
+document.getElementById('addEmailBtn')?.addEventListener('click', function() {
+    const title = document.getElementById('emailTitle').value.trim();
+    const content = document.getElementById('emailContent').value.trim();
+    
+    if (!title || !content) {
+        alert('Please provide both subject and email content.');
+        return;
+    }
+    
+    uploadContextObject('email', title, content, '', '');
+});
+
+// Upload context object via API
+function uploadContextObject(type, title, content, sourceId, url) {
+    const btn = event?.target;
+    if (btn) setLoading(btn, true);
+    
+    fetch(`/api/milestones/${milestoneId}/context/add`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            type: type,
+            title: title,
+            content: content,
+            source_id: sourceId,
+            url: url,
+            auto_analyze: true
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`${type.charAt(0).toUpperCase() + type.slice(1)} added successfully!`);
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error uploading context object: ' + error);
+    })
+    .finally(() => {
+        if (btn) setLoading(btn, false);
+    });
+}
+
+// Analyze context object
+document.querySelectorAll('.analyze-context-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const contextId = this.dataset.contextId;
+        analyzeContext(contextId, this);
+    });
+});
+
+function analyzeContext(contextId, btn) {
+    setLoading(btn, true);
+    
+    fetch(`/api/milestones/context/${contextId}/analyze`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Analysis complete! ' + data.task_count + ' tasks derived.');
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error analyzing context: ' + error);
+    })
+    .finally(() => {
+        setLoading(btn, false);
+    });
+}
+
+// Create tasks from derived tasks
+document.querySelectorAll('.create-tasks-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const contextId = this.dataset.contextId;
+        createTasks(contextId, this);
+    });
+});
+
+function createTasks(contextId, btn) {
+    setLoading(btn, true);
+    
+    fetch(`/api/milestones/context/${contextId}/create-tasks`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.tasks_created + ' task(s) created successfully!');
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error creating tasks: ' + error);
+    })
+    .finally(() => {
+        setLoading(btn, false);
+    });
+}
+
+// Delete context object
+document.querySelectorAll('.delete-context-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        if (!confirm('Are you sure you want to delete this context object?')) {
+            return;
+        }
+        
+        const contextId = this.dataset.contextId;
+        deleteContext(contextId, this);
+    });
+});
+
+function deleteContext(contextId, btn) {
+    setLoading(btn, true);
+    
+    fetch(`/api/milestones/context/${contextId}/remove`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Context object deleted successfully!');
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error deleting context: ' + error);
+    })
+    .finally(() => {
+        setLoading(btn, false);
+    });
+}
+
+// Regenerate milestone summary
+document.getElementById('regenerateSummaryBtn')?.addEventListener('click', function() {
+    regenerateSummary(this);
+});
+
+function regenerateSummary(btn) {
+    setLoading(btn, true);
+    
+    fetch(`/api/milestones/${milestoneId}/context/summarize`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Summary regenerated successfully!');
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error regenerating summary: ' + error);
+    })
+    .finally(() => {
+        setLoading(btn, false);
+    });
+}
+
+// Helper function to show loading state
+function setLoading(btn, loading) {
+    if (!btn) return;
+    
+    if (loading) {
+        btn.disabled = true;
+        btn.classList.add('loading');
+    } else {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+    }
+}
+</script>
+{% endblock %}

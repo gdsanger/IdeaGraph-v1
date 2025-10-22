@@ -82,6 +82,7 @@ urlpatterns = [
     
     # Milestone Management URLs
     path('items/<uuid:item_id>/milestones/create/', views.milestone_create, name='milestone_create'),
+    path('milestones/<uuid:milestone_id>/', views.milestone_detail, name='milestone_detail'),
     path('milestones/<uuid:milestone_id>/edit/', views.milestone_edit, name='milestone_edit'),
     path('milestones/<uuid:milestone_id>/delete/', views.milestone_delete, name='milestone_delete'),
     

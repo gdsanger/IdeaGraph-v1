@@ -490,128 +490,44 @@
                             </div>
                             
                             {% if item.milestones.all %}
-                            <div class="accordion" id="milestonesAccordion">
+                            <div class="list-group">
                                 {% for milestone in item.milestones.all %}
-                                <div class="accordion-item">
-                                    <h2 class="accordion-header" id="heading-{{ milestone.id }}">
-                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
-                                                data-bs-target="#collapse-{{ milestone.id }}" aria-expanded="false">
-                                            <div class="d-flex w-100 align-items-center">
-                                                <div class="flex-grow-1">
-                                                    <strong>{{ milestone.name }}</strong>
-                                                    <span class="ms-2 badge 
-                                                        {% if milestone.status == 'planned' %}bg-secondary
-                                                        {% elif milestone.status == 'in_progress' %}bg-primary
-                                                        {% elif milestone.status == 'completed' %}bg-success
-                                                        {% endif %}">
-                                                        {{ milestone.get_status_display }}
-                                                    </span>
-                                                </div>
-                                                <div class="text-muted me-3">
-                                                    <i class="bi bi-calendar"></i> {{ milestone.due_date|date:"d.m.Y" }}
-                                                    {% if milestone.due_date < today %}
-                                                        <span class="badge bg-danger ms-1">Überfällig</span>
-                                                    {% elif milestone.due_date <= week_from_today %}
-                                                        <span class="badge bg-warning ms-1">Bald fällig</span>
-                                                    {% endif %}
-                                                </div>
-                                                <div class="btn-group btn-group-sm me-2" role="group" onclick="event.stopPropagation();">
-                                                    <a href="{% url 'main:milestone_edit' milestone.id %}" 
-                                                       class="btn btn-outline-primary btn-sm" title="Edit">
-                                                        <i class="bi bi-pencil"></i>
-                                                    </a>
-                                                    <a href="{% url 'main:milestone_delete' milestone.id %}" 
-                                                       class="btn btn-outline-danger btn-sm" title="Delete">
-                                                        <i class="bi bi-trash"></i>
-                                                    </a>
-                                                </div>
-                                            </div>
-                                        </button>
-                                    </h2>
-                                    <div id="collapse-{{ milestone.id }}" class="accordion-collapse collapse" 
-                                         data-bs-parent="#milestonesAccordion">
-                                        <div class="accordion-body">
-                                            <!-- Milestone Description -->
-                                            {% if milestone.description %}
-                                            <div class="mb-3">
-                                                <h6><i class="bi bi-file-text"></i> Description</h6>
-                                                <p class="text-muted">{{ milestone.description }}</p>
-                                            </div>
-                                            {% endif %}
-                                            
-                                            <!-- AI Summary -->
-                                            {% if milestone.summary %}
-                                            <div class="mb-3">
-                                                <h6><i class="bi bi-robot"></i> AI Summary</h6>
-                                                <div class="alert alert-info">{{ milestone.summary }}</div>
-                                            </div>
-                                            {% endif %}
-                                            
-                                            <!-- Context Objects -->
-                                            <div class="mb-3">
-                                                <h6><i class="bi bi-collection"></i> Context Objects ({{ milestone.context_objects.count }})</h6>
-                                                {% if milestone.context_objects.all %}
-                                                <div class="list-group">
-                                                    {% for context in milestone.context_objects.all %}
-                                                    <div class="list-group-item">
-                                                        <div class="d-flex justify-content-between align-items-start">
-                                                            <div>
-                                                                <span class="badge bg-info">
-                                                                    {% if context.type == 'file' %}📄
-                                                                    {% elif context.type == 'email' %}✉️
-                                                                    {% elif context.type == 'transcript' %}🎙️
-                                                                    {% elif context.type == 'note' %}🗒️
-                                                                    {% endif %}
-                                                                    {{ context.get_type_display }}
-                                                                </span>
-                                                                <strong>{{ context.title }}</strong>
-                                                                {% if context.analyzed %}
-                                                                <span class="badge bg-success ms-1">
-                                                                    <i class="bi bi-check-circle"></i> Analyzed
-                                                                </span>
-                                                                {% endif %}
-                                                            </div>
-                                                            <small class="text-muted">{{ context.created_at|date:"d.m.Y" }}</small>
-                                                        </div>
-                                                        {% if context.summary %}
-                                                        <p class="mb-1 mt-2 text-muted small">{{ context.summary|truncatewords:30 }}</p>
-                                                        {% endif %}
-                                                        {% if context.derived_tasks %}
-                                                        <div class="mt-2">
-                                                            <span class="badge bg-warning">
-                                                                <i class="bi bi-list-task"></i> {{ context.derived_tasks|length }} task(s) derived
-                                                            </span>
-                                                        </div>
-                                                        {% endif %}
-                                                    </div>
-                                                    {% endfor %}
-                                                </div>
+                                <a href="{% url 'main:milestone_detail' milestone.id %}" class="list-group-item list-group-item-action">
+                                    <div class="d-flex w-100 justify-content-between align-items-center">
+                                        <div class="flex-grow-1">
+                                            <h5 class="mb-1">
+                                                <i class="bi bi-flag-fill text-warning"></i>
+                                                {{ milestone.name }}
+                                            </h5>
+                                            <p class="mb-1 text-muted">
+                                                {% if milestone.description %}
+                                                {{ milestone.description|truncatewords:20 }}
                                                 {% else %}
-                                                <p class="text-muted small">No context objects yet.</p>
+                                                No description
                                                 {% endif %}
-                                            </div>
-                                            
-                                            <!-- Tasks -->
-                                            <div class="mb-3">
-                                                <h6><i class="bi bi-list-task"></i> Tasks ({{ milestone.tasks.count }})</h6>
-                                                {% if milestone.tasks.all %}
-                                                <ul class="list-group">
-                                                    {% for task in milestone.tasks.all %}
-                                                    <li class="list-group-item">
-                                                        <a href="{% url 'main:task_detail' task.id %}">{{ task.title }}</a>
-                                                        <span class="badge bg-{{ task.status|yesno:'success,primary,secondary' }} ms-2">
-                                                            {{ task.get_status_display }}
-                                                        </span>
-                                                    </li>
-                                                    {% endfor %}
-                                                </ul>
-                                                {% else %}
-                                                <p class="text-muted small">No tasks assigned to this milestone yet.</p>
+                                            </p>
+                                            <small class="text-muted">
+                                                <i class="bi bi-calendar"></i> {{ milestone.due_date|date:"d.m.Y" }}
+                                                {% if milestone.due_date < today %}
+                                                    <span class="badge bg-danger ms-1">Überfällig</span>
+                                                {% elif milestone.due_date <= week_from_today %}
+                                                    <span class="badge bg-warning ms-1">Bald fällig</span>
                                                 {% endif %}
-                                            </div>
+                                                • <i class="bi bi-list-task"></i> {{ milestone.tasks.count }} tasks
+                                                • <i class="bi bi-collection"></i> {{ milestone.context_objects.count }} context objects
+                                            </small>
+                                        </div>
+                                        <div>
+                                            <span class="badge 
+                                                {% if milestone.status == 'planned' %}bg-secondary
+                                                {% elif milestone.status == 'in_progress' %}bg-primary
+                                                {% elif milestone.status == 'completed' %}bg-success
+                                                {% endif %}">
+                                                {{ milestone.get_status_display }}
+                                            </span>
                                         </div>
                                     </div>
-                                </div>
+                                </a>
                                 {% endfor %}
                             </div>
                             {% else %}
