@@ -3870,10 +3870,10 @@ def api_milestone_context_add(request, milestone_id):
             extraction_result = file_service.extract_text(file_content, uploaded_file.name)
             
             if not extraction_result.get('success'):
+                logger.error(f'Failed to extract text from file {uploaded_file.name}: {extraction_result.get("error", "")}')
                 return JsonResponse({
                     'success': False,
-                    'error': 'Failed to extract text from file',
-                    'details': extraction_result.get('error', '')
+                    'error': 'Failed to extract text from file'
                 }, status=400)
             
             # Use extracted text as content
