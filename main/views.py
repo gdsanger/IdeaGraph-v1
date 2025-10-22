@@ -448,6 +448,11 @@ def settings_create(request):
             graph_api_enabled=request.POST.get('graph_api_enabled') == 'on',
             sharepoint_site_id=request.POST.get('sharepoint_site_id', ''),
             default_mail_sender=request.POST.get('default_mail_sender', ''),
+            zammad_enabled=request.POST.get('zammad_enabled') == 'on',
+            zammad_api_url=request.POST.get('zammad_api_url', ''),
+            zammad_api_token=request.POST.get('zammad_api_token', ''),
+            zammad_groups=request.POST.get('zammad_groups', ''),
+            zammad_sync_interval=int(request.POST.get('zammad_sync_interval') or 15),
         )
         messages.success(request, 'Settings created successfully!')
         return redirect('main:settings_list')
@@ -492,6 +497,11 @@ def settings_update(request, pk):
         settings.ms_sso_client_id = request.POST.get('ms_sso_client_id', '')
         settings.ms_sso_tenant_id = request.POST.get('ms_sso_tenant_id', '')
         settings.ms_sso_client_secret = request.POST.get('ms_sso_client_secret', '')
+        settings.zammad_enabled = request.POST.get('zammad_enabled') == 'on'
+        settings.zammad_api_url = request.POST.get('zammad_api_url', '')
+        settings.zammad_api_token = request.POST.get('zammad_api_token', '')
+        settings.zammad_groups = request.POST.get('zammad_groups', '')
+        settings.zammad_sync_interval = int(request.POST.get('zammad_sync_interval') or 15)
         settings.save()
         
         messages.success(request, 'Settings updated successfully!')
