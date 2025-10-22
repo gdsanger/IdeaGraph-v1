@@ -990,9 +990,13 @@ def item_detail(request, item_id):
 
     from django.utils import timezone
     from datetime import timedelta
+    from main.models import Settings
     
     today = timezone.now().date()
     week_from_today = today + timedelta(days=7)
+    
+    # Get settings for GitHub button state
+    settings = Settings.objects.first()
     
     context = {
         'item': item,
@@ -1006,6 +1010,7 @@ def item_detail(request, item_id):
         'search_query': search_query,
         'today': today,
         'week_from_today': week_from_today,
+        'settings': settings,
     }
     
     # If HTMX request, return only the partial template
