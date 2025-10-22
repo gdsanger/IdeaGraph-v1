@@ -2903,6 +2903,7 @@ def api_semantic_network(request, object_type, object_id):
         - threshold_2: Similarity threshold for level 2 (default: 0.7)
         - threshold_3: Similarity threshold for level 3 (default: 0.6)
         - summaries: Generate AI summaries ('true'/'false', default: 'true')
+        - include_hierarchy: Include parent-child relationships ('true'/'false', default: 'false')
     
     Returns:
         JSON response with:
@@ -2910,6 +2911,7 @@ def api_semantic_network(request, object_type, object_id):
             - edges: List of graph edges
             - levels: Level-by-level breakdown with summaries
             - source_id: ID of the source object
+            - hierarchy: Parent and child relationships (if include_hierarchy=true)
     """
     # Check authentication
     user = get_user_from_request(request)
@@ -2925,6 +2927,7 @@ def api_semantic_network(request, object_type, object_id):
         # Parse query parameters
         depth = int(request.GET.get('depth', 3))
         generate_summaries = request.GET.get('summaries', 'true').lower() == 'true'
+        include_hierarchy = request.GET.get('include_hierarchy', 'false').lower() == 'true'
         
         # Custom thresholds if provided
         thresholds = {}
@@ -2945,7 +2948,8 @@ def api_semantic_network(request, object_type, object_id):
                 depth=depth,
                 user_id=str(user.id),
                 thresholds=thresholds if thresholds else None,
-                generate_summaries=generate_summaries
+                generate_summaries=generate_summaries,
+                include_hierarchy=include_hierarchy
             )
             
             return JsonResponse(result)

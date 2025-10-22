@@ -175,19 +175,24 @@ class WeaviateItemSyncService:
         Returns:
             Dictionary of properties for KnowledgeObject schema
         """
-        # Get tags as list of names
-        tag_names = [tag.name for tag in item.tags.all()]
+        # Get inherited context if applicable
+        context = item.get_inherited_context()
+        
+        # Get tags as list of names from inherited context
+        tag_names = [tag.name for tag in context['tags']]
         
         properties = {
             'type': 'Item',
             'title': item.title,
-            'description': item.description or '',
+            'description': context['description'],  # Use inherited description if applicable
             'section': item.section.name if item.section else '',
             'owner': item.created_by.username if item.created_by else '',
             'status': item.status,
             'createdAt': item.created_at.isoformat(),
             'tags': tag_names,
             'url': f'/items/{item.id}/',
+            'parent_id': context.get('parent_id', ''),
+            'context_inherited': context['has_parent'],
         }
         
         return properties

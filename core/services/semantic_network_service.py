@@ -164,7 +164,63 @@ class SemanticNetworkService:
             logger.error(f"Error fetching object {object_id} from {self.COLLECTION_NAME}: {str(e)}")
             return None
     
-    def _find_similar_objects(
+    def _find_hierarchical_relations(self, object_type: str, object_id: str) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Find parent and child relationships for an object
+        
+        Args:
+            object_type: Type value (e.g., 'Item')
+            object_id: UUID of the object
+        
+        Returns:
+            Dictionary with 'parent' and 'children' lists
+        """
+        relations = {
+            'parent': [],
+            'children': []
+        }
+        
+        # Only Items have hierarchical relationships
+        if object_type != 'Item':
+            return relations
+        
+        try:
+            from main.models import Item
+            
+            # Get the item
+            try:
+                item = Item.objects.get(id=object_id)
+            except Item.DoesNotExist:
+                return relations
+            
+            # Get parent if exists
+            if item.parent:
+                parent_obj = self._get_object_by_id('Item', str(item.parent.id))
+                if parent_obj:
+                    relations['parent'].append({
+                        'id': str(item.parent.id),
+                        'type': 'item',
+                        'properties': parent_obj['properties'],
+                        'relationship': 'parent'
+                    })
+            
+            # Get children
+            for child in item.children.all():
+                child_obj = self._get_object_by_id('Item', str(child.id))
+                if child_obj:
+                    relations['children'].append({
+                        'id': str(child.id),
+                        'type': 'item',
+                        'properties': child_obj['properties'],
+                        'relationship': 'child',
+                        'inherits_context': child.inherit_context
+                    })
+            
+            return relations
+            
+        except Exception as e:
+            logger.error(f"Error finding hierarchical relations: {str(e)}")
+            return relations
         self,
         object_type: str,
         source_uuid: str,
@@ -297,7 +353,8 @@ Bitte antworte in 2-3 kurzen Sätzen auf Deutsch."""
         depth: int = 3,
         user_id: str = 'system',
         thresholds: Optional[Dict[int, float]] = None,
-        generate_summaries: bool = True
+        generate_summaries: bool = True,
+        include_hierarchy: bool = False
     ) -> Dict[str, Any]:
         """
         Generate semantic network from a source object
@@ -309,6 +366,7 @@ Bitte antworte in 2-3 kurzen Sätzen auf Deutsch."""
             user_id: User ID for KiGate requests
             thresholds: Custom similarity thresholds per level
             generate_summaries: Whether to generate AI summaries
+            include_hierarchy: Whether to include parent-child relationships
         
         Returns:
             Dictionary containing:
@@ -316,6 +374,7 @@ Bitte antworte in 2-3 kurzen Sätzen auf Deutsch."""
                 - edges: List of edges with weights
                 - levels: Level-by-level breakdown with summaries
                 - source_id: ID of the source object
+                - hierarchy: Parent and child relationships (if include_hierarchy=True)
         """
         try:
             # Validate object type
@@ -329,7 +388,7 @@ Bitte antworte in 2-3 kurzen Sätzen auf Deutsch."""
             thresholds = thresholds or self.DEFAULT_THRESHOLDS
             depth = min(max(depth, 1), 3)  # Clamp to 1-3
             
-            logger.info(f"Generating semantic network for {object_type}/{object_id}, depth={depth}")
+            logger.info(f"Generating semantic network for {object_type}/{object_id}, depth={depth}, include_hierarchy={include_hierarchy}")
             
             # Get source object
             source_obj = self._get_object_by_id(type_value, object_id)
@@ -354,7 +413,64 @@ Bitte antworte in 2-3 kurzen Sätzen auf Deutsch."""
                 'isSource': True
             }
             
-            # Build network level by level
+            # Get hierarchical relationships if requested
+            hierarchy = None
+            if include_hierarchy:
+                hierarchy = self._find_hierarchical_relations(type_value, object_id)
+                
+                # Add parent node and edge if exists
+                if hierarchy['parent']:
+                    parent = hierarchy['parent'][0]
+                    parent_id = parent['id']
+                    
+                    if parent_id not in visited_ids:
+                        nodes[parent_id] = {
+                            'id': parent_id,
+                            'type': parent['type'],
+                            'level': -1,  # Parent is at level -1
+                            'properties': parent['properties'],
+                            'isSource': False,
+                            'isParent': True
+                        }
+                        visited_ids.add(parent_id)
+                    
+                    # Add hierarchical edge (parent -> child)
+                    edges.append({
+                        'source': parent_id,
+                        'target': object_id,
+                        'weight': 1.0,
+                        'level': 0,
+                        'type': 'hierarchy',
+                        'relationship': 'parent'
+                    })
+                
+                # Add children nodes and edges
+                for child in hierarchy['children']:
+                    child_id = child['id']
+                    
+                    if child_id not in visited_ids:
+                        nodes[child_id] = {
+                            'id': child_id,
+                            'type': child['type'],
+                            'level': -1,  # Children are also at level -1 (hierarchy level)
+                            'properties': child['properties'],
+                            'isSource': False,
+                            'isChild': True,
+                            'inheritsContext': child.get('inherits_context', False)
+                        }
+                        visited_ids.add(child_id)
+                    
+                    # Add hierarchical edge (parent -> child)
+                    edges.append({
+                        'source': object_id,
+                        'target': child_id,
+                        'weight': 1.0,
+                        'level': 0,
+                        'type': 'hierarchy',
+                        'relationship': 'child'
+                    })
+            
+            # Build semantic network level by level
             current_level_ids = [object_id]
             
             for level in range(1, depth + 1):
@@ -391,12 +507,13 @@ Bitte antworte in 2-3 kurzen Sätzen auf Deutsch."""
                             next_level_ids.append(sim_id)
                             visited_ids.add(sim_id)
                         
-                        # Add edge
+                        # Add semantic similarity edge
                         edges.append({
                             'source': node_id,
                             'target': sim_id,
                             'weight': sim_obj['similarity'],
-                            'level': level
+                            'level': level,
+                            'type': 'similarity'
                         })
                 
                 # Generate summary for this level
@@ -429,8 +546,18 @@ Bitte antworte in 2-3 kurzen Sätzen auf Deutsch."""
                 'edges': edges,
                 'levels': levels,
                 'total_nodes': len(nodes),
-                'total_edges': len(edges)
+                'total_edges': len(edges),
+                'include_hierarchy': include_hierarchy
             }
+            
+            # Add hierarchy information if requested
+            if include_hierarchy and hierarchy:
+                result['hierarchy'] = {
+                    'has_parent': len(hierarchy['parent']) > 0,
+                    'has_children': len(hierarchy['children']) > 0,
+                    'parent_count': len(hierarchy['parent']),
+                    'children_count': len(hierarchy['children'])
+                }
             
             logger.info(f"Generated network with {len(nodes)} nodes and {len(edges)} edges")
             

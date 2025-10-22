@@ -91,6 +91,14 @@
     border: 2px solid rgba(255, 255, 255, 0.3);
 }
 
+.legend-line {
+    display: inline-block;
+    width: 30px;
+    height: 0;
+    border-top: 2px dashed #6366f1;
+    margin: 0 0.25rem;
+}
+
 .semantic-network-tooltip {
     position: fixed;
     display: none;
