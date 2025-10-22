@@ -21,6 +21,7 @@ class SemanticNetworkViewer {
             objectId: options.objectId || null,
             depth: options.depth || 3,
             generateSummaries: options.generateSummaries !== false,
+            includeHierarchy: options.includeHierarchy || false,
             onNodeClick: options.onNodeClick || null,
             ...options
         };
@@ -50,6 +51,9 @@ class SemanticNetworkViewer {
                         <button class="btn btn-sm btn-outline-secondary" id="snToggleLabels">
                             <i class="bi bi-tag"></i> Labels
                         </button>
+                        <button class="btn btn-sm btn-outline-info" id="snToggleHierarchy">
+                            <i class="bi bi-diagram-2"></i> Hierarchie
+                        </button>
                     </div>
                 </div>
                 <div class="semantic-network-summary" id="snSummary"></div>
@@ -62,6 +66,10 @@ class SemanticNetworkViewer {
                 </div>
                 <div class="semantic-network-legend">
                     <div class="legend-item">
+                        <span class="legend-dot" style="background: #22c55e;"></span>
+                        <span>Quelle</span>
+                    </div>
+                    <div class="legend-item">
                         <span class="legend-dot" style="background: #f59e0b;"></span>
                         <span>Ebene 1 (>80%)</span>
                     </div>
@@ -72,6 +80,10 @@ class SemanticNetworkViewer {
                     <div class="legend-item">
                         <span class="legend-dot" style="background: #8b5cf6;"></span>
                         <span>Ebene 3 (>60%)</span>
+                    </div>
+                    <div class="legend-item" id="hierarchyLegend" style="display: none;">
+                        <span class="legend-line" style="border-top: 2px dashed #6366f1;"></span>
+                        <span>Hierarchie (Parent/Child)</span>
                     </div>
                 </div>
             </div>
@@ -91,6 +103,39 @@ class SemanticNetworkViewer {
         if (toggleLabelsBtn) {
             toggleLabelsBtn.addEventListener('click', () => this.toggleLabels());
         }
+        
+        const toggleHierarchyBtn = document.getElementById('snToggleHierarchy');
+        if (toggleHierarchyBtn) {
+            toggleHierarchyBtn.addEventListener('click', () => this.toggleHierarchy());
+        }
+    }
+    
+    toggleHierarchy() {
+        // Toggle hierarchy option
+        this.options.includeHierarchy = !this.options.includeHierarchy;
+        
+        // Update button state
+        const btn = document.getElementById('snToggleHierarchy');
+        if (btn) {
+            if (this.options.includeHierarchy) {
+                btn.classList.remove('btn-outline-info');
+                btn.classList.add('btn-info');
+            } else {
+                btn.classList.remove('btn-info');
+                btn.classList.add('btn-outline-info');
+            }
+        }
+        
+        // Show/hide hierarchy legend
+        const legend = document.getElementById('hierarchyLegend');
+        if (legend) {
+            legend.style.display = this.options.includeHierarchy ? 'flex' : 'none';
+        }
+        
+        // Reload network with new setting
+        if (this.options.objectType && this.options.objectId) {
+            this.load(this.options.objectType, this.options.objectId);
+        }
     }
     
     async load(objectType, objectId) {
@@ -107,6 +152,7 @@ class SemanticNetworkViewer {
             const url = new URL(`/api/semantic-network/${objectType}/${objectId}`, window.location.origin);
             url.searchParams.set('depth', this.options.depth);
             url.searchParams.set('summaries', this.options.generateSummaries);
+            url.searchParams.set('include_hierarchy', this.options.includeHierarchy);
             
             // Fetch network data
             const response = await fetch(url, {
@@ -188,16 +234,28 @@ class SemanticNetworkViewer {
             };
         });
         
-        const edges = this.networkData.edges.map((edge, idx) => ({
-            key: `edge-${idx}`,
-            source: edge.source,
-            target: edge.target,
-            attributes: {
-                size: edge.weight * 2,
-                color: '#4b5563',
+        const edges = this.networkData.edges.map((edge, idx) => {
+            // Different styling for hierarchy vs similarity edges
+            const isHierarchy = edge.type === 'hierarchy';
+            const edgeAttributes = {
+                size: isHierarchy ? 3 : edge.weight * 2,
+                color: isHierarchy ? '#6366f1' : '#4b5563',
+                type: isHierarchy ? 'line' : 'line',
                 originalData: edge
+            };
+            
+            // Add dashed style for hierarchy edges (handled in CSS)
+            if (isHierarchy) {
+                edgeAttributes.dashArray = [5, 5];
             }
-        }));
+            
+            return {
+                key: `edge-${idx}`,
+                source: edge.source,
+                target: edge.target,
+                attributes: edgeAttributes
+            };
+        });
         
         // Create graph using graphology
         this.graph = new graphology.Graph();
@@ -300,9 +358,17 @@ class SemanticNetworkViewer {
     }
     
     getNodeColor(node) {
-        // Color by level
+        // Color by type and role
         if (node.isSource) {
             return '#22c55e'; // Green for source
+        }
+        
+        if (node.isParent) {
+            return '#3b82f6'; // Blue for parent
+        }
+        
+        if (node.isChild) {
+            return '#f97316'; // Orange for child
         }
         
         const levelColors = {
@@ -381,10 +447,26 @@ class SemanticNetworkViewer {
         const type = nodeData.type || 'unknown';
         const similarity = nodeData.similarity ? `${(nodeData.similarity * 100).toFixed(1)}%` : 'Source';
         
+        let hierarchyInfo = '';
+        if (nodeData.isParent) {
+            hierarchyInfo = '<div class="tooltip-meta"><strong>Rolle: Parent Item</strong></div>';
+        } else if (nodeData.isChild) {
+            hierarchyInfo = '<div class="tooltip-meta"><strong>Rolle: Child Item</strong></div>';
+            if (nodeData.inheritsContext) {
+                hierarchyInfo += '<div class="tooltip-meta">Erbt Kontext vom Parent</div>';
+            }
+        }
+        
+        // Check if this node has parent info in properties
+        if (props.parent_id && props.context_inherited) {
+            hierarchyInfo += '<div class="tooltip-meta">Kontext geerbt von Parent</div>';
+        }
+        
         tooltip.innerHTML = `
             <div class="tooltip-title">${this.escapeHtml(title)}</div>
             <div class="tooltip-meta">Type: ${type}</div>
             <div class="tooltip-meta">Similarity: ${similarity}</div>
+            ${hierarchyInfo}
         `;
         
         tooltip.style.display = 'block';

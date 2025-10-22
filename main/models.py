@@ -231,6 +231,11 @@ class Item(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    # Hierarchical fields for parent-child relationships
+    parent = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='children')
+    is_template = models.BooleanField(default=False, help_text='Kennzeichnet, ob das Item als Vorlage dient')
+    inherit_context = models.BooleanField(default=False, help_text='Steuert, ob Beschreibung, Tags, Milestones vom Parent geerbt werden')
+    
     # AI-related fields
     ai_enhanced = models.BooleanField(default=False)
     ai_tags_generated = models.BooleanField(default=False)
@@ -243,6 +248,50 @@ class Item(models.Model):
     
     def __str__(self):
         return self.title
+    
+    def get_all_children(self):
+        """Get all child items recursively"""
+        children = list(self.children.all())
+        for child in list(children):
+            children.extend(child.get_all_children())
+        return children
+    
+    def get_all_parents(self):
+        """Get all parent items up to the root"""
+        parents = []
+        current = self.parent
+        while current:
+            parents.append(current)
+            current = current.parent
+        return parents
+    
+    def get_inherited_context(self):
+        """Get combined context from parent if inheritance is enabled"""
+        if not self.inherit_context or not self.parent:
+            return {
+                'description': self.description,
+                'tags': list(self.tags.all()),
+                'has_parent': False
+            }
+        
+        # Combine parent and own context
+        parent_description = self.parent.description or ''
+        own_description = self.description or ''
+        
+        combined_description = f"{parent_description}\n\n{own_description}".strip()
+        
+        # Combine tags (parent + own, deduplicated)
+        parent_tags = set(self.parent.tags.all())
+        own_tags = set(self.tags.all())
+        combined_tags = list(parent_tags | own_tags)
+        
+        return {
+            'description': combined_description,
+            'tags': combined_tags,
+            'has_parent': True,
+            'parent_id': str(self.parent.id),
+            'parent_title': self.parent.title
+        }
 
 
 class ItemFile(models.Model):

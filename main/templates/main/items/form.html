@@ -175,6 +175,57 @@
                             </div>
                         </div>
 
+                        <!-- Hierarchical fields -->
+                        <div class="row">
+                            <!-- Parent Item -->
+                            <div class="col-md-4 mb-3">
+                                <label for="parent" class="form-label">
+                                    <i class="bi bi-diagram-2"></i> Parent Item
+                                </label>
+                                <select class="form-select" id="parent" name="parent">
+                                    <option value="">No Parent</option>
+                                    {% for parent_item in all_items %}
+                                    {% if not item or parent_item.id != item.id %}
+                                    <option value="{{ parent_item.id }}" 
+                                            {% if item and item.parent and item.parent.id == parent_item.id %}selected{% endif %}>
+                                        {{ parent_item.title }}
+                                    </option>
+                                    {% endif %}
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Optional: Select a parent item for hierarchical context</small>
+                            </div>
+
+                            <!-- Is Template -->
+                            <div class="col-md-4 mb-3">
+                                <label for="is_template" class="form-label">
+                                    <i class="bi bi-file-earmark-code"></i> Template
+                                </label>
+                                <div class="form-check form-switch mt-2">
+                                    <input class="form-check-input" type="checkbox" id="is_template" name="is_template" 
+                                           {% if item and item.is_template %}checked{% endif %}>
+                                    <label class="form-check-label" for="is_template">
+                                        This item serves as a template
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Inherit Context -->
+                            <div class="col-md-4 mb-3">
+                                <label for="inherit_context" class="form-label">
+                                    <i class="bi bi-arrow-down-up"></i> Context Inheritance
+                                </label>
+                                <div class="form-check form-switch mt-2">
+                                    <input class="form-check-input" type="checkbox" id="inherit_context" name="inherit_context" 
+                                           {% if item and item.inherit_context %}checked{% endif %}>
+                                    <label class="form-check-label" for="inherit_context">
+                                        Inherit context from parent
+                                    </label>
+                                </div>
+                                <small class="text-muted">Combines parent's description and tags</small>
+                            </div>
+                        </div>
+
                         <!-- Clients (full width row) -->
                         <div class="row">
                             <div class="col-md-12 mb-3">
