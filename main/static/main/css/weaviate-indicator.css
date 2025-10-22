@@ -1,0 +1,79 @@
+/**
+ * Weaviate Indicator CSS Styles
+ * 
+ * Provides styling for Weaviate availability indicators.
+ */
+
+.weaviate-indicator {
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    min-width: 40px;
+}
+
+.weaviate-indicator:hover {
+    transform: scale(1.05);
+}
+
+.weaviate-indicator.loading {
+    cursor: wait;
+}
+
+.weaviate-indicator-exists {
+    /* Green indicator for objects in Weaviate */
+}
+
+.weaviate-indicator-missing {
+    /* Red indicator for objects not in Weaviate */
+}
+
+/* Indicator in table cells */
+td .weaviate-indicator {
+    display: inline-block;
+}
+
+/* Indicator in detail views */
+.weaviate-indicator-container {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.weaviate-indicator-label {
+    font-size: 0.875rem;
+    color: var(--bs-secondary);
+}
+
+/* Header indicator positioning */
+.card-header .weaviate-indicator-container {
+    margin-left: auto;
+}
+
+/* Animation for status changes */
+@keyframes weaviate-pulse {
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.weaviate-indicator.updating {
+    animation: weaviate-pulse 1s ease-in-out;
+}
+
+/* Modal styling */
+#weaviateDumpModal .modal-body pre {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.875rem;
+}
+
+#weaviateDumpModal .modal-body pre code {
+    color: #f8f9fa;
+}

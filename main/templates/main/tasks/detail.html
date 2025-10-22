@@ -8,6 +8,8 @@
 <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
 <!-- Semantic Network CSS -->
 <link rel="stylesheet" href="{% static 'main/css/semantic-network.css' %}" />
+<!-- Weaviate Indicator CSS -->
+<link rel="stylesheet" href="{% static 'main/css/weaviate-indicator.css' %}" />
 
 <style>
     .task-detail-card {
@@ -157,7 +159,12 @@
                     <h3 class="mb-0">
                         <i class="bi bi-list-task"></i> Task Details
                     </h3>
-                    <div>
+                    <div class="d-flex align-items-center gap-3">
+                        <!-- Weaviate Indicator -->
+                        <div class="weaviate-indicator-container">
+                            <span class="weaviate-indicator-label">Weaviate:</span>
+                            <div data-weaviate-indicator data-weaviate-type="task" data-weaviate-id="{{ task.id }}"></div>
+                        </div>
                         {% if task.status == 'ready' %}
                         <span class="badge status-badge-large bg-success">🟢 {{ task.get_status_display }}</span>
                         {% elif task.status == 'review' %}
@@ -386,6 +393,9 @@
 <script src="https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/dist/graphology-layout-forceatlas2.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0-alpha3/build/sigma.min.js"></script>
 <script src="{% static 'main/js/semantic-network.js' %}"></script>
+
+<!-- Weaviate Indicator JS -->
+<script src="{% static 'main/js/weaviate-indicator.js' %}"></script>
 
 <script>
 // Initialize Toast UI Editor

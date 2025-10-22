@@ -4336,3 +4336,264 @@ def api_milestone_context_download(request, context_id):
             'details': 'An error occurred'
         }, status=500)
 
+
+@require_http_methods(["GET"])
+def check_weaviate_status(request, object_type, object_id):
+    """
+    Check if an Item, Task, or File exists in Weaviate database.
+    
+    Args:
+        object_type: 'item', 'task', 'item_file', or 'task_file'
+        object_id: UUID of the object
+    
+    Returns:
+        JSON with 'exists' boolean and optional 'data' if object exists
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=401)
+    
+    try:
+        from .models import Item, Task, ItemFile, TaskFile, Settings
+        from core.services.weaviate_sync_service import WeaviateItemSyncService
+        
+        settings = Settings.objects.first()
+        if not settings:
+            return JsonResponse({
+                'success': False,
+                'error': 'Settings not configured'
+            }, status=500)
+        
+        # Initialize Weaviate service
+        weaviate_service = WeaviateItemSyncService(settings)
+        
+        # Get the collection
+        collection = weaviate_service._client.collections.get('KnowledgeObject')
+        
+        # Check if object exists in Weaviate
+        try:
+            existing_obj = collection.query.fetch_object_by_id(str(object_id))
+            exists = existing_obj is not None
+            
+            if exists:
+                # Object exists, return its properties
+                return JsonResponse({
+                    'success': True,
+                    'exists': True,
+                    'data': {
+                        'id': str(existing_obj.uuid),
+                        'properties': existing_obj.properties
+                    }
+                })
+            else:
+                # Object doesn't exist
+                return JsonResponse({
+                    'success': True,
+                    'exists': False
+                })
+        except Exception as e:
+            logger.debug(f"Error checking object {object_id}: {str(e)}")
+            return JsonResponse({
+                'success': True,
+                'exists': False
+            })
+        finally:
+            weaviate_service.close()
+            
+    except Exception as e:
+        logger.error(f'Error checking Weaviate status: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@require_http_methods(["POST"])
+def add_to_weaviate(request, object_type, object_id):
+    """
+    Add an Item, Task, or File to Weaviate database.
+    
+    Args:
+        object_type: 'item', 'task', 'item_file', or 'task_file'
+        object_id: UUID of the object
+    
+    Returns:
+        JSON with success status and message
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=401)
+    
+    try:
+        from .models import Item, Task, ItemFile, TaskFile, Settings
+        from core.services.weaviate_sync_service import WeaviateItemSyncService, WeaviateItemSyncServiceError
+        from core.services.weaviate_task_sync_service import WeaviateTaskSyncService, WeaviateTaskSyncServiceError
+        
+        settings = Settings.objects.first()
+        if not settings:
+            return JsonResponse({
+                'success': False,
+                'error': 'Settings not configured'
+            }, status=500)
+        
+        # Handle different object types
+        if object_type == 'item':
+            try:
+                item = Item.objects.get(id=object_id)
+                weaviate_service = WeaviateItemSyncService(settings)
+                result = weaviate_service.sync_create(item)
+                weaviate_service.close()
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Item "{item.title}" added to Weaviate successfully'
+                })
+            except Item.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Item not found'
+                }, status=404)
+            except WeaviateItemSyncServiceError as e:
+                logger.error(f'Weaviate sync error: {str(e)}')
+                return JsonResponse({
+                    'success': False,
+                    'error': str(e)
+                }, status=500)
+                
+        elif object_type == 'task':
+            try:
+                task = Task.objects.get(id=object_id)
+                weaviate_service = WeaviateTaskSyncService(settings)
+                result = weaviate_service.sync_create(task)
+                weaviate_service.close()
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Task "{task.title}" added to Weaviate successfully'
+                })
+            except Task.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Task not found'
+                }, status=404)
+            except WeaviateTaskSyncServiceError as e:
+                logger.error(f'Weaviate sync error: {str(e)}')
+                return JsonResponse({
+                    'success': False,
+                    'error': str(e)
+                }, status=500)
+                
+        elif object_type in ['item_file', 'task_file']:
+            # For files, we need to sync them through the parent object's sync service
+            try:
+                if object_type == 'item_file':
+                    file_obj = ItemFile.objects.get(id=object_id)
+                    # Mark as synced and trigger parent item sync
+                    file_obj.weaviate_synced = True
+                    file_obj.save()
+                    return JsonResponse({
+                        'success': True,
+                        'message': f'File "{file_obj.filename}" marked for Weaviate sync'
+                    })
+                else:
+                    file_obj = TaskFile.objects.get(id=object_id)
+                    # Mark as synced
+                    file_obj.weaviate_synced = True
+                    file_obj.save()
+                    return JsonResponse({
+                        'success': True,
+                        'message': f'File "{file_obj.filename}" marked for Weaviate sync'
+                    })
+            except (ItemFile.DoesNotExist, TaskFile.DoesNotExist):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'File not found'
+                }, status=404)
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': f'Unsupported object type: {object_type}'
+            }, status=400)
+            
+    except Exception as e:
+        logger.error(f'Error adding to Weaviate: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def get_weaviate_dump(request, object_type, object_id):
+    """
+    Get a dump of an object from Weaviate database.
+    
+    Args:
+        object_type: 'item', 'task', 'item_file', or 'task_file'
+        object_id: UUID of the object
+    
+    Returns:
+        JSON with object dump from Weaviate
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=401)
+    
+    try:
+        from .models import Settings
+        from core.services.weaviate_sync_service import WeaviateItemSyncService
+        
+        settings = Settings.objects.first()
+        if not settings:
+            return JsonResponse({
+                'success': False,
+                'error': 'Settings not configured'
+            }, status=500)
+        
+        # Initialize Weaviate service
+        weaviate_service = WeaviateItemSyncService(settings)
+        
+        # Get the collection
+        collection = weaviate_service._client.collections.get('KnowledgeObject')
+        
+        # Fetch object from Weaviate
+        try:
+            existing_obj = collection.query.fetch_object_by_id(str(object_id))
+            
+            if existing_obj is None:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Object not found in Weaviate'
+                }, status=404)
+            
+            # Format the dump
+            dump_data = {
+                'id': str(existing_obj.uuid),
+                'properties': existing_obj.properties,
+                'metadata': {
+                    'created_at': existing_obj.properties.get('createdAt', 'N/A'),
+                    'type': existing_obj.properties.get('type', 'Unknown')
+                }
+            }
+            
+            return JsonResponse({
+                'success': True,
+                'dump': dump_data
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching object {object_id}: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'error': f'Error fetching object: {str(e)}'
+            }, status=500)
+        finally:
+            weaviate_service.close()
+            
+    except Exception as e:
+        logger.error(f'Error getting Weaviate dump: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+

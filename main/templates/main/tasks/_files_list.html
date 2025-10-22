@@ -1,3 +1,9 @@
+{% load static %}
+
+<!-- Load Weaviate indicator CSS and JS -->
+<link rel="stylesheet" href="{% static 'main/css/weaviate-indicator.css' %}">
+<script src="{% static 'main/js/weaviate-indicator.js' %}"></script>
+
 {% if error %}
 <div class="alert alert-danger" role="alert">
     <i class="bi bi-exclamation-triangle"></i> {{ error }}
@@ -12,7 +18,7 @@
                 <th>Filename</th>
                 <th>Size</th>
                 <th>Uploaded</th>
-                <th>Synced</th>
+                <th>Weaviate Status</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -33,15 +39,7 @@
                     </small>
                 </td>
                 <td>
-                    {% if file.weaviate_synced %}
-                    <span class="badge bg-success">
-                        <i class="bi bi-check-circle"></i> Synced
-                    </span>
-                    {% else %}
-                    <span class="badge bg-secondary">
-                        <i class="bi bi-x-circle"></i> Not synced
-                    </span>
-                    {% endif %}
+                    <div data-weaviate-indicator data-weaviate-type="task_file" data-weaviate-id="{{ file.id }}"></div>
                 </td>
                 <td>
                     <button class="btn btn-sm btn-outline-danger"
@@ -64,3 +62,13 @@
     <p class="mt-3">No files uploaded yet</p>
 </div>
 {% endif %}
+
+<!-- Initialize Weaviate indicators after htmx swap -->
+<script>
+    // Re-initialize indicators after htmx updates
+    document.addEventListener('htmx:afterSwap', function(event) {
+        if (event.target.id === 'taskFilesListContainer') {
+            initAllWeaviateIndicators();
+        }
+    });
+</script>
