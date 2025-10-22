@@ -14,6 +14,10 @@ urlpatterns = [
     path('reset-password/<str:token>/', auth_views.reset_password_view, name='reset_password'),
     path('change-password/', auth_views.change_password_view, name='change_password'),
     
+    # Microsoft SSO URLs
+    path('login/microsoft/', auth_views.ms_sso_login, name='ms_sso_login'),
+    path('login/microsoft/callback/', auth_views.ms_sso_callback, name='ms_sso_callback'),
+    
     path('settings/', views.settings_view, name='settings'),
     path('tags/', views.tags_network_view, name='tags_network'),
     path('settings/tags/', views.tag_list, name='tag_list'),

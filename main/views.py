@@ -488,6 +488,10 @@ def settings_update(request, pk):
         settings.graph_api_enabled = request.POST.get('graph_api_enabled') == 'on'
         settings.sharepoint_site_id = request.POST.get('sharepoint_site_id', '')
         settings.default_mail_sender = request.POST.get('default_mail_sender', '')
+        settings.ms_sso_enabled = request.POST.get('ms_sso_enabled') == 'on'
+        settings.ms_sso_client_id = request.POST.get('ms_sso_client_id', '')
+        settings.ms_sso_tenant_id = request.POST.get('ms_sso_tenant_id', '')
+        settings.ms_sso_client_secret = request.POST.get('ms_sso_client_secret', '')
         settings.save()
         
         messages.success(request, 'Settings updated successfully!')

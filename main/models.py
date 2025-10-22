@@ -16,16 +16,26 @@ class User(models.Model):
         ('viewer', 'Viewer'),
     ]
     
+    AUTH_TYPE_CHOICES = [
+        ('local', 'Local Authentication'),
+        ('msauth', 'Microsoft Authentication'),
+    ]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     username = models.CharField(max_length=150, unique=True)
     email = models.EmailField(max_length=254, unique=True)
-    password_hash = models.CharField(max_length=128)
+    password_hash = models.CharField(max_length=128, blank=True, default='')
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='user')
     is_active = models.BooleanField(default=True)
     client = models.ForeignKey('Client', on_delete=models.SET_NULL, null=True, blank=True, related_name='users')
     created_at = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(null=True, blank=True)
     ai_classification = models.CharField(max_length=255, blank=True, default='')
+    
+    # Microsoft SSO fields
+    auth_type = models.CharField(max_length=20, choices=AUTH_TYPE_CHOICES, default='local')
+    ms_user_id = models.CharField(max_length=255, blank=True, default='', help_text='Microsoft User ID (OID)')
+    avatar_url = models.URLField(max_length=500, blank=True, default='', help_text='URL to user avatar image')
     
     class Meta:
         ordering = ['-created_at']
@@ -575,6 +585,34 @@ class Settings(models.Model):
         default='',
         verbose_name='Default Mail Sender',
         help_text='Default sender email for Graph API mail operations'
+    )
+    
+    # Microsoft SSO Authentication Settings
+    ms_sso_enabled = models.BooleanField(
+        default=False,
+        verbose_name='Enable Microsoft SSO',
+        help_text='Enable Microsoft Identity SSO authentication'
+    )
+    ms_sso_client_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='MS SSO Client ID',
+        help_text='Microsoft Azure AD Application (Client) ID for SSO'
+    )
+    ms_sso_tenant_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='MS SSO Tenant ID',
+        help_text='Microsoft Azure AD Tenant ID for SSO'
+    )
+    ms_sso_client_secret = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='MS SSO Client Secret',
+        help_text='Microsoft Azure AD Client Secret for SSO (optional for some flows)'
     )
     
     created_at = models.DateTimeField(auto_now_add=True)

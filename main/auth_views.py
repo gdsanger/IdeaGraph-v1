@@ -2,14 +2,16 @@
 Authentication views for login, logout, registration, and password reset.
 """
 import logging
+import secrets
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
-from .models import User, PasswordResetToken
+from .models import User, PasswordResetToken, Settings
 from .auth_utils import validate_password
 from core.services.graph_service import GraphService, GraphServiceError
+from core.services.ms_auth_service import MSAuthService, MSAuthServiceError
 
 
 logger = logging.getLogger('auth_service')
@@ -21,30 +23,38 @@ def login_view(request):
     if request.session.get('user_id'):
         return redirect('main:home')
     
+    # Check if MS SSO is enabled
+    ms_sso_enabled = False
+    try:
+        settings_obj = Settings.objects.first()
+        ms_sso_enabled = settings_obj.ms_sso_enabled if settings_obj else False
+    except Exception:
+        pass
+    
     if request.method == 'POST':
         username = request.POST.get('username', '').strip()
         password = request.POST.get('password', '')
         
         if not username or not password:
             messages.error(request, 'Username and password are required.')
-            return render(request, 'main/auth/login.html')
+            return render(request, 'main/auth/login.html', {'ms_sso_enabled': ms_sso_enabled})
         
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
             messages.error(request, 'Invalid credentials.')
             logger.warning(f'Login attempt with invalid username: {username}')
-            return render(request, 'main/auth/login.html')
+            return render(request, 'main/auth/login.html', {'ms_sso_enabled': ms_sso_enabled})
         
         if not user.is_active:
             messages.error(request, 'Account is inactive. Please contact administrator.')
             logger.warning(f'Login attempt for inactive user: {username}')
-            return render(request, 'main/auth/login.html')
+            return render(request, 'main/auth/login.html', {'ms_sso_enabled': ms_sso_enabled})
         
         if not user.check_password(password):
             messages.error(request, 'Invalid credentials.')
             logger.warning(f'Failed login attempt for user: {username}')
-            return render(request, 'main/auth/login.html')
+            return render(request, 'main/auth/login.html', {'ms_sso_enabled': ms_sso_enabled})
         
         # Successful login
         user.update_last_login()
@@ -71,7 +81,7 @@ def login_view(request):
             return redirect(next_url)
         return redirect('main:home')
     
-    return render(request, 'main/auth/login.html')
+    return render(request, 'main/auth/login.html', {'ms_sso_enabled': ms_sso_enabled})
 
 
 def logout_view(request):
@@ -231,6 +241,12 @@ def change_password_view(request):
     
     user = get_object_or_404(User, id=user_id)
     
+    # Check if user is MS Auth user
+    if user.auth_type == 'msauth':
+        messages.error(request, 'Password change is not available for Microsoft SSO users. Please manage your password through your Microsoft account.')
+        logger.info(f'MS Auth user attempted password change: {user.username}')
+        return redirect('main:home')
+    
     if request.method == 'POST':
         current_password = request.POST.get('current_password', '')
         new_password = request.POST.get('new_password', '')
@@ -290,3 +306,113 @@ def send_password_reset_email(user, reset_url):
     except Exception as e:
         logger.error(f'Error sending password reset email: {str(e)}')
         raise
+
+
+def ms_sso_login(request):
+    """Initiate Microsoft SSO login"""
+    try:
+        # Check if MS SSO is enabled
+        settings_obj = Settings.objects.first()
+        if not settings_obj or not settings_obj.ms_sso_enabled:
+            messages.error(request, 'Microsoft SSO is not enabled.')
+            return redirect('main:login')
+        
+        # Initialize MS Auth Service
+        ms_auth = MSAuthService()
+        
+        if not ms_auth.is_configured():
+            messages.error(request, 'Microsoft SSO is not properly configured.')
+            logger.error('MS SSO login attempted but service is not configured')
+            return redirect('main:login')
+        
+        # Generate state for CSRF protection
+        state = secrets.token_urlsafe(32)
+        request.session['ms_auth_state'] = state
+        
+        # Build redirect URI
+        redirect_uri = request.build_absolute_uri(reverse('main:ms_sso_callback'))
+        
+        # Get authorization URL
+        auth_url, _ = ms_auth.get_authorization_url(redirect_uri, state)
+        
+        logger.info('Redirecting to Microsoft SSO login')
+        return redirect(auth_url)
+        
+    except MSAuthServiceError as e:
+        logger.error(f'MS SSO login error: {e}')
+        messages.error(request, 'Failed to initiate Microsoft login. Please try again.')
+        return redirect('main:login')
+    except Exception as e:
+        logger.error(f'Unexpected error in MS SSO login: {e}')
+        messages.error(request, 'An unexpected error occurred. Please try again.')
+        return redirect('main:login')
+
+
+def ms_sso_callback(request):
+    """Handle Microsoft SSO callback"""
+    try:
+        # Check for errors in callback
+        error = request.GET.get('error')
+        if error:
+            error_description = request.GET.get('error_description', 'Unknown error')
+            logger.error(f'MS SSO callback error: {error} - {error_description}')
+            messages.error(request, f'Microsoft login failed: {error_description}')
+            return redirect('main:login')
+        
+        # Get authorization code
+        code = request.GET.get('code')
+        if not code:
+            messages.error(request, 'No authorization code received.')
+            return redirect('main:login')
+        
+        # Verify state to prevent CSRF
+        state = request.GET.get('state')
+        expected_state = request.session.get('ms_auth_state')
+        if not state or state != expected_state:
+            logger.warning('MS SSO state mismatch - possible CSRF attempt')
+            messages.error(request, 'Invalid authentication state. Please try again.')
+            return redirect('main:login')
+        
+        # Clean up state from session
+        request.session.pop('ms_auth_state', None)
+        
+        # Initialize MS Auth Service
+        ms_auth = MSAuthService()
+        
+        if not ms_auth.is_configured():
+            messages.error(request, 'Microsoft SSO is not properly configured.')
+            return redirect('main:login')
+        
+        # Build redirect URI (must match the one used in authorization)
+        redirect_uri = request.build_absolute_uri(reverse('main:ms_sso_callback'))
+        
+        # Exchange code for token
+        token_response = ms_auth.acquire_token_by_authorization_code(code, redirect_uri)
+        
+        # Create or update user
+        user = ms_auth.create_or_update_user(token_response)
+        
+        if not user.is_active:
+            messages.error(request, 'Your account is inactive. Please contact administrator.')
+            logger.warning(f'MS SSO login attempted for inactive user: {user.username}')
+            return redirect('main:login')
+        
+        # Set session
+        request.session['user_id'] = str(user.id)
+        request.session['username'] = user.username
+        request.session['user_role'] = user.role
+        
+        logger.info(f'User logged in via MS SSO: {user.username}')
+        messages.success(request, f'Welcome, {user.username}!')
+        
+        # Redirect to home
+        return redirect('main:home')
+        
+    except MSAuthServiceError as e:
+        logger.error(f'MS SSO callback error: {e}')
+        messages.error(request, 'Failed to complete Microsoft login. Please try again.')
+        return redirect('main:login')
+    except Exception as e:
+        logger.error(f'Unexpected error in MS SSO callback: {e}')
+        messages.error(request, 'An unexpected error occurred. Please try again.')
+        return redirect('main:login')
