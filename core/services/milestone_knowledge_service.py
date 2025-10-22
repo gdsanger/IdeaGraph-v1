@@ -172,12 +172,18 @@ class MilestoneKnowledgeService:
             
             kigate = KiGateService(self.settings)
             
+            # Get default model from settings
+            default_model = getattr(self.settings, 'openai_default_model', 'gpt-4') or 'gpt-4'
+            
             # Step 1: Generate summary using text-summary-agent
             logger.info(f"Generating summary for context object {context_obj.id}")
             summary_result = kigate.execute_agent(
                 agent_name='text-summary-agent',
+                provider='openai',
+                model=default_model,
+                message=context_obj.content,
+                user_id='system',
                 parameters={
-                    'text': context_obj.content,
                     'max_length': 500
                 }
             )
@@ -191,12 +197,16 @@ class MilestoneKnowledgeService:
             
             # Step 2: Derive tasks using text-analysis-task-derivation-agent
             logger.info(f"Deriving tasks for context object {context_obj.id}")
+            
+            # Build message with context
+            task_message = f"Milestone: {context_obj.milestone.name}\n\nContent:\n{context_obj.content}"
+            
             task_derivation_result = kigate.execute_agent(
                 agent_name='text-analysis-task-derivation-agent',
-                parameters={
-                    'text': context_obj.content,
-                    'context': f"Milestone: {context_obj.milestone.name}"
-                }
+                provider='openai',
+                model=default_model,
+                message=task_message,
+                user_id='system'
             )
             
             derived_tasks = []
@@ -280,13 +290,21 @@ class MilestoneKnowledgeService:
             # Generate overall summary using KiGate
             kigate = KiGateService(self.settings)
             
+            # Get default model from settings
+            default_model = getattr(self.settings, 'openai_default_model', 'gpt-4') or 'gpt-4'
+            
+            # Build message with milestone context
+            summary_message = f"Zusammenfassung für Milestone: {milestone.name}\n\n{full_context}"
+            
             logger.info(f"Generating milestone summary for {milestone.id}")
             summary_result = kigate.execute_agent(
                 agent_name='text-summary-agent',
+                provider='openai',
+                model=default_model,
+                message=summary_message,
+                user_id='system',
                 parameters={
-                    'text': full_context,
-                    'max_length': 1000,
-                    'context': f"Zusammenfassung für Milestone: {milestone.name}"
+                    'max_length': 1000
                 }
             )
             
