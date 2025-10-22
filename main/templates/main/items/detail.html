@@ -1089,8 +1089,8 @@ document.querySelector('#syncGitHubIssuesBtn')?.addEventListener('click', async 
             message += `Duplicates by ID: ${data.duplicates_by_id}\n`;
             message += `Duplicates by title: ${data.duplicates_by_title}`;
             
-            if (data.errors && data.errors.length > 0) {
-                message += `\n\nErrors encountered: ${data.errors.length}`;
+            if (data.error_count && data.error_count > 0) {
+                message += `\n\nSome issues encountered: ${data.error_count}`;
             }
             
             showAlert(message, 'success');

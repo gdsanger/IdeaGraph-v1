@@ -296,8 +296,8 @@ class GitHubTaskSyncService:
                         logger.warning(f"Weaviate sync failed for issue #{issue_number}: {str(weaviate_error)}")
                 
                 except Exception as task_error:
-                    error_msg = f"Error processing issue #{issue.get('number', 'unknown')}: {str(task_error)}"
-                    logger.error(error_msg)
+                    error_msg = f"Error processing issue #{issue.get('number', 'unknown')}"
+                    logger.error(f"{error_msg}: {str(task_error)}")
                     results['errors'].append(error_msg)
                     continue
             

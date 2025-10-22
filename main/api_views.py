@@ -831,17 +831,26 @@ def api_github_sync_issues_to_tasks(request, item_id):
             created_by=user
         )
         
+        # Sanitize error messages to prevent information leakage
+        if 'errors' in result and result['errors']:
+            # Keep count but don't expose detailed error messages
+            result['error_count'] = len(result['errors'])
+            result['errors'] = []  # Clear detailed errors for security
+        
         return JsonResponse(result)
         
     except GitHubTaskSyncServiceError as e:
         logger.error(f'GitHub task sync error: {e.message}')
-        return JsonResponse(e.to_dict(), status=500)
+        # Don't expose internal details to external users
+        return JsonResponse({
+            'success': False,
+            'error': e.message
+        }, status=500)
     except Exception as e:
         logger.exception(f'Unexpected error in GitHub task sync: {str(e)}')
         return JsonResponse({
             'success': False,
-            'error': 'An unexpected error occurred',
-            'details': str(e)
+            'error': 'An unexpected error occurred during synchronization'
         }, status=500)
 
 
