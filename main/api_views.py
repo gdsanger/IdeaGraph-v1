@@ -2982,11 +2982,15 @@ def api_item_file_upload(request, item_id):
     """
     Upload a file for an item
     
+    Supports both JSON API responses and htmx responses.
+    For htmx requests, returns the updated file list after upload.
+    
     POST data:
         - file: File upload
     
     Returns:
-        JSON response with upload result
+        - HTML partial with updated file list for htmx requests
+        - JSON response with upload result for regular API requests
     """
     # Check authentication
     user = get_user_from_request(request)
@@ -2999,11 +3003,14 @@ def api_item_file_upload(request, item_id):
     try:
         from main.models import Item
         from core.services.item_file_service import ItemFileService, ItemFileServiceError
+        from django.shortcuts import render
         
         # Get item
         try:
             item = Item.objects.get(id=item_id)
         except Item.DoesNotExist:
+            if request.headers.get('HX-Request'):
+                return render(request, 'main/items/_files_list.html', {'files': [], 'error': 'Item not found'})
             return JsonResponse({
                 'success': False,
                 'error': 'Item not found'
@@ -3011,6 +3018,8 @@ def api_item_file_upload(request, item_id):
         
         # Check permission
         if user.role != 'admin' and item.created_by != user:
+            if request.headers.get('HX-Request'):
+                return render(request, 'main/items/_files_list.html', {'files': [], 'error': 'Permission denied'})
             return JsonResponse({
                 'success': False,
                 'error': 'You do not have permission to upload files for this item'
@@ -3018,6 +3027,8 @@ def api_item_file_upload(request, item_id):
         
         # Get uploaded file
         if 'file' not in request.FILES:
+            if request.headers.get('HX-Request'):
+                return render(request, 'main/items/_files_list.html', {'files': [], 'error': 'No file provided'})
             return JsonResponse({
                 'success': False,
                 'error': 'No file provided'
@@ -3042,10 +3053,20 @@ def api_item_file_upload(request, item_id):
         
         logger.info(f'File uploaded for item {item_id}: {filename}')
         
+        # For htmx requests, return updated file list
+        if request.headers.get('HX-Request'):
+            # Fetch updated file list
+            list_result = service.list_files(str(item_id))
+            # Return HTML partial with updated file list
+            return render(request, 'main/items/_files_list.html', {'files': list_result.get('files', [])})
+        
+        # For regular API requests, return JSON
         return JsonResponse(result)
     
     except ItemFileServiceError as e:
         logger.error(f'File upload error: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/items/_files_list.html', {'files': [], 'error': e.message})
         return JsonResponse({
             'success': False,
             'error': e.message,
@@ -3054,6 +3075,8 @@ def api_item_file_upload(request, item_id):
     
     except Exception as e:
         logger.error(f'Error uploading file: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/items/_files_list.html', {'files': [], 'error': 'Failed to upload file'})
         return JsonResponse({
             'success': False,
             'error': 'Failed to upload file'
@@ -3065,12 +3088,19 @@ def api_item_file_list(request, item_id):
     """
     List all files for an item
     
+    Supports both JSON API responses and htmx HTML partial responses.
+    
     Returns:
-        JSON response with list of files
+        - HTML partial template for htmx requests
+        - JSON response with list of files for regular API requests
     """
     # Check authentication
     user = get_user_from_request(request)
     if not user:
+        # For htmx requests, return error HTML
+        if request.headers.get('HX-Request'):
+            from django.shortcuts import render
+            return render(request, 'main/items/_files_list.html', {'files': [], 'error': 'Authentication required'})
         return JsonResponse({
             'success': False,
             'error': 'Authentication required'
@@ -3079,11 +3109,14 @@ def api_item_file_list(request, item_id):
     try:
         from main.models import Item
         from core.services.item_file_service import ItemFileService, ItemFileServiceError
+        from django.shortcuts import render
         
         # Get item
         try:
             item = Item.objects.get(id=item_id)
         except Item.DoesNotExist:
+            if request.headers.get('HX-Request'):
+                return render(request, 'main/items/_files_list.html', {'files': [], 'error': 'Item not found'})
             return JsonResponse({
                 'success': False,
                 'error': 'Item not found'
@@ -3091,6 +3124,8 @@ def api_item_file_list(request, item_id):
         
         # Check permission
         if user.role != 'admin' and item.created_by != user:
+            if request.headers.get('HX-Request'):
+                return render(request, 'main/items/_files_list.html', {'files': [], 'error': 'Permission denied'})
             return JsonResponse({
                 'success': False,
                 'error': 'You do not have permission to view files for this item'
@@ -3100,10 +3135,17 @@ def api_item_file_list(request, item_id):
         service = ItemFileService()
         result = service.list_files(str(item_id))
         
+        # For htmx requests, return HTML partial
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/items/_files_list.html', {'files': result.get('files', [])})
+        
+        # For regular API requests, return JSON
         return JsonResponse(result)
     
     except ItemFileServiceError as e:
         logger.error(f'File list error: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/items/_files_list.html', {'files': [], 'error': e.message})
         return JsonResponse({
             'success': False,
             'error': e.message,
@@ -3112,6 +3154,8 @@ def api_item_file_list(request, item_id):
     
     except Exception as e:
         logger.error(f'Error listing files: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/items/_files_list.html', {'files': [], 'error': 'Failed to list files'})
         return JsonResponse({
             'success': False,
             'error': 'Failed to list files'
@@ -3123,8 +3167,12 @@ def api_item_file_delete(request, file_id):
     """
     Delete a file
     
+    Supports both JSON API responses and htmx responses.
+    For htmx requests, triggers a file list refresh after deletion.
+    
     Returns:
-        JSON response with deletion result
+        - HTML partial with updated file list for htmx requests
+        - JSON response with deletion result for regular API requests
     """
     # Check authentication
     user = get_user_from_request(request)
@@ -3136,6 +3184,20 @@ def api_item_file_delete(request, file_id):
     
     try:
         from core.services.item_file_service import ItemFileService, ItemFileServiceError
+        from main.models import ItemFile
+        from django.shortcuts import render
+        
+        # Get item_id before deleting the file (for htmx refresh)
+        try:
+            item_file = ItemFile.objects.get(id=file_id)
+            item_id = str(item_file.item.id)
+        except ItemFile.DoesNotExist:
+            if request.headers.get('HX-Request'):
+                return render(request, 'main/items/_files_list.html', {'files': [], 'error': 'File not found'})
+            return JsonResponse({
+                'success': False,
+                'error': 'File not found'
+            }, status=404)
         
         # Delete file
         service = ItemFileService()
@@ -3143,10 +3205,20 @@ def api_item_file_delete(request, file_id):
         
         logger.info(f'File deleted: {file_id}')
         
+        # For htmx requests, return updated file list
+        if request.headers.get('HX-Request'):
+            # Fetch updated file list
+            list_result = service.list_files(item_id)
+            # Return HTML partial with updated file list
+            return render(request, 'main/items/_files_list.html', {'files': list_result.get('files', [])})
+        
+        # For regular API requests, return JSON
         return JsonResponse(result)
     
     except ItemFileServiceError as e:
         logger.error(f'File delete error: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/items/_files_list.html', {'files': [], 'error': e.message})
         return JsonResponse({
             'success': False,
             'error': e.message,
@@ -3155,6 +3227,8 @@ def api_item_file_delete(request, file_id):
     
     except Exception as e:
         logger.error(f'Error deleting file: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/items/_files_list.html', {'files': [], 'error': 'Failed to delete file'})
         return JsonResponse({
             'success': False,
             'error': 'Failed to delete file'
