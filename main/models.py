@@ -318,6 +318,31 @@ class ItemFile(models.Model):
         return f"{self.filename} ({self.item.title})"
 
 
+class TaskFile(models.Model):
+    """TaskFile model for managing file uploads associated with tasks"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    task = models.ForeignKey('Task', on_delete=models.CASCADE, related_name='files')
+    filename = models.CharField(max_length=255)
+    file_size = models.BigIntegerField()  # Size in bytes
+    file_path = models.CharField(max_length=500, blank=True, default='', help_text='Local file path')
+    sharepoint_file_id = models.CharField(max_length=255, blank=True, default='')
+    sharepoint_url = models.URLField(max_length=1000, blank=True, default='')
+    content_type = models.CharField(max_length=100, blank=True, default='')
+    weaviate_synced = models.BooleanField(default=False)
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='uploaded_task_files')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Task File'
+        verbose_name_plural = 'Task Files'
+    
+    def __str__(self):
+        return f"{self.filename} ({self.task.title})"
+
+
 class Relation(models.Model):
     """Relation model for managing relationships between items"""
     
@@ -377,20 +402,34 @@ class Task(models.Model):
         ('done', 'Erledigt'),
     ]
     
+    TYPE_CHOICES = [
+        ('task', 'Task'),
+        ('feature', 'Feature'),
+        ('bug', 'Bug'),
+        ('ticket', 'Ticket'),
+        ('maintenance', 'Maintenance'),
+    ]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default='')  # Markdown content
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='new')
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='task', help_text='Task type classification')
     
     # Relations
     item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
+    section = models.ForeignKey(Section, on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks', help_text='Direct section assignment for tickets')
     milestone = models.ForeignKey(Milestone, on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks')
     tags = models.ManyToManyField(Tag, blank=True, related_name='tasks')
     assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_tasks')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_tasks')
     requester = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='requested_tasks')
     
-    # GitHub Integration
+    # External Integration (Zammad, GitHub, etc.)
+    external_id = models.CharField(max_length=255, blank=True, default='', help_text='External system ID (Zammad ticket ID, etc.)')
+    external_url = models.URLField(max_length=500, blank=True, default='', help_text='URL to external system resource')
+    
+    # GitHub Integration (kept for backward compatibility)
     github_issue_id = models.IntegerField(null=True, blank=True)
     github_issue_url = models.URLField(max_length=500, blank=True, default='')
     github_synced_at = models.DateTimeField(null=True, blank=True)
@@ -662,6 +701,38 @@ class Settings(models.Model):
         default='',
         verbose_name='MS SSO Client Secret',
         help_text='Microsoft Azure AD Client Secret for SSO (optional for some flows)'
+    )
+    
+    # Zammad Configuration
+    zammad_enabled = models.BooleanField(
+        default=False,
+        verbose_name='Enable Zammad Integration',
+        help_text='Enable Zammad ticket synchronization'
+    )
+    zammad_api_url = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='Zammad API URL',
+        help_text='Base URL of the Zammad instance'
+    )
+    zammad_api_token = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='Zammad API Token',
+        help_text='API token for authentication'
+    )
+    zammad_groups = models.TextField(
+        blank=True,
+        default='',
+        verbose_name='Zammad Groups',
+        help_text='Comma-separated list of group names to monitor'
+    )
+    zammad_sync_interval = models.IntegerField(
+        default=15,
+        verbose_name='Zammad Sync Interval',
+        help_text='Interval in minutes for periodic synchronization'
     )
     
     created_at = models.DateTimeField(auto_now_add=True)

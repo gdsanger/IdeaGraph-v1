@@ -100,7 +100,7 @@ def get_user_from_request(request):
 def require_admin(view_func):
     """Decorator to require admin role for API endpoints"""
     def wrapper(request, *args, **kwargs):
-        user = get_user_from_token(request)
+        user = get_user_from_request(request)  # Check both token and session
         if not user or user.role != 'admin':
             return JsonResponse({'error': 'Admin access required'}, status=403)
         request.user_obj = user
@@ -3266,6 +3266,424 @@ def api_item_file_download(request, file_id):
         return JsonResponse(result)
     
     except ItemFileServiceError as e:
+        logger.error(f'File download error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error getting download URL: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to get download URL'
+        }, status=500)
+
+
+# ==================== Zammad Integration API ====================
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_admin
+def api_zammad_test_connection(request):
+    """
+    Test connection to Zammad API
+    POST /api/zammad/test-connection
+    
+    Returns:
+        JSON response with connection status
+    """
+    try:
+        from core.services.zammad_sync_service import ZammadSyncService, ZammadSyncServiceError
+        
+        service = ZammadSyncService()
+        result = service.test_connection()
+        
+        return JsonResponse(result)
+    
+    except ZammadSyncServiceError as e:
+        logger.error(f'Zammad connection test error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error testing Zammad connection: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to test connection'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_admin
+def api_zammad_sync(request):
+    """
+    Manually trigger Zammad ticket synchronization
+    POST /api/zammad/sync
+    Body (optional): {"groups": ["Group1", "Group2"]}
+    
+    Returns:
+        JSON response with sync results
+    """
+    try:
+        from core.services.zammad_sync_service import ZammadSyncService, ZammadSyncServiceError
+        
+        # Parse optional group filter
+        groups = None
+        if request.body:
+            try:
+                data = json.loads(request.body)
+                groups = data.get('groups')
+            except json.JSONDecodeError:
+                pass
+        
+        service = ZammadSyncService()
+        
+        if groups:
+            # Fetch and sync specific groups
+            tickets = service.fetch_open_tickets(groups)
+            
+            results = {
+                'success': True,
+                'total_tickets': len(tickets),
+                'created': 0,
+                'updated': 0,
+                'failed': 0,
+                'errors': []
+            }
+            
+            for ticket in tickets:
+                result = service.sync_ticket_to_task(ticket)
+                if result.get('success'):
+                    if result.get('action') == 'created':
+                        results['created'] += 1
+                    elif result.get('action') == 'updated':
+                        results['updated'] += 1
+                else:
+                    results['failed'] += 1
+                    results['errors'].append({
+                        'ticket_id': result.get('ticket_id'),
+                        'error': result.get('error')
+                    })
+        else:
+            # Sync all configured groups
+            results = service.sync_all_tickets()
+        
+        return JsonResponse(results)
+    
+    except ZammadSyncServiceError as e:
+        logger.error(f'Zammad sync error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error syncing Zammad tickets: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to sync tickets'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+@require_admin
+def api_zammad_status(request):
+    """
+    Get Zammad synchronization status
+    GET /api/zammad/status
+    
+    Returns:
+        JSON response with sync status and statistics
+    """
+    try:
+        from main.models import Task, Settings
+        
+        # Get settings
+        settings = Settings.objects.first()
+        if not settings:
+            return JsonResponse({
+                'success': False,
+                'error': 'Settings not found'
+            }, status=404)
+        
+        # Get statistics about Zammad-synced tasks
+        zammad_tasks = Task.objects.filter(type='ticket').exclude(external_id='')
+        
+        total_tasks = zammad_tasks.count()
+        new_tasks = zammad_tasks.filter(status='new').count()
+        working_tasks = zammad_tasks.filter(status='working').count()
+        done_tasks = zammad_tasks.filter(status='done').count()
+        
+        # Get last synced task
+        last_synced = zammad_tasks.order_by('-updated_at').first()
+        last_sync_time = last_synced.updated_at.isoformat() if last_synced else None
+        
+        return JsonResponse({
+            'success': True,
+            'enabled': settings.zammad_enabled,
+            'api_url': settings.zammad_api_url,
+            'configured_groups': [g.strip() for g in settings.zammad_groups.split(',') if g.strip()],
+            'sync_interval_minutes': settings.zammad_sync_interval,
+            'statistics': {
+                'total_tasks': total_tasks,
+                'new': new_tasks,
+                'working': working_tasks,
+                'done': done_tasks,
+                'last_sync': last_sync_time
+            }
+        })
+    
+    except Exception as e:
+        logger.error(f'Error getting Zammad status: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to get status'
+        }, status=500)
+
+
+# ==================== Task File Upload API ====================
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_task_file_upload(request, task_id):
+    """
+    Upload a file to a task
+    
+    Uploads file to SharePoint under: IdeaGraph/{item_title}/{task_uuid}/
+    or IdeaGraph/Tasks/{task_uuid}/ for standalone tasks
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from core.services.task_file_service import TaskFileService, TaskFileServiceError
+        from main.models import Task
+        from django.shortcuts import render
+        
+        # Get task
+        try:
+            task = Task.objects.get(id=task_id)
+        except Task.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Task not found'
+            }, status=404)
+        
+        # Get uploaded file
+        if 'file' not in request.FILES:
+            return JsonResponse({
+                'success': False,
+                'error': 'No file provided'
+            }, status=400)
+        
+        uploaded_file = request.FILES['file']
+        
+        # Read file content
+        file_content = uploaded_file.read()
+        filename = uploaded_file.name
+        content_type = uploaded_file.content_type or 'application/octet-stream'
+        
+        # Upload file
+        service = TaskFileService()
+        result = service.upload_file(
+            task=task,
+            file_content=file_content,
+            filename=filename,
+            content_type=content_type,
+            user=user
+        )
+        
+        logger.info(f'File uploaded: {filename} for task {task_id}')
+        
+        # For htmx requests, return updated file list
+        if request.headers.get('HX-Request'):
+            # Fetch updated file list
+            list_result = service.list_files(task_id)
+            # Return HTML partial with updated file list
+            return render(request, 'main/tasks/_files_list.html', {'files': list_result.get('files', [])})
+        
+        # For regular API requests, return JSON
+        return JsonResponse(result)
+    
+    except TaskFileServiceError as e:
+        logger.error(f'File upload error: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/tasks/_files_list.html', {'files': [], 'error': e.message})
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error uploading file: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/tasks/_files_list.html', {'files': [], 'error': 'Failed to upload file'})
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to upload file'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def api_task_file_list(request, task_id):
+    """
+    List files for a task
+    
+    Returns:
+        JSON response with list of files or HTML partial for htmx
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from core.services.task_file_service import TaskFileService, TaskFileServiceError
+        from django.shortcuts import render
+        
+        # List files
+        service = TaskFileService()
+        result = service.list_files(task_id)
+        
+        # For htmx requests, return HTML partial
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/tasks/_files_list.html', {'files': result.get('files', [])})
+        
+        # For regular API requests, return JSON
+        return JsonResponse(result)
+    
+    except TaskFileServiceError as e:
+        logger.error(f'File list error: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/tasks/_files_list.html', {'files': [], 'error': e.message})
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error listing files: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/tasks/_files_list.html', {'files': [], 'error': 'Failed to list files'})
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to list files'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE", "POST"])
+def api_task_file_delete(request, file_id):
+    """
+    Delete a file
+    
+    Returns:
+        JSON response with success status or HTML partial for htmx
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from core.services.task_file_service import TaskFileService, TaskFileServiceError
+        from main.models import TaskFile
+        from django.shortcuts import render
+        
+        # Get task_id before deleting the file (for htmx refresh)
+        try:
+            task_file = TaskFile.objects.get(id=file_id)
+            task_id = str(task_file.task.id)
+        except TaskFile.DoesNotExist:
+            if request.headers.get('HX-Request'):
+                return render(request, 'main/tasks/_files_list.html', {'files': [], 'error': 'File not found'})
+            return JsonResponse({
+                'success': False,
+                'error': 'File not found'
+            }, status=404)
+        
+        # Delete file
+        service = TaskFileService()
+        result = service.delete_file(file_id, user)
+        
+        logger.info(f'File deleted: {file_id}')
+        
+        # For htmx requests, return updated file list
+        if request.headers.get('HX-Request'):
+            # Fetch updated file list
+            list_result = service.list_files(task_id)
+            # Return HTML partial with updated file list
+            return render(request, 'main/tasks/_files_list.html', {'files': list_result.get('files', [])})
+        
+        # For regular API requests, return JSON
+        return JsonResponse(result)
+    
+    except TaskFileServiceError as e:
+        logger.error(f'File delete error: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/tasks/_files_list.html', {'files': [], 'error': e.message})
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error deleting file: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/tasks/_files_list.html', {'files': [], 'error': 'Failed to delete file'})
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to delete file'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def api_task_file_download(request, file_id):
+    """
+    Get download URL for a file
+    
+    Returns:
+        JSON response with download URL
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from core.services.task_file_service import TaskFileService, TaskFileServiceError
+        
+        # Get download URL
+        service = TaskFileService()
+        result = service.get_download_url(file_id, user)
+        
+        return JsonResponse(result)
+    
+    except TaskFileServiceError as e:
         logger.error(f'File download error: {str(e)}')
         return JsonResponse({
             'success': False,
