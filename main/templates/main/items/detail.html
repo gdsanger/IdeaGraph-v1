@@ -138,6 +138,53 @@
     <div class="detail-container-with-network">
         <!-- Left Column: Item Details -->
         <div class="detail-left-column">
+    
+    <!-- Hierarchical Context Card -->
+    {% if item.parent or item.children.all %}
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-diagram-2"></i> Hierarchische Beziehungen
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if item.parent %}
+                    <div class="mb-2">
+                        <strong><i class="bi bi-arrow-up"></i> Parent Item:</strong>
+                        <a href="{% url 'main:item_detail' item.parent.id %}" class="text-primary">{{ item.parent.title }}</a>
+                        {% if item.inherit_context %}
+                        <span class="badge bg-info ms-2">Kontext geerbt</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% if item.is_template %}
+                    <div class="mb-2">
+                        <span class="badge bg-secondary"><i class="bi bi-file-earmark-code"></i> Template Item</span>
+                    </div>
+                    {% endif %}
+                    {% if item.children.all %}
+                    <div>
+                        <strong><i class="bi bi-arrow-down"></i> Child Items ({{ item.children.count }}):</strong>
+                        <ul class="list-unstyled mt-2 ms-3">
+                            {% for child in item.children.all %}
+                            <li class="mb-1">
+                                <a href="{% url 'main:item_detail' child.id %}" class="text-primary">{{ child.title }}</a>
+                                {% if child.inherit_context %}
+                                <span class="badge bg-info badge-sm">erbt Kontext</span>
+                                {% endif %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
     <!-- Item Details Card -->
     <div class="row mb-4">
         <div class="col-12">
@@ -231,6 +278,51 @@
                                 <div id="itemDetailTagTokenBox" class="tag-token-box"></div>
                                 <div id="itemDetailTagHiddenInputs"></div>
                                 <small class="text-muted">Type a tag name and press Enter to add it. Existing tags will appear as suggestions.</small>
+                            </div>
+                        </div>
+
+                        <!-- Hierarchical fields -->
+                        <div class="row">
+                            <!-- Parent Item -->
+                            <div class="col-md-4 mb-3">
+                                <label for="parent" class="form-label">
+                                    <i class="bi bi-diagram-2"></i> Parent Item
+                                </label>
+                                <select class="form-select" id="parent" name="parent">
+                                    <option value="">No Parent</option>
+                                    {% for parent_item in all_items %}
+                                    {% if parent_item.id != item.id %}
+                                    <option value="{{ parent_item.id }}" 
+                                            {% if item.parent and item.parent.id == parent_item.id %}selected{% endif %}>
+                                        {{ parent_item.title }}
+                                    </option>
+                                    {% endif %}
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Is Template -->
+                            <div class="col-md-4 mb-3">
+                                <label for="is_template" class="form-label">Template</label>
+                                <div class="form-check form-switch mt-2">
+                                    <input class="form-check-input" type="checkbox" id="is_template" name="is_template" 
+                                           {% if item.is_template %}checked{% endif %}>
+                                    <label class="form-check-label" for="is_template">
+                                        Is template item
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Inherit Context -->
+                            <div class="col-md-4 mb-3">
+                                <label for="inherit_context" class="form-label">Context</label>
+                                <div class="form-check form-switch mt-2">
+                                    <input class="form-check-input" type="checkbox" id="inherit_context" name="inherit_context" 
+                                           {% if item.inherit_context %}checked{% endif %}>
+                                    <label class="form-check-label" for="inherit_context">
+                                        Inherit from parent
+                                    </label>
+                                </div>
                             </div>
                         </div>
 

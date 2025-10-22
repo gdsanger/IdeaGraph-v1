@@ -868,6 +868,9 @@ def item_detail(request, item_id):
         section_id = request.POST.get('section')
         status = request.POST.get('status', item.status)
         tag_values = request.POST.getlist('tags')
+        parent_id = request.POST.get('parent')
+        is_template = request.POST.get('is_template') == 'on'
+        inherit_context = request.POST.get('inherit_context') == 'on'
 
         if not title:
             messages.error(request, 'Title is required.')
@@ -878,11 +881,18 @@ def item_detail(request, item_id):
                 item.description = description
                 item.github_repo = github_repo
                 item.status = status
+                item.is_template = is_template
+                item.inherit_context = inherit_context
 
                 if section_id:
                     item.section_id = section_id
                 else:
                     item.section = None
+                
+                if parent_id:
+                    item.parent_id = parent_id
+                else:
+                    item.parent = None
 
                 item.save()
 
@@ -944,9 +954,10 @@ def item_detail(request, item_id):
     paginator = Paginator(tasks, 10)
     tasks_page = paginator.get_page(page_number)
     
-    # Get all sections, tags, and status choices for the form
+    # Get all sections, tags, items, and status choices for the form
     sections = Section.objects.all()
     all_tags = list(Tag.objects.values('id', 'name', 'color'))
+    all_items = Item.objects.exclude(id=item.id).order_by('title')  # Exclude current item
     status_choices = Item.STATUS_CHOICES
 
     from django.utils import timezone
@@ -960,6 +971,7 @@ def item_detail(request, item_id):
         'tasks': tasks_page,
         'sections': sections,
         'all_tags': all_tags,
+        'all_items': all_items,
         'selected_tags': selected_tags_payload,
         'status_choices': status_choices,
         'show_completed': show_completed,
@@ -995,6 +1007,9 @@ def item_create(request):
         status = request.POST.get('status', 'new')
         tag_values = request.POST.getlist('tags')
         client_values = request.POST.getlist('clients')
+        parent_id = request.POST.get('parent')
+        is_template = request.POST.get('is_template') == 'on'
+        inherit_context = request.POST.get('inherit_context') == 'on'
 
         if not title:
             messages.error(request, 'Title is required.')
@@ -1008,11 +1023,16 @@ def item_create(request):
                     description=description,
                     github_repo=github_repo,
                     status=status,
-                    created_by=user
+                    created_by=user,
+                    is_template=is_template,
+                    inherit_context=inherit_context
                 )
 
                 if section_id:
                     item.section_id = section_id
+                
+                if parent_id:
+                    item.parent_id = parent_id
 
                 item.save()
 
@@ -1049,16 +1069,18 @@ def item_create(request):
                 selected_tags_payload = _build_selected_tags_payload(tag_values)
                 selected_clients_payload = _build_selected_clients_payload(client_values)
     
-    # Get all sections, tags, clients and status choices for the form
+    # Get all sections, tags, clients, items and status choices for the form
     sections = Section.objects.all()
     all_tags = list(Tag.objects.values('id', 'name', 'color'))
     all_clients = list(Client.objects.values('id', 'name'))
+    all_items = Item.objects.all().order_by('title')
     status_choices = Item.STATUS_CHOICES
 
     context = {
         'sections': sections,
         'all_tags': all_tags,
         'all_clients': all_clients,
+        'all_items': all_items,
         'selected_tags': selected_tags_payload,
         'selected_clients': selected_clients_payload,
         'status_choices': status_choices,
@@ -1093,6 +1115,9 @@ def item_edit(request, item_id):
         status = request.POST.get('status', item.status)
         tag_values = request.POST.getlist('tags')
         client_values = request.POST.getlist('clients')
+        parent_id = request.POST.get('parent')
+        is_template = request.POST.get('is_template') == 'on'
+        inherit_context = request.POST.get('inherit_context') == 'on'
 
         if not title:
             messages.error(request, 'Title is required.')
@@ -1104,11 +1129,18 @@ def item_edit(request, item_id):
                 item.description = description
                 item.github_repo = github_repo
                 item.status = status
+                item.is_template = is_template
+                item.inherit_context = inherit_context
 
                 if section_id:
                     item.section_id = section_id
                 else:
                     item.section = None
+                
+                if parent_id:
+                    item.parent_id = parent_id
+                else:
+                    item.parent = None
 
                 item.save()
 
@@ -1149,10 +1181,11 @@ def item_edit(request, item_id):
                 selected_tags_payload = _build_selected_tags_payload(tag_values)
                 selected_clients_payload = _build_selected_clients_payload(client_values)
     
-    # Get all sections, tags, clients and status choices for the form
+    # Get all sections, tags, clients, items and status choices for the form
     sections = Section.objects.all()
     all_tags = list(Tag.objects.values('id', 'name', 'color'))
     all_clients = list(Client.objects.values('id', 'name'))
+    all_items = Item.objects.exclude(id=item.id).order_by('title')  # Exclude current item to prevent self-reference
     status_choices = Item.STATUS_CHOICES
 
     context = {
@@ -1160,19 +1193,9 @@ def item_edit(request, item_id):
         'sections': sections,
         'all_tags': all_tags,
         'all_clients': all_clients,
+        'all_items': all_items,
         'selected_tags': selected_tags_payload,
         'selected_clients': selected_clients_payload,
-        'status_choices': status_choices,
-    }
-    
-    return render(request, 'main/items/form.html', context)
-    status_choices = Item.STATUS_CHOICES
-
-    context = {
-        'item': item,
-        'sections': sections,
-        'all_tags': all_tags,
-        'selected_tags': selected_tags_payload,
         'status_choices': status_choices,
     }
     
