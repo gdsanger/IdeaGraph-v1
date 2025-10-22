@@ -31,6 +31,8 @@ class SemanticNetworkViewer {
         this.sigma = null;
         this.networkData = null;
         this.isLoading = false;
+        this.showLevel2 = true;  // Track Level 2 visibility
+        this.showLevel3 = true;  // Track Level 3 visibility
         
         // Initialize
         this.init();
@@ -54,6 +56,12 @@ class SemanticNetworkViewer {
                         <button class="btn btn-sm btn-outline-info" id="snToggleHierarchy">
                             <i class="bi bi-diagram-2"></i> Hierarchie
                         </button>
+                        <button class="btn btn-sm btn-outline-warning" id="snToggleLevel2">
+                            <i class="bi bi-eye"></i> Ebene 2
+                        </button>
+                        <button class="btn btn-sm btn-outline-warning" id="snToggleLevel3">
+                            <i class="bi bi-eye"></i> Ebene 3
+                        </button>
                     </div>
                 </div>
                 <div class="semantic-network-summary" id="snSummary"></div>
@@ -73,11 +81,11 @@ class SemanticNetworkViewer {
                         <span class="legend-dot" style="background: #f59e0b;"></span>
                         <span>Ebene 1 (>80%)</span>
                     </div>
-                    <div class="legend-item">
+                    <div class="legend-item" id="level2Legend">
                         <span class="legend-dot" style="background: #3b82f6;"></span>
                         <span>Ebene 2 (>70%)</span>
                     </div>
-                    <div class="legend-item">
+                    <div class="legend-item" id="level3Legend">
                         <span class="legend-dot" style="background: #8b5cf6;"></span>
                         <span>Ebene 3 (>60%)</span>
                     </div>
@@ -107,6 +115,16 @@ class SemanticNetworkViewer {
         const toggleHierarchyBtn = document.getElementById('snToggleHierarchy');
         if (toggleHierarchyBtn) {
             toggleHierarchyBtn.addEventListener('click', () => this.toggleHierarchy());
+        }
+        
+        const toggleLevel2Btn = document.getElementById('snToggleLevel2');
+        if (toggleLevel2Btn) {
+            toggleLevel2Btn.addEventListener('click', () => this.toggleLevel(2));
+        }
+        
+        const toggleLevel3Btn = document.getElementById('snToggleLevel3');
+        if (toggleLevel3Btn) {
+            toggleLevel3Btn.addEventListener('click', () => this.toggleLevel(3));
         }
     }
     
@@ -138,6 +156,73 @@ class SemanticNetworkViewer {
         }
     }
     
+    toggleLevel(level) {
+        // Toggle level visibility
+        if (level === 2) {
+            this.showLevel2 = !this.showLevel2;
+        } else if (level === 3) {
+            this.showLevel3 = !this.showLevel3;
+        }
+        
+        // Update button state
+        const btnId = `snToggleLevel${level}`;
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            const isVisible = level === 2 ? this.showLevel2 : this.showLevel3;
+            const icon = btn.querySelector('i');
+            if (isVisible) {
+                btn.classList.remove('btn-outline-warning');
+                btn.classList.add('btn-warning');
+                if (icon) {
+                    icon.className = 'bi bi-eye';
+                }
+            } else {
+                btn.classList.remove('btn-warning');
+                btn.classList.add('btn-outline-warning');
+                if (icon) {
+                    icon.className = 'bi bi-eye-slash';
+                }
+            }
+        }
+        
+        // Update legend visibility
+        const legendId = `level${level}Legend`;
+        const legend = document.getElementById(legendId);
+        if (legend) {
+            const isVisible = level === 2 ? this.showLevel2 : this.showLevel3;
+            legend.style.display = isVisible ? 'flex' : 'none';
+        }
+        
+        // Update node visibility in the graph
+        this.updateNodeVisibility();
+    }
+    
+    updateNodeVisibility() {
+        if (!this.sigma || !this.graph) return;
+        
+        // Iterate through all nodes and update their hidden state
+        this.graph.forEachNode((nodeId, attributes) => {
+            const node = attributes.originalData;
+            let shouldHide = false;
+            
+            // Hide Level 2 nodes if toggled off
+            if (node.level === 2 && !this.showLevel2) {
+                shouldHide = true;
+            }
+            
+            // Hide Level 3 nodes if toggled off
+            if (node.level === 3 && !this.showLevel3) {
+                shouldHide = true;
+            }
+            
+            // Update node attributes
+            this.graph.setNodeAttribute(nodeId, 'hidden', shouldHide);
+        });
+        
+        // Refresh the Sigma renderer
+        this.sigma.refresh();
+    }
+    
     async load(objectType, objectId) {
         if (this.isLoading) return;
         
@@ -154,6 +239,9 @@ class SemanticNetworkViewer {
             url.searchParams.set('summaries', this.options.generateSummaries);
             url.searchParams.set('include_hierarchy', this.options.includeHierarchy);
             
+            console.log(`[SemanticNetwork] Loading network for ${objectType}/${objectId}`);
+            console.log(`[SemanticNetwork] API URL: ${url.toString()}`);
+            
             // Fetch network data
             const response = await fetch(url, {
                 method: 'GET',
@@ -163,11 +251,34 @@ class SemanticNetworkViewer {
                 credentials: 'same-origin'
             });
             
+            console.log(`[SemanticNetwork] Response status: ${response.status}`);
+            
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                // Try to get error details from response
+                let errorMessage = `HTTP error! status: ${response.status}`;
+                try {
+                    const errorData = await response.json();
+                    console.error('[SemanticNetwork] Error response:', errorData);
+                    if (errorData.error) {
+                        errorMessage = errorData.error;
+                    }
+                    if (errorData.details) {
+                        console.error('[SemanticNetwork] Error details:', errorData.details);
+                        errorMessage += ` - ${JSON.stringify(errorData.details)}`;
+                    }
+                } catch (e) {
+                    console.error('[SemanticNetwork] Could not parse error response:', e);
+                }
+                throw new Error(errorMessage);
             }
             
             const data = await response.json();
+            console.log('[SemanticNetwork] Received data:', {
+                success: data.success,
+                nodeCount: data.nodes?.length,
+                edgeCount: data.edges?.length,
+                levels: Object.keys(data.levels || {})
+            });
             
             if (!data.success) {
                 throw new Error(data.error || 'Failed to load semantic network');
@@ -177,8 +288,10 @@ class SemanticNetworkViewer {
             this.renderNetwork();
             this.renderSummaries();
             
+            console.log('[SemanticNetwork] Network rendered successfully');
+            
         } catch (error) {
-            console.error('Error loading semantic network:', error);
+            console.error('[SemanticNetwork] Error loading semantic network:', error);
             this.showError(error.message);
         } finally {
             this.hideLoading();
@@ -188,11 +301,17 @@ class SemanticNetworkViewer {
     
     renderNetwork() {
         if (!this.networkData || !this.networkData.nodes) {
+            console.warn('[SemanticNetwork] No network data to render');
             return;
         }
         
+        console.log('[SemanticNetwork] Starting network render with', this.networkData.nodes.length, 'nodes');
+        
         const graphContainer = document.getElementById('snGraph');
-        if (!graphContainer) return;
+        if (!graphContainer) {
+            console.error('[SemanticNetwork] Graph container not found');
+            return;
+        }
         
         // Ensure container is visible and has dimensions
         graphContainer.style.display = 'block';
@@ -201,8 +320,10 @@ class SemanticNetworkViewer {
         const containerWidth = graphContainer.offsetWidth;
         const containerHeight = graphContainer.offsetHeight;
         
+        console.log('[SemanticNetwork] Container dimensions:', containerWidth, 'x', containerHeight);
+        
         if (containerWidth === 0 || containerHeight === 0) {
-            console.warn('Container has no dimensions, retrying in 100ms...');
+            console.warn('[SemanticNetwork] Container has no dimensions, retrying in 100ms...');
             setTimeout(() => this.renderNetwork(), 100);
             return;
         }

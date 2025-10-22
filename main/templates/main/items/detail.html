@@ -1217,7 +1217,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Hide htmx indicator and show toast when htmx:afterRequest event fires
+    // Hide htmx indicator and show alert when htmx:afterRequest event fires
     document.body.addEventListener('htmx:afterRequest', function(event) {
         const target = event.detail.target;
         if (target && target.id === 'filesListContainer') {
@@ -1226,11 +1226,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 uploadProgress.style.display = 'none';
             }
             
-            // Show success toast
+            // Show success/error alert
             if (event.detail.successful) {
-                showToast('success', 'Success', 'Operation completed successfully');
+                showAlert('Operation completed successfully', 'success');
             } else {
-                showToast('error', 'Error', 'Operation failed');
+                showAlert('Operation failed', 'danger');
             }
         }
     });
