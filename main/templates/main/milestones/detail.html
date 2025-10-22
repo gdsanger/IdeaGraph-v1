@@ -373,7 +373,23 @@
                                     <div class="flex-grow-1">
                                         <div class="d-flex align-items-center mb-2">
                                             <span class="context-type-icon">
-                                                {% if context.type == 'file' %}📄
+                                                {% if context.type == 'file' %}
+                                                    {# File type icons #}
+                                                    {% if context.title|lower|slice:"-4:" == ".pdf" %}
+                                                        <i class="bi bi-file-pdf-fill text-danger"></i>
+                                                    {% elif context.title|lower|slice:"-5:" == ".docx" or context.title|lower|slice:"-4:" == ".doc" %}
+                                                        <i class="bi bi-file-word-fill text-primary"></i>
+                                                    {% elif context.title|lower|slice:"-4:" == ".eml" or context.title|lower|slice:"-4:" == ".msg" %}
+                                                        <i class="bi bi-envelope-fill text-warning"></i>
+                                                    {% elif context.title|lower|slice:"-5:" == ".html" or context.title|lower|slice:"-4:" == ".htm" %}
+                                                        <i class="bi bi-file-code-fill text-success"></i>
+                                                    {% elif context.title|lower|slice:"-4:" == ".txt" %}
+                                                        <i class="bi bi-file-text-fill text-info"></i>
+                                                    {% elif context.title|lower|slice:"-3:" == ".md" %}
+                                                        <i class="bi bi-markdown-fill text-info"></i>
+                                                    {% else %}
+                                                        <i class="bi bi-file-earmark-fill text-secondary"></i>
+                                                    {% endif %}
                                                 {% elif context.type == 'email' %}✉️
                                                 {% elif context.type == 'transcript' %}🎙️
                                                 {% elif context.type == 'note' %}🗒️
@@ -425,6 +441,14 @@
                                     </div>
                                     
                                     <div class="btn-group-vertical" role="group">
+                                        {% if context.type == 'file' and context.source_id %}
+                                        <a href="{% url 'main:api_milestone_context_download' context.id %}" 
+                                           class="btn btn-sm btn-outline-info" 
+                                           title="Download file" 
+                                           target="_blank">
+                                            <i class="bi bi-download"></i> Download
+                                        </a>
+                                        {% endif %}
                                         {% if not context.analyzed %}
                                         <button class="btn btn-sm btn-outline-primary analyze-context-btn" 
                                                 data-context-id="{{ context.id }}" title="Analyze with AI">
