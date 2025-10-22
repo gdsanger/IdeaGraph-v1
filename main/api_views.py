@@ -4314,8 +4314,7 @@ def api_milestone_context_download(request, context_id):
             logger.error(f'SharePoint download error: {str(e)}')
             return JsonResponse({
                 'success': False,
-                'error': 'Failed to download file',
-                'details': str(e)
+                'error': 'Failed to download file'
             }, status=500)
         
     except MilestoneContextObject.DoesNotExist:
