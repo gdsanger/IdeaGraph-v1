@@ -15,6 +15,7 @@
                         <a href="{% url 'main:user_edit' user.id %}" class="btn btn-warning btn-sm">
                             <i class="bi bi-pencil"></i> Edit
                         </a>
+                        {% if user.auth_type != 'msauth' %}
                         <form method="post" action="{% url 'main:user_send_password' user.id %}" style="display: inline;">
                             {% csrf_token %}
                             <input type="hidden" name="return_url" value="detail">
@@ -23,6 +24,7 @@
                                 <i class="bi bi-envelope"></i> Send Password
                             </button>
                         </form>
+                        {% endif %}
                         <a href="{% url 'main:user_delete' user.id %}" class="btn btn-danger btn-sm">
                             <i class="bi bi-trash"></i> Delete
                         </a>
@@ -64,6 +66,26 @@
                             {% else %}
                                 <span class="badge bg-secondary">
                                     <i class="bi bi-eye-fill"></i> Viewer
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4 text-muted">
+                            <i class="bi bi-shield-lock"></i> <strong>Auth Type:</strong>
+                        </div>
+                        <div class="col-md-8">
+                            {% if user.auth_type == 'msauth' %}
+                                <span class="badge bg-info">
+                                    <i class="bi bi-microsoft"></i> Microsoft SSO
+                                </span>
+                                {% if user.ms_user_id %}
+                                    <small class="text-muted d-block mt-1">MS User ID: {{ user.ms_user_id }}</small>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge bg-secondary">
+                                    <i class="bi bi-key-fill"></i> Local Authentication
                                 </span>
                             {% endif %}
                         </div>

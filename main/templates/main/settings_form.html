@@ -493,6 +493,68 @@
 
                     <hr style="border-color: var(--autumn-primary);">
 
+                    <!-- Microsoft SSO Configuration -->
+                    <div class="mb-4">
+                        <h5 class="mb-3" style="color: var(--autumn-accent);">
+                            <i class="bi bi-microsoft"></i> SSO Microsoft Authentication
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <div class="form-check form-switch">
+                                    <input 
+                                        class="form-check-input" 
+                                        type="checkbox" 
+                                        id="ms_sso_enabled" 
+                                        name="ms_sso_enabled"
+                                        {% if settings.ms_sso_enabled %}checked{% endif %}>
+                                    <label class="form-check-label" for="ms_sso_enabled">
+                                        Enable Microsoft SSO
+                                    </label>
+                                    <div class="form-text">Enable Microsoft Identity Single Sign-On authentication</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="ms_sso_client_id" class="form-label">Client ID</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="ms_sso_client_id" 
+                                    name="ms_sso_client_id" 
+                                    value="{{ settings.ms_sso_client_id|default:'' }}"
+                                    placeholder="Azure AD Application (Client) ID">
+                                <div class="form-text">Microsoft Azure AD Application (Client) ID</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="ms_sso_tenant_id" class="form-label">Tenant ID</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="ms_sso_tenant_id" 
+                                    name="ms_sso_tenant_id" 
+                                    value="{{ settings.ms_sso_tenant_id|default:'' }}"
+                                    placeholder="Azure AD Tenant ID">
+                                <div class="form-text">Microsoft Azure AD Tenant ID</div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label for="ms_sso_client_secret" class="form-label">Client Secret (Optional)</label>
+                                <input 
+                                    type="password" 
+                                    class="form-control" 
+                                    id="ms_sso_client_secret" 
+                                    name="ms_sso_client_secret" 
+                                    value="{{ settings.ms_sso_client_secret|default:'' }}"
+                                    placeholder="Azure AD Client Secret">
+                                <div class="form-text">Microsoft Azure AD Client Secret (optional for some authentication flows)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr style="border-color: var(--autumn-primary);">
+
                     <!-- Additional Settings -->
                     <div class="mb-4">
                         <h5 class="mb-3" style="color: var(--autumn-accent);">

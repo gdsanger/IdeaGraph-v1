@@ -9,3 +9,4 @@ weaviate-client>=4.9.0
 sentry-sdk>=2.0.0
 PyPDF2>=3.0.0
 python-docx>=1.1.0
+msal>=1.28.0
