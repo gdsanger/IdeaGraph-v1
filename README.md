@@ -63,6 +63,7 @@ Sie verknüpft Kreativität, Struktur und Automatisierung – von der ersten Ide
 | **Frontend** | Django + HTMX + Bootstrap (Dark Theme) | Moderne, reaktive Weboberfläche |
 | **Markdown Editor** | Toast UI Editor | KI-freundliche Textbearbeitung |
 | **Backend** | Django ORM + FastAPI (KIGate) | Business-Logik & KI-Kommunikation |
+| **Cache** | Redis / Local Memory | Performance-Optimierung & Token-Caching |
 | **Vektor DB** | ChromaDB (Cloud) | Similarity Search & KI-Kontext |
 | **Relationale DB** | SQLite | Benutzer, Ideen, Aufgaben, Logs |
 | **Integrationen** | GitHub API · Graph API | Issues & SharePoint Uploads |
@@ -126,6 +127,11 @@ Im Backend verwenden wir folgende Elemente:
    → Wir verwenden ChromaDB in der Cloud [TryChroma](https://www.trychroma.com/)
    → Databasename: ItemGraphDB
    → Achtung keine lokale Persistens, da die DB in der Cloud gehostet wird (fürht sonst zu Problemen!)
+3. **Redis Cache** 🆕
+   → Flexibles Cache-System für verbesserte Performance
+   → Unterstützt Redis (Produktion), Local Memory (Entwicklung), Dummy (Tests)
+   → Automatisches Token-Caching für Microsoft Graph API
+   → [Redis Cache Dokumentation →](REDIS_CACHE_GUIDE.md) | [Quick Reference →](REDIS_CACHE_QUICKREF.md)
 4. **KIGate*
    → RestFul API auf Basis von FastAPI
    → See Docs:
