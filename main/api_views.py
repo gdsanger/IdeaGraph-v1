@@ -476,7 +476,7 @@ def api_graph_sharepoint_files(request):
         return JsonResponse({
             'success': False,
             'error': 'An error occurred while listing files',
-            'details': str(e)
+            'details': 'An error occurred'
         }, status=500)
 
 
@@ -506,7 +506,7 @@ def api_graph_sharepoint_upload(request):
         try:
             content = base64.b64decode(content_b64)
         except Exception as e:
-            return JsonResponse({'error': 'Invalid base64 content', 'details': str(e)}, status=400)
+            return JsonResponse({'error': 'Invalid base64 content', 'details': 'An error occurred'}, status=400)
         
         graph = GraphService()
         result = graph.upload_sharepoint_file(folder_path, file_name, content)
@@ -526,7 +526,7 @@ def api_graph_sharepoint_upload(request):
         return JsonResponse({
             'success': False,
             'error': 'An error occurred while uploading file',
-            'details': str(e)
+            'details': 'An error occurred'
         }, status=500)
 
 
@@ -573,7 +573,7 @@ def api_graph_mail_send(request):
         return JsonResponse({
             'success': False,
             'error': 'An error occurred while sending email',
-            'details': str(e)
+            'details': 'An error occurred'
         }, status=500)
 
 
@@ -3791,7 +3791,7 @@ def api_milestone_context_add(request, milestone_id):
         return JsonResponse({
             'success': False,
             'error': 'Failed to add context object',
-            'details': str(e)
+            'details': 'An error occurred'
         }, status=500)
 
 
@@ -3893,7 +3893,7 @@ def api_milestone_context_summarize(request, milestone_id):
         return JsonResponse({
             'success': False,
             'error': 'Failed to generate summary',
-            'details': str(e)
+            'details': 'An error occurred'
         }, status=500)
 
 
@@ -3947,7 +3947,7 @@ def api_milestone_context_analyze(request, context_id):
         return JsonResponse({
             'success': False,
             'error': 'Failed to analyze context object',
-            'details': str(e)
+            'details': 'An error occurred'
         }, status=500)
 
 
@@ -4068,5 +4068,5 @@ def api_milestone_context_create_tasks(request, context_id):
         return JsonResponse({
             'success': False,
             'error': 'Failed to create tasks',
-            'details': str(e)
+            'details': 'An error occurred'
         }, status=500)
