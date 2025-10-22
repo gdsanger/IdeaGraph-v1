@@ -127,14 +127,15 @@ class MSAuthService:
     
     def acquire_token_by_authorization_code(
         self, 
-        authorization_code: str, 
+        auth_response: Dict,
         flow: Dict = None
     ) -> Dict:
         """
         Exchange authorization code for access token using the auth code flow.
         
         Args:
-            authorization_code: The authorization code from the callback
+            auth_response: Dictionary containing the OAuth callback parameters (code, state, etc.)
+                          For example: {'code': '...', 'state': '...'}
             flow: The flow dictionary returned from initiate_auth_code_flow (optional)
                   If not provided, will use basic token acquisition
             
@@ -153,11 +154,14 @@ class MSAuthService:
             if flow:
                 result = self.msal_app.acquire_token_by_auth_code_flow(
                     auth_code_flow=flow,
-                    auth_response={'code': authorization_code}
+                    auth_response=auth_response
                 )
             else:
                 # Fallback for backward compatibility
                 logger.warning('Using acquire_token_by_authorization_code without flow - consider passing flow parameter')
+                authorization_code = auth_response.get('code')
+                if not authorization_code:
+                    raise MSAuthServiceError('No authorization code in auth_response')
                 result = self.msal_app.acquire_token_by_authorization_code(
                     code=authorization_code,
                     scopes=self.SCOPES

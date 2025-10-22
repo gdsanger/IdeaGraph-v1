@@ -368,19 +368,23 @@ def ms_sso_callback(request):
             messages.error(request, 'No authorization code received.')
             return redirect('main:login')
         
-        # Verify state to prevent CSRF
-        state = request.GET.get('state')
+        # Get flow from session (needed for MSAL validation)
+        flow = request.session.pop('ms_auth_flow', None)
+        
+        # Build auth_response dict with all callback parameters
+        # MSAL needs the complete response including state for validation
+        auth_response = dict(request.GET.items())
+        
+        # Verify state to prevent CSRF (additional check before calling MSAL)
+        state = auth_response.get('state')
         expected_state = request.session.get('ms_auth_state')
         if not state or state != expected_state:
-            logger.warning('MS SSO state mismatch - possible CSRF attempt')
+            logger.warning(f'MS SSO state mismatch - expected: {expected_state}, received: {state}')
             messages.error(request, 'Invalid authentication state. Please try again.')
             return redirect('main:login')
         
         # Clean up state from session
         request.session.pop('ms_auth_state', None)
-        
-        # Get flow from session
-        flow = request.session.pop('ms_auth_flow', None)
         
         # Initialize MS Auth Service
         ms_auth = MSAuthService()
@@ -390,7 +394,8 @@ def ms_sso_callback(request):
             return redirect('main:login')
         
         # Exchange code for token using the stored flow
-        token_response = ms_auth.acquire_token_by_authorization_code(code, flow)
+        # Pass the complete auth_response so MSAL can validate state
+        token_response = ms_auth.acquire_token_by_authorization_code(auth_response, flow)
         
         # Create or update user
         user = ms_auth.create_or_update_user(token_response)
