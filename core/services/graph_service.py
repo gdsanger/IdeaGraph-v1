@@ -69,6 +69,7 @@ class GraphService:
             raise GraphServiceError("No settings found in database")
         
         if not self.settings.graph_api_enabled:
+            logger.error("Graph API is not enabled in settings")
             raise GraphServiceError("Graph API is not enabled in settings")
         
         # Validate required configuration
@@ -77,6 +78,10 @@ class GraphService:
             self.settings.client_id,
             self.settings.client_secret
         ]):
+            logger.error("Graph API configuration incomplete")
+            logger.error(f"tenant_id present: {bool(self.settings.tenant_id)}")
+            logger.error(f"client_id present: {bool(self.settings.client_id)}")
+            logger.error(f"client_secret present: {bool(self.settings.client_secret)}")
             raise GraphServiceError(
                 "Graph API configuration incomplete",
                 details="tenant_id, client_id, and client_secret are required"
@@ -89,6 +94,10 @@ class GraphService:
         self.scopes = self.settings.graph_api_scopes or 'https://graph.microsoft.com/.default'
         self.sharepoint_site_id = self.settings.sharepoint_site_id
         self.default_sender = self.settings.default_mail_sender
+        
+        logger.debug(f"GraphService initialized with base_url: {self.base_url}")
+        logger.debug(f"SharePoint site ID: {self.sharepoint_site_id}")
+        logger.debug(f"Tenant ID: {self.tenant_id}")
         
         self._token = None
         self._token_expires_at = None
@@ -124,6 +133,7 @@ class GraphService:
         # Check cache first
         cached_token = self._get_token_from_cache()
         if cached_token:
+            logger.debug("Using cached access token")
             return cached_token
         
         token_url = f"https://login.microsoftonline.com/{self.tenant_id}/oauth2/v2.0/token"
@@ -136,7 +146,9 @@ class GraphService:
         }
         
         try:
-            logger.info("Requesting new access token from Microsoft")
+            logger.info(f"Requesting new access token from Microsoft (tenant_id: {self.tenant_id})")
+            logger.debug(f"Token endpoint: {token_url}")
+            logger.debug(f"Scopes: {self.scopes}")
             response = requests.post(
                 token_url,
                 data=data,
@@ -145,6 +157,8 @@ class GraphService:
             
             if response.status_code != 200:
                 logger.error(f"Token request failed: {response.status_code} - {response.text}")
+                logger.error(f"Token URL: {token_url}")
+                logger.error(f"Client ID: {self.client_id}")
                 raise GraphServiceError(
                     "Failed to acquire access token",
                     status_code=response.status_code,
@@ -161,11 +175,12 @@ class GraphService:
             # Cache the token
             self._set_token_in_cache(access_token, expires_in)
             
-            logger.info("Successfully acquired access token")
+            logger.info(f"Successfully acquired access token (expires in {expires_in}s)")
             return access_token
             
         except requests.RequestException as e:
             logger.error(f"Request error while acquiring token: {str(e)}")
+            logger.error(f"Token URL: {token_url}")
             raise GraphServiceError("Network error while acquiring token", details=str(e))
     
     def _make_request(
@@ -206,6 +221,7 @@ class GraphService:
         
         try:
             logger.info(f"{method} {url}")
+            logger.debug(f"Request headers: {dict((k, v[:20] + '...' if k == 'Authorization' else v) for k, v in headers.items())}")
             response = requests.request(
                 method=method,
                 url=url,
@@ -218,17 +234,27 @@ class GraphService:
             
             # Handle 401 (unauthorized) by refreshing token and retrying once
             if response.status_code == 401 and retry_on_401:
-                logger.warning("Received 401, clearing cache and retrying")
+                logger.warning("Received 401 (Unauthorized), clearing cache and retrying")
+                # Safely log response body (handle Mock objects in tests)
+                try:
+                    logger.debug(f"Response body: {response.text[:500]}")
+                except (TypeError, AttributeError):
+                    logger.debug("Response body: (unable to retrieve)")
                 cache.delete(self.TOKEN_CACHE_KEY)
                 return self._make_request(
                     method, endpoint, data, json_data, files, retry_on_401=False
                 )
             
             logger.info(f"Response: {response.status_code}")
+            if response.status_code >= 400:
+                logger.error(f"Error response body: {response.text}")
+            
             return response
             
         except requests.RequestException as e:
             logger.error(f"Request error: {str(e)}")
+            logger.error(f"Request URL: {url}")
+            logger.error(f"Request method: {method}")
             raise GraphServiceError("Network error during API request", details=str(e))
     
     # SharePoint Methods
@@ -355,6 +381,7 @@ class GraphService:
             Dict with success status and file metadata
         """
         if not self.sharepoint_site_id:
+            logger.error("SharePoint site ID not configured")
             raise GraphServiceError(
                 "SharePoint site ID not configured",
                 details="sharepoint_site_id must be set in settings"
@@ -363,7 +390,13 @@ class GraphService:
         # For files <= 4MB, use simple upload
         file_size = len(content)
         
+        logger.info(f"Uploading file: {file_name} ({file_size} bytes)")
+        logger.debug(f"SharePoint site ID: {self.sharepoint_site_id}")
+        logger.debug(f"Folder path: {folder_path}")
+        logger.debug(f"Base URL: {self.base_url}")
+        
         if file_size > 4 * 1024 * 1024:
+            logger.error(f"File size {file_size} bytes exceeds 4MB limit")
             logger.warning(f"File size {file_size} bytes exceeds 4MB, large file upload not implemented")
             raise GraphServiceError(
                 "File too large",
@@ -376,6 +409,8 @@ class GraphService:
         else:
             endpoint = f"sites/{self.sharepoint_site_id}/drive/root:/{file_name}:/content"
         
+        logger.debug(f"Upload endpoint: {endpoint}")
+        
         try:
             token = self._get_access_token()
             url = f"{self.base_url}/{endpoint.lstrip('/')}"
@@ -386,6 +421,9 @@ class GraphService:
             }
             
             logger.info(f"Uploading file: {file_name} ({file_size} bytes)")
+            logger.debug(f"Full upload URL: {url}")
+            logger.debug(f"Request headers (auth truncated): Authorization: Bearer {token[:20]}...")
+            
             response = requests.put(
                 url,
                 headers=headers,
@@ -393,9 +431,12 @@ class GraphService:
                 timeout=self.REQUEST_TIMEOUT
             )
             
+            logger.info(f"Upload response status: {response.status_code}")
+            
             if response.status_code in [200, 201]:
                 metadata = response.json()
                 logger.info(f"File uploaded successfully: {file_name}")
+                logger.debug(f"Response metadata: file_id={metadata.get('id')}, size={metadata.get('size')}")
                 return {
                     'success': True,
                     'file_id': metadata.get('id'),
@@ -404,6 +445,13 @@ class GraphService:
                     'metadata': metadata
                 }
             else:
+                error_msg = f"Failed to upload file (HTTP {response.status_code})"
+                logger.error(error_msg)
+                logger.error(f"Response body: {response.text}")
+                logger.error(f"Request URL: {url}")
+                logger.error(f"SharePoint site ID: {self.sharepoint_site_id}")
+                logger.error(f"Folder path: {folder_path}")
+                logger.error(f"File name: {file_name}")
                 raise GraphServiceError(
                     "Failed to upload file",
                     status_code=response.status_code,
@@ -414,6 +462,8 @@ class GraphService:
             raise
         except Exception as e:
             logger.error(f"Error uploading file: {str(e)}")
+            logger.error(f"File: {file_name}, Size: {file_size}, Folder: {folder_path}")
+            logger.error(f"SharePoint site ID: {self.sharepoint_site_id}")
             raise GraphServiceError("Error uploading file", details=str(e))
     
     def delete_sharepoint_file(self, file_id: str) -> Dict[str, Any]:
