@@ -43,12 +43,30 @@
                             <input type="text" class="form-control" id="name" name="name" 
                                    value="{% if milestone %}{{ milestone.name }}{% endif %}" required>
                         </div>
+                        
+                        <!-- Description -->
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3" 
+                                      placeholder="Manuelle oder KI-basierte Beschreibung">{% if milestone %}{{ milestone.description }}{% endif %}</textarea>
+                            <small class="text-muted">Optional: Beschreibung des Meilensteins</small>
+                        </div>
 
                         <!-- Due Date -->
                         <div class="mb-3">
                             <label for="due_date" class="form-label">Due Date <span class="text-danger">*</span></label>
                             <input type="date" class="form-control" id="due_date" name="due_date" 
                                    value="{% if milestone %}{{ milestone.due_date|date:'Y-m-d' }}{% endif %}" required>
+                        </div>
+                        
+                        <!-- Status -->
+                        <div class="mb-3">
+                            <label for="status" class="form-label">Status</label>
+                            <select class="form-select" id="status" name="status">
+                                {% for value, label in status_choices %}
+                                <option value="{{ value }}" {% if milestone.status == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
 
                         <!-- Action Buttons -->

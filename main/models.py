@@ -375,10 +375,25 @@ class Relation(models.Model):
 class Milestone(models.Model):
     """Milestone model for tracking important deadlines within items"""
     
+    STATUS_CHOICES = [
+        ('planned', 'Geplant'),
+        ('in_progress', 'In Arbeit'),
+        ('completed', 'Abgeschlossen'),
+    ]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default='', help_text='Manuelle oder KI-basierte Beschreibung')
     due_date = models.DateField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='planned')
     item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='milestones')
+    
+    # AI-generated summary from all context objects
+    summary = models.TextField(blank=True, default='', help_text='KI-Zusammenfassung über alle Kontextobjekte')
+    
+    # Weaviate integration
+    weaviate_id = models.UUIDField(null=True, blank=True, help_text='Verweis auf das Embedding im Vektorspeicher')
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -389,6 +404,49 @@ class Milestone(models.Model):
     
     def __str__(self):
         return self.name
+
+
+class MilestoneContextObject(models.Model):
+    """Context object associated with a milestone (file, email, transcript, note)"""
+    
+    TYPE_CHOICES = [
+        ('file', 'Datei'),
+        ('email', 'E-Mail'),
+        ('transcript', 'Transkript'),
+        ('note', 'Notiz'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    milestone = models.ForeignKey(Milestone, on_delete=models.CASCADE, related_name='context_objects')
+    
+    # Context object metadata
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    title = models.CharField(max_length=255)
+    source_id = models.CharField(max_length=255, blank=True, default='', help_text='GUID oder Pfad')
+    url = models.URLField(max_length=1000, blank=True, default='', help_text='URL zum Dokument')
+    content = models.TextField(blank=True, default='', help_text='Textinhalt des Objekts')
+    
+    # AI-generated metadata
+    summary = models.TextField(blank=True, default='', help_text='KI-generierte Zusammenfassung')
+    tags = models.JSONField(default=list, blank=True, help_text='Automatisch extrahierte Tags')
+    derived_tasks = models.JSONField(default=list, blank=True, help_text='Abgeleitete Aufgaben (JSON)')
+    
+    # Processing status
+    analyzed = models.BooleanField(default=False, help_text='Wurde bereits von KI analysiert')
+    
+    # User who added the context
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='uploaded_context_objects')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Milestone Context Object'
+        verbose_name_plural = 'Milestone Context Objects'
+    
+    def __str__(self):
+        return f"{self.get_type_display()}: {self.title}"
 
 
 class Task(models.Model):
