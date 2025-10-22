@@ -212,10 +212,27 @@ class MilestoneKnowledgeService:
             derived_tasks = []
             if task_derivation_result.get('success') and 'result' in task_derivation_result:
                 result_data = task_derivation_result['result']
+                
+                # Handle different response formats
                 if isinstance(result_data, dict):
+                    # Response is a dict with 'tasks' key
                     derived_tasks = result_data.get('tasks', [])
                 elif isinstance(result_data, list):
+                    # Response is directly a list of tasks
                     derived_tasks = result_data
+                elif isinstance(result_data, str):
+                    # Try to parse as JSON if it's a string
+                    try:
+                        import json
+                        parsed = json.loads(result_data)
+                        if isinstance(parsed, list):
+                            derived_tasks = parsed
+                        elif isinstance(parsed, dict):
+                            derived_tasks = parsed.get('tasks', [])
+                    except json.JSONDecodeError:
+                        logger.warning(f"Could not parse task derivation result as JSON: {result_data}")
+            
+            logger.info(f"Parsed {len(derived_tasks)} derived tasks from response")
             
             # Update context object
             context_obj.summary = summary
@@ -431,10 +448,11 @@ class MilestoneKnowledgeService:
             created_tasks = []
             
             for task_data in context_obj.derived_tasks:
-                # Extract task information
+                # Extract task information - support both German and English keys
                 if isinstance(task_data, dict):
-                    title = task_data.get('title', '')
-                    description = task_data.get('description', '')
+                    # Try German keys first (from text-analysis-task-derivation-agent)
+                    title = task_data.get('Titel') or task_data.get('titel') or task_data.get('title', '')
+                    description = task_data.get('Beschreibung') or task_data.get('beschreibung') or task_data.get('description', '')
                 else:
                     title = str(task_data)
                     description = f"Abgeleitet aus: {context_obj.title}"
