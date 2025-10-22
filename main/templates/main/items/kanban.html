@@ -99,19 +99,56 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h1 class="mb-0">
                     <i class="bi bi-grid-3x3-gap"></i> Items - Tile View
+                    {% if items %}
+                    <span class="badge bg-secondary ms-2" style="font-size: 0.6em;">{{ items.paginator.count }} item{{ items.paginator.count|pluralize }}</span>
+                    {% endif %}
                 </h1>
-                <div>
-                    <a href="{% url 'main:item_create' %}" class="btn btn-primary me-2">
-                        <i class="bi bi-plus-circle"></i> New Item
-                    </a>
-                    <div class="form-check form-switch d-inline-block">
-                        <input class="form-check-input" type="checkbox" id="showCompleted" 
-                               {% if show_completed %}checked{% endif %}
-                               onchange="window.location.href='?show_completed=' + (this.checked ? 'true' : 'false')">
-                        <label class="form-check-label" for="showCompleted">
-                            Show Completed
-                        </label>
-                    </div>
+                <a href="{% url 'main:item_create' %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> New Item
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="search" class="form-label">Search</label>
+                            <input type="text" class="form-control" id="search" name="search" value="{{ search_query }}" placeholder="Search by title or description">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="status" class="form-label">Status</label>
+                            <select class="form-select" id="status" name="status">
+                                <option value="">All Statuses</option>
+                                {% for value, label in status_choices %}
+                                <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="section" class="form-label">Section</label>
+                            <select class="form-select" id="section" name="section">
+                                <option value="">All Sections</option>
+                                {% for section in sections %}
+                                <option value="{{ section.id }}" {% if section_filter == section.id|stringformat:"s" %}selected{% endif %}>{{ section.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end gap-2">
+                            <button type="submit" class="btn btn-primary flex-grow-1">
+                                <i class="bi bi-funnel"></i> Filter
+                            </button>
+                            {% if search_query or status_filter or section_filter %}
+                            <a href="{% url 'main:item_kanban' %}" class="btn btn-outline-secondary" title="Clear Filters">
+                                <i class="bi bi-x-circle"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -119,24 +156,24 @@
 
     <!-- Tile View -->
     <div class="row g-3">
-        {% for status_key, status_data in items_by_status.items %}
-            {% for item in status_data.items %}
+        {% if items %}
+            {% for item in items %}
             <div class="col-auto">
                 <div class="tile-card" data-item-id="{{ item.id }}" onclick="window.location.href='{% url 'main:item_detail' item.id %}'" style="width: 280px;">
                     <div class="tile-card-header">
-                        <span class="tile-card-status status-{{ status_key }}">
-                            {% if status_key == 'ready' %}
-                            🟢 {{ status_data.label }}
-                            {% elif status_key == 'spec_review' %}
-                            🟡 {{ status_data.label }}
-                            {% elif status_key == 'working' %}
-                            🔵 {{ status_data.label }}
-                            {% elif status_key == 'rejected' %}
-                            🔴 {{ status_data.label }}
-                            {% elif status_key == 'done' %}
-                            ✅ {{ status_data.label }}
+                        <span class="tile-card-status status-{{ item.status }}">
+                            {% if item.status == 'ready' %}
+                            🟢 {{ item.get_status_display }}
+                            {% elif item.status == 'spec_review' %}
+                            🟡 {{ item.get_status_display }}
+                            {% elif item.status == 'working' %}
+                            🔵 {{ item.get_status_display }}
+                            {% elif item.status == 'rejected' %}
+                            🔴 {{ item.get_status_display }}
+                            {% elif item.status == 'done' %}
+                            ✅ {{ item.get_status_display }}
                             {% else %}
-                            ⚪ {{ status_data.label }}
+                            ⚪ {{ item.get_status_display }}
                             {% endif %}
                         </span>
                     </div>
@@ -156,17 +193,53 @@
                 </div>
             </div>
             {% endfor %}
-        {% endfor %}
-        
-        {% if not items_by_status or not items_by_status.items %}
+        {% else %}
         <div class="col-12">
             <div class="text-center text-muted py-5">
                 <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-                <p class="mb-0 mt-3">No items found</p>
+                <p class="mb-0 mt-3">No items found matching your search criteria</p>
+                <a href="{% url 'main:item_kanban' %}" class="btn btn-outline-primary mt-3">
+                    <i class="bi bi-arrow-counterclockwise"></i> Clear Filters
+                </a>
             </div>
         </div>
         {% endif %}
     </div>
+
+    <!-- Pagination -->
+    {% if items.has_other_pages %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if items.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ items.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if section_filter %}&section={{ section_filter }}{% endif %}">Previous</a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in items.paginator.page_range %}
+                    {% if items.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% elif num > items.number|add:'-3' and num < items.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if section_filter %}&section={{ section_filter }}{% endif %}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if items.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ items.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if section_filter %}&section={{ section_filter }}{% endif %}">Next</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 {% endblock %}
