@@ -3,11 +3,10 @@ Zammad Synchronization Service for IdeaGraph
 
 This module provides integration with Zammad API for ticket synchronization.
 It automatically fetches open tickets from configured groups and creates/updates
-tasks in IdeaGraph.
+tasks in IdeaGraph. Attachments are uploaded to SharePoint via TaskFileService.
 """
 
 import logging
-import os
 import requests
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -41,13 +40,12 @@ class ZammadSyncService:
     Provides methods for:
     - Fetching open tickets from Zammad
     - Creating/updating tasks from tickets
-    - Downloading and storing attachments
+    - Downloading and uploading attachments to SharePoint
     - Updating ticket status in Zammad
     - AI-based task type classification (optional)
     """
     
     REQUEST_TIMEOUT = 30  # seconds
-    ATTACHMENT_DIR = 'zammad_attachments'
     
     def __init__(self, settings=None):
         """
@@ -83,17 +81,7 @@ class ZammadSyncService:
         self.api_token = self.settings.zammad_api_token
         self.groups = [g.strip() for g in self.settings.zammad_groups.split(',') if g.strip()]
         
-        # Create attachment directory if it doesn't exist
-        self._ensure_attachment_dir()
-        
         logger.info(f"ZammadSyncService initialized with URL: {self.api_url}")
-    
-    def _ensure_attachment_dir(self):
-        """Ensure the attachment directory exists"""
-        from django.conf import settings as django_settings
-        base_dir = getattr(django_settings, 'BASE_DIR', os.getcwd())
-        self.attachment_path = os.path.join(base_dir, self.ATTACHMENT_DIR)
-        os.makedirs(self.attachment_path, exist_ok=True)
     
     def _make_request(
         self,
@@ -252,7 +240,7 @@ class ZammadSyncService:
         
         return all_tickets
     
-    def _download_attachment(self, article_id: int, attachment_id: int, filename: str) -> Optional[str]:
+    def _download_attachment(self, article_id: int, attachment_id: int, filename: str) -> Optional[bytes]:
         """
         Download attachment from Zammad
         
@@ -262,21 +250,14 @@ class ZammadSyncService:
             filename: Filename to save as
             
         Returns:
-            Local file path or None if download failed
+            File content as bytes or None if download failed
         """
         try:
             endpoint = f'/ticket_attachment/{article_id}/{attachment_id}/{filename}'
             response = self._make_request('GET', endpoint)
             
-            # Save file locally
-            safe_filename = "".join(c for c in filename if c.isalnum() or c in ('.', '_', '-'))
-            file_path = os.path.join(self.attachment_path, f"{article_id}_{attachment_id}_{safe_filename}")
-            
-            with open(file_path, 'wb') as f:
-                f.write(response.content)
-            
-            logger.info(f"Downloaded attachment: {filename} to {file_path}")
-            return file_path
+            logger.info(f"Downloaded attachment: {filename} ({len(response.content)} bytes)")
+            return response.content
         except Exception as e:
             logger.error(f"Failed to download attachment {filename}: {str(e)}")
             return None
@@ -348,7 +329,7 @@ class ZammadSyncService:
         Returns:
             Result dictionary with success status and task info
         """
-        from main.models import Task, TaskFile, Tag
+        from main.models import Task, Tag
         
         ticket_id = str(ticket.get('id'))
         title = ticket.get('title', 'Untitled Ticket')
@@ -422,19 +403,33 @@ class ZammadSyncService:
                     size = attachment.get('size', 0)
                     content_type = attachment.get('preferences', {}).get('Content-Type', 'application/octet-stream')
                     
-                    # Download attachment
-                    file_path = self._download_attachment(article_id, attachment_id, filename)
+                    # Download attachment content
+                    file_content = self._download_attachment(article_id, attachment_id, filename)
                     
-                    if file_path:
-                        # Create TaskFile entry
-                        TaskFile.objects.create(
-                            task=task,
-                            filename=filename,
-                            file_size=size,
-                            file_path=file_path,
-                            content_type=content_type
-                        )
-                        attachment_count += 1
+                    if file_content:
+                        try:
+                            # Upload to SharePoint via TaskFileService
+                            from core.services.task_file_service import TaskFileService, TaskFileServiceError
+                            
+                            task_file_service = TaskFileService(self.settings)
+                            upload_result = task_file_service.upload_file(
+                                task=task,
+                                file_content=file_content,
+                                filename=filename,
+                                content_type=content_type,
+                                user=None  # System upload, no specific user
+                            )
+                            
+                            if upload_result['success']:
+                                attachment_count += 1
+                                logger.info(f"Uploaded attachment {filename} to SharePoint")
+                            else:
+                                logger.error(f"Failed to upload attachment {filename}: {upload_result.get('error')}")
+                        
+                        except TaskFileServiceError as e:
+                            logger.error(f"TaskFileService error for {filename}: {e.message}")
+                        except Exception as e:
+                            logger.error(f"Unexpected error uploading {filename}: {str(e)}")
             
             logger.info(f"Processed {attachment_count} attachments for task {task.id}")
             

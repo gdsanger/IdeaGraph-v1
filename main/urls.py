@@ -140,6 +140,12 @@ urlpatterns = [
     path('api/files/<uuid:file_id>', api_views.api_item_file_download, name='api_item_file_download'),
     path('api/files/<uuid:file_id>/delete', api_views.api_item_file_delete, name='api_item_file_delete'),
     
+    # Task File Upload API Endpoints
+    path('api/tasks/<uuid:task_id>/files/upload', api_views.api_task_file_upload, name='api_task_file_upload'),
+    path('api/tasks/<uuid:task_id>/files', api_views.api_task_file_list, name='api_task_file_list'),
+    path('api/task-files/<uuid:file_id>', api_views.api_task_file_download, name='api_task_file_download'),
+    path('api/task-files/<uuid:file_id>/delete', api_views.api_task_file_delete, name='api_task_file_delete'),
+    
     # Zammad Integration API Endpoints
     path('api/zammad/test-connection', api_views.api_zammad_test_connection, name='api_zammad_test_connection'),
     path('api/zammad/sync', api_views.api_zammad_sync, name='api_zammad_sync'),

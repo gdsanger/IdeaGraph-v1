@@ -3441,3 +3441,254 @@ def api_zammad_status(request):
             'success': False,
             'error': 'Failed to get status'
         }, status=500)
+
+
+# ==================== Task File Upload API ====================
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_task_file_upload(request, task_id):
+    """
+    Upload a file to a task
+    
+    Uploads file to SharePoint under: IdeaGraph/{item_title}/{task_uuid}/
+    or IdeaGraph/Tasks/{task_uuid}/ for standalone tasks
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from core.services.task_file_service import TaskFileService, TaskFileServiceError
+        from main.models import Task
+        from django.shortcuts import render
+        
+        # Get task
+        try:
+            task = Task.objects.get(id=task_id)
+        except Task.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Task not found'
+            }, status=404)
+        
+        # Get uploaded file
+        if 'file' not in request.FILES:
+            return JsonResponse({
+                'success': False,
+                'error': 'No file provided'
+            }, status=400)
+        
+        uploaded_file = request.FILES['file']
+        
+        # Read file content
+        file_content = uploaded_file.read()
+        filename = uploaded_file.name
+        content_type = uploaded_file.content_type or 'application/octet-stream'
+        
+        # Upload file
+        service = TaskFileService()
+        result = service.upload_file(
+            task=task,
+            file_content=file_content,
+            filename=filename,
+            content_type=content_type,
+            user=user
+        )
+        
+        logger.info(f'File uploaded: {filename} for task {task_id}')
+        
+        # For htmx requests, return updated file list
+        if request.headers.get('HX-Request'):
+            # Fetch updated file list
+            list_result = service.list_files(task_id)
+            # Return HTML partial with updated file list
+            return render(request, 'main/tasks/_files_list.html', {'files': list_result.get('files', [])})
+        
+        # For regular API requests, return JSON
+        return JsonResponse(result)
+    
+    except TaskFileServiceError as e:
+        logger.error(f'File upload error: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/tasks/_files_list.html', {'files': [], 'error': e.message})
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error uploading file: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/tasks/_files_list.html', {'files': [], 'error': 'Failed to upload file'})
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to upload file'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def api_task_file_list(request, task_id):
+    """
+    List files for a task
+    
+    Returns:
+        JSON response with list of files or HTML partial for htmx
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from core.services.task_file_service import TaskFileService, TaskFileServiceError
+        from django.shortcuts import render
+        
+        # List files
+        service = TaskFileService()
+        result = service.list_files(task_id)
+        
+        # For htmx requests, return HTML partial
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/tasks/_files_list.html', {'files': result.get('files', [])})
+        
+        # For regular API requests, return JSON
+        return JsonResponse(result)
+    
+    except TaskFileServiceError as e:
+        logger.error(f'File list error: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/tasks/_files_list.html', {'files': [], 'error': e.message})
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error listing files: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/tasks/_files_list.html', {'files': [], 'error': 'Failed to list files'})
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to list files'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE", "POST"])
+def api_task_file_delete(request, file_id):
+    """
+    Delete a file
+    
+    Returns:
+        JSON response with success status or HTML partial for htmx
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from core.services.task_file_service import TaskFileService, TaskFileServiceError
+        from main.models import TaskFile
+        from django.shortcuts import render
+        
+        # Get task_id before deleting the file (for htmx refresh)
+        try:
+            task_file = TaskFile.objects.get(id=file_id)
+            task_id = str(task_file.task.id)
+        except TaskFile.DoesNotExist:
+            if request.headers.get('HX-Request'):
+                return render(request, 'main/tasks/_files_list.html', {'files': [], 'error': 'File not found'})
+            return JsonResponse({
+                'success': False,
+                'error': 'File not found'
+            }, status=404)
+        
+        # Delete file
+        service = TaskFileService()
+        result = service.delete_file(file_id, user)
+        
+        logger.info(f'File deleted: {file_id}')
+        
+        # For htmx requests, return updated file list
+        if request.headers.get('HX-Request'):
+            # Fetch updated file list
+            list_result = service.list_files(task_id)
+            # Return HTML partial with updated file list
+            return render(request, 'main/tasks/_files_list.html', {'files': list_result.get('files', [])})
+        
+        # For regular API requests, return JSON
+        return JsonResponse(result)
+    
+    except TaskFileServiceError as e:
+        logger.error(f'File delete error: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/tasks/_files_list.html', {'files': [], 'error': e.message})
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error deleting file: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/tasks/_files_list.html', {'files': [], 'error': 'Failed to delete file'})
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to delete file'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def api_task_file_download(request, file_id):
+    """
+    Get download URL for a file
+    
+    Returns:
+        JSON response with download URL
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from core.services.task_file_service import TaskFileService, TaskFileServiceError
+        
+        # Get download URL
+        service = TaskFileService()
+        result = service.get_download_url(file_id, user)
+        
+        return JsonResponse(result)
+    
+    except TaskFileServiceError as e:
+        logger.error(f'File download error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error getting download URL: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to get download URL'
+        }, status=500)
