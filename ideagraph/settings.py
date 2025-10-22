@@ -151,6 +151,52 @@ STORAGES = {
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Cache Configuration
+# Supports multiple backends: redis (production), locmem (development), dummy (testing)
+CACHE_BACKEND = os.getenv('CACHE_BACKEND', 'locmem').lower()
+CACHE_DEFAULT_TIMEOUT = int(os.getenv('CACHE_DEFAULT_TIMEOUT', 300))
+
+if CACHE_BACKEND == 'redis':
+    # Redis cache backend configuration
+    REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+    REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+    REDIS_DB = int(os.getenv('REDIS_DB', 0))
+    REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '')
+    
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': f'redis://{":" + REDIS_PASSWORD + "@" if REDIS_PASSWORD else ""}{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}',
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django.core.cache.backends.redis.RedisClient',
+                'CONNECTION_POOL_KWARGS': {
+                    'max_connections': 50,
+                    'retry_on_timeout': True,
+                },
+            },
+            'TIMEOUT': CACHE_DEFAULT_TIMEOUT,
+        }
+    }
+elif CACHE_BACKEND == 'dummy':
+    # Dummy cache backend (no caching) - useful for testing
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.dummy.DummyCache',
+        }
+    }
+else:
+    # Default to local memory cache (development)
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'ideagraph-cache',
+            'TIMEOUT': CACHE_DEFAULT_TIMEOUT,
+            'OPTIONS': {
+                'MAX_ENTRIES': 1000
+            }
+        }
+    }
+
 # Authentication Configuration
 PASSWORD_MIN_LENGTH = 8
 PASSWORD_REQUIRE_SPECIAL = True
