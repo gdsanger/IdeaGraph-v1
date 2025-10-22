@@ -100,7 +100,7 @@ def get_user_from_request(request):
 def require_admin(view_func):
     """Decorator to require admin role for API endpoints"""
     def wrapper(request, *args, **kwargs):
-        user = get_user_from_token(request)
+        user = get_user_from_request(request)  # Check both token and session
         if not user or user.role != 'admin':
             return JsonResponse({'error': 'Admin access required'}, status=403)
         request.user_obj = user
