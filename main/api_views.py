@@ -3021,6 +3021,7 @@ def api_semantic_network(request, object_type, object_id):
     # Check authentication
     user = get_user_from_request(request)
     if not user:
+        logger.warning(f'Unauthenticated request to semantic network API')
         return JsonResponse({
             'success': False,
             'error': 'Authentication required'
@@ -3033,6 +3034,8 @@ def api_semantic_network(request, object_type, object_id):
         depth = int(request.GET.get('depth', 3))
         generate_summaries = request.GET.get('summaries', 'true').lower() == 'true'
         include_hierarchy = request.GET.get('include_hierarchy', 'false').lower() == 'true'
+        
+        logger.info(f'Semantic network request: object_type={object_type}, object_id={object_id}, depth={depth}, summaries={generate_summaries}, hierarchy={include_hierarchy}')
         
         # Custom thresholds if provided
         thresholds = {}
@@ -3057,13 +3060,14 @@ def api_semantic_network(request, object_type, object_id):
                 include_hierarchy=include_hierarchy
             )
             
+            logger.info(f'Semantic network generated successfully: {len(result.get("nodes", []))} nodes, {len(result.get("edges", []))} edges')
             return JsonResponse(result)
             
         finally:
             service.close()
     
     except SemanticNetworkServiceError as e:
-        logger.error(f'Semantic network service error: {str(e)}')
+        logger.error(f'Semantic network service error for {object_type}/{object_id}: {str(e)}', exc_info=True)
         return JsonResponse({
             'success': False,
             'error': e.message,
@@ -3071,10 +3075,11 @@ def api_semantic_network(request, object_type, object_id):
         }, status=400)
     
     except Exception as e:
-        logger.error(f'Error generating semantic network: {str(e)}')
+        logger.error(f'Unexpected error generating semantic network for {object_type}/{object_id}: {str(e)}', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': 'Failed to generate semantic network'
+            'error': 'Failed to generate semantic network',
+            'details': str(e)
         }, status=500)
 
 
