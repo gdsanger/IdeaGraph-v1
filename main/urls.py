@@ -106,6 +106,7 @@ urlpatterns = [
     path('api/github/create-issue', api_views.api_github_create_issue, name='api_github_create_issue'),
     path('api/github/issue/<str:owner>/<str:repo>/<int:issue_number>', api_views.api_github_get_issue, name='api_github_get_issue'),
     path('api/github/issues/<str:owner>/<str:repo>', api_views.api_github_list_issues, name='api_github_list_issues'),
+    path('api/github/sync-issues-to-tasks/<uuid:item_id>', api_views.api_github_sync_issues_to_tasks, name='api_github_sync_issues_to_tasks'),
     
     # KiGate API Endpoints
     path('api/kigate/agents', api_views.api_kigate_agents, name='api_kigate_agents'),

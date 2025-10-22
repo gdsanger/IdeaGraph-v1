@@ -750,6 +750,101 @@ def api_github_list_issues(request, owner, repo):
         }, status=500)
 
 
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_github_sync_issues_to_tasks(request, item_id):
+    """
+    API endpoint to sync GitHub issues to IdeaGraph tasks for a specific item.
+    POST /api/github/sync-issues-to-tasks/<item_id>
+    
+    Request body (JSON):
+    {
+        "owner": "optional-owner",  // defaults to settings or item's repo
+        "repo": "optional-repo",    // defaults to item's github_repo
+        "state": "all"              // 'open', 'closed', or 'all' (default: 'all')
+    }
+    
+    Response:
+    {
+        "success": true,
+        "issues_checked": 15,
+        "tasks_created": 10,
+        "duplicates_by_id": 3,
+        "duplicates_by_title": 2,
+        "errors": []
+    }
+    """
+    from core.services.github_task_sync_service import GitHubTaskSyncService, GitHubTaskSyncServiceError
+    from .models import Item, User
+    
+    try:
+        # Get user from session
+        user_id = request.session.get('user_id')
+        if not user_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Authentication required'
+            }, status=401)
+        
+        user = User.objects.filter(id=user_id).first()
+        if not user:
+            return JsonResponse({
+                'success': False,
+                'error': 'User not found'
+            }, status=401)
+        
+        # Get the item
+        try:
+            item = Item.objects.get(id=item_id)
+        except Item.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Item not found'
+            }, status=404)
+        
+        # Check permissions (admin or item owner)
+        if user.role != 'admin' and item.created_by != user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=403)
+        
+        # Parse request body
+        try:
+            data = json.loads(request.body) if request.body else {}
+        except json.JSONDecodeError:
+            data = {}
+        
+        owner = data.get('owner')
+        repo = data.get('repo')
+        state = data.get('state', 'all')
+        
+        # Initialize sync service
+        sync_service = GitHubTaskSyncService()
+        
+        # Perform synchronization
+        result = sync_service.sync_github_issues_to_tasks(
+            item=item,
+            owner=owner,
+            repo=repo,
+            state=state,
+            created_by=user
+        )
+        
+        return JsonResponse(result)
+        
+    except GitHubTaskSyncServiceError as e:
+        logger.error(f'GitHub task sync error: {e.message}')
+        return JsonResponse(e.to_dict(), status=500)
+    except Exception as e:
+        logger.exception(f'Unexpected error in GitHub task sync: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'An unexpected error occurred',
+            'details': str(e)
+        }, status=500)
+
+
 # ==================== KiGate API Endpoints ====================
 
 @csrf_exempt

@@ -346,6 +346,16 @@
                                 <span class="button-text"><i class="bi bi-search"></i> Check Similarity</span>
                                 <span class="spinner-border" role="status"></span>
                             </button>
+                            <button type="button" class="btn btn-outline-primary" id="syncGitHubIssuesBtn" 
+                                    {% if not settings.github_api_enabled or not item.github_repo %}
+                                    disabled 
+                                    title="{% if not settings.github_api_enabled %}GitHub is not enabled{% elif not item.github_repo %}No GitHub repository set for this item{% endif %}"
+                                    {% else %}
+                                    title="Sync GitHub Issues to Tasks"
+                                    {% endif %}>
+                                <span class="button-text"><i class="bi bi-github"></i> Sync GitHub Issues</span>
+                                <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                            </button>
                             <button type="button" class="btn btn-secondary" id="sendEmailBtn" data-bs-toggle="modal" data-bs-target="#sendEmailModal">
                                 <i class="bi bi-envelope"></i> Send via Email
                             </button>
@@ -1035,6 +1045,69 @@ document.querySelector('#checkSimilarityBtn').addEventListener('click', async fu
     } finally {
         btn.classList.remove('loading');
         btn.disabled = false;
+    }
+});
+
+// Sync GitHub Issues Button
+document.querySelector('#syncGitHubIssuesBtn')?.addEventListener('click', async function() {
+    const btn = this;
+    const spinner = btn.querySelector('.spinner-border');
+    const buttonText = btn.querySelector('.button-text');
+    
+    // Show confirmation dialog
+    const confirmed = confirm(
+        'This will create tasks from all GitHub issues in the repository that are not already linked to this item.\n\n' +
+        'Potential duplicates will be marked with "*** Duplikat? ***" prefix.\n\n' +
+        'Do you want to continue?'
+    );
+    
+    if (!confirmed) {
+        return;
+    }
+    
+    btn.disabled = true;
+    spinner.style.display = 'inline-block';
+    
+    try {
+        const response = await fetch('/api/github/sync-issues-to-tasks/{{ item.id }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                state: 'all'  // Sync both open and closed issues
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            let message = `GitHub synchronization completed!\n\n`;
+            message += `Issues checked: ${data.issues_checked}\n`;
+            message += `Tasks created: ${data.tasks_created}\n`;
+            message += `Duplicates by ID: ${data.duplicates_by_id}\n`;
+            message += `Duplicates by title: ${data.duplicates_by_title}`;
+            
+            if (data.errors && data.errors.length > 0) {
+                message += `\n\nErrors encountered: ${data.errors.length}`;
+            }
+            
+            showAlert(message, 'success');
+            
+            // Reload the page to show new tasks
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+        } else {
+            showAlert(data.error || 'Failed to sync GitHub issues', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        spinner.style.display = 'none';
     }
 });
 
