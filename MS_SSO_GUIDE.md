@@ -51,9 +51,7 @@ IdeaGraph v1.0 now supports Microsoft Identity Single Sign-On (SSO) authenticati
 5. Go to **API permissions**
 6. Add the following Microsoft Graph permissions:
    - `User.Read` (Read user profile)
-   - `openid` (Sign users in)
-   - `profile` (View basic profile)
-   - `email` (View email address)
+   - Note: `openid`, `profile`, and `email` are automatically included by MSAL and don't need to be explicitly added
 7. Grant admin consent for the organization
 
 ### 3. Configure Redirect URIs
@@ -321,8 +319,40 @@ For issues or questions:
 4. Check Azure AD configuration
 5. Contact system administrator
 
+## Changelog
+
+### Version 1.1 (2025-10-22)
+**Fix: Authorization URL Generation Error**
+
+Fixed the MS SSO authorization URL generation issue that was causing login failures:
+
+**Issues Resolved:**
+1. ❌ **Reserved Scope Error**: Fixed error "You cannot use any scope value that is reserved"
+   - Removed reserved scopes (`openid`, `profile`, `email`) from explicit scope list
+   - These scopes are now automatically handled by MSAL
+   - Only `User.Read` is explicitly specified
+
+2. ❌ **Deprecation Warning**: Fixed "Change your get_authorization_request_url() to initiate_auth_code_flow()"
+   - Migrated from deprecated `get_authorization_request_url()` to `initiate_auth_code_flow()`
+   - Implemented proper OAuth 2.0 authorization code flow
+   - Flow dictionary now stored in session for token acquisition
+
+**Technical Changes:**
+- Updated `MSAuthService.get_authorization_url()` to use `initiate_auth_code_flow()`
+- Modified `MSAuthService.acquire_token_by_authorization_code()` to accept and use flow dictionary
+- Updated `ms_sso_login()` view to store flow in session
+- Updated `ms_sso_callback()` view to use stored flow for token acquisition
+- Updated all tests to reflect new flow-based approach
+
+**Benefits:**
+- ✅ No more reserved scope errors
+- ✅ No more deprecation warnings
+- ✅ Using recommended MSAL API
+- ✅ More secure and maintainable authentication flow
+- ✅ All 16 tests passing
+
 ---
 
-**Version**: 1.0  
+**Version**: 1.1  
 **Date**: 2025-10-22  
 **Status**: Production Ready ✅

@@ -45,17 +45,23 @@ class MSAuthServiceTest(TestCase):
     
     @patch('core.services.ms_auth_service.msal.ConfidentialClientApplication')
     def test_get_authorization_url(self, mock_msal):
-        """Test authorization URL generation"""
+        """Test authorization URL generation using initiate_auth_code_flow"""
         mock_app = MagicMock()
-        mock_app.get_authorization_request_url.return_value = 'https://login.microsoft.com/authorize'
+        mock_app.initiate_auth_code_flow.return_value = {
+            'auth_uri': 'https://login.microsoft.com/authorize',
+            'state': 'test-state',
+            'nonce': 'test-nonce'
+        }
         mock_msal.return_value = mock_app
         
         service = MSAuthService()
         redirect_uri = 'http://localhost:8000/callback'
-        auth_url, state = service.get_authorization_url(redirect_uri, 'test-state')
+        auth_url, flow = service.get_authorization_url(redirect_uri, 'test-state')
         
         self.assertEqual(auth_url, 'https://login.microsoft.com/authorize')
-        mock_app.get_authorization_request_url.assert_called_once()
+        self.assertIsInstance(flow, dict)
+        self.assertIn('auth_uri', flow)
+        mock_app.initiate_auth_code_flow.assert_called_once()
     
     @patch('core.services.ms_auth_service.msal.ConfidentialClientApplication')
     @patch('core.services.ms_auth_service.requests.get')
@@ -169,7 +175,10 @@ class MSAuthViewTest(TestCase):
         """Test MS SSO login initiates OAuth flow"""
         mock_service = MagicMock()
         mock_service.is_configured.return_value = True
-        mock_service.get_authorization_url.return_value = ('https://login.microsoft.com/authorize', 'state')
+        mock_service.get_authorization_url.return_value = (
+            'https://login.microsoft.com/authorize',
+            {'auth_uri': 'https://login.microsoft.com/authorize', 'state': 'test-state'}
+        )
         mock_service_class.return_value = mock_service
         
         response = self.client.get(reverse('main:ms_sso_login'))
