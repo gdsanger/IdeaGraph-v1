@@ -112,6 +112,19 @@
                                     placeholder="30">
                                 <div class="form-text">Timeout for OpenAI API requests in seconds</div>
                             </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="openai_max_tokens" class="form-label">OpenAI Max Tokens per Request</label>
+                                <input 
+                                    type="number" 
+                                    class="form-control" 
+                                    id="openai_max_tokens" 
+                                    name="openai_max_tokens" 
+                                    value="{{ settings.openai_max_tokens|default:10000 }}"
+                                    min="1000" 
+                                    max="128000"
+                                    placeholder="10000">
+                                <div class="form-text">Maximum number of tokens to send per OpenAI API request (content will be chunked if larger)</div>
+                            </div>
                         </div>
                     </div>
 
@@ -438,6 +451,19 @@
                                     max="300"
                                     placeholder="30">
                                 <div class="form-text">Timeout for KiGate API requests in seconds</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="kigate_max_tokens" class="form-label">KiGate Max Tokens per Request</label>
+                                <input 
+                                    type="number" 
+                                    class="form-control" 
+                                    id="kigate_max_tokens" 
+                                    name="kigate_max_tokens" 
+                                    value="{{ settings.kigate_max_tokens|default:10000 }}"
+                                    min="1000" 
+                                    max="128000"
+                                    placeholder="10000">
+                                <div class="form-text">Maximum number of tokens to send per KiGate API request (content will be chunked if larger)</div>
                             </div>
                         </div>
                     </div>
