@@ -213,6 +213,29 @@ class ZammadSyncServiceTestCase(TestCase):
     @patch('core.services.zammad_sync_service.requests.request')
     def test_sync_ticket_to_task_create(self, mock_request):
         """Test syncing Zammad ticket to new task"""
+        # Mock responses for status update
+        def mock_request_side_effect(*args, **kwargs):
+            url = kwargs.get('url', '')
+            
+            # Mock ticket_states request
+            if '/ticket_states' in url:
+                return Mock(
+                    status_code=200,
+                    json=lambda: [
+                        {'id': 1, 'name': 'new'},
+                        {'id': 2, 'name': 'open'},
+                        {'id': 3, 'name': 'pending reminder'},
+                        {'id': 4, 'name': 'closed'}
+                    ]
+                )
+            # Mock ticket update request
+            elif '/tickets/123' in url and kwargs.get('method') == 'PUT':
+                return Mock(status_code=200, json=lambda: {'id': 123, 'state_id': 3})
+            
+            return Mock(status_code=200, json=lambda: {})
+        
+        mock_request.side_effect = mock_request_side_effect
+        
         ticket = {
             'id': 123,
             'title': 'Test Ticket',
@@ -248,6 +271,29 @@ class ZammadSyncServiceTestCase(TestCase):
     @patch('core.services.zammad_sync_service.requests.request')
     def test_sync_ticket_to_task_update(self, mock_request):
         """Test syncing Zammad ticket to existing task"""
+        # Mock responses for status update
+        def mock_request_side_effect(*args, **kwargs):
+            url = kwargs.get('url', '')
+            
+            # Mock ticket_states request
+            if '/ticket_states' in url:
+                return Mock(
+                    status_code=200,
+                    json=lambda: [
+                        {'id': 1, 'name': 'new'},
+                        {'id': 2, 'name': 'open'},
+                        {'id': 3, 'name': 'pending reminder'},
+                        {'id': 4, 'name': 'closed'}
+                    ]
+                )
+            # Mock ticket update request
+            elif '/tickets/123' in url and kwargs.get('method') == 'PUT':
+                return Mock(status_code=200, json=lambda: {'id': 123, 'state_id': 3})
+            
+            return Mock(status_code=200, json=lambda: {})
+        
+        mock_request.side_effect = mock_request_side_effect
+        
         # Create existing task
         section = Section.objects.create(name='Zammad - Support')
         existing_task = Task.objects.create(
@@ -291,6 +337,7 @@ class ZammadSyncServiceTestCase(TestCase):
         # Mock responses
         def mock_request_side_effect(*args, **kwargs):
             url = kwargs.get('url', '')
+            method = kwargs.get('method', 'GET')
             
             if '/groups' in url:
                 return Mock(
@@ -305,6 +352,18 @@ class ZammadSyncServiceTestCase(TestCase):
                     status_code=200,
                     json=lambda: [{'id': 123}]
                 )
+            elif '/ticket_states' in url:
+                return Mock(
+                    status_code=200,
+                    json=lambda: [
+                        {'id': 1, 'name': 'new'},
+                        {'id': 2, 'name': 'open'},
+                        {'id': 3, 'name': 'pending reminder'},
+                        {'id': 4, 'name': 'closed'}
+                    ]
+                )
+            elif '/tickets/123' in url and method == 'PUT':
+                return Mock(status_code=200, json=lambda: {'id': 123, 'state_id': 3})
             elif '/tickets/123' in url:
                 return Mock(
                     status_code=200,
@@ -320,6 +379,8 @@ class ZammadSyncServiceTestCase(TestCase):
                     status_code=200,
                     json=lambda: [{'id': 1, 'body': 'Test', 'attachments': []}]
                 )
+            
+            return Mock(status_code=200, json=lambda: {})
         
         mock_request.side_effect = mock_request_side_effect
         
@@ -331,6 +392,41 @@ class ZammadSyncServiceTestCase(TestCase):
         self.assertIn('created', result)
         self.assertIn('updated', result)
         self.assertIn('failed', result)
+
+    @patch('core.services.zammad_sync_service.requests.request')
+    def test_synced_tickets_excluded_from_future_fetch(self, mock_request):
+        """Test that tickets updated to 'pending reminder' are excluded from future syncs"""
+        # Mock responses
+        def mock_request_side_effect(*args, **kwargs):
+            url = kwargs.get('url', '')
+            params = kwargs.get('params', {})
+            
+            if '/groups' in url:
+                return Mock(
+                    status_code=200,
+                    json=lambda: [{'id': 1, 'name': 'Support'}]
+                )
+            # Check that the search query only includes 'open OR new' states
+            elif '/tickets/search' in url:
+                query = params.get('query', '')
+                # Verify the query excludes 'pending reminder'
+                self.assertIn('state.name:open OR state.name:new', query)
+                self.assertNotIn('pending reminder', query)
+                # Return empty list - no tickets should match after sync
+                return Mock(status_code=200, json=lambda: [])
+            
+            return Mock(status_code=200, json=lambda: {})
+        
+        mock_request.side_effect = mock_request_side_effect
+        
+        service = ZammadSyncService(self.settings)
+        # After tickets have been synced and updated to 'pending reminder',
+        # fetch_open_tickets should not return them
+        tickets = service.fetch_open_tickets(['Support'])
+        
+        # Should find no tickets because synced tickets are in 'pending reminder' state
+        self.assertEqual(len(tickets), 0)
+
 
 
 class ZammadAPIEndpointsTestCase(TestCase):

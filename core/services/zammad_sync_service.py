@@ -433,9 +433,9 @@ class ZammadSyncService:
             
             logger.info(f"Processed {attachment_count} attachments for task {task.id}")
             
-            # Update ticket status in Zammad to "in progress"
+            # Update ticket status in Zammad to "pending reminder" to exclude it from future syncs
             try:
-                self._update_ticket_status(ticket_id, 'open')
+                self._update_ticket_status(ticket_id, 'pending reminder')
             except Exception as e:
                 logger.warning(f"Failed to update ticket status in Zammad: {str(e)}")
             
