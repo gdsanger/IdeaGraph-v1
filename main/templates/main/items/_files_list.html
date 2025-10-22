@@ -1,6 +1,10 @@
 {% load static %}
 
 <!-- Files list partial template for htmx updates -->
+<!-- Load Weaviate indicator CSS and JS -->
+<link rel="stylesheet" href="{% static 'main/css/weaviate-indicator.css' %}">
+<script src="{% static 'main/js/weaviate-indicator.js' %}"></script>
+
 {% if files %}
 <div class="table-responsive">
     <table class="table table-hover">
@@ -10,7 +14,7 @@
                 <th>Size</th>
                 <th>Uploaded By</th>
                 <th>Date</th>
-                <th>Weaviate</th>
+                <th>Weaviate Status</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -22,11 +26,7 @@
                 <td>{{ file.uploaded_by }}</td>
                 <td>{{ file.created_at|date:"d.m.Y H:i" }}</td>
                 <td>
-                    {% if file.weaviate_synced %}
-                    <span class="badge bg-success">Synced</span>
-                    {% else %}
-                    <span class="badge bg-secondary">Not synced</span>
-                    {% endif %}
+                    <div data-weaviate-indicator data-weaviate-type="item_file" data-weaviate-id="{{ file.id }}"></div>
                 </td>
                 <td>
                     <a href="{{ file.sharepoint_url }}" target="_blank" class="btn btn-sm btn-outline-primary" title="Open in SharePoint">
@@ -53,3 +53,13 @@
     <p class="mt-3">No files uploaded yet</p>
 </div>
 {% endif %}
+
+<!-- Initialize Weaviate indicators after htmx swap -->
+<script>
+    // Re-initialize indicators after htmx updates
+    document.addEventListener('htmx:afterSwap', function(event) {
+        if (event.target.id === 'filesListContainer') {
+            initAllWeaviateIndicators();
+        }
+    });
+</script>
