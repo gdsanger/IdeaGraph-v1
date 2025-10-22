@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Tag, User, Settings, Section, Item, Task, Relation, Milestone
+from .models import Tag, User, Settings, Section, Item, Task, Relation, Milestone, MilestoneContextObject
 
 
 @admin.register(Tag)
@@ -69,16 +69,44 @@ class ItemAdmin(admin.ModelAdmin):
 
 @admin.register(Milestone)
 class MilestoneAdmin(admin.ModelAdmin):
-    list_display = ['name', 'due_date', 'item', 'created_at', 'updated_at']
-    list_filter = ['due_date', 'created_at']
-    search_fields = ['name', 'item__title']
-    readonly_fields = ['id', 'created_at', 'updated_at']
+    list_display = ['name', 'status', 'due_date', 'item', 'created_at', 'updated_at']
+    list_filter = ['status', 'due_date', 'created_at']
+    search_fields = ['name', 'description', 'item__title']
+    readonly_fields = ['id', 'weaviate_id', 'created_at', 'updated_at']
     fieldsets = (
         ('Basic Information', {
-            'fields': ('id', 'name', 'due_date')
+            'fields': ('id', 'name', 'description', 'status', 'due_date')
+        }),
+        ('AI Features', {
+            'fields': ('summary', 'weaviate_id')
         }),
         ('Relations', {
             'fields': ('item',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+
+@admin.register(MilestoneContextObject)
+class MilestoneContextObjectAdmin(admin.ModelAdmin):
+    list_display = ['title', 'type', 'milestone', 'analyzed', 'uploaded_by', 'created_at']
+    list_filter = ['type', 'analyzed', 'created_at']
+    search_fields = ['title', 'content', 'summary', 'milestone__name']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('id', 'type', 'title', 'content')
+        }),
+        ('Source Information', {
+            'fields': ('source_id', 'url', 'uploaded_by')
+        }),
+        ('AI Analysis', {
+            'fields': ('analyzed', 'summary', 'tags', 'derived_tasks')
+        }),
+        ('Relations', {
+            'fields': ('milestone',)
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at')
