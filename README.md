@@ -38,6 +38,14 @@ Sie verknüpft Kreativität, Struktur und Automatisierung – von der ersten Ide
   - Datei-Upload (PDF, DOCX, MD, HTML, TXT)
   - Automatische Text-Extraktion und Vektorisierung
 
+- **Milestone Knowledge Hub** 🆕
+  - Interaktive KI-Analyse von Kontextobjekten (Dateien, E-Mails, Notizen)
+  - Transparente Review-Workflow für KI-Ergebnisse
+  - Bearbeitung von Zusammenfassungen und abgeleiteten Aufgaben
+  - Automatische Quellverweise in Milestone-Summaries
+  - AI-gestützte Summary-Verbesserung
+  - [Dokumentation →](MILESTONE_INTERACTIVE_AI_ANALYSIS.md) | [Quick Reference →](MILESTONE_INTERACTIVE_AI_ANALYSIS_QUICKREF.md)
+
 - **Künstliche Intelligenz**
   - KI-Agenten über *KIGate* (OpenAI, Gemini, Claude, lokale Modelle)
   - AI Enhancer für Textnormalisierung und Aufgabenaufbereitung
