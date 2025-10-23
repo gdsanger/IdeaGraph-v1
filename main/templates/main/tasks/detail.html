@@ -208,10 +208,12 @@
                                                 <i class="bi bi-brain"></i> Support-Analyse (Intern)
                                                 <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
                                             </button>
+                                            {% if settings.google_pse_enabled %}
                                             <button type="button" class="btn btn-sm btn-outline-info ai-button" id="supportAnalysisExternalBtn" title="External support analysis using web search">
                                                 <i class="bi bi-globe"></i> Support-Analyse (Extern)
                                                 <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
                                             </button>
+                                            {% endif %}
                                         </div>
                                     </div>
                                     <div id="editor"></div>
@@ -859,48 +861,51 @@ document.querySelector('#supportAnalysisInternalBtn').addEventListener('click', 
 });
 
 // Support Analysis External Button
-document.querySelector('#supportAnalysisExternalBtn').addEventListener('click', async function() {
-    const btn = this;
-    const spinner = btn.querySelector('.spinner-border');
-    btn.disabled = true;
-    spinner.style.display = 'inline-block';
-    
-    try {
-        const description = editor.getMarkdown();
+const supportAnalysisExternalBtn = document.querySelector('#supportAnalysisExternalBtn');
+if (supportAnalysisExternalBtn) {
+    supportAnalysisExternalBtn.addEventListener('click', async function() {
+        const btn = this;
+        const spinner = btn.querySelector('.spinner-border');
+        btn.disabled = true;
+        spinner.style.display = 'inline-block';
         
-        if (!description) {
-            showAlert('Please provide a description before running support analysis', 'warning');
-            return;
+        try {
+            const description = editor.getMarkdown();
+            
+            if (!description) {
+                showAlert('Please provide a description before running support analysis', 'warning');
+                return;
+            }
+            
+            const response = await fetch('/api/tasks/{{ task.id }}/support-analysis-external', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({
+                    description: description
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                // Display analysis result
+                displaySupportAnalysisResult(data.analysis, data.mode || 'external');
+                showAlert('External support analysis completed successfully!', 'success');
+            } else {
+                showAlert(data.error || 'Failed to perform external support analysis', 'danger');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showAlert('Error: ' + error.message, 'danger');
+        } finally {
+            btn.disabled = false;
+            spinner.style.display = 'none';
         }
-        
-        const response = await fetch('/api/tasks/{{ task.id }}/support-analysis-external', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCsrfToken()
-            },
-            body: JSON.stringify({
-                description: description
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok && data.success) {
-            // Display analysis result
-            displaySupportAnalysisResult(data.analysis, data.mode || 'external');
-            showAlert('External support analysis completed successfully!', 'success');
-        } else {
-            showAlert(data.error || 'Failed to perform external support analysis', 'danger');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        showAlert('Error: ' + error.message, 'danger');
-    } finally {
-        btn.disabled = false;
-        spinner.style.display = 'none';
-    }
-});
+    });
+}
 
 // Helper function to render markdown
 function renderMarkdown(markdown) {

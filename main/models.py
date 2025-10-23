@@ -830,6 +830,27 @@ class Settings(models.Model):
         help_text='Interval in minutes for periodic synchronization'
     )
     
+    # Google PSE Configuration
+    google_pse_enabled = models.BooleanField(
+        default=False,
+        verbose_name='Enable Google PSE',
+        help_text='Enable Google Programmable Search Engine integration'
+    )
+    google_search_api_key = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='Google Search API Key',
+        help_text='Google Custom Search API Key'
+    )
+    google_search_cx = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='Google Search CX',
+        help_text='Google Custom Search Engine ID (CX)'
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
