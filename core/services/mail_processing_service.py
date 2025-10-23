@@ -537,6 +537,15 @@ Please generate the normalized task description now:
             except GraphServiceError as e:
                 logger.warning(f"Failed to mark message as read: {e.message}")
             
+            # Step 7: Archive the message
+            archived = False
+            try:
+                self.graph_service.move_message(message_id, destination_folder='archive')
+                archived = True
+                logger.info(f"Message {message_id} archived successfully")
+            except GraphServiceError as e:
+                logger.warning(f"Failed to archive message: {e.message}")
+            
             return {
                 'success': True,
                 'message': 'Mail processed successfully',
@@ -544,7 +553,8 @@ Please generate the normalized task description now:
                 'task_id': task_info['id'],
                 'item_id': item_id,
                 'item_title': item_title,
-                'confirmation_sent': confirmation_sent
+                'confirmation_sent': confirmation_sent,
+                'archived': archived
             }
             
         except Exception as e:

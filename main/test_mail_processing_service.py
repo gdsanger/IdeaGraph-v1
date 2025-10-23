@@ -371,7 +371,8 @@ class MailProcessingServiceTestCase(TestCase):
     @patch('core.services.openai_service.OpenAIService.chat_completion')
     @patch('core.services.graph_service.GraphService.send_mail')
     @patch('core.services.graph_service.GraphService.mark_message_as_read')
-    def test_process_mail_success(self, mock_weaviate_init, mock_mark_read, mock_send, mock_chat, mock_search, mock_execute):
+    @patch('core.services.graph_service.GraphService.move_message')
+    def test_process_mail_success(self, mock_weaviate_init, mock_move, mock_mark_read, mock_send, mock_chat, mock_search, mock_execute):
         """Test processing a single mail successfully"""
         # Setup mocks
         mock_execute.return_value = {
@@ -399,6 +400,7 @@ class MailProcessingServiceTestCase(TestCase):
         }
         mock_send.return_value = {'success': True}
         mock_mark_read.return_value = {'success': True}
+        mock_move.return_value = {'success': True}
         
         # Create test message
         message = {
@@ -421,6 +423,75 @@ class MailProcessingServiceTestCase(TestCase):
         self.assertIn('task_id', result)
         self.assertEqual(result['item_id'], str(self.item.id))
         self.assertTrue(result['confirmation_sent'])
+        self.assertTrue(result.get('archived', False))
+        
+        # Verify task was created
+        task = Task.objects.get(id=result['task_id'])
+        self.assertEqual(task.title, 'Test Mail')
+        
+        # Verify that move_message was called
+        mock_move.assert_called_once_with('msg-123', destination_folder='archive')
+    
+    @patch('core.services.kigate_service.KiGateService.execute_agent')
+    @patch('core.services.weaviate_sync_service.WeaviateItemSyncService.search_similar')
+    @patch('core.services.openai_service.OpenAIService.chat_completion')
+    @patch('core.services.graph_service.GraphService.send_mail')
+    @patch('core.services.graph_service.GraphService.mark_message_as_read')
+    @patch('core.services.graph_service.GraphService.move_message')
+    def test_process_mail_archive_failure(self, mock_weaviate_init, mock_move, mock_mark_read, mock_send, mock_chat, mock_search, mock_execute):
+        """Test processing mail when archiving fails - should still succeed"""
+        # Setup mocks
+        mock_execute.return_value = {
+            'success': True,
+            'result': 'Converted content'
+        }
+        mock_search.return_value = {
+            'success': True,
+            'results': [
+                {
+                    'id': str(self.item.id),
+                    'metadata': {
+                        'title': self.item.title,
+                        'description': self.item.description,
+                        'section': self.section.name,
+                        'status': self.item.status
+                    },
+                    'distance': 0.1
+                }
+            ]
+        }
+        mock_chat.return_value = {
+            'success': True,
+            'content': 'Normalized description\n\n---\nOriginal Mail:\n\nTest'
+        }
+        mock_send.return_value = {'success': True}
+        mock_mark_read.return_value = {'success': True}
+        # Archiving fails
+        mock_move.side_effect = Exception('Archive folder not found')
+        
+        # Create test message
+        message = {
+            'id': 'msg-123',
+            'subject': 'Test Mail',
+            'body': {
+                'content': '<p>Test content</p>'
+            },
+            'from': {
+                'emailAddress': {
+                    'address': self.user.email
+                }
+            }
+        }
+        
+        service = MailProcessingService(self.settings)
+        result = service.process_mail(message)
+        
+        # Should still succeed even if archiving fails
+        self.assertTrue(result['success'])
+        self.assertIn('task_id', result)
+        self.assertEqual(result['item_id'], str(self.item.id))
+        self.assertTrue(result['confirmation_sent'])
+        self.assertFalse(result.get('archived', True))  # archived should be False
         
         # Verify task was created
         task = Task.objects.get(id=result['task_id'])
@@ -459,7 +530,8 @@ class MailProcessingServiceTestCase(TestCase):
     @patch('core.services.openai_service.OpenAIService.chat_completion')
     @patch('core.services.graph_service.GraphService.send_mail')
     @patch('core.services.graph_service.GraphService.mark_message_as_read')
-    def test_process_mailbox_success(self, mock_weaviate_init, mock_mark_read, mock_send, mock_chat, mock_search, mock_execute, mock_get_messages):
+    @patch('core.services.graph_service.GraphService.move_message')
+    def test_process_mailbox_success(self, mock_weaviate_init, mock_move, mock_mark_read, mock_send, mock_chat, mock_search, mock_execute, mock_get_messages):
         """Test processing entire mailbox successfully"""
         # Setup mocks
         mock_get_messages.return_value = {
@@ -505,6 +577,7 @@ class MailProcessingServiceTestCase(TestCase):
         }
         mock_send.return_value = {'success': True}
         mock_mark_read.return_value = {'success': True}
+        mock_move.return_value = {'success': True}
         
         service = MailProcessingService(self.settings)
         result = service.process_mailbox(max_messages=10)

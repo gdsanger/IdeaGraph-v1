@@ -884,3 +884,53 @@ class GraphService:
         except Exception as e:
             logger.error(f"Error marking message as read: {str(e)}")
             raise GraphServiceError("Error marking message as read", details=str(e))
+    
+    def move_message(
+        self,
+        message_id: str,
+        destination_folder: str = 'archive',
+        mailbox: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Move a message to a different folder
+        
+        Args:
+            message_id: ID of the message to move
+            destination_folder: Destination folder name (default: 'archive')
+            mailbox: Email address of the mailbox (uses default_sender if not provided)
+            
+        Returns:
+            Dict with success status
+        """
+        mailbox_address = mailbox or self.default_sender
+        
+        if not mailbox_address:
+            raise GraphServiceError(
+                "No mailbox specified",
+                details="mailbox parameter or default_mail_sender must be set"
+            )
+        
+        endpoint = f"users/{mailbox_address}/messages/{message_id}/move"
+        data = {'destinationId': destination_folder}
+        
+        try:
+            response = self._make_request('POST', endpoint, json_data=data)
+            
+            if response.status_code in [200, 201]:
+                logger.info(f"Message {message_id} moved to {destination_folder}")
+                return {
+                    'success': True,
+                    'message': f'Message moved to {destination_folder}'
+                }
+            else:
+                raise GraphServiceError(
+                    "Failed to move message",
+                    status_code=response.status_code,
+                    details=response.text
+                )
+                
+        except GraphServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error moving message: {str(e)}")
+            raise GraphServiceError("Error moving message", details=str(e))

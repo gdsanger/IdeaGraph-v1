@@ -99,11 +99,13 @@ class Command(BaseCommand):
                         item_title = msg_result.get('item_title', 'N/A')
                         task_id = msg_result.get('task_id', 'N/A')
                         confirmation_sent = msg_result.get('confirmation_sent', False)
+                        archived = msg_result.get('archived', False)
                         
                         self.stdout.write(self.style.SUCCESS(f'\n{i}. ✓ {subject}'))
                         self.stdout.write(f'   Item: {item_title}')
                         self.stdout.write(f'   Task ID: {task_id}')
                         self.stdout.write(f'   Confirmation sent: {"Yes" if confirmation_sent else "No"}')
+                        self.stdout.write(f'   Archived: {"Yes" if archived else "No"}')
                     else:
                         message = msg_result.get('message', 'Unknown error')
                         self.stdout.write(self.style.ERROR(f'\n{i}. ✗ {subject}'))
