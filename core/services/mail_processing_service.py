@@ -326,12 +326,20 @@ Please generate the normalized task description now:
             # Get the item
             item = Item.objects.get(id=item_id)
             
-            # Try to find a user by email (for requester field)
+            # Try to find a user by email, create if not exists
             requester = None
             try:
                 requester = User.objects.get(email=sender_email)
             except User.DoesNotExist:
-                logger.info(f"No user found with email {sender_email}")
+                # Create new user with email as username
+                logger.info(f"Creating new user for email {sender_email}")
+                requester = User.objects.create(
+                    username=sender_email,
+                    email=sender_email,
+                    role='user',
+                    is_active=True
+                )
+                logger.info(f"Created new user {requester.id} for email {sender_email}")
             
             # Create the task
             task = Task.objects.create(
@@ -339,7 +347,8 @@ Please generate the normalized task description now:
                 description=mail_body_markdown,
                 status='new',
                 item=item,
-                requester=requester
+                requester=requester,
+                created_by=requester
             )
             
             logger.info(f"Created task {task.id} from email")
