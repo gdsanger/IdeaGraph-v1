@@ -1382,15 +1382,25 @@ document.querySelector('#confirmSendEmailBtn').addEventListener('click', async f
     }
 });
 
-// Show Completed Tasks Toggle
+// Show Completed Tasks Toggle - Using HTMX for async filtering
 const showCompletedSwitch = document.getElementById('showCompletedSwitch');
 if (showCompletedSwitch) {
     showCompletedSwitch.addEventListener('change', function() {
-        const currentUrl = new URL(window.location.href);
-        currentUrl.searchParams.set('show_completed', this.checked ? 'true' : 'false');
-        // Reset to page 1 when toggling completed status
-        currentUrl.searchParams.delete('page');
-        window.location.href = currentUrl.toString();
+        const showCompleted = this.checked ? 'true' : 'false';
+        let url = `?show_completed=${showCompleted}`;
+        
+        // Preserve search query if present
+        const searchQuery = '{{ search_query|escapejs }}';
+        if (searchQuery) {
+            url += `&search=${encodeURIComponent(searchQuery)}`;
+        }
+        
+        // Use HTMX to fetch and update the tasks table
+        htmx.ajax('GET', url, {
+            target: '#item-tasks-table-container',
+            swap: 'innerHTML',
+            indicator: '#tasks-loading-indicator'
+        });
     });
 }
 
