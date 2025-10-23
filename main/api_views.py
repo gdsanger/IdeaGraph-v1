@@ -1380,9 +1380,6 @@ def api_task_generate_title(request, task_id):
         # Task ID might be "new" for unsaved tasks
         if task_id != 'new':
             task = Task.objects.get(id=task_id)
-            # Check ownership
-            if task.created_by != user:
-                return JsonResponse({'error': 'Access denied'}, status=403)
         
         data = json.loads(request.body)
         description = data.get('description', '').strip()
@@ -1447,9 +1444,6 @@ def api_task_extract_tags(request, task_id):
         # Task ID might be "new" for unsaved tasks
         if task_id != 'new':
             task = Task.objects.get(id=task_id)
-            # Check ownership
-            if task.created_by != user:
-                return JsonResponse({'error': 'Access denied'}, status=403)
         
         data = json.loads(request.body)
         description = data.get('description', '').strip()
@@ -1533,9 +1527,6 @@ def api_task_optimize_description(request, task_id):
         # Task ID might be "new" for unsaved tasks
         if task_id != 'new':
             task = Task.objects.get(id=task_id)
-            # Check ownership
-            if task.created_by != user:
-                return JsonResponse({'error': 'Access denied'}, status=403)
         
         data = json.loads(request.body)
         description = data.get('description', '').strip()
@@ -1764,9 +1755,6 @@ def api_item_generate_title(request, item_id):
         # Item ID might be "new" for unsaved items
         if item_id != 'new':
             item = Item.objects.get(id=item_id)
-            # Check ownership
-            if item.created_by != user:
-                return JsonResponse({'error': 'Access denied'}, status=403)
         
         data = json.loads(request.body)
         description = data.get('description', '').strip()
@@ -1831,9 +1819,6 @@ def api_item_extract_tags(request, item_id):
         # Item ID might be "new" for unsaved items
         if item_id != 'new':
             item = Item.objects.get(id=item_id)
-            # Check ownership
-            if item.created_by != user:
-                return JsonResponse({'error': 'Access denied'}, status=403)
         
         data = json.loads(request.body)
         description = data.get('description', '').strip()
@@ -1917,9 +1902,6 @@ def api_item_optimize_description(request, item_id):
         # Item ID might be "new" for unsaved items
         if item_id != 'new':
             item = Item.objects.get(id=item_id)
-            # Check ownership
-            if item.created_by != user:
-                return JsonResponse({'error': 'Access denied'}, status=403)
         
         data = json.loads(request.body)
         description = data.get('description', '').strip()

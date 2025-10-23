@@ -236,3 +236,130 @@ class TaskIndividualAIFunctionsTest(TestCase):
         data = json.loads(response.content)
         self.assertTrue(data['success'])
         self.assertEqual(data['title'], 'New Task Title')
+    
+    @patch('main.api_views.KiGateService')
+    def test_api_task_extract_tags_by_non_owner(self, mock_kigate_service):
+        """Test that non-owners can extract tags from task description"""
+        # Create a different user (non-owner)
+        other_user = User.objects.create(
+            username='otheruser',
+            email='other@example.com',
+            role='developer',
+            is_active=True
+        )
+        other_user.set_password('testpass123')
+        other_user.save()
+        
+        # Mock KiGate service
+        mock_kigate_instance = MagicMock()
+        mock_kigate_instance.execute_agent.return_value = {
+            'success': True,
+            'result': 'Python, Django, Testing'
+        }
+        mock_kigate_service.return_value = mock_kigate_instance
+        
+        # Create request as non-owner
+        request = self.factory.post(
+            f'/api/tasks/{self.task.id}/extract-tags',
+            data=json.dumps({
+                'description': 'This task involves Python and Django development'
+            }),
+            content_type='application/json'
+        )
+        
+        # Authenticate as the non-owner user
+        request.session = {'user_id': str(other_user.id)}
+        
+        # Call endpoint
+        response = api_task_extract_tags(request, str(self.task.id))
+        
+        # Check response - should succeed since non-owners are now allowed
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertEqual(len(data['tags']), 3)
+        self.assertIn('Python', data['tags'])
+    
+    @patch('main.api_views.KiGateService')
+    def test_api_task_generate_title_by_non_owner(self, mock_kigate_service):
+        """Test that non-owners can generate title from task description"""
+        # Create a different user (non-owner)
+        other_user = User.objects.create(
+            username='another_user',
+            email='another@example.com',
+            role='developer',
+            is_active=True
+        )
+        other_user.set_password('testpass123')
+        other_user.save()
+        
+        # Mock KiGate service
+        mock_kigate_instance = MagicMock()
+        mock_kigate_instance.execute_agent.return_value = {
+            'success': True,
+            'result': 'Generated Title by Non-Owner'
+        }
+        mock_kigate_service.return_value = mock_kigate_instance
+        
+        # Create request as non-owner
+        request = self.factory.post(
+            f'/api/tasks/{self.task.id}/generate-title',
+            data=json.dumps({
+                'description': 'This is a detailed task description'
+            }),
+            content_type='application/json'
+        )
+        
+        # Authenticate as the non-owner user
+        request.session = {'user_id': str(other_user.id)}
+        
+        # Call endpoint
+        response = api_task_generate_title(request, str(self.task.id))
+        
+        # Check response - should succeed since non-owners are now allowed
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['title'], 'Generated Title by Non-Owner')
+    
+    @patch('main.api_views.KiGateService')
+    def test_api_task_optimize_description_by_non_owner(self, mock_kigate_service):
+        """Test that non-owners can optimize task description"""
+        # Create a different user (non-owner)
+        other_user = User.objects.create(
+            username='yet_another_user',
+            email='yet_another@example.com',
+            role='developer',
+            is_active=True
+        )
+        other_user.set_password('testpass123')
+        other_user.save()
+        
+        # Mock KiGate service
+        mock_kigate_instance = MagicMock()
+        mock_kigate_instance.execute_agent.return_value = {
+            'success': True,
+            'result': 'This is an optimized task description by a non-owner.'
+        }
+        mock_kigate_service.return_value = mock_kigate_instance
+        
+        # Create request as non-owner
+        request = self.factory.post(
+            f'/api/tasks/{self.task.id}/optimize-description',
+            data=json.dumps({
+                'description': 'This descripshun has bad grammer'
+            }),
+            content_type='application/json'
+        )
+        
+        # Authenticate as the non-owner user
+        request.session = {'user_id': str(other_user.id)}
+        
+        # Call endpoint
+        response = api_task_optimize_description(request, str(self.task.id))
+        
+        # Check response - should succeed since non-owners are now allowed
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertIn('optimized', data['description'].lower())

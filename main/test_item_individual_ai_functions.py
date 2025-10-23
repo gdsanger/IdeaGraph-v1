@@ -228,8 +228,9 @@ class ItemIndividualAIFunctionsTest(TestCase):
         self.assertTrue(data['success'])
         self.assertEqual(data['title'], 'New Item Title')
     
-    def test_api_item_extract_tags_ownership(self):
-        """Test that users can only extract tags for their own items"""
+    @patch('main.api_views.KiGateService')
+    def test_api_item_extract_tags_by_non_owner(self, mock_kigate_service):
+        """Test that non-owners can extract tags from item description"""
         # Create another user
         other_user = User.objects.create(
             username='otheruser',
@@ -240,13 +241,26 @@ class ItemIndividualAIFunctionsTest(TestCase):
         other_user.set_password('otherpass123')
         other_user.save()
         
+        # Mock KiGate service
+        mock_kigate_instance = MagicMock()
+        mock_kigate_instance.execute_agent.return_value = {
+            'success': True,
+            'result': 'Python, Django, Testing'
+        }
+        mock_kigate_service.return_value = mock_kigate_instance
+        
         # Create request as other user
         request = self.factory.post(
             f'/api/items/{self.item.id}/extract-tags',
-            data=json.dumps({'description': 'Test description'}),
+            data=json.dumps({'description': 'This involves Python and Django development'}),
             content_type='application/json'
         )
         request.session = {'user_id': str(other_user.id)}
         
         response = api_item_extract_tags(request, str(self.item.id))
-        self.assertEqual(response.status_code, 403)
+        
+        # Non-owners should now be able to extract tags (status 200, not 403)
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertIn('Python', data['tags'])
