@@ -233,6 +233,24 @@
         display: block;
     }
 
+    /* Optimized editor height - use flex layout for better space utilization */
+    .editor-wrapper {
+        display: flex;
+        flex-direction: column;
+        min-height: 500px;
+        height: 600px;
+        max-height: 800px;
+    }
+    
+    .editor-wrapper #editor {
+        flex: 1;
+        min-height: 0;
+    }
+    
+    .editor-wrapper .toastui-editor-defaultUI {
+        height: 100%;
+    }
+
 </style>
 {% endblock %}
 
@@ -334,7 +352,9 @@
                                             <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
                                         </button>
                                     </div>
-                                    <div id="editor"></div>
+                                    <div class="editor-wrapper">
+                                        <div id="editor"></div>
+                                    </div>
                                     <textarea name="description" id="description" style="display: none;">{{ item.description }}</textarea>
                                 </div>
                             </div>
@@ -833,7 +853,7 @@
 // Initialize Toast UI Editor
 const editor = new toastui.Editor({
     el: document.querySelector('#editor'),
-    height: '250px',
+    height: '100%',
     initialEditType: 'markdown',
     previewStyle: 'vertical',
     initialValue: document.querySelector('#description').value
