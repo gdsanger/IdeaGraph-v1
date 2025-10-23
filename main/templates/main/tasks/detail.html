@@ -199,13 +199,38 @@
                                 <div class="mb-3">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                         <label for="description" class="form-label mb-0">Description (Markdown)</label>
-                                        <button type="button" class="btn btn-sm btn-outline-success ai-button" id="optimizeDescriptionBtn" title="Optimize description using AI">
-                                            <i class="bi bi-stars"></i> Optimize Text
-                                            <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
-                                        </button>
+                                        <div class="d-flex gap-2">
+                                            <button type="button" class="btn btn-sm btn-outline-success ai-button" id="optimizeDescriptionBtn" title="Optimize description using AI">
+                                                <i class="bi bi-stars"></i> Optimize Text
+                                                <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-primary ai-button" id="supportAnalysisInternalBtn" title="Internal support analysis using knowledge base">
+                                                <i class="bi bi-brain"></i> Support-Analyse (Intern)
+                                                <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-info ai-button" id="supportAnalysisExternalBtn" title="External support analysis using web search">
+                                                <i class="bi bi-globe"></i> Support-Analyse (Extern)
+                                                <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                                            </button>
+                                        </div>
                                     </div>
                                     <div id="editor"></div>
                                     <textarea name="description" id="description" style="display: none;">{{ task.description }}</textarea>
+                                </div>
+                                
+                                <!-- Support Analysis Results -->
+                                <div class="mb-3" id="supportAnalysisResultContainer" style="display: none;">
+                                    <div class="card bg-dark border-info">
+                                        <div class="card-header d-flex justify-content-between align-items-center">
+                                            <h5 class="mb-0">
+                                                <i class="bi bi-lightbulb"></i> Support-Analyse Ergebnis
+                                            </h5>
+                                            <button type="button" class="btn-close btn-close-white" id="closeSupportAnalysisBtn" aria-label="Close"></button>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="supportAnalysisResult"></div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -787,6 +812,143 @@ document.querySelector('#createGitHubIssueBtn').addEventListener('click', async 
         btn.classList.remove('loading');
         btn.disabled = false;
     }
+});
+
+// Support Analysis Internal Button
+document.querySelector('#supportAnalysisInternalBtn').addEventListener('click', async function() {
+    const btn = this;
+    const spinner = btn.querySelector('.spinner-border');
+    btn.disabled = true;
+    spinner.style.display = 'inline-block';
+    
+    try {
+        const description = editor.getMarkdown();
+        
+        if (!description) {
+            showAlert('Please provide a description before running support analysis', 'warning');
+            return;
+        }
+        
+        const response = await fetch('/api/tasks/{{ task.id }}/support-analysis-internal', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                description: description
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            // Display analysis result
+            displaySupportAnalysisResult(data.analysis, data.mode || 'internal');
+            showAlert('Internal support analysis completed successfully!', 'success');
+        } else {
+            showAlert(data.error || 'Failed to perform internal support analysis', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+    }
+});
+
+// Support Analysis External Button
+document.querySelector('#supportAnalysisExternalBtn').addEventListener('click', async function() {
+    const btn = this;
+    const spinner = btn.querySelector('.spinner-border');
+    btn.disabled = true;
+    spinner.style.display = 'inline-block';
+    
+    try {
+        const description = editor.getMarkdown();
+        
+        if (!description) {
+            showAlert('Please provide a description before running support analysis', 'warning');
+            return;
+        }
+        
+        const response = await fetch('/api/tasks/{{ task.id }}/support-analysis-external', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                description: description
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            // Display analysis result
+            displaySupportAnalysisResult(data.analysis, data.mode || 'external');
+            showAlert('External support analysis completed successfully!', 'success');
+        } else {
+            showAlert(data.error || 'Failed to perform external support analysis', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+    }
+});
+
+// Helper function to render markdown
+function renderMarkdown(markdown) {
+    // Simple markdown rendering (basic support)
+    // Convert headers
+    let html = markdown.replace(/### (.*?)$/gm, '<h3>$1</h3>');
+    html = html.replace(/## (.*?)$/gm, '<h2>$1</h2>');
+    html = html.replace(/# (.*?)$/gm, '<h1>$1</h1>');
+    
+    // Convert bold and italic
+    html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    
+    // Convert lists
+    html = html.replace(/^- (.*)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+    
+    // Convert links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+    
+    // Convert line breaks
+    html = html.replace(/\n\n/g, '<br><br>');
+    html = html.replace(/\n/g, '<br>');
+    
+    return html;
+}
+
+// Helper function to display support analysis result
+function displaySupportAnalysisResult(analysisMarkdown, mode) {
+    const resultContainer = document.getElementById('supportAnalysisResultContainer');
+    const resultDiv = document.getElementById('supportAnalysisResult');
+    
+    // Render markdown to HTML
+    const htmlContent = renderMarkdown(analysisMarkdown);
+    
+    // Display the result
+    resultDiv.innerHTML = htmlContent;
+    resultContainer.style.display = 'block';
+    
+    // Scroll to result
+    resultContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// Close Support Analysis Result Button
+document.querySelector('#closeSupportAnalysisBtn').addEventListener('click', function() {
+    const resultContainer = document.getElementById('supportAnalysisResultContainer');
+    resultContainer.style.display = 'none';
 });
 
 // Initialize Semantic Network Viewer

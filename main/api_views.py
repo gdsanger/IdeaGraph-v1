@@ -17,6 +17,7 @@ from core.services.github_service import GitHubService, GitHubServiceError
 from core.services.kigate_service import KiGateService, KiGateServiceError
 from core.services.openai_service import OpenAIService, OpenAIServiceError
 from core.services.weaviate_task_sync_service import WeaviateTaskSyncService, WeaviateTaskSyncServiceError
+from core.services.support_advisor_service import SupportAdvisorService, SupportAdvisorServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -2749,6 +2750,110 @@ def api_task_move(request, task_id):
         logger.error(f'Task move error: {str(e)}')
         return JsonResponse({
             'error': 'An error occurred while moving the task'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_task_support_analysis_internal(request, task_id):
+    """
+    API endpoint to perform internal support analysis for a task using Weaviate knowledge base
+    
+    POST /api/tasks/{task_id}/support-analysis-internal
+    Body: {"description": "..."}
+    
+    Uses SupportAdvisorService with internal mode (Weaviate RAG)
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Task
+    
+    try:
+        task = Task.objects.get(id=task_id)
+        
+        data = json.loads(request.body)
+        description = data.get('description', '').strip()
+        
+        if not description:
+            return JsonResponse({'error': 'Description is required'}, status=400)
+        
+        # Use SupportAdvisorService for internal analysis
+        advisor = SupportAdvisorService()
+        
+        result = advisor.analyze_internal(
+            task_description=description,
+            task_title=task.title,
+            user_id=str(user.id),
+            max_results=5
+        )
+        
+        return JsonResponse(result)
+        
+    except Task.DoesNotExist:
+        return JsonResponse({'error': 'Task not found'}, status=404)
+    except SupportAdvisorServiceError as e:
+        logger.error(f'Support analysis error: {e.message}')
+        return JsonResponse(e.to_dict(), status=500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f'Internal support analysis error: {str(e)}')
+        return JsonResponse({
+            'error': 'An error occurred during internal support analysis'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_task_support_analysis_external(request, task_id):
+    """
+    API endpoint to perform external support analysis for a task using web search
+    
+    POST /api/tasks/{task_id}/support-analysis-external
+    Body: {"description": "..."}
+    
+    Uses SupportAdvisorService with external mode (Web Search + AI)
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Task
+    
+    try:
+        task = Task.objects.get(id=task_id)
+        
+        data = json.loads(request.body)
+        description = data.get('description', '').strip()
+        
+        if not description:
+            return JsonResponse({'error': 'Description is required'}, status=400)
+        
+        # Use SupportAdvisorService for external analysis
+        advisor = SupportAdvisorService()
+        
+        result = advisor.analyze_external(
+            task_description=description,
+            task_title=task.title,
+            user_id=str(user.id),
+            max_results=5
+        )
+        
+        return JsonResponse(result)
+        
+    except Task.DoesNotExist:
+        return JsonResponse({'error': 'Task not found'}, status=404)
+    except SupportAdvisorServiceError as e:
+        logger.error(f'Support analysis error: {e.message}')
+        return JsonResponse(e.to_dict(), status=500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f'External support analysis error: {str(e)}')
+        return JsonResponse({
+            'error': 'An error occurred during external support analysis'
         }, status=500)
 
 
