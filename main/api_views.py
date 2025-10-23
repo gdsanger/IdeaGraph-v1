@@ -4079,9 +4079,7 @@ def api_milestone_context_summarize(request, milestone_id):
 
 
 @csrf_exempt
-@require_http_methods(['POST'])
 @require_http_methods(["GET", "POST"])
-@csrf_exempt
 def api_milestone_context_analyze(request, context_id):
     """
     Analyze a specific context object (summary + task derivation) or retrieve existing analysis
