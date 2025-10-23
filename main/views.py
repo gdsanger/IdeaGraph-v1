@@ -1349,6 +1349,7 @@ def task_detail(request, task_id):
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '').strip()
         status = request.POST.get('status', task.status)
+        milestone_id = request.POST.get('milestone', '').strip()
         tag_values = request.POST.getlist('tags')
         requester_id = request.POST.get('requester', None)
 
@@ -1370,6 +1371,16 @@ def task_detail(request, task_id):
                 task.description = description
                 task.status = status
                 task.requester = requester
+                
+                # Set milestone
+                if milestone_id:
+                    try:
+                        milestone = Milestone.objects.get(id=milestone_id, item=task.item)
+                        task.milestone = milestone
+                    except Milestone.DoesNotExist:
+                        task.milestone = None
+                else:
+                    task.milestone = None
 
                 if status == 'done' and previous_status != 'done':
                     task.mark_as_done()
@@ -1408,6 +1419,9 @@ def task_detail(request, task_id):
     all_tags = list(Tag.objects.values('id', 'name', 'color'))
     status_choices = Task.STATUS_CHOICES
     
+    # Get all milestones for the task's item
+    milestones = task.item.milestones.all() if task.item else []
+    
     # Get all active users for requester selection
     all_users = User.objects.filter(is_active=True).order_by('username')
 
@@ -1416,6 +1430,7 @@ def task_detail(request, task_id):
         'all_tags': all_tags,
         'selected_tags': selected_tags_payload,
         'status_choices': status_choices,
+        'milestones': milestones,
         'all_users': all_users,
     }
 

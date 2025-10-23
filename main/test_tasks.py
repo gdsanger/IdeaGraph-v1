@@ -3,7 +3,7 @@ Test Task views and API endpoints
 """
 from django.test import TestCase, Client
 from django.urls import reverse
-from main.models import User, Item, Task, Tag, Section
+from main.models import User, Item, Task, Tag, Section, Milestone
 import json
 
 
@@ -296,6 +296,53 @@ class TaskViewTest(TestCase):
         messages = list(response.wsgi_request._messages)
         self.assertEqual(len(messages), 1)
         self.assertEqual(str(messages[0]), 'Task "Inline Updated Task" updated successfully!')
+    
+    def test_task_detail_milestone_assignment(self):
+        """Test milestone assignment in task_detail view"""
+        from datetime import date
+        
+        self.login()
+        
+        # Create a milestone for the item
+        milestone = Milestone.objects.create(
+            name='Test Milestone',
+            description='Test milestone description',
+            due_date=date(2025, 12, 31),
+            status='planned',
+            item=self.item
+        )
+        
+        url = reverse('main:task_detail', args=[self.task1.id])
+        
+        # POST request to assign milestone to task
+        response = self.client.post(url, {
+            'title': self.task1.title,
+            'description': self.task1.description,
+            'status': self.task1.status,
+            'milestone': str(milestone.id),
+            'tags': [str(self.tag.id)]
+        })
+        
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify task was updated with milestone
+        self.task1.refresh_from_db()
+        self.assertEqual(self.task1.milestone, milestone)
+        
+        # Test removing milestone
+        response = self.client.post(url, {
+            'title': self.task1.title,
+            'description': self.task1.description,
+            'status': self.task1.status,
+            'milestone': '',  # Empty string to remove milestone
+            'tags': [str(self.tag.id)]
+        })
+        
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify milestone was removed
+        self.task1.refresh_from_db()
+        self.assertIsNone(self.task1.milestone)
     
     def test_task_delete_view(self):
         """Test task deletion"""
