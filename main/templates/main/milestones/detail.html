@@ -815,7 +815,7 @@ function uploadFile(file) {
     formData.append('auto_analyze', 'true');
     
     // Update overlay with current file
-    updateUploadOverlay('Uploading: ' + file.name, 'uploading');
+    updateUploadOverlay(file.name, 'uploading');
     
     return fetch(`/api/milestones/${milestoneId}/context/add`, {
         method: 'POST',
@@ -830,8 +830,15 @@ function uploadFile(file) {
             updateUploadOverlay(file.name, 'error');
             throw new Error(data.error || 'Upload failed');
         }
-        updateUploadOverlay(file.name + ' - Analyzing...', 'analyzing');
+        // Show analyzing status briefly
+        updateUploadOverlay(file.name, 'analyzing');
+        // Then mark as success
+        setTimeout(() => updateUploadOverlay(file.name, 'success'), 500);
         return data;
+    })
+    .catch(error => {
+        updateUploadOverlay(file.name, 'error');
+        throw error;
     });
 }
 
