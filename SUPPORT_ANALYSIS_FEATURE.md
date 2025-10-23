@@ -230,17 +230,100 @@ Benötigt Umgebungsvariablen:
    - **Intern:** Nutzt eigene Datenbank → schneller, kontextbasiert
    - **Extern:** Nutzt Websuche → umfassender, externe Quellen
 4. Ergebnis prüfen
-5. Optional: Als Kommentar speichern (zukünftige Erweiterung)
+5. **Analyse speichern oder verwerfen:**
+   - **"Speichern"**: Erstellt Markdown-Datei, lädt sie nach SharePoint hoch und speichert in Weaviate als KnowledgeObject
+   - **"Schließen (ohne Speichern)"**: Verwirft das Ergebnis ohne Speicherung
+
+## Persistenz von Support-Analyse-Ergebnissen
+
+### Speicherfunktion
+
+Nach Abschluss einer Support-Analyse (intern oder extern) kann das Ergebnis dauerhaft gespeichert werden.
+
+#### Funktionsweise
+
+**"Speichern"-Button:**
+- Erzeugt eine Markdown-Datei aus der angezeigten Analyse
+- Dateiname-Format: `Support_Analyse_{intern|extern}_{timestamp}.md`
+- Lädt die Datei automatisch nach SharePoint in den Files-Tab des Tasks
+- Persistiert zusätzlich den Inhalt in Weaviate als `KnowledgeObject` mit Typ "SupportAnalysis"
+- Zeigt nach erfolgreicher Speicherung eine grüne Toast-Nachricht:
+  > ✅ Analyse gespeichert (Datei + Knowledge Base aktualisiert)
+- Aktualisiert automatisch die Dateiliste im Files-Tab
+
+**"Schließen (ohne Speichern)"-Button:**
+- Entfernt die Card ohne weitere Aktion
+- Zeigt eine neutrale Toast-Nachricht:
+  > ℹ️ Analyse verworfen – keine Daten gespeichert.
+
+#### API-Endpunkt
+
+**POST /api/tasks/{task_id}/support-analysis-save**
+
+**Request Body:**
+```json
+{
+  "analysis": "### 🧩 Interne Analyse\n...",
+  "mode": "internal" // oder "external"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Analysis saved successfully",
+  "filename": "Support_Analyse_intern_20231023_120000.md",
+  "sharepoint_url": "https://sharepoint.com/...",
+  "file_id": "uuid"
+}
+```
+
+#### Gespeicherte Daten
+
+1. **SharePoint-Datei:**
+   - Pfad: `IdeaGraph/{Item-Titel}/{Task-UUID}/Support_Analyse_{mode}_{timestamp}.md`
+   - Format: Markdown
+   - Inhalt: Vollständige Analyse mit Formatierung
+
+2. **Weaviate KnowledgeObject:**
+   - Typ: "SupportAnalysis"
+   - Titel: "Support-Analyse: {Task-Titel}"
+   - Beschreibung: Analyse-Inhalt
+   - Tags: [mode, "support-analysis"]
+   - Parent ID: Task UUID
+   - URL: Link zum Task
+
+### Tests
+
+**Datei:** `main/test_support_analysis.py`
+
+**12 Tests implementiert (alle erfolgreich):**
+1. ✅ `test_api_task_support_analysis_internal_success` - Erfolgreiche interne Analyse
+2. ✅ `test_api_task_support_analysis_external_success` - Erfolgreiche externe Analyse
+3. ✅ `test_api_task_support_analysis_internal_no_auth` - Authentifizierung erforderlich (intern)
+4. ✅ `test_api_task_support_analysis_external_no_auth` - Authentifizierung erforderlich (extern)
+5. ✅ `test_api_task_support_analysis_internal_missing_description` - Fehlende Beschreibung (intern)
+6. ✅ `test_api_task_support_analysis_external_missing_description` - Fehlende Beschreibung (extern)
+7. ✅ `test_api_task_support_analysis_internal_service_error` - Service-Fehlerbehandlung (intern)
+8. ✅ `test_api_task_support_analysis_external_service_error` - Service-Fehlerbehandlung (extern)
+9. ✅ `test_api_task_support_analysis_save_success` - Erfolgreiche Speicherung
+10. ✅ `test_api_task_support_analysis_save_no_auth` - Authentifizierung erforderlich (speichern)
+11. ✅ `test_api_task_support_analysis_save_missing_analysis` - Fehlende Analyse-Inhalte
+12. ✅ `test_api_task_support_analysis_save_file_error` - Fehlerbehandlung beim Speichern
+
+**Testabdeckung:** 100% der API-Endpunkte und Fehlerfälle
 
 ## Zukünftige Erweiterungen
 
 ### Geplante Features
-- [ ] "Als Kommentar speichern"-Button
+- [x] "Als Datei speichern"-Funktion (✅ implementiert)
+- [x] Weaviate KnowledgeObject Persistenz (✅ implementiert)
 - [ ] "Als neuen Task erstellen"-Button
 - [ ] Verlauf der durchgeführten Analysen
 - [ ] Kombinierter Modus (intern + extern)
 - [ ] Bewertung der Analyse-Qualität
-- [ ] Export-Funktion (PDF/Markdown)
+- [ ] Export-Funktion (PDF)
 
 ### Integration
 - [ ] GitHub Issues (automatische Analyse bei Issue-Import)
