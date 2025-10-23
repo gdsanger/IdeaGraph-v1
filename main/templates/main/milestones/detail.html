@@ -163,12 +163,22 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h4><i class="bi bi-robot"></i> AI-Generated Summary</h4>
-                        <button class="btn btn-primary ai-button" id="regenerateSummaryBtn">
-                            <span class="button-text">
-                                <i class="bi bi-arrow-clockwise"></i> Regenerate Summary
-                            </span>
-                            <span class="spinner-border" role="status" aria-hidden="true"></span>
-                        </button>
+                        <div>
+                            <button class="btn btn-primary ai-button" id="regenerateSummaryBtn">
+                                <span class="button-text">
+                                    <i class="bi bi-arrow-clockwise"></i> Regenerate Summary
+                                </span>
+                                <span class="spinner-border" role="status" aria-hidden="true"></span>
+                            </button>
+                            {% if milestone.summary %}
+                            <button class="btn btn-success ai-button ms-2" id="optimizeSummaryBtn">
+                                <span class="button-text">
+                                    <i class="bi bi-magic"></i> AI-Optimize
+                                </span>
+                                <span class="spinner-border" role="status" aria-hidden="true"></span>
+                            </button>
+                            {% endif %}
+                        </div>
                     </div>
                     
                     <div id="summaryContent">
@@ -497,6 +507,13 @@
     </div>
 </div>
 
+<!-- Summary Optimization Modal -->
+<div class="modal fade" id="summaryOptimizationModal" tabindex="-1" aria-labelledby="summaryOptimizationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content bg-dark">
+            <div class="modal-header">
+                <h5 class="modal-title" id="summaryOptimizationModalLabel">
+                    <i class="bi bi-magic"></i> AI Summary Optimization
 <!-- Analysis Results Modal -->
 <div class="modal fade" id="resultsModal" tabindex="-1" aria-labelledby="resultsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -508,6 +525,60 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
+                <!-- Loading State -->
+                <div id="optimizationLoading" class="text-center py-5" style="display: none;">
+                    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3 text-muted">Optimizing summary with AI...</p>
+                </div>
+                
+                <!-- Comparison View -->
+                <div id="optimizationComparison" style="display: none;">
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-info-circle"></i> 
+                        Review the AI-optimized version below. You can accept it or discard it and keep your current summary.
+                    </div>
+                    
+                    <div class="row">
+                        <!-- Original Summary -->
+                        <div class="col-md-6">
+                            <div class="card bg-secondary mb-3">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="bi bi-file-text"></i> Original Summary</h6>
+                                </div>
+                                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                                    <div id="originalSummaryText" class="text-muted"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Optimized Summary -->
+                        <div class="col-md-6">
+                            <div class="card bg-success bg-opacity-10 border-success mb-3">
+                                <div class="card-header bg-success bg-opacity-25">
+                                    <h6 class="mb-0"><i class="bi bi-stars"></i> AI-Optimized Summary</h6>
+                                </div>
+                                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                                    <div id="optimizedSummaryText"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Error State -->
+                <div id="optimizationError" class="alert alert-danger" style="display: none;">
+                    <i class="bi bi-exclamation-triangle"></i> 
+                    <span id="optimizationErrorMessage"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Discard
+                </button>
+                <button type="button" class="btn btn-success" id="acceptOptimizedBtn" style="display: none;">
+                    <i class="bi bi-check-circle"></i> Accept & Save
                 <div id="modalContextTitle" class="mb-3">
                     <h6 class="text-muted">Context Object:</h6>
                     <h5 id="modalContextTitleText"></h5>
@@ -869,6 +940,28 @@ function regenerateSummary(btn) {
     });
 }
 
+// AI Summary Optimization
+let currentOptimizedSummary = null;
+let currentOptimizationMeta = null;
+
+document.getElementById('optimizeSummaryBtn')?.addEventListener('click', function() {
+    optimizeSummary(this);
+});
+
+function optimizeSummary(btn) {
+    setLoading(btn, true);
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('summaryOptimizationModal'));
+    modal.show();
+    
+    // Show loading state
+    document.getElementById('optimizationLoading').style.display = 'block';
+    document.getElementById('optimizationComparison').style.display = 'none';
+    document.getElementById('optimizationError').style.display = 'none';
+    document.getElementById('acceptOptimizedBtn').style.display = 'none';
+    
+    fetch(`/api/milestones/${milestoneId}/optimize-summary`, {
 // Show results modal
 let currentContextData = null;
 document.querySelectorAll('.show-results-btn').forEach(btn => {
@@ -1005,6 +1098,31 @@ document.getElementById('enhanceSummaryBtn')?.addEventListener('click', function
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            // Store optimized summary
+            currentOptimizedSummary = data.optimized_summary;
+            currentOptimizationMeta = {
+                agent_name: data.agent_name,
+                model: data.model
+            };
+            
+            // Show comparison
+            document.getElementById('originalSummaryText').textContent = data.original_summary;
+            document.getElementById('optimizedSummaryText').textContent = data.optimized_summary;
+            
+            document.getElementById('optimizationLoading').style.display = 'none';
+            document.getElementById('optimizationComparison').style.display = 'block';
+            document.getElementById('acceptOptimizedBtn').style.display = 'inline-block';
+            
+            showToast('Summary optimized successfully! Review the result.', 'success');
+        } else {
+            throw new Error(data.error || 'Optimization failed');
+        }
+    })
+    .catch(error => {
+        document.getElementById('optimizationLoading').style.display = 'none';
+        document.getElementById('optimizationError').style.display = 'block';
+        document.getElementById('optimizationErrorMessage').textContent = error.message || error;
+        showToast('Error: ' + error.message, 'error');
             document.getElementById('modalSummaryText').value = data.enhanced_summary;
             currentContextData.summary = data.enhanced_summary;
             showToast('Summary enhanced successfully!', 'success');
@@ -1018,6 +1136,14 @@ document.getElementById('enhanceSummaryBtn')?.addEventListener('click', function
     .finally(() => {
         setLoading(btn, false);
     });
+}
+
+// Accept optimized summary
+document.getElementById('acceptOptimizedBtn')?.addEventListener('click', function() {
+    if (!currentOptimizedSummary) {
+        showToast('No optimized summary to save', 'warning');
+        return;
+    }
 });
 
 // Accept results button
@@ -1027,6 +1153,7 @@ document.getElementById('acceptResultsBtn')?.addEventListener('click', function(
     const btn = this;
     setLoading(btn, true);
     
+    fetch(`/api/milestones/${milestoneId}/save-optimized-summary`, {
     // Get edited values from modal
     const editedSummary = document.getElementById('modalSummaryText').value;
     
@@ -1058,6 +1185,9 @@ document.getElementById('acceptResultsBtn')?.addEventListener('click', function(
             'X-CSRFToken': csrfToken
         },
         body: JSON.stringify({
+            optimized_summary: currentOptimizedSummary,
+            agent_name: currentOptimizationMeta?.agent_name || 'summary-enhancer-agent',
+            model_name: currentOptimizationMeta?.model || 'gpt-4'
             summary: editedSummary,
             derived_tasks: editedTasks
         })
@@ -1065,6 +1195,20 @@ document.getElementById('acceptResultsBtn')?.addEventListener('click', function(
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            showToast('Optimized summary saved successfully!', 'success');
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('summaryOptimizationModal'));
+            modal.hide();
+            
+            // Reload page to show new summary
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            throw new Error(data.error || 'Failed to save summary');
+        }
+    })
+    .catch(error => {
+        showToast('Error saving summary: ' + error.message, 'error');
             showToast('Results accepted and applied!', 'success');
             
             // Close modal

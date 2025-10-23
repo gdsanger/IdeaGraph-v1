@@ -4353,6 +4353,15 @@ def api_milestone_context_download(request, context_id):
 
 
 @require_http_methods(["POST"])
+def api_milestone_optimize_summary(request, milestone_id):
+    """
+    Optimize milestone summary using AI (summary-enhancer-agent)
+    
+    POST /api/milestones/<milestone_id>/optimize-summary
+    
+    Returns optimized summary without saving (preview mode)
+    """
+    from main.models import Milestone
 @csrf_exempt
 def api_milestone_context_enhance_summary(request, context_id):
     """
@@ -4371,6 +4380,7 @@ def api_milestone_context_enhance_summary(request, context_id):
         }, status=401)
     
     try:
+        milestone = Milestone.objects.get(id=milestone_id)
         context_obj = MilestoneContextObject.objects.get(id=context_id)
         milestone = context_obj.milestone
         
@@ -4381,6 +4391,35 @@ def api_milestone_context_enhance_summary(request, context_id):
                 'error': 'Permission denied'
             }, status=403)
         
+        # Check if summary exists
+        if not milestone.summary or not milestone.summary.strip():
+            return JsonResponse({
+                'success': False,
+                'error': 'No summary available to optimize. Generate a summary first.'
+            }, status=400)
+        
+        # Optimize summary
+        service = MilestoneKnowledgeService()
+        result = service.optimize_summary(milestone, user=user)
+        
+        return JsonResponse(result, status=200)
+        
+    except Milestone.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Milestone not found'
+        }, status=404)
+    
+    except MilestoneKnowledgeServiceError as e:
+        logger.error(f'Milestone summary optimization error: {str(e)}')
+        return JsonResponse(e.to_dict(), status=500)
+    
+    except Exception as e:
+        logger.error(f'Error optimizing milestone summary: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to optimize summary',
+            'details': str(e)
         # Enhance summary
         service = MilestoneKnowledgeService()
         result = service.enhance_summary(context_obj)
@@ -4407,6 +4446,22 @@ def api_milestone_context_enhance_summary(request, context_id):
 
 
 @require_http_methods(["POST"])
+def api_milestone_save_optimized_summary(request, milestone_id):
+    """
+    Save an optimized summary to the milestone
+    
+    POST /api/milestones/<milestone_id>/save-optimized-summary
+    
+    Request body:
+    {
+        "optimized_summary": "The optimized text to save",
+        "agent_name": "summary-enhancer-agent",
+        "model_name": "gpt-4"
+    }
+    """
+    from main.models import Milestone
+    from core.services.milestone_knowledge_service import MilestoneKnowledgeService, MilestoneKnowledgeServiceError
+    import json
 @csrf_exempt
 def api_milestone_context_accept_results(request, context_id):
     """
@@ -4429,6 +4484,7 @@ def api_milestone_context_accept_results(request, context_id):
         }, status=401)
     
     try:
+        milestone = Milestone.objects.get(id=milestone_id)
         context_obj = MilestoneContextObject.objects.get(id=context_id)
         milestone = context_obj.milestone
         
@@ -4448,6 +4504,96 @@ def api_milestone_context_accept_results(request, context_id):
                 'error': 'Invalid JSON in request body'
             }, status=400)
         
+        optimized_summary = data.get('optimized_summary', '').strip()
+        agent_name = data.get('agent_name', 'summary-enhancer-agent')
+        model_name = data.get('model_name', 'gpt-4')
+        
+        if not optimized_summary:
+            return JsonResponse({
+                'success': False,
+                'error': 'optimized_summary is required'
+            }, status=400)
+        
+        # Save optimized summary
+        service = MilestoneKnowledgeService()
+        result = service.save_optimized_summary(
+            milestone=milestone,
+            optimized_summary=optimized_summary,
+            user=user,
+            agent_name=agent_name,
+            model_name=model_name
+        )
+        
+        return JsonResponse(result, status=200)
+        
+    except Milestone.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Milestone not found'
+        }, status=404)
+    
+    except MilestoneKnowledgeServiceError as e:
+        logger.error(f'Error saving optimized summary: {str(e)}')
+        return JsonResponse(e.to_dict(), status=500)
+    
+    except Exception as e:
+        logger.error(f'Error saving optimized summary: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to save optimized summary',
+            'details': str(e)
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def api_milestone_summary_history(request, milestone_id):
+    """
+    Get version history of milestone summaries
+    
+    GET /api/milestones/<milestone_id>/summary-history
+    """
+    from main.models import Milestone
+    from core.services.milestone_knowledge_service import MilestoneKnowledgeService, MilestoneKnowledgeServiceError
+    
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        milestone = Milestone.objects.get(id=milestone_id)
+        
+        # Check permissions
+        if user.role != 'admin' and milestone.item.created_by != user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=403)
+        
+        # Get summary history
+        service = MilestoneKnowledgeService()
+        result = service.get_summary_history(milestone)
+        
+        return JsonResponse(result, status=200)
+        
+    except Milestone.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Milestone not found'
+        }, status=404)
+    
+    except MilestoneKnowledgeServiceError as e:
+        logger.error(f'Error retrieving summary history: {str(e)}')
+        return JsonResponse(e.to_dict(), status=500)
+    
+    except Exception as e:
+        logger.error(f'Error retrieving summary history: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to retrieve summary history',
+            'details': str(e)
         summary = data.get('summary')
         derived_tasks = data.get('derived_tasks')
         

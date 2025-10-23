@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Tag, User, Settings, Section, Item, Task, Relation, Milestone, MilestoneContextObject
+from .models import Tag, User, Settings, Section, Item, Task, Relation, Milestone, MilestoneContextObject, MilestoneSummaryVersion
 
 
 @admin.register(Tag)
@@ -110,6 +110,28 @@ class MilestoneContextObjectAdmin(admin.ModelAdmin):
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+
+@admin.register(MilestoneSummaryVersion)
+class MilestoneSummaryVersionAdmin(admin.ModelAdmin):
+    list_display = ['milestone', 'version_number', 'optimized_by_ai', 'agent_name', 'created_by', 'created_at']
+    list_filter = ['optimized_by_ai', 'agent_name', 'model_name', 'created_at']
+    search_fields = ['milestone__name', 'summary_text']
+    readonly_fields = ['id', 'created_at']
+    fieldsets = (
+        ('Version Information', {
+            'fields': ('id', 'milestone', 'version_number')
+        }),
+        ('Content', {
+            'fields': ('summary_text',)
+        }),
+        ('AI Metadata', {
+            'fields': ('optimized_by_ai', 'agent_name', 'model_name')
+        }),
+        ('User Information', {
+            'fields': ('created_by', 'created_at')
         }),
     )
 
