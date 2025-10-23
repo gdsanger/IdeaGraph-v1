@@ -4362,14 +4362,6 @@ def api_milestone_optimize_summary(request, milestone_id):
     Returns optimized summary without saving (preview mode)
     """
     from main.models import Milestone
-@csrf_exempt
-def api_milestone_context_enhance_summary(request, context_id):
-    """
-    Enhance a context object's summary using summary-enhancer-agent
-    
-    POST /api/milestones/context/<context_id>/enhance-summary
-    """
-    from main.models import MilestoneContextObject
     from core.services.milestone_knowledge_service import MilestoneKnowledgeService, MilestoneKnowledgeServiceError
     
     user = get_user_from_request(request)
@@ -4381,8 +4373,6 @@ def api_milestone_context_enhance_summary(request, context_id):
     
     try:
         milestone = Milestone.objects.get(id=milestone_id)
-        context_obj = MilestoneContextObject.objects.get(id=context_id)
-        milestone = context_obj.milestone
         
         # Check permissions
         if user.role != 'admin' and milestone.item.created_by != user:
@@ -4420,6 +4410,37 @@ def api_milestone_context_enhance_summary(request, context_id):
             'success': False,
             'error': 'Failed to optimize summary',
             'details': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+def api_milestone_context_enhance_summary(request, context_id):
+    """
+    Enhance a context object's summary using summary-enhancer-agent
+    
+    POST /api/milestones/context/<context_id>/enhance-summary
+    """
+    from main.models import MilestoneContextObject
+    from core.services.milestone_knowledge_service import MilestoneKnowledgeService, MilestoneKnowledgeServiceError
+    
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        context_obj = MilestoneContextObject.objects.get(id=context_id)
+        milestone = context_obj.milestone
+        
+        # Check permissions
+        if user.role != 'admin' and milestone.item.created_by != user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=403)
+        
         # Enhance summary
         service = MilestoneKnowledgeService()
         result = service.enhance_summary(context_obj)
@@ -4462,19 +4483,6 @@ def api_milestone_save_optimized_summary(request, milestone_id):
     from main.models import Milestone
     from core.services.milestone_knowledge_service import MilestoneKnowledgeService, MilestoneKnowledgeServiceError
     import json
-@csrf_exempt
-def api_milestone_context_accept_results(request, context_id):
-    """
-    Accept and apply analysis results after user review/editing
-    
-    POST /api/milestones/context/<context_id>/accept-results
-    Body: {
-        "summary": "edited summary text",
-        "derived_tasks": [{"title": "...", "description": "..."}]
-    }
-    """
-    from main.models import MilestoneContextObject
-    from core.services.milestone_knowledge_service import MilestoneKnowledgeService, MilestoneKnowledgeServiceError
     
     user = get_user_from_request(request)
     if not user:
@@ -4485,8 +4493,6 @@ def api_milestone_context_accept_results(request, context_id):
     
     try:
         milestone = Milestone.objects.get(id=milestone_id)
-        context_obj = MilestoneContextObject.objects.get(id=context_id)
-        milestone = context_obj.milestone
         
         # Check permissions
         if user.role != 'admin' and milestone.item.created_by != user:
@@ -4545,6 +4551,75 @@ def api_milestone_context_accept_results(request, context_id):
         }, status=500)
 
 
+@csrf_exempt
+def api_milestone_context_accept_results(request, context_id):
+    """
+    Accept and apply analysis results after user review/editing
+    
+    POST /api/milestones/context/<context_id>/accept-results
+    Body: {
+        "summary": "edited summary text",
+        "derived_tasks": [{"title": "...", "description": "..."}]
+    }
+    """
+    from main.models import MilestoneContextObject
+    from core.services.milestone_knowledge_service import MilestoneKnowledgeService, MilestoneKnowledgeServiceError
+    
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        context_obj = MilestoneContextObject.objects.get(id=context_id)
+        milestone = context_obj.milestone
+        
+        # Check permissions
+        if user.role != 'admin' and milestone.item.created_by != user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=403)
+        
+        # Parse request body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid JSON in request body'
+            }, status=400)
+        
+        summary = data.get('summary')
+        derived_tasks = data.get('derived_tasks')
+        
+        # Accept results
+        service = MilestoneKnowledgeService()
+        result = service.accept_analysis_results(context_obj, summary, derived_tasks)
+        
+        return JsonResponse(result)
+        
+    except MilestoneContextObject.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Context object not found'
+        }, status=404)
+    
+    except MilestoneKnowledgeServiceError as e:
+        logger.error(f'Accept results error: {str(e)}')
+        return JsonResponse(e.to_dict(), status=500)
+    
+    except Exception as e:
+        logger.error(f'Error accepting results: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to accept results',
+            'details': 'An error occurred'
+        }, status=500)
+
+
 @require_http_methods(["GET"])
 def api_milestone_summary_history(request, milestone_id):
     """
@@ -4594,31 +4669,6 @@ def api_milestone_summary_history(request, milestone_id):
             'success': False,
             'error': 'Failed to retrieve summary history',
             'details': str(e)
-        summary = data.get('summary')
-        derived_tasks = data.get('derived_tasks')
-        
-        # Accept results
-        service = MilestoneKnowledgeService()
-        result = service.accept_analysis_results(context_obj, summary, derived_tasks)
-        
-        return JsonResponse(result)
-        
-    except MilestoneContextObject.DoesNotExist:
-        return JsonResponse({
-            'success': False,
-            'error': 'Context object not found'
-        }, status=404)
-    
-    except MilestoneKnowledgeServiceError as e:
-        logger.error(f'Accept results error: {str(e)}')
-        return JsonResponse(e.to_dict(), status=500)
-    
-    except Exception as e:
-        logger.error(f'Error accepting results: {str(e)}')
-        return JsonResponse({
-            'success': False,
-            'error': 'Failed to accept results',
-            'details': 'An error occurred'
         }, status=500)
 
 
