@@ -4080,11 +4080,14 @@ def api_milestone_context_summarize(request, milestone_id):
 
 @csrf_exempt
 @require_http_methods(['POST'])
+@require_http_methods(["GET", "POST"])
+@csrf_exempt
 def api_milestone_context_analyze(request, context_id):
     """
-    Analyze a specific context object (summary + task derivation)
+    Analyze a specific context object (summary + task derivation) or retrieve existing analysis
     
-    POST /api/milestones/context/<context_id>/analyze
+    GET /api/milestones/context/<context_id>/analyze - Get existing analysis
+    POST /api/milestones/context/<context_id>/analyze - Run new analysis
     """
     from main.models import MilestoneContextObject
     from core.services.milestone_knowledge_service import MilestoneKnowledgeService, MilestoneKnowledgeServiceError
@@ -4107,7 +4110,21 @@ def api_milestone_context_analyze(request, context_id):
                 'error': 'Permission denied'
             }, status=403)
         
-        # Analyze context object using service
+        # GET request: Return existing analysis data
+        if request.method == 'GET':
+            return JsonResponse({
+                'success': True,
+                'context': {
+                    'id': str(context_obj.id),
+                    'title': context_obj.title,
+                    'type': context_obj.type,
+                    'summary': context_obj.summary,
+                    'derived_tasks': context_obj.derived_tasks,
+                    'analyzed': context_obj.analyzed
+                }
+            })
+        
+        # POST request: Run analysis
         service = MilestoneKnowledgeService()
         result = service.analyze_context_object(context_obj)
         
@@ -4333,6 +4350,130 @@ def api_milestone_context_download(request, context_id):
         return JsonResponse({
             'success': False,
             'error': 'Failed to download file',
+            'details': 'An error occurred'
+        }, status=500)
+
+
+@require_http_methods(["POST"])
+@csrf_exempt
+def api_milestone_context_enhance_summary(request, context_id):
+    """
+    Enhance a context object's summary using summary-enhancer-agent
+    
+    POST /api/milestones/context/<context_id>/enhance-summary
+    """
+    from main.models import MilestoneContextObject
+    from core.services.milestone_knowledge_service import MilestoneKnowledgeService, MilestoneKnowledgeServiceError
+    
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        context_obj = MilestoneContextObject.objects.get(id=context_id)
+        milestone = context_obj.milestone
+        
+        # Check permissions
+        if user.role != 'admin' and milestone.item.created_by != user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=403)
+        
+        # Enhance summary
+        service = MilestoneKnowledgeService()
+        result = service.enhance_summary(context_obj)
+        
+        return JsonResponse(result)
+        
+    except MilestoneContextObject.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Context object not found'
+        }, status=404)
+    
+    except MilestoneKnowledgeServiceError as e:
+        logger.error(f'Summary enhancement error: {str(e)}')
+        return JsonResponse(e.to_dict(), status=500)
+    
+    except Exception as e:
+        logger.error(f'Error enhancing summary: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to enhance summary',
+            'details': 'An error occurred'
+        }, status=500)
+
+
+@require_http_methods(["POST"])
+@csrf_exempt
+def api_milestone_context_accept_results(request, context_id):
+    """
+    Accept and apply analysis results after user review/editing
+    
+    POST /api/milestones/context/<context_id>/accept-results
+    Body: {
+        "summary": "edited summary text",
+        "derived_tasks": [{"title": "...", "description": "..."}]
+    }
+    """
+    from main.models import MilestoneContextObject
+    from core.services.milestone_knowledge_service import MilestoneKnowledgeService, MilestoneKnowledgeServiceError
+    
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        context_obj = MilestoneContextObject.objects.get(id=context_id)
+        milestone = context_obj.milestone
+        
+        # Check permissions
+        if user.role != 'admin' and milestone.item.created_by != user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=403)
+        
+        # Parse request body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid JSON in request body'
+            }, status=400)
+        
+        summary = data.get('summary')
+        derived_tasks = data.get('derived_tasks')
+        
+        # Accept results
+        service = MilestoneKnowledgeService()
+        result = service.accept_analysis_results(context_obj, summary, derived_tasks)
+        
+        return JsonResponse(result)
+        
+    except MilestoneContextObject.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Context object not found'
+        }, status=404)
+    
+    except MilestoneKnowledgeServiceError as e:
+        logger.error(f'Accept results error: {str(e)}')
+        return JsonResponse(e.to_dict(), status=500)
+    
+    except Exception as e:
+        logger.error(f'Error accepting results: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to accept results',
             'details': 'An error occurred'
         }, status=500)
 
