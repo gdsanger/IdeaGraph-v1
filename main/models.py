@@ -449,6 +449,33 @@ class MilestoneContextObject(models.Model):
         return f"{self.get_type_display()}: {self.title}"
 
 
+class MilestoneSummaryVersion(models.Model):
+    """Version history for milestone summary optimizations"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    milestone = models.ForeignKey(Milestone, on_delete=models.CASCADE, related_name='summary_versions')
+    summary_text = models.TextField(help_text='Snapshot of the summary text')
+    version_number = models.IntegerField(default=1, help_text='Sequential version number')
+    
+    # Optimization metadata
+    optimized_by_ai = models.BooleanField(default=False, help_text='Whether this version was AI-optimized')
+    agent_name = models.CharField(max_length=255, blank=True, default='', help_text='Name of the AI agent used')
+    model_name = models.CharField(max_length=255, blank=True, default='', help_text='AI model used for optimization')
+    
+    # User tracking
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='milestone_summary_versions')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-version_number']
+        verbose_name = 'Milestone Summary Version'
+        verbose_name_plural = 'Milestone Summary Versions'
+        unique_together = ['milestone', 'version_number']
+    
+    def __str__(self):
+        return f"Version {self.version_number} - {self.milestone.name}"
+
+
 class Task(models.Model):
     """Task model for managing action items derived from Ideas"""
     

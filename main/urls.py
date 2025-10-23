@@ -162,6 +162,11 @@ urlpatterns = [
     path('api/milestones/context/<uuid:context_id>/create-tasks', api_views.api_milestone_context_create_tasks, name='api_milestone_context_create_tasks'),
     path('api/milestones/context/<uuid:context_id>/download', api_views.api_milestone_context_download, name='api_milestone_context_download'),
     
+    # Milestone Summary Optimization API Endpoints
+    path('api/milestones/<uuid:milestone_id>/optimize-summary', api_views.api_milestone_optimize_summary, name='api_milestone_optimize_summary'),
+    path('api/milestones/<uuid:milestone_id>/save-optimized-summary', api_views.api_milestone_save_optimized_summary, name='api_milestone_save_optimized_summary'),
+    path('api/milestones/<uuid:milestone_id>/summary-history', api_views.api_milestone_summary_history, name='api_milestone_summary_history'),
+    
     # Weaviate Status API Endpoints
     path('api/weaviate/<str:object_type>/<uuid:object_id>/status', api_views.check_weaviate_status, name='api_weaviate_status'),
     path('api/weaviate/<str:object_type>/<uuid:object_id>/add', api_views.add_to_weaviate, name='api_weaviate_add'),

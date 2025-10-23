@@ -590,3 +590,186 @@ class MilestoneKnowledgeService:
                 "Failed to create tasks",
                 details=str(e)
             )
+    
+    def optimize_summary(self, milestone, user=None) -> Dict[str, Any]:
+        """
+        Optimize milestone summary using AI (summary-enhancer-agent)
+        
+        This method:
+        1. Takes the current milestone summary
+        2. Sends it to the summary-enhancer-agent for optimization
+        3. Returns the optimized text without saving it (user must confirm)
+        
+        Args:
+            milestone: Milestone instance
+            user: User requesting the optimization (for audit trail)
+        
+        Returns:
+            Dictionary with optimized summary
+        
+        Raises:
+            MilestoneKnowledgeServiceError: If optimization fails
+        """
+        try:
+            # Check if there's a summary to optimize
+            if not milestone.summary or not milestone.summary.strip():
+                raise MilestoneKnowledgeServiceError(
+                    "No summary text available to optimize"
+                )
+            
+            kigate = KiGateService(self.settings)
+            
+            # Get default model from settings
+            default_model = getattr(self.settings, 'openai_default_model', 'gpt-4') or 'gpt-4'
+            
+            # Build message for the summary enhancer agent
+            optimization_message = f"Milestone: {milestone.name}\n\nAktueller Summary-Text:\n{milestone.summary}"
+            
+            logger.info(f"Optimizing summary for milestone {milestone.id}")
+            
+            # Execute the summary-enhancer-agent
+            result = kigate.execute_agent(
+                agent_name='summary-enhancer-agent',
+                provider='openai',
+                model=default_model,
+                message=optimization_message,
+                user_id=str(user.id) if user else 'system'
+            )
+            
+            optimized_summary = ""
+            if result.get('success') and 'result' in result:
+                if isinstance(result['result'], dict):
+                    optimized_summary = result['result'].get('summary', result['result'].get('optimized_text', ''))
+                else:
+                    optimized_summary = str(result['result'])
+            
+            if not optimized_summary:
+                raise MilestoneKnowledgeServiceError(
+                    "AI optimization returned empty result"
+                )
+            
+            logger.info(f"Successfully optimized summary for milestone {milestone.id}")
+            
+            return {
+                'success': True,
+                'original_summary': milestone.summary,
+                'optimized_summary': optimized_summary,
+                'agent_name': 'summary-enhancer-agent',
+                'model': default_model
+            }
+            
+        except KiGateServiceError as e:
+            logger.error(f"KiGate error during summary optimization: {str(e)}")
+            raise MilestoneKnowledgeServiceError(
+                "AI summary optimization failed",
+                details=str(e)
+            )
+        except Exception as e:
+            logger.error(f"Failed to optimize summary: {str(e)}")
+            raise MilestoneKnowledgeServiceError(
+                "Failed to optimize summary",
+                details=str(e)
+            )
+    
+    def save_optimized_summary(
+        self, 
+        milestone, 
+        optimized_summary: str, 
+        user=None,
+        agent_name: str = 'summary-enhancer-agent',
+        model_name: str = 'gpt-4'
+    ) -> Dict[str, Any]:
+        """
+        Save an optimized summary to the milestone and create a version history entry
+        
+        Args:
+            milestone: Milestone instance
+            optimized_summary: The optimized summary text to save
+            user: User who confirmed the optimization
+            agent_name: Name of the AI agent used
+            model_name: Name of the AI model used
+        
+        Returns:
+            Dictionary with save result
+        
+        Raises:
+            MilestoneKnowledgeServiceError: If save fails
+        """
+        from main.models import MilestoneSummaryVersion
+        
+        try:
+            # Store old summary as a version before updating
+            if milestone.summary:
+                # Get the next version number
+                last_version = milestone.summary_versions.order_by('-version_number').first()
+                next_version = (last_version.version_number + 1) if last_version else 1
+                
+                # Create version entry for the optimized summary
+                MilestoneSummaryVersion.objects.create(
+                    milestone=milestone,
+                    summary_text=optimized_summary,
+                    version_number=next_version,
+                    optimized_by_ai=True,
+                    agent_name=agent_name,
+                    model_name=model_name,
+                    created_by=user
+                )
+            
+            # Update milestone with optimized summary
+            milestone.summary = optimized_summary
+            milestone.save()
+            
+            logger.info(f"Saved optimized summary for milestone {milestone.id}")
+            
+            return {
+                'success': True,
+                'summary': optimized_summary,
+                'message': 'Optimized summary saved successfully'
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to save optimized summary: {str(e)}")
+            raise MilestoneKnowledgeServiceError(
+                "Failed to save optimized summary",
+                details=str(e)
+            )
+    
+    def get_summary_history(self, milestone) -> Dict[str, Any]:
+        """
+        Get version history of milestone summaries
+        
+        Args:
+            milestone: Milestone instance
+        
+        Returns:
+            Dictionary with version history
+        """
+        try:
+            versions = milestone.summary_versions.all()
+            
+            version_list = []
+            for version in versions:
+                version_list.append({
+                    'id': str(version.id),
+                    'version_number': version.version_number,
+                    'summary_text': version.summary_text,
+                    'optimized_by_ai': version.optimized_by_ai,
+                    'agent_name': version.agent_name,
+                    'model_name': version.model_name,
+                    'created_by': version.created_by.username if version.created_by else None,
+                    'created_at': version.created_at.isoformat()
+                })
+            
+            return {
+                'success': True,
+                'versions': version_list,
+                'total_versions': len(version_list),
+                'current_summary': milestone.summary
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get summary history: {str(e)}")
+            raise MilestoneKnowledgeServiceError(
+                "Failed to retrieve summary history",
+                details=str(e)
+            )
