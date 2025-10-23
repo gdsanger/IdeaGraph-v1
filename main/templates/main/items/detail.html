@@ -605,18 +605,7 @@
                                         {% endif %}
                                     </form>
                                     <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" role="switch" id="showCompletedSwitch" {% if show_completed %}checked{% endif %}
-                                               hx-get="?{% if search_query %}search={{ search_query }}&{% endif %}show_completed=true"
-                                               hx-trigger="change[this.checked]"
-                                               hx-target="#item-tasks-table-container"
-                                               hx-swap="innerHTML"
-                                               hx-indicator="#tasks-loading-indicator">
-                                        <input type="checkbox" style="display: none;" id="showCompletedSwitchUnchecked"
-                                               hx-get="?{% if search_query %}search={{ search_query }}&{% endif %}show_completed=false"
-                                               hx-trigger="change from:#showCompletedSwitch[!this.checked]"
-                                               hx-target="#item-tasks-table-container"
-                                               hx-swap="innerHTML"
-                                               hx-indicator="#tasks-loading-indicator">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="showCompletedSwitch" {% if show_completed %}checked{% endif %}>
                                         <label class="form-check-label" for="showCompletedSwitch">
                                             Erledigt anzeigen
                                         </label>
@@ -1393,9 +1382,27 @@ document.querySelector('#confirmSendEmailBtn').addEventListener('click', async f
     }
 });
 
-// Show Completed Tasks Toggle - Now handled by HTMX
-// The checkbox uses HTMX attributes for asynchronous filtering
-// No JavaScript event handler needed
+// Show Completed Tasks Toggle - Using HTMX for async filtering
+const showCompletedSwitch = document.getElementById('showCompletedSwitch');
+if (showCompletedSwitch) {
+    showCompletedSwitch.addEventListener('change', function() {
+        const showCompleted = this.checked ? 'true' : 'false';
+        let url = `?show_completed=${showCompleted}`;
+        
+        // Preserve search query if present
+        const searchQuery = '{{ search_query|escapejs }}';
+        if (searchQuery) {
+            url += `&search=${encodeURIComponent(searchQuery)}`;
+        }
+        
+        // Use HTMX to fetch and update the tasks table
+        htmx.ajax('GET', url, {
+            target: '#item-tasks-table-container',
+            swap: 'innerHTML',
+            indicator: '#tasks-loading-indicator'
+        });
+    });
+}
 
 // Initialize Semantic Network Viewer
 let semanticNetworkViewer;

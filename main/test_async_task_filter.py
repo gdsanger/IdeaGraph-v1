@@ -170,18 +170,15 @@ class AsyncTaskFilterTest(TestCase):
         self.assertIn('pagination', content)
     
     def test_checkbox_has_htmx_attributes(self):
-        """Test that checkbox in full page has HTMX attributes"""
+        """Test that checkbox uses HTMX for async filtering"""
         # Use a simpler approach: test the template source directly
         from django.template.loader import get_template
         
         template = get_template('main/items/detail.html')
         template_source = template.template.source
         
-        # Should have HTMX attributes
-        self.assertIn('hx-get', template_source)
-        self.assertIn('hx-target', template_source)
-        self.assertIn('hx-swap', template_source)
-        self.assertIn('hx-indicator', template_source)
+        # Should have HTMX JavaScript API call
+        self.assertIn('htmx.ajax', template_source)
         
         # Should target the task table container
         self.assertIn('item-tasks-table-container', template_source)
@@ -191,6 +188,9 @@ class AsyncTaskFilterTest(TestCase):
         
         # Should have show_completed parameter
         self.assertIn('show_completed', template_source)
+        
+        # Should preserve search query
+        self.assertIn('search_query', template_source)
     
     def test_combined_filter_and_search(self):
         """Test that filter works together with search"""
