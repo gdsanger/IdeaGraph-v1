@@ -605,7 +605,18 @@
                                         {% endif %}
                                     </form>
                                     <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" role="switch" id="showCompletedSwitch" {% if show_completed %}checked{% endif %}>
+                                        <input class="form-check-input" type="checkbox" role="switch" id="showCompletedSwitch" {% if show_completed %}checked{% endif %}
+                                               hx-get="?{% if search_query %}search={{ search_query }}&{% endif %}show_completed=true"
+                                               hx-trigger="change[this.checked]"
+                                               hx-target="#item-tasks-table-container"
+                                               hx-swap="innerHTML"
+                                               hx-indicator="#tasks-loading-indicator">
+                                        <input type="checkbox" style="display: none;" id="showCompletedSwitchUnchecked"
+                                               hx-get="?{% if search_query %}search={{ search_query }}&{% endif %}show_completed=false"
+                                               hx-trigger="change from:#showCompletedSwitch[!this.checked]"
+                                               hx-target="#item-tasks-table-container"
+                                               hx-swap="innerHTML"
+                                               hx-indicator="#tasks-loading-indicator">
                                         <label class="form-check-label" for="showCompletedSwitch">
                                             Erledigt anzeigen
                                         </label>
@@ -1382,17 +1393,9 @@ document.querySelector('#confirmSendEmailBtn').addEventListener('click', async f
     }
 });
 
-// Show Completed Tasks Toggle
-const showCompletedSwitch = document.getElementById('showCompletedSwitch');
-if (showCompletedSwitch) {
-    showCompletedSwitch.addEventListener('change', function() {
-        const currentUrl = new URL(window.location.href);
-        currentUrl.searchParams.set('show_completed', this.checked ? 'true' : 'false');
-        // Reset to page 1 when toggling completed status
-        currentUrl.searchParams.delete('page');
-        window.location.href = currentUrl.toString();
-    });
-}
+// Show Completed Tasks Toggle - Now handled by HTMX
+// The checkbox uses HTMX attributes for asynchronous filtering
+// No JavaScript event handler needed
 
 // Initialize Semantic Network Viewer
 let semanticNetworkViewer;
