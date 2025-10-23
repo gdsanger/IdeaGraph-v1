@@ -3163,13 +3163,14 @@ def api_semantic_network(request, object_type, object_id):
 @require_http_methods(["POST"])
 def api_item_file_upload(request, item_id):
     """
-    Upload a file for an item
+    Upload one or more files for an item
     
     Supports both JSON API responses and htmx responses.
     For htmx requests, returns the updated file list after upload.
     
     POST data:
-        - file: File upload
+        - file: Single file upload (legacy)
+        - files: Multiple file uploads
     
     Returns:
         - HTML partial with updated file list for htmx requests
@@ -3208,43 +3209,79 @@ def api_item_file_upload(request, item_id):
                 'error': 'You do not have permission to upload files for this item'
             }, status=403)
         
-        # Get uploaded file
-        if 'file' not in request.FILES:
+        # Get uploaded files - support both 'file' (single) and 'files' (multiple)
+        uploaded_files = []
+        if 'files' in request.FILES:
+            uploaded_files = request.FILES.getlist('files')
+        elif 'file' in request.FILES:
+            uploaded_files = [request.FILES['file']]
+        
+        if not uploaded_files:
             if request.headers.get('HX-Request'):
-                return render(request, 'main/items/_files_list.html', {'files': [], 'error': 'No file provided'})
+                return render(request, 'main/items/_files_list.html', {'files': [], 'error': 'No files provided'})
             return JsonResponse({
                 'success': False,
-                'error': 'No file provided'
+                'error': 'No files provided'
             }, status=400)
         
-        uploaded_file = request.FILES['file']
-        
-        # Read file content
-        file_content = uploaded_file.read()
-        filename = uploaded_file.name
-        content_type = uploaded_file.content_type or 'application/octet-stream'
-        
-        # Upload file
+        # Upload all files
         service = ItemFileService()
-        result = service.upload_file(
-            item=item,
-            file_content=file_content,
-            filename=filename,
-            content_type=content_type,
-            user=user
-        )
+        upload_results = []
+        errors = []
         
-        logger.info(f'File uploaded for item {item_id}: {filename}')
+        for uploaded_file in uploaded_files:
+            try:
+                # Read file content
+                file_content = uploaded_file.read()
+                filename = uploaded_file.name
+                content_type = uploaded_file.content_type or 'application/octet-stream'
+                
+                # Upload file
+                result = service.upload_file(
+                    item=item,
+                    file_content=file_content,
+                    filename=filename,
+                    content_type=content_type,
+                    user=user
+                )
+                
+                upload_results.append(result)
+                logger.info(f'File uploaded for item {item_id}: {filename}')
+            except ItemFileServiceError as e:
+                logger.error(f'File upload error for {uploaded_file.name}: {str(e)}')
+                errors.append(f'{uploaded_file.name}: {e.message}')
+            except Exception as e:
+                logger.error(f'Error uploading file {uploaded_file.name}: {str(e)}')
+                errors.append(f'{uploaded_file.name}: Failed to upload')
         
         # For htmx requests, return updated file list
         if request.headers.get('HX-Request'):
-            # Fetch updated file list
-            list_result = service.list_files(str(item_id))
-            # Return HTML partial with updated file list
-            return render(request, 'main/items/_files_list.html', {'files': list_result.get('files', [])})
+            # Fetch updated file list with pagination
+            page = request.GET.get('page', 1)
+            list_result = service.list_files(str(item_id), page=page, per_page=20)
+            
+            context = {
+                'files': list_result.get('files', []),
+                'page': list_result.get('page', 1),
+                'total_pages': list_result.get('total_pages', 1),
+                'total_count': list_result.get('total_count', 0),
+                'item_id': item_id,
+            }
+            
+            # Add error message if any
+            if errors:
+                context['error'] = f'Some files failed to upload: {"; ".join(errors)}'
+            
+            return render(request, 'main/items/_files_list.html', context)
         
         # For regular API requests, return JSON
-        return JsonResponse(result)
+        return JsonResponse({
+            'success': True,
+            'uploaded': len(upload_results),
+            'failed': len(errors),
+            'results': upload_results,
+            'errors': errors
+        })
     
     except ItemFileServiceError as e:
         logger.error(f'File upload error: {str(e)}')
@@ -3257,12 +3294,12 @@ def api_item_file_upload(request, item_id):
         }, status=400)
     
     except Exception as e:
-        logger.error(f'Error uploading file: {str(e)}')
+        logger.error(f'Error uploading files: {str(e)}')
         if request.headers.get('HX-Request'):
-            return render(request, 'main/items/_files_list.html', {'files': [], 'error': 'Failed to upload file'})
+            return render(request, 'main/items/_files_list.html', {'files': [], 'error': 'Failed to upload files'})
         return JsonResponse({
             'success': False,
-            'error': 'Failed to upload file'
+            'error': 'Failed to upload files'
         }, status=500)
 
 
@@ -3270,9 +3307,13 @@ def api_item_file_upload(request, item_id):
 @require_http_methods(["GET"])
 def api_item_file_list(request, item_id):
     """
-    List all files for an item
+    List all files for an item with pagination
     
     Supports both JSON API responses and htmx HTML partial responses.
+    
+    Query parameters:
+        - page: Page number (default: 1)
+        - per_page: Items per page (default: 20)
     
     Returns:
         - HTML partial template for htmx requests
@@ -3315,13 +3356,33 @@ def api_item_file_list(request, item_id):
                 'error': 'You do not have permission to view files for this item'
             }, status=403)
         
-        # List files
+        # Get pagination parameters
+        page = request.GET.get('page', 1)
+        try:
+            page = int(page)
+        except (ValueError, TypeError):
+            page = 1
+        
+        per_page = request.GET.get('per_page', 20)
+        try:
+            per_page = int(per_page)
+        except (ValueError, TypeError):
+            per_page = 20
+        
+        # List files with pagination
         service = ItemFileService()
-        result = service.list_files(str(item_id))
+        result = service.list_files(str(item_id), page=page, per_page=per_page)
         
         # For htmx requests, return HTML partial
         if request.headers.get('HX-Request'):
-            return render(request, 'main/items/_files_list.html', {'files': result.get('files', [])})
+            context = {
+                'files': result.get('files', []),
+                'page': result.get('page', 1),
+                'total_pages': result.get('total_pages', 1),
+                'total_count': result.get('total_count', 0),
+                'item_id': item_id,
+            }
+            return render(request, 'main/items/_files_list.html', context)
         
         # For regular API requests, return JSON
         return JsonResponse(result)

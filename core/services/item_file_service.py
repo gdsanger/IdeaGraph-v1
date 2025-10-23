@@ -468,24 +468,43 @@ class ItemFileService:
             logger.error(f"Error getting download URL: {str(e)}")
             raise ItemFileServiceError(f"Failed to get download URL: {str(e)}")
     
-    def list_files(self, item_id: str) -> Dict[str, Any]:
+    def list_files(self, item_id: str, page: int = 1, per_page: int = 20) -> Dict[str, Any]:
         """
-        List all files for an item
+        List all files for an item with pagination
         
         Args:
             item_id: UUID of Item
+            page: Page number (default: 1)
+            per_page: Items per page (default: 20)
             
         Returns:
-            Dict with success status and list of files
+            Dict with success status, list of files, and pagination info
         """
         from main.models import ItemFile, Item
+        from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
         
         try:
             item = Item.objects.get(id=item_id)
             files = ItemFile.objects.filter(item=item).order_by('-created_at')
             
+            # Paginate files
+            paginator = Paginator(files, per_page)
+            
+            # Handle page number
+            try:
+                page_number = int(page)
+            except (ValueError, TypeError):
+                page_number = 1
+            
+            try:
+                files_page = paginator.page(page_number)
+            except PageNotAnInteger:
+                files_page = paginator.page(1)
+            except EmptyPage:
+                files_page = paginator.page(paginator.num_pages)
+            
             files_data = []
-            for f in files:
+            for f in files_page:
                 files_data.append({
                     'id': str(f.id),
                     'filename': f.filename,
@@ -501,7 +520,12 @@ class ItemFileService:
             return {
                 'success': True,
                 'files': files_data,
-                'count': len(files_data)
+                'count': len(files_data),
+                'total_count': paginator.count,
+                'page': files_page.number,
+                'total_pages': paginator.num_pages,
+                'has_next': files_page.has_next(),
+                'has_previous': files_page.has_previous(),
             }
             
         except Item.DoesNotExist:
