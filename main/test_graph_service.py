@@ -664,3 +664,58 @@ class GraphAPIEndpointsTestCase(TestCase):
             service.mark_message_as_read('invalid-msg-id')
         
         self.assertIn("Failed to mark message as read", str(context.exception))
+    
+    @patch('core.services.graph_service.requests.request')
+    @patch('core.services.graph_service.requests.post')
+    def test_move_message_success(self, mock_post, mock_request):
+        """Test moving message to archive folder successfully"""
+        mock_post.return_value = Mock(
+            status_code=200,
+            json=lambda: {'access_token': 'test-token', 'expires_in': 3600}
+        )
+        
+        mock_request.return_value = Mock(status_code=201)
+        
+        service = GraphService(self.settings)
+        result = service.move_message('msg-123', destination_folder='archive')
+        
+        self.assertTrue(result['success'])
+        self.assertIn('moved to archive', result['message'])
+    
+    @patch('core.services.graph_service.requests.request')
+    @patch('core.services.graph_service.requests.post')
+    def test_move_message_custom_folder(self, mock_post, mock_request):
+        """Test moving message to custom folder"""
+        mock_post.return_value = Mock(
+            status_code=200,
+            json=lambda: {'access_token': 'test-token', 'expires_in': 3600}
+        )
+        
+        mock_request.return_value = Mock(status_code=200)
+        
+        service = GraphService(self.settings)
+        result = service.move_message('msg-123', destination_folder='processed')
+        
+        self.assertTrue(result['success'])
+        self.assertIn('moved to processed', result['message'])
+    
+    @patch('core.services.graph_service.requests.request')
+    @patch('core.services.graph_service.requests.post')
+    def test_move_message_error(self, mock_post, mock_request):
+        """Test error handling when moving message"""
+        mock_post.return_value = Mock(
+            status_code=200,
+            json=lambda: {'access_token': 'test-token', 'expires_in': 3600}
+        )
+        
+        mock_request.return_value = Mock(
+            status_code=404,
+            text='Message not found'
+        )
+        
+        service = GraphService(self.settings)
+        
+        with self.assertRaises(GraphServiceError) as context:
+            service.move_message('invalid-msg-id')
+        
+        self.assertIn("Failed to move message", str(context.exception))
