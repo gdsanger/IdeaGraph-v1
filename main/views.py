@@ -442,6 +442,7 @@ def settings_create(request):
             github_api_base_url=request.POST.get('github_api_base_url', 'https://api.github.com'),
             github_default_owner=request.POST.get('github_default_owner', ''),
             github_default_repo=request.POST.get('github_default_repo', ''),
+            github_copilot_username=request.POST.get('github_copilot_username', ''),
             chroma_api_key=request.POST.get('chroma_api_key', ''),
             chroma_database=request.POST.get('chroma_database', ''),
             chroma_tenant=request.POST.get('chroma_tenant', ''),
@@ -496,6 +497,7 @@ def settings_update(request, pk):
         settings.github_api_base_url = request.POST.get('github_api_base_url', 'https://api.github.com')
         settings.github_default_owner = request.POST.get('github_default_owner', '')
         settings.github_default_repo = request.POST.get('github_default_repo', '')
+        settings.github_copilot_username = request.POST.get('github_copilot_username', '')
         settings.chroma_api_key = request.POST.get('chroma_api_key', '')
         settings.chroma_database = request.POST.get('chroma_database', '')
         settings.chroma_tenant = request.POST.get('chroma_tenant', '')
