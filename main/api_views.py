@@ -58,6 +58,35 @@ def clean_tag_name(tag_text):
     return cleaned if cleaned else None
 
 
+def strip_quotes_from_title(title_text):
+    """
+    Remove quotation marks from the beginning and end of AI-generated titles.
+    
+    The text-to-title-generator agent often returns titles wrapped in quotation marks.
+    This function removes both single and double quotation marks from the start and end
+    of the title string.
+    
+    Args:
+        title_text: Raw title text from AI response
+        
+    Returns:
+        Title without surrounding quotation marks
+    """
+    if not title_text:
+        return title_text
+    
+    cleaned = title_text.strip()
+    
+    # Remove leading and trailing quotation marks (both single and double)
+    if cleaned and cleaned[0] in '"\'':
+        cleaned = cleaned[1:]
+    if cleaned and cleaned[-1] in '"\'':
+        cleaned = cleaned[:-1]
+    
+    # Final cleanup: strip any whitespace that was inside the quotes
+    return cleaned.strip()
+
+
 def get_user_from_token(request):
     """Extract and validate user from JWT token in Authorization header"""
     auth_header = request.headers.get('Authorization', '')
@@ -1404,6 +1433,7 @@ def api_task_generate_title(request, task_id):
             return JsonResponse({'error': title_result.get('error', 'Failed to generate title')}, status=500)
         
         generated_title = title_result.get('result', title_result.get('response', '')).strip()
+        generated_title = strip_quotes_from_title(generated_title)
         if generated_title:
             generated_title = generated_title[:255]  # Limit to field max length
         
@@ -1676,6 +1706,7 @@ def api_task_ai_enhance(request, task_id):
         enhanced_title = title
         if title_result.get('success'):
             generated_title = title_result.get('result', title_result.get('response', '')).strip()
+            generated_title = strip_quotes_from_title(generated_title)
             if generated_title:
                 enhanced_title = generated_title[:255]  # Limit to field max length
         
@@ -1775,6 +1806,7 @@ def api_item_generate_title(request, item_id):
             return JsonResponse({'error': title_result.get('error', 'Failed to generate title')}, status=500)
         
         generated_title = title_result.get('result', title_result.get('response', '')).strip()
+        generated_title = strip_quotes_from_title(generated_title)
         if generated_title:
             generated_title = generated_title[:255]  # Limit to field max length
         
@@ -2034,6 +2066,7 @@ def api_item_ai_enhance(request, item_id):
         enhanced_title = title
         if title_result.get('success'):
             generated_title = title_result.get('result', '').strip()
+            generated_title = strip_quotes_from_title(generated_title)
             if generated_title:
                 enhanced_title = generated_title[:255]  # Limit to field max length
         
