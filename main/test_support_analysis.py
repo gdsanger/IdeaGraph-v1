@@ -288,3 +288,122 @@ class SupportAnalysisTest(TestCase):
         data = json.loads(response.content)
         self.assertFalse(data['success'])
         self.assertEqual(data['error'], 'Service error')
+    
+    @patch('main.api_views.TaskFileService')
+    @patch('main.api_views.WeaviateItemSyncService')
+    def test_api_task_support_analysis_save_success(self, mock_weaviate_service, mock_file_service):
+        """Test successful saving of support analysis"""
+        # Mock TaskFileService
+        mock_file_instance = MagicMock()
+        mock_file_instance.upload_file.return_value = {
+            'success': True,
+            'file_id': 'test-file-id',
+            'filename': 'Support_Analyse_intern_20240101_120000.md',
+            'sharepoint_url': 'https://sharepoint.com/file'
+        }
+        mock_file_service.return_value = mock_file_instance
+        
+        # Mock WeaviateItemSyncService
+        mock_weaviate_instance = MagicMock()
+        mock_collection = MagicMock()
+        mock_weaviate_instance._client.collections.get.return_value = mock_collection
+        mock_weaviate_service.return_value = mock_weaviate_instance
+        
+        # Create request
+        request = self.factory.post(
+            f'/api/tasks/{self.task.id}/support-analysis-save',
+            data=json.dumps({
+                'analysis': '### 🧩 Interne Analyse\n- Test analysis content',
+                'mode': 'internal'
+            }),
+            content_type='application/json'
+        )
+        
+        request.session = {'user_id': str(self.user.id)}
+        
+        # Call the API
+        from main.api_views import api_task_support_analysis_save
+        response = api_task_support_analysis_save(request, self.task.id)
+        
+        # Assert response
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertIn('filename', data)
+        self.assertIn('Support_Analyse', data['filename'])
+        self.assertEqual(data['sharepoint_url'], 'https://sharepoint.com/file')
+        
+        # Verify file service was called
+        mock_file_instance.upload_file.assert_called_once()
+    
+    def test_api_task_support_analysis_save_no_auth(self):
+        """Test saving support analysis without authentication"""
+        request = self.factory.post(
+            f'/api/tasks/{self.task.id}/support-analysis-save',
+            data=json.dumps({
+                'analysis': 'Test analysis',
+                'mode': 'internal'
+            }),
+            content_type='application/json'
+        )
+        
+        # No session data (not logged in)
+        request.session = {}
+        
+        from main.api_views import api_task_support_analysis_save
+        response = api_task_support_analysis_save(request, self.task.id)
+        
+        self.assertEqual(response.status_code, 401)
+        data = json.loads(response.content)
+        self.assertEqual(data['error'], 'Authentication required')
+    
+    def test_api_task_support_analysis_save_missing_analysis(self):
+        """Test saving support analysis with missing analysis content"""
+        request = self.factory.post(
+            f'/api/tasks/{self.task.id}/support-analysis-save',
+            data=json.dumps({
+                'mode': 'internal'
+            }),
+            content_type='application/json'
+        )
+        
+        request.session = {'user_id': str(self.user.id)}
+        
+        from main.api_views import api_task_support_analysis_save
+        response = api_task_support_analysis_save(request, self.task.id)
+        
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertEqual(data['error'], 'Analysis content is required')
+    
+    @patch('main.api_views.TaskFileService')
+    def test_api_task_support_analysis_save_file_error(self, mock_file_service):
+        """Test saving support analysis with file upload error"""
+        from core.services.task_file_service import TaskFileServiceError
+        
+        # Mock service to raise error
+        mock_file_instance = MagicMock()
+        mock_file_instance.upload_file.side_effect = TaskFileServiceError(
+            "Upload failed",
+            details="Test error details"
+        )
+        mock_file_service.return_value = mock_file_instance
+        
+        request = self.factory.post(
+            f'/api/tasks/{self.task.id}/support-analysis-save',
+            data=json.dumps({
+                'analysis': 'Test analysis',
+                'mode': 'internal'
+            }),
+            content_type='application/json'
+        )
+        
+        request.session = {'user_id': str(self.user.id)}
+        
+        from main.api_views import api_task_support_analysis_save
+        response = api_task_support_analysis_save(request, self.task.id)
+        
+        self.assertEqual(response.status_code, 500)
+        data = json.loads(response.content)
+        self.assertFalse(data['success'])
+        self.assertEqual(data['error'], 'Failed to save analysis file')
