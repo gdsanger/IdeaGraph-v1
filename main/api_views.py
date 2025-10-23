@@ -17,6 +17,7 @@ from core.services.github_service import GitHubService, GitHubServiceError
 from core.services.kigate_service import KiGateService, KiGateServiceError
 from core.services.openai_service import OpenAIService, OpenAIServiceError
 from core.services.weaviate_task_sync_service import WeaviateTaskSyncService, WeaviateTaskSyncServiceError
+from core.services.support_advisor_service import SupportAdvisorService, SupportAdvisorServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -2768,7 +2769,6 @@ def api_task_support_analysis_internal(request, task_id):
         return JsonResponse({'error': 'Authentication required'}, status=401)
     
     from .models import Task
-    from core.services.support_advisor_service import SupportAdvisorService, SupportAdvisorServiceError
     
     try:
         task = Task.objects.get(id=task_id)
@@ -2822,7 +2822,6 @@ def api_task_support_analysis_external(request, task_id):
         return JsonResponse({'error': 'Authentication required'}, status=401)
     
     from .models import Task
-    from core.services.support_advisor_service import SupportAdvisorService, SupportAdvisorServiceError
     
     try:
         task = Task.objects.get(id=task_id)
