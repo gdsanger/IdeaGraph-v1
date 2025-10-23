@@ -179,128 +179,151 @@
                     <form method="post" id="taskForm">
                         {% csrf_token %}
                         
-                        <!-- Title -->
-                        <div class="mb-3">
-                            <label for="title" class="form-label">Title</label>
-                            <div class="input-group">
-                                <input type="text" class="form-control" id="title" name="title" value="{{ task.title }}" required>
-                                <button type="button" class="btn btn-outline-success ai-button" id="generateTitleBtn" title="Generate title from description using AI">
-                                    <i class="bi bi-stars"></i>
-                                    <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Description with Toast UI Editor -->
-                        <div class="mb-3">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <label for="description" class="form-label mb-0">Description (Markdown)</label>
-                                <button type="button" class="btn btn-sm btn-outline-success ai-button" id="optimizeDescriptionBtn" title="Optimize description using AI">
-                                    <i class="bi bi-stars"></i> Optimize Text
-                                    <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
-                                </button>
-                            </div>
-                            <div id="editor"></div>
-                            <textarea name="description" id="description" style="display: none;">{{ task.description }}</textarea>
-                        </div>
-
+                        <!-- ROW 1: Title/Description (col-9) and Fields (col-3) -->
                         <div class="row">
-                            <!-- Status -->
-                            <div class="col-md-3 mb-3">
-                                <label for="status" class="form-label">Status</label>
-                                <select class="form-select" id="status" name="status">
-                                    {% for value, label in status_choices %}
-                                    <option value="{{ value }}" {% if task.status == value %}selected{% endif %}>
-                                        {% if value == 'new' %}⚪
-                                        {% elif value == 'working' %}🔵
-                                        {% elif value == 'review' %}🟡
-                                        {% elif value == 'ready' %}🟢
-                                        {% elif value == 'done' %}✅
-                                        {% endif %}
-                                        {{ label }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
+                            <!-- Left Column: Title and Description -->
+                            <div class="col-md-9">
+                                <!-- Title -->
+                                <div class="mb-3">
+                                    <label for="title" class="form-label">Title</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="title" name="title" value="{{ task.title }}" required>
+                                        <button type="button" class="btn btn-outline-success ai-button" id="generateTitleBtn" title="Generate title from description using AI">
+                                            <i class="bi bi-stars"></i>
+                                            <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Description with Toast UI Editor -->
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <label for="description" class="form-label mb-0">Description (Markdown)</label>
+                                        <button type="button" class="btn btn-sm btn-outline-success ai-button" id="optimizeDescriptionBtn" title="Optimize description using AI">
+                                            <i class="bi bi-stars"></i> Optimize Text
+                                            <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                                        </button>
+                                    </div>
+                                    <div id="editor"></div>
+                                    <textarea name="description" id="description" style="display: none;">{{ task.description }}</textarea>
+                                </div>
                             </div>
 
-                            <!-- Milestone -->
-                            <div class="col-md-3 mb-3">
-                                <label for="milestone" class="form-label">Milestone</label>
-                                <select class="form-select" id="milestone" name="milestone">
-                                    <option value="">No Milestone</option>
-                                    {% for milestone in milestones %}
-                                    <option value="{{ milestone.id }}" 
-                                            {% if task.milestone and task.milestone.id == milestone.id %}selected{% endif %}>
-                                        {{ milestone.name }} ({{ milestone.due_date|date:"d.m.Y" }})
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
+                            <!-- Right Column: Other Fields -->
+                            <div class="col-md-3">
+                                <!-- Status -->
+                                <div class="mb-3">
+                                    <label for="status" class="form-label">Status</label>
+                                    <select class="form-select" id="status" name="status">
+                                        {% for value, label in status_choices %}
+                                        <option value="{{ value }}" {% if task.status == value %}selected{% endif %}>
+                                            {% if value == 'new' %}⚪
+                                            {% elif value == 'working' %}🔵
+                                            {% elif value == 'review' %}🟡
+                                            {% elif value == 'ready' %}🟢
+                                            {% elif value == 'done' %}✅
+                                            {% endif %}
+                                            {{ label }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
 
-                            <!-- Requester -->
-                            <div class="col-md-3 mb-3">
-                                <label for="requester" class="form-label">Requester</label>
-                                <select class="form-select" id="requester" name="requester">
-                                    <option value="">-- No Requester --</option>
-                                    {% for user in all_users %}
-                                    <option value="{{ user.id }}" {% if task.requester and task.requester.id == user.id %}selected{% endif %}>
-                                        {{ user.username }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
+                                <!-- Milestone -->
+                                <div class="mb-3">
+                                    <label for="milestone" class="form-label">Milestone</label>
+                                    <select class="form-select" id="milestone" name="milestone">
+                                        <option value="">No Milestone</option>
+                                        {% for milestone in milestones %}
+                                        <option value="{{ milestone.id }}" 
+                                                {% if task.milestone and task.milestone.id == milestone.id %}selected{% endif %}>
+                                            {{ milestone.name }} ({{ milestone.due_date|date:"d.m.Y" }})
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
 
-                            <!-- GitHub Issue ID (readonly) -->
-                            <div class="col-md-3 mb-3">
-                                <label for="github_issue_id" class="form-label">GitHub Issue</label>
-                                <input type="text" class="form-control" id="github_issue_id" 
-                                       value="{% if task.github_issue_id %}#{{ task.github_issue_id }}{% else %}-{% endif %}" 
-                                       readonly>
-                                {% if task.github_issue_url %}
-                                <small class="text-muted">
-                                    <a href="{{ task.github_issue_url }}" target="_blank" class="text-decoration-none">
-                                        <i class="bi bi-box-arrow-up-right"></i> Open in GitHub
+                                <!-- Requester -->
+                                <div class="mb-3">
+                                    <label for="requester" class="form-label">Requester</label>
+                                    <select class="form-select" id="requester" name="requester">
+                                        <option value="">-- No Requester --</option>
+                                        {% for user in all_users %}
+                                        <option value="{{ user.id }}" {% if task.requester and task.requester.id == user.id %}selected{% endif %}>
+                                            {{ user.username }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <!-- GitHub Issue ID (readonly) -->
+                                <div class="mb-3">
+                                    <label for="github_issue_id" class="form-label">GitHub Issue</label>
+                                    <input type="text" class="form-control" id="github_issue_id" 
+                                           value="{% if task.github_issue_id %}#{{ task.github_issue_id }}{% else %}-{% endif %}" 
+                                           readonly>
+                                    {% if task.github_issue_url %}
+                                    <small class="text-muted">
+                                        <a href="{{ task.github_issue_url }}" target="_blank" class="text-decoration-none">
+                                            <i class="bi bi-box-arrow-up-right"></i> Open in GitHub
+                                        </a>
+                                    </small>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Tags -->
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <label class="form-label mb-0">Tags</label>
+                                        <button type="button" class="btn btn-sm btn-outline-success ai-button" id="extractTagsBtn" title="Extract tags from description using AI">
+                                            <i class="bi bi-stars"></i>
+                                            <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                                        </button>
+                                    </div>
+                                    <div id="taskDetailTagTokenBox" class="tag-token-box"></div>
+                                    <div id="taskDetailTagHiddenInputs"></div>
+                                    <small class="text-muted">Type a tag name and press Enter to add it. Existing tags will appear as suggestions.</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ROW 2: Action Buttons (col-12) -->
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="bi bi-save"></i> Save
+                                    </button>
+                                    <a href="{% url 'main:task_delete' task.id %}" class="btn btn-danger">
+                                        <i class="bi bi-trash"></i> Delete
                                     </a>
-                                </small>
-                                {% endif %}
-                            </div>
-
-                            <!-- Tags -->
-                            <div class="col-md-3 mb-3">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <label class="form-label mb-0">Tags</label>
-                                    <button type="button" class="btn btn-sm btn-outline-success ai-button" id="extractTagsBtn" title="Extract tags from description using AI">
-                                        <i class="bi bi-stars"></i>
-                                        <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                                    <button type="button" class="btn btn-warning ai-button" id="moveTaskBtn" data-bs-toggle="modal" data-bs-target="#moveTaskModal">
+                                        <span class="button-text"><i class="bi bi-folder-symlink"></i> Move Task</span>
+                                    </button>
+                                    <button type="button" class="btn btn-success ai-button" id="aiEnhanceBtn">
+                                        <span class="button-text"><i class="bi bi-stars"></i> AI Enhancer</span>
+                                        <span class="spinner-border" role="status"></span>
+                                    </button>
+                                    <button type="button" class="btn btn-info ai-button" id="createGitHubIssueBtn" 
+                                            {% if task.status != 'ready' or task.github_issue_id %}disabled 
+                                            title="{% if task.github_issue_id %}Issue already created{% else %}Only available when status is Ready{% endif %}"{% endif %}>
+                                        <span class="button-text"><i class="bi bi-github"></i> Create GitHub Issue</span>
+                                        <span class="spinner-border" role="status"></span>
                                     </button>
                                 </div>
-                                <div id="taskDetailTagTokenBox" class="tag-token-box"></div>
-                                <div id="taskDetailTagHiddenInputs"></div>
-                                <small class="text-muted">Type a tag name and press Enter to add it. Existing tags will appear as suggestions.</small>
                             </div>
                         </div>
 
-                        <!-- Action Buttons -->
-                        <div class="d-flex gap-2 flex-wrap">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-save"></i> Save
-                            </button>
-                            <a href="{% url 'main:task_delete' task.id %}" class="btn btn-danger">
-                                <i class="bi bi-trash"></i> Delete
-                            </a>
-                            <button type="button" class="btn btn-warning ai-button" id="moveTaskBtn" data-bs-toggle="modal" data-bs-target="#moveTaskModal">
-                                <span class="button-text"><i class="bi bi-folder-symlink"></i> Move Task</span>
-                            </button>
-                            <button type="button" class="btn btn-success ai-button" id="aiEnhanceBtn">
-                                <span class="button-text"><i class="bi bi-stars"></i> AI Enhancer</span>
-                                <span class="spinner-border" role="status"></span>
-                            </button>
-                            <button type="button" class="btn btn-info ai-button" id="createGitHubIssueBtn" 
-                                    {% if task.status != 'ready' or task.github_issue_id %}disabled 
-                                    title="{% if task.github_issue_id %}Issue already created{% else %}Only available when status is Ready{% endif %}"{% endif %}>
-                                <span class="button-text"><i class="bi bi-github"></i> Create GitHub Issue</span>
-                                <span class="spinner-border" role="status"></span>
-                            </button>
+                        <!-- ROW 3: Metadata (col-12) -->
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <small class="text-muted">
+                                    <i class="bi bi-clock-history"></i> CreatedAt: {{ task.created_at|date:"Y-m-d H:i" }}
+                                    {% if task.item %}
+                                    · Owner: <a href="{% url 'main:item_detail' task.item.id %}">{{ task.item.title }}</a>
+                                    {% endif %}
+                                </small>
+                            </div>
                         </div>
                     </form>
                 </div>
