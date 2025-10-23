@@ -6,7 +6,6 @@ import uuid
 from django.test import TestCase, RequestFactory
 from main.models import User, Item, Task, Section
 from main.api_views import (
-    api_task_similar,
     api_task_ai_enhance,
     api_task_create_github_issue,
     api_item_ai_enhance,
@@ -85,58 +84,6 @@ class HybridAuthenticationTestCase(TestCase):
         
         user = get_user_from_request(request)
         self.assertIsNone(user)
-    
-    def test_api_task_similar_with_jwt(self):
-        """Test api_task_similar with JWT authentication"""
-        request = self.factory.get(f'/api/tasks/{self.task.id}/similar')
-        request.META['HTTP_AUTHORIZATION'] = f'Bearer {self.jwt_token}'
-        
-        response = api_task_similar(request, self.task.id)
-        self.assertEqual(response.status_code, 200)
-        
-        data = json.loads(response.content)
-        self.assertTrue(data.get('success'))
-    
-    def test_api_task_similar_with_session(self):
-        """Test api_task_similar with session authentication"""
-        request = self.factory.get(f'/api/tasks/{self.task.id}/similar')
-        request.session = {
-            'user_id': str(self.user.id)
-        }
-        
-        response = api_task_similar(request, self.task.id)
-        self.assertEqual(response.status_code, 200)
-        
-        data = json.loads(response.content)
-        self.assertTrue(data.get('success'))
-    
-    def test_api_task_similar_without_auth(self):
-        """Test api_task_similar without authentication returns 401"""
-        request = self.factory.get(f'/api/tasks/{self.task.id}/similar')
-        request.session = {}
-        
-        response = api_task_similar(request, self.task.id)
-        self.assertEqual(response.status_code, 401)
-    
-    def test_api_task_similar_access_denied_for_other_user(self):
-        """Test api_task_similar returns 403 for unauthorized user"""
-        # Create another user
-        other_user = User(
-            username='otheruser',
-            email='other@example.com',
-            role='user',
-            is_active=True
-        )
-        other_user.set_password('OtherPassword123!')
-        other_user.save()
-        
-        request = self.factory.get(f'/api/tasks/{self.task.id}/similar')
-        request.session = {
-            'user_id': str(other_user.id)
-        }
-        
-        response = api_task_similar(request, self.task.id)
-        self.assertEqual(response.status_code, 403)
     
     def test_api_task_ai_enhance_with_session(self):
         """Test api_task_ai_enhance with session authentication"""
