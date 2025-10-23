@@ -520,6 +520,138 @@ class MilestoneKnowledgeService:
                 details=str(e)
             )
     
+    def enhance_summary(self, context_obj) -> Dict[str, Any]:
+        """
+        Enhance a context object's summary using the summary-enhancer-agent
+        
+        Args:
+            context_obj: MilestoneContextObject instance with an existing summary
+        
+        Returns:
+            Dictionary with enhanced summary
+        
+        Raises:
+            MilestoneKnowledgeServiceError: If enhancement fails
+        """
+        try:
+            if not context_obj.summary:
+                raise MilestoneKnowledgeServiceError(
+                    "Cannot enhance empty summary. Generate a summary first."
+                )
+            
+            kigate = KiGateService(self.settings)
+            
+            # Get default model from settings
+            default_model = getattr(self.settings, 'openai_default_model', 'gpt-4') or 'gpt-4'
+            
+            logger.info(f"Enhancing summary for context object {context_obj.id}")
+            
+            enhance_result = kigate.execute_agent(
+                agent_name='summary-enhancer-agent',
+                provider='openai',
+                model=default_model,
+                message=context_obj.summary,
+                user_id='system',
+                parameters={
+                    'context': f"Milestone: {context_obj.milestone.name}"
+                }
+            )
+            
+            enhanced_summary = ""
+            if enhance_result.get('success') and 'result' in enhance_result:
+                if isinstance(enhance_result['result'], dict):
+                    enhanced_summary = enhance_result['result'].get('enhanced_summary', '') or enhance_result['result'].get('summary', '')
+                else:
+                    enhanced_summary = str(enhance_result['result'])
+            
+            if not enhanced_summary:
+                raise MilestoneKnowledgeServiceError(
+                    "Summary enhancement returned empty result"
+                )
+            
+            # Update context object with enhanced summary
+            context_obj.summary = enhanced_summary
+            context_obj.save()
+            
+            logger.info(f"Enhanced summary for context object {context_obj.id}")
+            
+            return {
+                'success': True,
+                'enhanced_summary': enhanced_summary
+            }
+            
+        except KiGateServiceError as e:
+            logger.error(f"KiGate error during summary enhancement: {str(e)}")
+            raise MilestoneKnowledgeServiceError(
+                "AI summary enhancement failed",
+                details=str(e)
+            )
+        except Exception as e:
+            logger.error(f"Failed to enhance summary: {str(e)}")
+            raise MilestoneKnowledgeServiceError(
+                "Failed to enhance summary",
+                details=str(e)
+            )
+    
+    def accept_analysis_results(self, context_obj, summary: str = None, derived_tasks: list = None) -> Dict[str, Any]:
+        """
+        Accept and apply analysis results to a context object after user review/editing
+        
+        Args:
+            context_obj: MilestoneContextObject instance
+            summary: Optional edited summary (uses existing if None)
+            derived_tasks: Optional edited task list (uses existing if None)
+        
+        Returns:
+            Dictionary with acceptance result
+        
+        Raises:
+            MilestoneKnowledgeServiceError: If acceptance fails
+        """
+        try:
+            # Update summary if provided
+            if summary is not None:
+                context_obj.summary = summary
+            
+            # Update derived tasks if provided
+            if derived_tasks is not None:
+                context_obj.derived_tasks = derived_tasks
+            
+            # Mark as analyzed
+            context_obj.analyzed = True
+            context_obj.save()
+            
+            # Update milestone summary to include this context object's summary
+            milestone = context_obj.milestone
+            
+            # Add source reference to the summary
+            source_reference = f"\n\n– aus ContextObject [{context_obj.title}]"
+            summary_with_reference = context_obj.summary + source_reference
+            
+            # Append to milestone summary or create new one
+            if milestone.summary:
+                milestone.summary += f"\n\n{summary_with_reference}"
+            else:
+                milestone.summary = summary_with_reference
+            
+            milestone.save()
+            
+            logger.info(f"Accepted analysis results for context object {context_obj.id}")
+            
+            return {
+                'success': True,
+                'message': 'Analysis results accepted and applied',
+                'summary': context_obj.summary,
+                'derived_tasks_count': len(context_obj.derived_tasks) if context_obj.derived_tasks else 0
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to accept analysis results: {str(e)}")
+            raise MilestoneKnowledgeServiceError(
+                "Failed to accept analysis results",
+                details=str(e)
+            )
+    
     def create_tasks_from_context(self, context_obj, milestone, user=None) -> Dict[str, Any]:
         """
         Create actual Task objects from derived tasks in a context object

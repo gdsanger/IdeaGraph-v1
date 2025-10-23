@@ -161,6 +161,8 @@ urlpatterns = [
     path('api/milestones/<uuid:milestone_id>/context', api_views.api_milestone_context_list, name='api_milestone_context_list'),
     path('api/milestones/context/<uuid:context_id>/create-tasks', api_views.api_milestone_context_create_tasks, name='api_milestone_context_create_tasks'),
     path('api/milestones/context/<uuid:context_id>/download', api_views.api_milestone_context_download, name='api_milestone_context_download'),
+    path('api/milestones/context/<uuid:context_id>/enhance-summary', api_views.api_milestone_context_enhance_summary, name='api_milestone_context_enhance_summary'),
+    path('api/milestones/context/<uuid:context_id>/accept-results', api_views.api_milestone_context_accept_results, name='api_milestone_context_accept_results'),
     
     # Milestone Summary Optimization API Endpoints
     path('api/milestones/<uuid:milestone_id>/optimize-summary', api_views.api_milestone_optimize_summary, name='api_milestone_optimize_summary'),

@@ -174,6 +174,79 @@ class MilestoneKnowledgeServiceTest(TestCase):
         self.milestone.refresh_from_db()
         self.assertIsNotNone(self.milestone.summary)
     
+    @patch('core.services.milestone_knowledge_service.KiGateService')
+    def test_enhance_summary(self, mock_kigate):
+        """Test enhancing a context object's summary"""
+        # Create context with existing summary
+        context = MilestoneContextObject.objects.create(
+            milestone=self.milestone,
+            type='note',
+            title='Test Note',
+            content='Test content',
+            summary='Original summary',
+            analyzed=True,
+            uploaded_by=self.user
+        )
+        
+        # Mock KiGate response
+        mock_instance = MagicMock()
+        mock_kigate.return_value = mock_instance
+        mock_instance.execute_agent.return_value = {
+            'success': True,
+            'result': {
+                'enhanced_summary': 'This is an enhanced and improved summary.'
+            }
+        }
+        
+        service = MilestoneKnowledgeService()
+        result = service.enhance_summary(context)
+        
+        self.assertTrue(result['success'])
+        self.assertIn('enhanced_summary', result)
+        
+        # Verify context was updated
+        context.refresh_from_db()
+        self.assertEqual(context.summary, 'This is an enhanced and improved summary.')
+    
+    def test_accept_analysis_results(self):
+        """Test accepting analysis results with edited data"""
+        # Create context with analysis results
+        context = MilestoneContextObject.objects.create(
+            milestone=self.milestone,
+            type='file',
+            title='Document.pdf',
+            content='Document content',
+            summary='Original summary',
+            derived_tasks=[
+                {'Titel': 'Task 1', 'Beschreibung': 'Description 1'}
+            ],
+            analyzed=False,
+            uploaded_by=self.user
+        )
+        
+        service = MilestoneKnowledgeService()
+        result = service.accept_analysis_results(
+            context,
+            summary='Edited summary after review',
+            derived_tasks=[
+                {'Titel': 'Edited Task', 'Beschreibung': 'Edited description'},
+                {'Titel': 'New Task', 'Beschreibung': 'New task description'}
+            ]
+        )
+        
+        self.assertTrue(result['success'])
+        
+        # Verify context was updated
+        context.refresh_from_db()
+        self.assertEqual(context.summary, 'Edited summary after review')
+        self.assertEqual(len(context.derived_tasks), 2)
+        self.assertTrue(context.analyzed)
+        
+        # Verify milestone summary was updated with source reference
+        self.milestone.refresh_from_db()
+        self.assertIn('Edited summary after review', self.milestone.summary)
+        self.assertIn('– aus ContextObject [Document.pdf]', self.milestone.summary)
+    
     def test_create_tasks_from_context(self):
         """Test creating tasks from derived tasks in context"""
         # Create context with derived tasks
@@ -433,3 +506,121 @@ class MilestoneKnowledgeAPITest(TestCase):
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, 403)
+    
+    @patch('core.services.milestone_knowledge_service.KiGateService')
+    def test_api_milestone_context_enhance_summary(self, mock_kigate):
+        """Test API endpoint for enhancing summary"""
+        # Setup mock
+        mock_instance = MagicMock()
+        mock_instance.execute_agent.return_value = {
+            'success': True,
+            'result': {'enhanced_summary': 'This is an enhanced summary with better clarity.'}
+        }
+        mock_kigate.return_value = mock_instance
+        
+        # Create context with existing summary
+        context = MilestoneContextObject.objects.create(
+            milestone=self.milestone,
+            type='note',
+            title='Test Note',
+            content='Test content',
+            summary='Original summary',
+            analyzed=True,
+            uploaded_by=self.user
+        )
+        
+        # Login
+        session = self.client.session
+        session['user_id'] = str(self.user.id)
+        session.save()
+        
+        url = reverse('main:api_milestone_context_enhance_summary', kwargs={'context_id': context.id})
+        response = self.client.post(url)
+        
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertIn('enhanced_summary', data)
+        
+        # Verify context object was updated
+        context.refresh_from_db()
+        self.assertEqual(context.summary, 'This is an enhanced summary with better clarity.')
+    
+    @patch('core.services.milestone_knowledge_service.KiGateService')
+    def test_api_milestone_context_accept_results(self, mock_kigate):
+        """Test API endpoint for accepting results"""
+        # Create context with analysis results
+        context = MilestoneContextObject.objects.create(
+            milestone=self.milestone,
+            type='note',
+            title='Test Note',
+            content='Test content',
+            summary='Test summary',
+            derived_tasks=[
+                {'Titel': 'Task 1', 'Beschreibung': 'Description 1'},
+                {'Titel': 'Task 2', 'Beschreibung': 'Description 2'}
+            ],
+            analyzed=False,
+            uploaded_by=self.user
+        )
+        
+        # Login
+        session = self.client.session
+        session['user_id'] = str(self.user.id)
+        session.save()
+        
+        # Accept results with edited data
+        url = reverse('main:api_milestone_context_accept_results', kwargs={'context_id': context.id})
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'summary': 'Edited summary',
+                'derived_tasks': [
+                    {'Titel': 'Edited Task', 'Beschreibung': 'Edited description'}
+                ]
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        
+        # Verify context was updated
+        context.refresh_from_db()
+        self.assertEqual(context.summary, 'Edited summary')
+        self.assertEqual(len(context.derived_tasks), 1)
+        self.assertTrue(context.analyzed)
+        
+        # Verify milestone summary was updated with source reference
+        self.milestone.refresh_from_db()
+        self.assertIn('Edited summary', self.milestone.summary)
+        self.assertIn('– aus ContextObject [Test Note]', self.milestone.summary)
+    
+    def test_api_milestone_context_analyze_get(self, ):
+        """Test GET request to analyze endpoint returns existing analysis"""
+        # Create context with analysis results
+        context = MilestoneContextObject.objects.create(
+            milestone=self.milestone,
+            type='note',
+            title='Test Note',
+            content='Test content',
+            summary='Existing summary',
+            derived_tasks=[{'Titel': 'Task 1'}],
+            analyzed=True,
+            uploaded_by=self.user
+        )
+        
+        # Login
+        session = self.client.session
+        session['user_id'] = str(self.user.id)
+        session.save()
+        
+        url = reverse('main:api_milestone_context_analyze', kwargs={'context_id': context.id})
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['context']['summary'], 'Existing summary')
+        self.assertEqual(len(data['context']['derived_tasks']), 1)
