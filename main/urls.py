@@ -129,6 +129,7 @@ urlpatterns = [
     path('api/tasks/<uuid:task_id>/move', api_views.api_task_move, name='api_task_move'),
     path('api/tasks/overview', api_views.api_task_overview, name='api_task_overview'),
     path('api/tasks/bulk-delete', api_views.api_task_bulk_delete, name='api_task_bulk_delete'),
+    path('api/items/for-move', api_views.api_get_items_for_move, name='api_get_items_for_move'),
     
     # Tags Network Graph API
     path('api/tags/network-data', api_views.api_tags_network_data, name='api_tags_network_data'),

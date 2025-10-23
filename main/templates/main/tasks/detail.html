@@ -274,6 +274,9 @@
                             <a href="{% url 'main:task_delete' task.id %}" class="btn btn-danger">
                                 <i class="bi bi-trash"></i> Delete
                             </a>
+                            <button type="button" class="btn btn-warning ai-button" id="moveTaskBtn" data-bs-toggle="modal" data-bs-target="#moveTaskModal">
+                                <span class="button-text"><i class="bi bi-folder-symlink"></i> Move Task</span>
+                            </button>
                             <button type="button" class="btn btn-success ai-button" id="aiEnhanceBtn">
                                 <span class="button-text"><i class="bi bi-stars"></i> AI Enhancer</span>
                                 <span class="spinner-border" role="status"></span>
@@ -353,6 +356,45 @@
         <!-- End Right Column -->
     </div>
     <!-- End Two-Column Layout -->
+
+    <!-- Move Task Modal -->
+    <div class="modal fade" id="moveTaskModal" tabindex="-1" aria-labelledby="moveTaskModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="moveTaskModalLabel">
+                        <i class="bi bi-folder-symlink"></i> Move Task
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Select the item you want to move this task to:</p>
+                    <div class="mb-3">
+                        <label for="targetItemSelect" class="form-label">Target Item</label>
+                        <select class="form-select" id="targetItemSelect">
+                            <option value="">Loading items...</option>
+                        </select>
+                        {% if task.item %}
+                        <small class="text-muted">
+                            Current item: <strong>{{ task.item.title }}</strong>
+                        </small>
+                        {% else %}
+                        <small class="text-muted">
+                            This task is currently not associated with any item.
+                        </small>
+                        {% endif %}
+                    </div>
+                    <div id="moveTaskAlert" class="alert" style="display: none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-warning" id="confirmMoveBtn">
+                        <i class="bi bi-folder-symlink"></i> Move Task
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -729,6 +771,106 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Load the semantic network
     semanticNetworkViewer.load('task', '{{ task.id }}');
+});
+
+// Move Task Modal functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const moveTaskModal = document.getElementById('moveTaskModal');
+    const targetItemSelect = document.getElementById('targetItemSelect');
+    const confirmMoveBtn = document.getElementById('confirmMoveBtn');
+    const moveTaskAlert = document.getElementById('moveTaskAlert');
+    
+    // Load items when modal is shown
+    moveTaskModal.addEventListener('show.bs.modal', async function() {
+        try {
+            const response = await fetch('/api/items/for-move');
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                // Populate the select dropdown
+                targetItemSelect.innerHTML = '<option value="">-- Select an Item --</option>';
+                data.items.forEach(item => {
+                    // Don't show the current item in the dropdown
+                    {% if task.item %}
+                    if (item.id !== '{{ task.item.id }}') {
+                    {% endif %}
+                        const option = document.createElement('option');
+                        option.value = item.id;
+                        option.textContent = item.title;
+                        targetItemSelect.appendChild(option);
+                    {% if task.item %}
+                    }
+                    {% endif %}
+                });
+            } else {
+                targetItemSelect.innerHTML = '<option value="">Error loading items</option>';
+                showMoveAlert('Failed to load items', 'danger');
+            }
+        } catch (error) {
+            console.error('Error loading items:', error);
+            targetItemSelect.innerHTML = '<option value="">Error loading items</option>';
+            showMoveAlert('Error: ' + error.message, 'danger');
+        }
+    });
+    
+    // Handle move button click
+    confirmMoveBtn.addEventListener('click', async function() {
+        const targetItemId = targetItemSelect.value;
+        
+        if (!targetItemId) {
+            showMoveAlert('Please select a target item', 'warning');
+            return;
+        }
+        
+        // Disable button during request
+        confirmMoveBtn.disabled = true;
+        confirmMoveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Moving...';
+        
+        try {
+            const response = await fetch('/api/tasks/{{ task.id }}/move', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({
+                    target_item_id: targetItemId
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                showMoveAlert(data.message, 'success');
+                
+                // Reload page after 1.5 seconds to reflect changes
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                showMoveAlert(data.error || 'Failed to move task', 'danger');
+                confirmMoveBtn.disabled = false;
+                confirmMoveBtn.innerHTML = '<i class="bi bi-folder-symlink"></i> Move Task';
+            }
+        } catch (error) {
+            console.error('Error moving task:', error);
+            showMoveAlert('Error: ' + error.message, 'danger');
+            confirmMoveBtn.disabled = false;
+            confirmMoveBtn.innerHTML = '<i class="bi bi-folder-symlink"></i> Move Task';
+        }
+    });
+    
+    // Helper to show alerts in the modal
+    function showMoveAlert(message, type) {
+        moveTaskAlert.className = `alert alert-${type}`;
+        moveTaskAlert.textContent = message;
+        moveTaskAlert.style.display = 'block';
+        
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+            moveTaskAlert.style.display = 'none';
+        }, 3000);
+    }
 });
 </script>
 {% endblock %}
