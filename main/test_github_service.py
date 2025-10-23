@@ -581,3 +581,109 @@ class GitHubAPIEndpointsTestCase(TestCase):
                 content_type='application/json'
             )
             self.assertEqual(response.status_code, 403)
+
+
+class GitHubServiceCommentTestCase(TestCase):
+    """Test suite for GitHubService comment methods"""
+    
+    def setUp(self):
+        """Set up test data"""
+        self.settings = Settings.objects.create(
+            github_api_enabled=True,
+            github_token='ghp_test_token_1234567890',
+            github_api_base_url='https://api.github.com',
+            github_default_owner='test-owner',
+            github_default_repo='test-repo',
+            github_copilot_username='copilot'
+        )
+    
+    @patch('core.services.github_service.requests.request')
+    def test_create_issue_comment_success(self, mock_request):
+        """Test creating a comment on an issue successfully"""
+        mock_request.return_value = Mock(
+            status_code=201,
+            json=lambda: {
+                'id': 12345,
+                'body': 'Test comment',
+                'html_url': 'https://github.com/owner/repo/issues/42#issuecomment-12345',
+                'created_at': '2025-10-23T00:00:00Z'
+            },
+            content=b'...'
+        )
+        
+        service = GitHubService(self.settings)
+        result = service.create_issue_comment(
+            issue_number=42,
+            body='Test comment',
+            owner='owner',
+            repo='repo'
+        )
+        
+        self.assertTrue(result['success'])
+        self.assertEqual(result['comment_id'], 12345)
+        self.assertIn('github.com', result['url'])
+        
+        # Verify request data
+        call_args = mock_request.call_args
+        json_data = call_args[1]['json']
+        self.assertEqual(json_data['body'], 'Test comment')
+        self.assertIn('/issues/42/comments', call_args[1]['url'])
+    
+    @patch('core.services.github_service.requests.request')
+    def test_create_issue_comment_with_defaults(self, mock_request):
+        """Test creating comment using default owner/repo from settings"""
+        mock_request.return_value = Mock(
+            status_code=201,
+            json=lambda: {
+                'id': 1,
+                'body': 'Comment',
+                'html_url': 'https://github.com/test-owner/test-repo/issues/1#issuecomment-1'
+            },
+            content=b'...'
+        )
+        
+        service = GitHubService(self.settings)
+        result = service.create_issue_comment(issue_number=1, body='Comment')
+        
+        self.assertTrue(result['success'])
+        
+        # Verify default owner/repo was used
+        call_args = mock_request.call_args
+        url = call_args[1]['url']
+        self.assertIn('test-owner/test-repo', url)
+    
+    @patch('core.services.github_service.requests.request')
+    def test_create_issue_comment_missing_repo_info(self, mock_request):
+        """Test creating comment without repo info raises error"""
+        self.settings.github_default_owner = ''
+        self.settings.github_default_repo = ''
+        self.settings.save()
+        
+        service = GitHubService(self.settings)
+        
+        with self.assertRaises(GitHubServiceError) as context:
+            service.create_issue_comment(issue_number=1, body='Comment')
+        
+        self.assertIn("Repository information required", str(context.exception))
+    
+    @patch('core.services.github_service.requests.request')
+    def test_create_issue_comment_error(self, mock_request):
+        """Test error handling when creating comment"""
+        mock_request.return_value = Mock(
+            status_code=404,
+            text='Not Found',
+            json=lambda: {'message': 'Issue not found'},
+            content=b'...'
+        )
+        
+        service = GitHubService(self.settings)
+        
+        with self.assertRaises(GitHubServiceError) as context:
+            service.create_issue_comment(
+                issue_number=999,
+                body='Comment',
+                owner='owner',
+                repo='repo'
+            )
+        
+        self.assertEqual(context.exception.status_code, 404)

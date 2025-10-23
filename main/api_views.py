@@ -2352,6 +2352,13 @@ def api_task_create_github_issue(request, task_id):
         # Prepare labels from tags
         labels = [tag.name for tag in task.tags.all()]
         
+        # Get settings for GitHub Copilot username
+        from .models import Settings
+        settings = Settings.objects.first()
+        assignees = []
+        if settings and settings.github_copilot_username:
+            assignees = [settings.github_copilot_username]
+        
         # Create GitHub issue
         # NOTE: GitHub milestone support is available but requires:
         # 1. Milestone must exist in GitHub repository first
@@ -2364,12 +2371,40 @@ def api_task_create_github_issue(request, task_id):
             owner=owner,
             repo=repo,
             labels=labels,
-            assignees=[]
+            assignees=assignees
         )
         
         if result.get('success'):
+            issue_number = result.get('issue_number')
+            
+            # Add comment with IdeaGraph reference
+            try:
+                # Get the host URL from the request
+                host = request.get_host()
+                scheme = 'https' if request.is_secure() else 'http'
+                base_url = f"{scheme}://{host}"
+                
+                # Construct the link to the task in IdeaGraph
+                task_url = f"{base_url}/tasks/{task.id}"
+                
+                # Create comment body
+                comment_body = f"Created with IdeaGraph v1.0\n\nTask: {task_url}"
+                
+                # Add comment to the issue
+                github.create_issue_comment(
+                    issue_number=issue_number,
+                    body=comment_body,
+                    owner=owner,
+                    repo=repo
+                )
+            except Exception as e:
+                # Log error but don't fail the whole operation
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f'Failed to add comment to GitHub issue: {str(e)}')
+            
             # Update task with GitHub issue info
-            task.github_issue_id = result.get('issue_number')
+            task.github_issue_id = issue_number
             task.github_issue_url = result.get('url')
             task.github_synced_at = timezone.now()
             task.save()

@@ -653,6 +653,13 @@ class Settings(models.Model):
         verbose_name='Default GitHub Repository',
         help_text='Default repository for GitHub operations'
     )
+    github_copilot_username = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='GitHub Copilot Username',
+        help_text='GitHub username to assign issues to (e.g., copilot)'
+    )
     
     # ChromaDB Configuration
     chroma_api_key = models.CharField(
