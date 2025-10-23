@@ -514,13 +514,6 @@
             <div class="modal-header">
                 <h5 class="modal-title" id="summaryOptimizationModalLabel">
                     <i class="bi bi-magic"></i> AI Summary Optimization
-<!-- Analysis Results Modal -->
-<div class="modal fade" id="resultsModal" tabindex="-1" aria-labelledby="resultsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content bg-dark">
-            <div class="modal-header">
-                <h5 class="modal-title" id="resultsModalLabel">
-                    <i class="bi bi-robot"></i> AI Analysis Results
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -579,6 +572,23 @@
                 </button>
                 <button type="button" class="btn btn-success" id="acceptOptimizedBtn" style="display: none;">
                     <i class="bi bi-check-circle"></i> Accept & Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Analysis Results Modal -->
+<div class="modal fade" id="resultsModal" tabindex="-1" aria-labelledby="resultsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content bg-dark">
+            <div class="modal-header">
+                <h5 class="modal-title" id="resultsModalLabel">
+                    <i class="bi bi-robot"></i> AI Analysis Results
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
                 <div id="modalContextTitle" class="mb-3">
                     <h6 class="text-muted">Context Object:</h6>
                     <h5 id="modalContextTitleText"></h5>
@@ -962,6 +972,46 @@ function optimizeSummary(btn) {
     document.getElementById('acceptOptimizedBtn').style.display = 'none';
     
     fetch(`/api/milestones/${milestoneId}/optimize-summary`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Store optimized summary
+            currentOptimizedSummary = data.optimized_summary;
+            currentOptimizationMeta = {
+                agent_name: data.agent_name,
+                model: data.model
+            };
+            
+            // Show comparison
+            document.getElementById('originalSummaryText').textContent = data.original_summary;
+            document.getElementById('optimizedSummaryText').textContent = data.optimized_summary;
+            
+            document.getElementById('optimizationLoading').style.display = 'none';
+            document.getElementById('optimizationComparison').style.display = 'block';
+            document.getElementById('acceptOptimizedBtn').style.display = 'inline-block';
+            
+            showToast('Summary optimized successfully! Review the result.', 'success');
+        } else {
+            throw new Error(data.error || 'Optimization failed');
+        }
+    })
+    .catch(error => {
+        document.getElementById('optimizationLoading').style.display = 'none';
+        document.getElementById('optimizationError').style.display = 'block';
+        document.getElementById('optimizationErrorMessage').textContent = error.message || error;
+        showToast('Error: ' + error.message, 'error');
+    })
+    .finally(() => {
+        setLoading(btn, false);
+    });
+}
+
 // Show results modal
 let currentContextData = null;
 document.querySelectorAll('.show-results-btn').forEach(btn => {
@@ -1098,31 +1148,6 @@ document.getElementById('enhanceSummaryBtn')?.addEventListener('click', function
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Store optimized summary
-            currentOptimizedSummary = data.optimized_summary;
-            currentOptimizationMeta = {
-                agent_name: data.agent_name,
-                model: data.model
-            };
-            
-            // Show comparison
-            document.getElementById('originalSummaryText').textContent = data.original_summary;
-            document.getElementById('optimizedSummaryText').textContent = data.optimized_summary;
-            
-            document.getElementById('optimizationLoading').style.display = 'none';
-            document.getElementById('optimizationComparison').style.display = 'block';
-            document.getElementById('acceptOptimizedBtn').style.display = 'inline-block';
-            
-            showToast('Summary optimized successfully! Review the result.', 'success');
-        } else {
-            throw new Error(data.error || 'Optimization failed');
-        }
-    })
-    .catch(error => {
-        document.getElementById('optimizationLoading').style.display = 'none';
-        document.getElementById('optimizationError').style.display = 'block';
-        document.getElementById('optimizationErrorMessage').textContent = error.message || error;
-        showToast('Error: ' + error.message, 'error');
             document.getElementById('modalSummaryText').value = data.enhanced_summary;
             currentContextData.summary = data.enhanced_summary;
             showToast('Summary enhanced successfully!', 'success');
@@ -1136,7 +1161,7 @@ document.getElementById('enhanceSummaryBtn')?.addEventListener('click', function
     .finally(() => {
         setLoading(btn, false);
     });
-}
+});
 
 // Accept optimized summary
 document.getElementById('acceptOptimizedBtn')?.addEventListener('click', function() {
@@ -1144,6 +1169,43 @@ document.getElementById('acceptOptimizedBtn')?.addEventListener('click', functio
         showToast('No optimized summary to save', 'warning');
         return;
     }
+    
+    const btn = this;
+    setLoading(btn, true);
+    
+    fetch(`/api/milestones/${milestoneId}/save-optimized-summary`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            optimized_summary: currentOptimizedSummary,
+            agent_name: currentOptimizationMeta?.agent_name || 'summary-enhancer-agent',
+            model_name: currentOptimizationMeta?.model || 'gpt-4'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Optimized summary saved successfully!', 'success');
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('summaryOptimizationModal'));
+            modal.hide();
+            
+            // Reload page to show new summary
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            throw new Error(data.error || 'Failed to save summary');
+        }
+    })
+    .catch(error => {
+        showToast('Error saving summary: ' + error.message, 'error');
+    })
+    .finally(() => {
+        setLoading(btn, false);
+    });
 });
 
 // Accept results button
@@ -1153,7 +1215,6 @@ document.getElementById('acceptResultsBtn')?.addEventListener('click', function(
     const btn = this;
     setLoading(btn, true);
     
-    fetch(`/api/milestones/${milestoneId}/save-optimized-summary`, {
     // Get edited values from modal
     const editedSummary = document.getElementById('modalSummaryText').value;
     
@@ -1185,9 +1246,6 @@ document.getElementById('acceptResultsBtn')?.addEventListener('click', function(
             'X-CSRFToken': csrfToken
         },
         body: JSON.stringify({
-            optimized_summary: currentOptimizedSummary,
-            agent_name: currentOptimizationMeta?.agent_name || 'summary-enhancer-agent',
-            model_name: currentOptimizationMeta?.model || 'gpt-4'
             summary: editedSummary,
             derived_tasks: editedTasks
         })
@@ -1195,20 +1253,6 @@ document.getElementById('acceptResultsBtn')?.addEventListener('click', function(
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showToast('Optimized summary saved successfully!', 'success');
-            
-            // Close modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('summaryOptimizationModal'));
-            modal.hide();
-            
-            // Reload page to show new summary
-            setTimeout(() => location.reload(), 1000);
-        } else {
-            throw new Error(data.error || 'Failed to save summary');
-        }
-    })
-    .catch(error => {
-        showToast('Error saving summary: ' + error.message, 'error');
             showToast('Results accepted and applied!', 'success');
             
             // Close modal
