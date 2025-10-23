@@ -127,8 +127,8 @@ class MailProcessingService:
             HTML string
         """
         if not self.kigate_service:
-            logger.warning("KiGate service not available, returning Markdown as-is")
-            return markdown_content
+            logger.warning("KiGate service not available, using basic markdown-to-html conversion")
+            return self._basic_markdown_to_html(markdown_content)
         
         try:
             result = self.kigate_service.execute_agent(
@@ -140,16 +140,115 @@ class MailProcessingService:
             )
             
             if result.get('success'):
-                html = result.get('result', markdown_content)
-                logger.info("Successfully converted Markdown to HTML")
-                return html
+                html = result.get('result', '')
+                # Verify that we actually got HTML back
+                if html and ('<' in html and '>' in html):
+                    logger.info("Successfully converted Markdown to HTML")
+                    return html
+                else:
+                    logger.warning("Markdown to HTML conversion returned non-HTML content, using fallback")
+                    return self._basic_markdown_to_html(markdown_content)
             else:
-                logger.warning("Markdown to HTML conversion failed, returning original")
-                return markdown_content
+                logger.warning("Markdown to HTML conversion failed, using fallback")
+                return self._basic_markdown_to_html(markdown_content)
                 
         except KiGateServiceError as e:
-            logger.warning(f"KiGate service error: {e.message}, returning Markdown as-is")
-            return markdown_content
+            logger.warning(f"KiGate service error: {e.message}, using fallback conversion")
+            return self._basic_markdown_to_html(markdown_content)
+    
+    def _basic_markdown_to_html(self, markdown_content: str) -> str:
+        """
+        Basic fallback method to convert common markdown patterns to HTML
+        
+        Args:
+            markdown_content: Markdown string to convert
+            
+        Returns:
+            HTML string with basic formatting
+        """
+        import re
+        
+        html = markdown_content
+        
+        # Convert headers (must be done before other conversions)
+        html = re.sub(r'^### (.*?)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
+        html = re.sub(r'^## (.*?)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
+        html = re.sub(r'^# (.*?)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
+        
+        # Convert bold
+        html = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', html)
+        html = re.sub(r'__(.*?)__', r'<strong>\1</strong>', html)
+        
+        # Convert italic
+        html = re.sub(r'\*(.*?)\*', r'<em>\1</em>', html)
+        html = re.sub(r'_(.*?)_', r'<em>\1</em>', html)
+        
+        # Convert links
+        html = re.sub(r'\[(.*?)\]\((.*?)\)', r'<a href="\2">\1</a>', html)
+        
+        # Convert unordered lists
+        lines = html.split('\n')
+        in_list = False
+        result_lines = []
+        for line in lines:
+            if re.match(r'^\s*[-*+]\s+', line):
+                if not in_list:
+                    result_lines.append('<ul>')
+                    in_list = True
+                # Remove the list marker and wrap in <li>
+                list_item = re.sub(r'^\s*[-*+]\s+', '', line)
+                result_lines.append(f'<li>{list_item}</li>')
+            else:
+                if in_list:
+                    result_lines.append('</ul>')
+                    in_list = False
+                result_lines.append(line)
+        if in_list:
+            result_lines.append('</ul>')
+        html = '\n'.join(result_lines)
+        
+        # Convert ordered lists
+        lines = html.split('\n')
+        in_list = False
+        result_lines = []
+        for line in lines:
+            if re.match(r'^\s*\d+\.\s+', line):
+                if not in_list:
+                    result_lines.append('<ol>')
+                    in_list = True
+                # Remove the list marker and wrap in <li>
+                list_item = re.sub(r'^\s*\d+\.\s+', '', line)
+                result_lines.append(f'<li>{list_item}</li>')
+            else:
+                if in_list:
+                    result_lines.append('</ol>')
+                    in_list = False
+                result_lines.append(line)
+        if in_list:
+            result_lines.append('</ol>')
+        html = '\n'.join(result_lines)
+        
+        # Convert horizontal rules
+        html = re.sub(r'^---$', r'<hr>', html, flags=re.MULTILINE)
+        html = re.sub(r'^\*\*\*$', r'<hr>', html, flags=re.MULTILINE)
+        
+        # Convert line breaks (double newline to paragraph)
+        paragraphs = html.split('\n\n')
+        formatted_paragraphs = []
+        for para in paragraphs:
+            para = para.strip()
+            if para and not para.startswith('<'):
+                # Only wrap in <p> if not already an HTML tag
+                formatted_paragraphs.append(f'<p>{para}</p>')
+            else:
+                formatted_paragraphs.append(para)
+        html = '\n'.join(formatted_paragraphs)
+        
+        # Convert remaining single newlines to <br> within paragraphs
+        html = re.sub(r'(?<!>)\n(?!<)', '<br>', html)
+        
+        logger.info("Applied basic markdown-to-html conversion")
+        return html
     
     def find_matching_item(self, mail_content: str, n_results: int = 5) -> Optional[Dict[str, Any]]:
         """
@@ -179,15 +278,15 @@ class MailProcessingService:
             if self.openai_service and len(similar_items) > 1:
                 items_context = self._format_items_for_ai(similar_items)
                 
-                prompt = f"""Based on the email content below and the list of available items, determine which item is the BEST match for this email. Consider the context and relevance.
+                prompt = f"""Basierend auf dem nachfolgenden E-Mail-Inhalt und der Liste verfügbarer Items, bestimme welches Item am BESTEN zu dieser E-Mail passt. Berücksichtige den Kontext und die Relevanz.
 
-Email Content:
+E-Mail-Inhalt:
 {mail_content}
 
-Available Items:
+Verfügbare Items:
 {items_context}
 
-Please respond with ONLY the item ID (UUID) of the best matching item. If none are relevant, respond with "NONE".
+Bitte antworte NUR mit der Item-ID (UUID) des am besten passenden Items. Falls keines relevant ist, antworte mit "NONE".
 """
                 
                 try:
@@ -250,7 +349,7 @@ Please respond with ONLY the item ID (UUID) of the best matching item. If none a
         """
         if not self.openai_service:
             logger.warning("OpenAI service not available, returning original mail body")
-            return f"{mail_body}\n\n---\n**Original Mail:**\n\nSubject: {mail_subject}\n\n{mail_body}"
+            return f"{mail_body}\n\n---\n**Originale E-Mail:**\n\nBetreff: {mail_subject}\n\n{mail_body}"
         
         # Build context from item if available
         context_text = ""
@@ -263,24 +362,24 @@ Related Item Context:
 - Section: {metadata.get('section', 'N/A')}
 """
         
-        prompt = f"""You are an AI assistant helping to process incoming emails and create task descriptions.
+        prompt = f"""Du bist ein KI-Assistent, der eingehende E-Mails verarbeitet und Aufgabenbeschreibungen erstellt.
 
-Email Subject: {mail_subject}
+E-Mail-Betreff: {mail_subject}
 
-Email Body:
+E-Mail-Text:
 {mail_body}
 
 {context_text}
 
-Your task is to:
-1. Create a normalized, clear task description based on the email content
-2. Stay within the context provided in the email body
-3. Use the Related Item Context (if provided) to infer what might be relevant
-4. Keep the description concise and actionable
-5. If there are unclear or open points, list them at the end with "ggf. noch zu klären:"
-6. At the very end, preserve the original email content under a section "---\\nOriginal Mail:"
+Deine Aufgabe ist es:
+1. Eine normalisierte, klare Aufgabenbeschreibung auf Deutsch basierend auf dem E-Mail-Inhalt zu erstellen
+2. Im Kontext des E-Mail-Textes zu bleiben
+3. Den Kontext des zugehörigen Items (falls vorhanden) zu nutzen, um relevante Details zu ergänzen
+4. Die Beschreibung prägnant und handlungsorientiert zu halten
+5. Falls es unklare oder offene Punkte gibt, diese am Ende mit "ggf. noch zu klären:" aufzulisten
+6. Ganz am Ende den originalen E-Mail-Inhalt unter einem Abschnitt "---\\nOriginale E-Mail:" zu bewahren
 
-Please generate the normalized task description now:
+Bitte erstelle jetzt die normalisierte Aufgabenbeschreibung auf Deutsch:
 """
         
         try:
@@ -295,11 +394,11 @@ Please generate the normalized task description now:
                 return normalized
             else:
                 logger.warning("AI normalization failed, returning formatted original")
-                return f"{mail_body}\n\n---\n**Original Mail:**\n\nSubject: {mail_subject}\n\n{mail_body}"
+                return f"{mail_body}\n\n---\n**Originale E-Mail:**\n\nBetreff: {mail_subject}\n\n{mail_body}"
                 
         except OpenAIServiceError as e:
             logger.error(f"OpenAI service error: {e.message}")
-            return f"{mail_body}\n\n---\n**Original Mail:**\n\nSubject: {mail_subject}\n\n{mail_body}"
+            return f"{mail_body}\n\n---\n**Originale E-Mail:**\n\nBetreff: {mail_subject}\n\n{mail_body}"
     
     def create_task_from_mail(
         self,
