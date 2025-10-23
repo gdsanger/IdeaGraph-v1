@@ -134,8 +134,27 @@ class MailProcessingServiceTestCase(TestCase):
         markdown = '# Test Heading\n\nTest paragraph'
         html = service.convert_markdown_to_html(markdown)
         
-        self.assertEqual(html, '<h1>Test Heading</h1><p>Test paragraph</p>')
+        # Should return the HTML from KiGate
+        self.assertIn('<h1>Test Heading</h1>', html)
+        self.assertIn('<p>Test paragraph</p>', html)
         mock_execute.assert_called_once()
+    
+    def test_convert_markdown_to_html_with_fallback(self, mock_weaviate_init):
+        """Test Markdown to HTML conversion using fallback converter"""
+        # Disable KiGate to force fallback
+        self.settings.kigate_api_enabled = False
+        self.settings.save()
+        
+        service = MailProcessingService(self.settings)
+        markdown = '# Heading\n\n**Bold** and *italic* text.\n\n- Item 1\n- Item 2'
+        html = service.convert_markdown_to_html(markdown)
+        
+        # Should contain HTML elements
+        self.assertIn('<h1>Heading</h1>', html)
+        self.assertIn('<strong>Bold</strong>', html)
+        self.assertIn('<em>italic</em>', html)
+        self.assertIn('<ul>', html)
+        self.assertIn('<li>Item 1</li>', html)
     
     @patch('core.services.weaviate_sync_service.WeaviateItemSyncService.search_similar')
     def test_find_matching_item_success(self, mock_weaviate_init, mock_search):
@@ -235,7 +254,7 @@ class MailProcessingServiceTestCase(TestCase):
         """Test generating normalized description successfully"""
         mock_chat.return_value = {
             'success': True,
-            'content': 'Normalized task description\n\nggf. noch zu klären:\n- Point 1\n\n---\nOriginal Mail:\n\nSubject: Test\n\nOriginal content'
+            'content': 'Normalisierte Aufgabenbeschreibung\n\nggf. noch zu klären:\n- Punkt 1\n\n---\nOriginale E-Mail:\n\nBetreff: Test\n\nOriginaler Inhalt'
         }
         
         service = MailProcessingService(self.settings)
@@ -251,10 +270,10 @@ class MailProcessingServiceTestCase(TestCase):
             }
         )
         
-        self.assertIn('Normalized task description', result)
-        self.assertIn('Original Mail', result)
+        self.assertIn('Normalisierte Aufgabenbeschreibung', result)
+        self.assertIn('Originale E-Mail', result)
     
-    def test_generate_normalized_description_no_openai(self):
+    def test_generate_normalized_description_no_openai(self, mock_weaviate_init):
         """Test generating normalized description without OpenAI"""
         self.settings.openai_api_enabled = False
         self.settings.save()
@@ -267,7 +286,7 @@ class MailProcessingServiceTestCase(TestCase):
         
         # Should return formatted original content
         self.assertIn('Original content', result)
-        self.assertIn('Original Mail', result)
+        self.assertIn('Originale E-Mail', result)
     
     def test_create_task_from_mail_success(self, mock_weaviate_init):
         """Test creating task from mail successfully"""
@@ -396,7 +415,7 @@ class MailProcessingServiceTestCase(TestCase):
         }
         mock_chat.return_value = {
             'success': True,
-            'content': 'Normalized description\n\n---\nOriginal Mail:\n\nTest'
+            'content': 'Normalisierte Beschreibung\n\n---\nOriginale E-Mail:\n\nTest'
         }
         mock_send.return_value = {'success': True}
         mock_mark_read.return_value = {'success': True}
@@ -462,7 +481,7 @@ class MailProcessingServiceTestCase(TestCase):
         }
         mock_chat.return_value = {
             'success': True,
-            'content': 'Normalized description\n\n---\nOriginal Mail:\n\nTest'
+            'content': 'Normalisierte Beschreibung\n\n---\nOriginale E-Mail:\n\nTest'
         }
         mock_send.return_value = {'success': True}
         mock_mark_read.return_value = {'success': True}
@@ -573,7 +592,7 @@ class MailProcessingServiceTestCase(TestCase):
         }
         mock_chat.return_value = {
             'success': True,
-            'content': 'Normalized\n\n---\nOriginal Mail:\n\nTest'
+            'content': 'Normalisiert\n\n---\nOriginale E-Mail:\n\nTest'
         }
         mock_send.return_value = {'success': True}
         mock_mark_read.return_value = {'success': True}
