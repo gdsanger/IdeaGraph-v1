@@ -284,6 +284,17 @@
                                     placeholder="repository-name">
                                 <div class="form-text">Default repository for GitHub operations</div>
                             </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="github_copilot_username" class="form-label">GitHub Copilot Username</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="github_copilot_username" 
+                                    name="github_copilot_username" 
+                                    value="{{ settings.github_copilot_username|default:'' }}"
+                                    placeholder="copilot">
+                                <div class="form-text">GitHub username to assign issues to (e.g., copilot)</div>
+                            </div>
                         </div>
                     </div>
 
