@@ -18,12 +18,13 @@ The main service that orchestrates the entire workflow:
 - **Confirmation Emails**: Sends professional confirmation emails to senders
 - **Markdown to HTML Conversion**: Converts confirmation email content to HTML using KiGate agent
 
-### 2. Graph Service Extensions (`core/services/graph_service.py`)
+### Graph Service Extensions (`core/services/graph_service.py`)
 
 Added new methods to GraphService:
 
 - `get_mailbox_messages()`: Retrieve messages from a mailbox
 - `mark_message_as_read()`: Mark a message as read after processing
+- `move_message()`: Move a message to a specified folder (e.g., Archive)
 
 ### 3. OpenAI Service Extension (`core/services/openai_service.py`)
 
@@ -78,6 +79,16 @@ If using KiGate, ensure these agents are available:
 
 1. `html-to-markdown-converter`: Converts HTML email content to Markdown
 2. `markdown-to-html-converter`: Converts Markdown content to HTML for emails
+
+### Email Archiving
+
+Processed emails are automatically moved to the Archive folder:
+
+1. **Archive Folder**: Should exist in the mailbox (e.g., "Archive" or "Archiv")
+2. **Automatic Creation**: If the Archive folder doesn't exist, create it manually in Outlook/Exchange
+3. **Folder Name**: The default folder name is "archive" (case-insensitive in Graph API)
+4. **Custom Folder**: To use a different folder, modify the `destination_folder` parameter in the `move_message()` call in `mail_processing_service.py`
+5. **Failure Handling**: If archiving fails, the task is still created successfully - archiving is non-critical
 
 ## Usage
 
@@ -185,7 +196,13 @@ sudo systemctl start ideagraph-mail-processing.timer
    - Shows which Item it was assigned to
    - Displays the normalized description
 
-8. **Cleanup**: Email marked as read
+8. **Email Archiving**:
+   - After successful processing, email is moved to Archive folder
+   - Uses Microsoft Graph API move operation
+   - Failures in archiving don't prevent task creation
+   - Archive status is logged and displayed in command output
+
+9. **Cleanup**: Email marked as read
 
 ## Error Handling
 
@@ -265,6 +282,11 @@ Tests cover:
    - Solution: Check API key and quota
    - Verify model name is correct
 
+6. **"Failed to archive message"** (Warning)
+   - Solution: Verify Archive folder exists in the mailbox
+   - Check that Mail.ReadWrite permission is granted
+   - Note: This is a warning only - task creation still succeeds
+
 ### Debug Mode
 
 Enable debug logging in Django settings:
@@ -290,6 +312,8 @@ Potential improvements:
 5. **Custom Rules**: User-defined routing rules for specific senders/subjects
 6. **Web Interface**: Monitor processing status via Django admin
 7. **Metrics Dashboard**: Track processing statistics and success rates
+8. **Configurable Archive Folder**: Make archive folder name configurable via settings
+9. **Archive Retention Policy**: Automatically delete old archived emails after a configured period
 
 ## API Integration Reference
 
@@ -299,7 +323,7 @@ Potential improvements:
 - **Authentication**: OAuth 2.0 Client Credentials Flow
 - **Required Permissions**:
   - `Mail.Read` - Read emails
-  - `Mail.ReadWrite` - Mark emails as read
+  - `Mail.ReadWrite` - Mark emails as read and move to folders
   - `Mail.Send` - Send confirmation emails
 
 ### Weaviate
