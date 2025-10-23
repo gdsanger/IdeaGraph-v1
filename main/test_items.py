@@ -212,6 +212,108 @@ class ItemViewsTest(TestCase):
         # Check success message
         messages_list = list(response.context['messages'])
         self.assertTrue(any('updated successfully' in str(m) for m in messages_list))
+    
+    def test_item_detail_milestone_badge_bar(self):
+        """Test that milestone badge bar is rendered with correct styles"""
+        from main.models import Milestone
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        self.login_user(self.user)
+        
+        today = timezone.now().date()
+        
+        # Create milestones with different due dates
+        overdue_milestone = Milestone.objects.create(
+            name='Overdue Milestone',
+            description='This is overdue',
+            due_date=today - timedelta(days=5),
+            status='planned',
+            item=self.item
+        )
+        
+        due_soon_milestone = Milestone.objects.create(
+            name='Due Soon',
+            description='Due within a week',
+            due_date=today + timedelta(days=3),
+            status='in_progress',
+            item=self.item
+        )
+        
+        future_milestone = Milestone.objects.create(
+            name='Future Milestone',
+            description='Due in the future',
+            due_date=today + timedelta(days=30),
+            status='planned',
+            item=self.item
+        )
+        
+        response = self.client.get(f'/items/{self.item.id}/')
+        self.assertEqual(response.status_code, 200)
+        
+        # Check that milestone badge bar is rendered
+        self.assertContains(response, 'milestone-badge-bar')
+        self.assertContains(response, 'Milestones:')
+        
+        # Check that milestones are rendered with correct names
+        self.assertContains(response, 'Overdue Milestone')
+        self.assertContains(response, 'Due Soon')
+        self.assertContains(response, 'Future Milestone')
+        
+        # Check that correct badge classes are applied
+        self.assertContains(response, 'badge-error')  # For overdue
+        self.assertContains(response, 'badge-warning')  # For due soon
+        self.assertContains(response, 'badge-success')  # For future
+    
+    def test_item_detail_no_milestone_badge_bar(self):
+        """Test that milestone badge bar is not shown when no milestones"""
+        self.login_user(self.user)
+        
+        response = self.client.get(f'/items/{self.item.id}/')
+        self.assertEqual(response.status_code, 200)
+        
+        # Badge bar content should not be present when no milestones
+        # Check for the actual Milestones: label instead of just the CSS class
+        self.assertNotContains(response, '<strong style="font-size: 0.875rem;">Milestones:</strong>')
+    
+    def test_item_detail_hierarchical_relationships_position(self):
+        """Test that hierarchical relationships card appears after item details"""
+        self.login_user(self.user)
+        
+        # Create parent and child items
+        parent_item = Item.objects.create(
+            title='Parent Item',
+            description='Parent description',
+            status='ready',
+            created_by=self.user
+        )
+        
+        self.item.parent = parent_item
+        self.item.save()
+        
+        child_item = Item.objects.create(
+            title='Child Item',
+            description='Child description',
+            status='new',
+            parent=self.item,
+            created_by=self.user
+        )
+        
+        response = self.client.get(f'/items/{self.item.id}/')
+        self.assertEqual(response.status_code, 200)
+        
+        # Check that hierarchical relationships card is rendered
+        self.assertContains(response, 'Hierarchische Beziehungen')
+        self.assertContains(response, 'Parent Item')
+        self.assertContains(response, 'Child Item')
+        
+        # Verify it appears after the item details card (by checking HTML structure)
+        content = response.content.decode()
+        item_details_pos = content.find('Item Details')
+        hierarchical_pos = content.find('Hierarchische Beziehungen')
+        
+        # Hierarchical relationships should appear after item details
+        self.assertGreater(hierarchical_pos, item_details_pos)
 
 
 class ItemTileViewFilterTest(TestCase):
