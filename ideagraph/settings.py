@@ -176,11 +176,8 @@ if CACHE_BACKEND == 'redis':
             'BACKEND': 'django.core.cache.backends.redis.RedisCache',
             'LOCATION': f'redis://{":" + REDIS_PASSWORD + "@" if REDIS_PASSWORD else ""}{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}',
             'OPTIONS': {
-                'CLIENT_CLASS': 'django.core.cache.backends.redis.RedisClient',
-                'CONNECTION_POOL_KWARGS': {
-                    'max_connections': 50,
-                    'retry_on_timeout': True,
-                },
+                'max_connections': 50,
+                'retry_on_timeout': True,
             },
             'TIMEOUT': CACHE_DEFAULT_TIMEOUT,
         }
