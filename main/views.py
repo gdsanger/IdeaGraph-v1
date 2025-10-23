@@ -767,7 +767,7 @@ def user_send_password(request, user_id):
 # Item Management Views
 
 def item_list(request):
-    """List all items for the current user"""
+    """List all items"""
     # Get current user from session
     user_id = request.session.get('user_id')
     if not user_id:
@@ -780,11 +780,8 @@ def item_list(request):
     section_filter = request.GET.get('section', '')
     search_query = request.GET.get('search', '').strip()
     
-    # Base query - show only user's items unless admin
-    if user.role == 'admin':
-        items = Item.objects.all()
-    else:
-        items = Item.objects.filter(created_by=user)
+    # Base query - show all items
+    items = Item.objects.all()
     
     # Apply filters
     if status_filter:
@@ -838,11 +835,8 @@ def item_kanban(request):
     section_filter = request.GET.get('section', '')
     search_query = request.GET.get('search', '').strip()
     
-    # Base query - show only user's items unless admin
-    if user.role == 'admin':
-        items = Item.objects.all()
-    else:
-        items = Item.objects.filter(created_by=user)
+    # Base query - show all items
+    items = Item.objects.all()
     
     # Apply filters
     if status_filter:
@@ -895,11 +889,8 @@ def item_detail(request, item_id):
     
     user = get_object_or_404(User, id=user_id)
     
-    # Get item - check ownership unless admin
+    # Get item
     item = get_object_or_404(Item, id=item_id)
-    if user.role != 'admin' and item.created_by != user:
-        messages.error(request, 'You do not have permission to view this item.')
-        return redirect('main:item_list')
     
     # Handle POST request for updating the item
     selected_tags_payload = list(item.tags.values('id', 'name', 'color'))
@@ -1161,11 +1152,8 @@ def item_edit(request, item_id):
     
     user = get_object_or_404(User, id=user_id)
     
-    # Get item - check ownership unless admin
+    # Get item
     item = get_object_or_404(Item, id=item_id)
-    if user.role != 'admin' and item.created_by != user:
-        messages.error(request, 'You do not have permission to edit this item.')
-        return redirect('main:item_list')
     
     selected_tags_payload = list(item.tags.values('id', 'name', 'color'))
     selected_clients_payload = list(item.clients.values('id', 'name'))
@@ -1274,11 +1262,8 @@ def item_delete(request, item_id):
     
     user = get_object_or_404(User, id=user_id)
     
-    # Get item - check ownership unless admin
+    # Get item
     item = get_object_or_404(Item, id=item_id)
-    if user.role != 'admin' and item.created_by != user:
-        messages.error(request, 'You do not have permission to delete this item.')
-        return redirect('main:item_list')
     
     if request.method == 'POST':
         item_title = item.title
@@ -1318,17 +1303,14 @@ def task_list(request, item_id):
     
     user = get_object_or_404(User, id=user_id)
     
-    # Get item - check ownership unless admin
+    # Get item
     item = get_object_or_404(Item, id=item_id)
-    if user.role != 'admin' and item.created_by != user:
-        messages.error(request, 'You do not have permission to view this item.')
-        return redirect('main:item_list')
     
     # Get show_completed filter parameter (default: false - don't show completed)
     show_completed = request.GET.get('show_completed', 'false').lower() == 'true'
     
-    # Get tasks for this item - only show owned tasks
-    tasks = item.tasks.filter(created_by=user).select_related('assigned_to', 'created_by').prefetch_related('tags')
+    # Get tasks for this item
+    tasks = item.tasks.select_related('assigned_to', 'created_by').prefetch_related('tags')
     
     # Filter by completion status
     if not show_completed:
@@ -1358,11 +1340,8 @@ def task_detail(request, task_id):
     
     user = get_object_or_404(User, id=user_id)
     
-    # Get task - check ownership
+    # Get task
     task = get_object_or_404(Task, id=task_id)
-    if task.created_by != user:
-        messages.error(request, 'You do not have permission to view this task.')
-        return redirect('main:item_list')
 
     selected_tags_payload = list(task.tags.values('id', 'name', 'color'))
 
@@ -1452,11 +1431,8 @@ def task_create(request, item_id):
     
     user = get_object_or_404(User, id=user_id)
     
-    # Get item - check ownership unless admin
+    # Get item
     item = get_object_or_404(Item, id=item_id)
-    if user.role != 'admin' and item.created_by != user:
-        messages.error(request, 'You do not have permission to create tasks for this item.')
-        return redirect('main:item_list')
     
     selected_tags_payload = list(item.tags.values('id', 'name', 'color'))
 
@@ -1558,11 +1534,8 @@ def task_edit(request, task_id):
     
     user = get_object_or_404(User, id=user_id)
     
-    # Get task - check ownership
+    # Get task
     task = get_object_or_404(Task, id=task_id)
-    if task.created_by != user:
-        messages.error(request, 'You do not have permission to edit this task.')
-        return redirect('main:item_list')
     
     selected_tags_payload = list(task.tags.values('id', 'name', 'color'))
 
@@ -1668,11 +1641,8 @@ def task_delete(request, task_id):
     
     user = get_object_or_404(User, id=user_id)
     
-    # Get task - check ownership
+    # Get task
     task = get_object_or_404(Task, id=task_id)
-    if task.created_by != user:
-        messages.error(request, 'You do not have permission to delete this task.')
-        return redirect('main:item_list')
     
     item = task.item
     
@@ -1704,7 +1674,7 @@ def task_delete(request, task_id):
 
 
 def task_overview(request):
-    """Global task overview - shows all tasks for the user"""
+    """Global task overview - shows all tasks"""
     # Get current user from session
     user_id = request.session.get('user_id')
     if not user_id:
@@ -1718,11 +1688,8 @@ def task_overview(request):
     has_github = request.GET.get('has_github', '')
     search_query = request.GET.get('search', '').strip()
     
-    # Base query - show only user's tasks unless admin
-    if user.role == 'admin':
-        tasks = Task.objects.all()
-    else:
-        tasks = Task.objects.filter(created_by=user)
+    # Base query - show all tasks
+    tasks = Task.objects.all()
     
     # Apply filters
     if status_filter:
@@ -1750,10 +1717,7 @@ def task_overview(request):
     # Calculate status counts
     status_counts = {}
     for status_key, status_label in Task.STATUS_CHOICES:
-        if user.role == 'admin':
-            count = Task.objects.filter(status=status_key).count()
-        else:
-            count = Task.objects.filter(status=status_key, created_by=user).count()
+        count = Task.objects.filter(status=status_key).count()
         status_counts[status_key] = count
     
     # Pagination
@@ -1762,10 +1726,7 @@ def task_overview(request):
     page_obj = paginator.get_page(page_number)
     
     # Get all items for filter dropdown
-    if user.role == 'admin':
-        items = Item.objects.all()
-    else:
-        items = Item.objects.filter(created_by=user)
+    items = Item.objects.all()
     
     context = {
         'tasks': page_obj,
@@ -1799,11 +1760,8 @@ def milestone_create(request, item_id):
     
     user = get_object_or_404(User, id=user_id)
     
-    # Get item - check ownership unless admin
+    # Get item
     item = get_object_or_404(Item, id=item_id)
-    if user.role != 'admin' and item.created_by != user:
-        messages.error(request, 'You do not have permission to create milestones for this item.')
-        return redirect('main:item_detail', item_id=item_id)
     
     if request.method == 'POST':
         name = request.POST.get('name', '').strip()

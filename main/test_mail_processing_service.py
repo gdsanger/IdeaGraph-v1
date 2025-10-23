@@ -269,7 +269,7 @@ class MailProcessingServiceTestCase(TestCase):
         self.assertIn('Original content', result)
         self.assertIn('Original Mail', result)
     
-    def test_create_task_from_mail_success(self):
+    def test_create_task_from_mail_success(self, mock_weaviate_init):
         """Test creating task from mail successfully"""
         service = MailProcessingService(self.settings)
         
@@ -292,9 +292,10 @@ class MailProcessingServiceTestCase(TestCase):
         self.assertEqual(task.status, 'new')
         self.assertEqual(task.item, self.item)
         self.assertEqual(task.requester, self.user)
+        self.assertEqual(task.created_by, self.user)
     
-    def test_create_task_from_mail_unknown_sender(self):
-        """Test creating task from mail with unknown sender"""
+    def test_create_task_from_mail_unknown_sender(self, mock_weaviate_init):
+        """Test creating task from mail with unknown sender - auto-creates user"""
         service = MailProcessingService(self.settings)
         
         result = service.create_task_from_mail(
@@ -306,9 +307,15 @@ class MailProcessingServiceTestCase(TestCase):
         
         self.assertIsNotNone(result)
         
-        # Verify task was created without requester
+        # Verify task was created with auto-created requester
         task = Task.objects.get(id=result['id'])
-        self.assertIsNone(task.requester)
+        self.assertIsNotNone(task.requester)
+        self.assertEqual(task.requester.email, 'unknown@example.com')
+        self.assertEqual(task.requester.username, 'unknown@example.com')
+        self.assertEqual(task.requester.role, 'user')
+        self.assertTrue(task.requester.is_active)
+        self.assertIsNotNone(task.created_by)
+        self.assertEqual(task.created_by, task.requester)
     
     def test_create_task_from_mail_invalid_item(self):
         """Test creating task with invalid item ID"""
