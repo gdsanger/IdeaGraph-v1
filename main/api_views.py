@@ -1609,10 +1609,6 @@ def api_task_ai_enhance(request, task_id):
     try:
         task = Task.objects.get(id=task_id)
         
-        # Check ownership
-        if task.created_by != user:
-            return JsonResponse({'error': 'Access denied'}, status=403)
-        
         data = json.loads(request.body)
         title = data.get('title', '').strip()
         description = data.get('description', '').strip()
@@ -2332,10 +2328,6 @@ def api_task_create_github_issue(request, task_id):
     
     try:
         task = Task.objects.get(id=task_id)
-        
-        # Check ownership
-        if task.created_by != user:
-            return JsonResponse({'error': 'Access denied'}, status=403)
         
         # Check status
         if task.status != 'ready':
