@@ -506,6 +506,161 @@ class GraphService:
             logger.error(f"Error deleting file: {str(e)}")
             raise GraphServiceError("Error deleting file", details=str(e))
     
+    def get_folder_by_path(self, folder_path: str) -> Dict[str, Any]:
+        """
+        Get folder metadata by path
+        
+        Args:
+            folder_path: Path to folder (relative to site root)
+            
+        Returns:
+            Dict with success status and folder metadata
+        """
+        if not self.sharepoint_site_id:
+            raise GraphServiceError(
+                "SharePoint site ID not configured",
+                details="sharepoint_site_id must be set in settings"
+            )
+        
+        endpoint = f"sites/{self.sharepoint_site_id}/drive/root:/{folder_path}"
+        
+        try:
+            response = self._make_request('GET', endpoint)
+            
+            if response.status_code == 200:
+                metadata = response.json()
+                return {
+                    'success': True,
+                    'exists': True,
+                    'folder_id': metadata.get('id'),
+                    'metadata': metadata
+                }
+            elif response.status_code == 404:
+                return {
+                    'success': True,
+                    'exists': False
+                }
+            else:
+                raise GraphServiceError(
+                    "Failed to get folder",
+                    status_code=response.status_code,
+                    details=response.text
+                )
+                
+        except GraphServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting folder: {str(e)}")
+            raise GraphServiceError("Error getting folder", details=str(e))
+    
+    def create_folder(self, parent_path: str, folder_name: str) -> Dict[str, Any]:
+        """
+        Create a folder in SharePoint
+        
+        Args:
+            parent_path: Path to parent folder (empty string for root)
+            folder_name: Name of the folder to create
+            
+        Returns:
+            Dict with success status and folder metadata
+        """
+        if not self.sharepoint_site_id:
+            raise GraphServiceError(
+                "SharePoint site ID not configured",
+                details="sharepoint_site_id must be set in settings"
+            )
+        
+        # Build endpoint
+        if parent_path:
+            endpoint = f"sites/{self.sharepoint_site_id}/drive/root:/{parent_path}:/children"
+        else:
+            endpoint = f"sites/{self.sharepoint_site_id}/drive/root/children"
+        
+        folder_data = {
+            'name': folder_name,
+            'folder': {},
+            '@microsoft.graph.conflictBehavior': 'fail'
+        }
+        
+        try:
+            response = self._make_request('POST', endpoint, json_data=folder_data)
+            
+            if response.status_code in [200, 201]:
+                metadata = response.json()
+                logger.info(f"Folder created successfully: {folder_name}")
+                return {
+                    'success': True,
+                    'folder_id': metadata.get('id'),
+                    'folder_name': metadata.get('name'),
+                    'metadata': metadata
+                }
+            else:
+                raise GraphServiceError(
+                    "Failed to create folder",
+                    status_code=response.status_code,
+                    details=response.text
+                )
+                
+        except GraphServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error creating folder: {str(e)}")
+            raise GraphServiceError("Error creating folder", details=str(e))
+    
+    def move_folder(self, folder_id: str, destination_folder_id: str, new_name: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Move a folder to a new location in SharePoint
+        
+        Args:
+            folder_id: ID of the folder to move
+            destination_folder_id: ID of the destination parent folder
+            new_name: Optional new name for the folder
+            
+        Returns:
+            Dict with success status and folder metadata
+        """
+        if not self.sharepoint_site_id:
+            raise GraphServiceError(
+                "SharePoint site ID not configured",
+                details="sharepoint_site_id must be set in settings"
+            )
+        
+        endpoint = f"sites/{self.sharepoint_site_id}/drive/items/{folder_id}"
+        
+        update_data = {
+            'parentReference': {
+                'id': destination_folder_id
+            }
+        }
+        
+        if new_name:
+            update_data['name'] = new_name
+        
+        try:
+            response = self._make_request('PATCH', endpoint, json_data=update_data)
+            
+            if response.status_code == 200:
+                metadata = response.json()
+                logger.info(f"Folder moved successfully: {folder_id}")
+                return {
+                    'success': True,
+                    'folder_id': metadata.get('id'),
+                    'folder_name': metadata.get('name'),
+                    'metadata': metadata
+                }
+            else:
+                raise GraphServiceError(
+                    "Failed to move folder",
+                    status_code=response.status_code,
+                    details=response.text
+                )
+                
+        except GraphServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error moving folder: {str(e)}")
+            raise GraphServiceError("Error moving folder", details=str(e))
+    
     # Mail Methods
     
     def send_mail(

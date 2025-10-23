@@ -2854,6 +2854,98 @@ def api_task_bulk_delete(request):
 
 
 @csrf_exempt
+@require_http_methods(['POST'])
+def api_task_move(request, task_id):
+    """
+    API endpoint to move a task to a different item
+    
+    Expects JSON body:
+    {
+        "target_item_id": "uuid-of-target-item"
+    }
+    
+    Returns:
+    {
+        "success": true,
+        "message": "Task moved successfully",
+        "moved": true,
+        "files_moved": true,
+        "files_count": 2
+    }
+    """
+    from .models import Task, Item, Settings, User
+    from core.services.task_move_service import TaskMoveService, TaskMoveServiceError
+    
+    try:
+        # Get current user from session
+        user_id = request.session.get('user_id')
+        if not user_id:
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+        
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return JsonResponse({'error': 'User not found'}, status=404)
+        
+        # Parse request body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        
+        # Validate required fields
+        target_item_id = data.get('target_item_id')
+        if not target_item_id:
+            return JsonResponse({'error': 'target_item_id is required'}, status=400)
+        
+        # Verify task exists
+        try:
+            task = Task.objects.get(id=task_id)
+        except Task.DoesNotExist:
+            return JsonResponse({'error': 'Task not found'}, status=404)
+        
+        # Check permissions - user must be the creator or admin
+        if user.role != 'admin' and task.created_by != user:
+            return JsonResponse({'error': 'Permission denied'}, status=403)
+        
+        # Initialize move service
+        try:
+            settings = Settings.objects.first()
+            move_service = TaskMoveService(settings)
+        except Exception as e:
+            logger.error(f'Failed to initialize TaskMoveService: {str(e)}')
+            return JsonResponse({
+                'error': 'Service initialization failed',
+                'details': str(e)
+            }, status=500)
+        
+        # Perform the move
+        try:
+            result = move_service.move_task(
+                task_id=str(task_id),
+                target_item_id=str(target_item_id),
+                user=user
+            )
+            
+            logger.info(f'Task {task_id} moved by user {user.username}')
+            return JsonResponse(result)
+            
+        except TaskMoveServiceError as e:
+            logger.error(f'Task move failed: {e.message}')
+            return JsonResponse({
+                'error': e.message,
+                'details': e.details
+            }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Task move error: {str(e)}')
+        return JsonResponse({
+            'error': 'An error occurred while moving the task',
+            'details': str(e)
+        }, status=500)
+
+
+@csrf_exempt
 @require_http_methods(['GET'])
 def api_tags_network_data(request):
     """
