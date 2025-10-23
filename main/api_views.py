@@ -4857,3 +4857,48 @@ def get_weaviate_dump(request, object_type, object_id):
             'error': str(e)
         }, status=500)
 
+
+@require_http_methods(["GET"])
+def api_get_items_for_move(request):
+    """
+    API endpoint to get all items for task move dropdown
+    
+    Returns:
+    {
+        "success": true,
+        "items": [
+            {
+                "id": "uuid",
+                "title": "Item Title"
+            },
+            ...
+        ]
+    }
+    """
+    from .models import Item, User
+    
+    try:
+        # Get current user from session
+        user_id = request.session.get('user_id')
+        if not user_id:
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+        
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return JsonResponse({'error': 'User not found'}, status=404)
+        
+        # Get all items ordered by title
+        items = Item.objects.all().order_by('title').values('id', 'title')
+        
+        return JsonResponse({
+            'success': True,
+            'items': list(items)
+        })
+        
+    except Exception as e:
+        logger.error(f'Error getting items for move: {str(e)}')
+        return JsonResponse({
+            'error': 'An error occurred while fetching items'
+        }, status=500)
+
