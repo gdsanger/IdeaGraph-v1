@@ -308,3 +308,60 @@ class TaskAIEnhanceTest(TestCase):
         self.assertIn('required_body', data)
         self.assertIn('title', data['required_body'])
         self.assertIn('description', data['required_body'])
+    
+    @patch('main.api_views.WeaviateTaskSyncService')
+    @patch('main.api_views.KiGateService')
+    def test_api_task_ai_enhance_strips_quotation_marks_from_title(self, mock_kigate_service, mock_weaviate_service):
+        """Test that quotation marks are stripped from AI-generated titles"""
+        # Mock Weaviate service
+        mock_weaviate_instance = MagicMock()
+        mock_weaviate_instance.search_similar.return_value = {
+            'success': True,
+            'results': []
+        }
+        mock_weaviate_service.return_value = mock_weaviate_instance
+        
+        # Mock KiGate service
+        mock_kigate_instance = MagicMock()
+        
+        # Mock responses with titles wrapped in quotation marks
+        mock_kigate_instance.execute_agent.side_effect = [
+            # First call: text normalization
+            {
+                'success': True,
+                'result': 'Normalized task description'
+            },
+            # Second call: title generation with quotation marks
+            {
+                'success': True,
+                'result': '"Task Title with Quotes"'
+            },
+            # Third call: keyword extraction
+            {
+                'success': True,
+                'result': 'Python, Django'
+            }
+        ]
+        mock_kigate_service.return_value = mock_kigate_instance
+        
+        # Create request
+        request = self.factory.post(
+            f'/api/tasks/{self.task.id}/ai-enhance',
+            data=json.dumps({
+                'title': 'Test Title',
+                'description': 'Test Description'
+            }),
+            content_type='application/json'
+        )
+        request.session = {'user_id': str(self.user.id)}
+        
+        # Execute
+        response = api_task_ai_enhance(request, self.task.id)
+        
+        # Assert response
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        # Verify quotation marks are stripped
+        self.assertEqual(data['title'], 'Task Title with Quotes')
+        self.assertNotIn('"', data['title'])
