@@ -710,6 +710,51 @@
 const csrfToken = '{{ csrf_token }}';
 const milestoneId = '{{ milestone.id }}';
 
+// Cookie helper functions
+function setCookie(name, value, days = 365) {
+    const expires = new Date();
+    expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+    document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + expires.toUTCString() + ';path=/';
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Tab state management
+const TAB_COOKIE_NAME = 'milestone_active_tab';
+
+// Save tab state when tab is clicked
+document.querySelectorAll('#milestoneTabs button[data-bs-toggle="tab"]').forEach(tabButton => {
+    tabButton.addEventListener('shown.bs.tab', function(event) {
+        const tabId = event.target.getAttribute('data-bs-target');
+        setCookie(TAB_COOKIE_NAME, tabId);
+    });
+});
+
+// Restore last active tab on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const lastActiveTab = getCookie(TAB_COOKIE_NAME);
+    if (lastActiveTab) {
+        const tabButton = document.querySelector(`#milestoneTabs button[data-bs-target="${lastActiveTab}"]`);
+        if (tabButton) {
+            const tab = new bootstrap.Tab(tabButton);
+            tab.show();
+        }
+    }
+});
+
 // Toast notification utility
 function showToast(message, type = 'info') {
     // Create toast container if it doesn't exist
