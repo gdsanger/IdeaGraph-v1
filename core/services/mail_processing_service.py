@@ -145,6 +145,8 @@ class MailProcessingService:
                 self.in_pre = False
                 self.link_text = None
                 self.link_href = None
+                self.list_stack = []  # Track list types (ul/ol)
+                self.list_item_counter = 0
                 
             def handle_starttag(self, tag, attrs):
                 self.current_tag.append(tag)
@@ -176,10 +178,19 @@ class MailProcessingService:
                             break
                 elif tag == 'ul':
                     self.markdown.append('\n')
+                    self.list_stack.append('ul')
+                    self.list_item_counter = 0
                 elif tag == 'ol':
                     self.markdown.append('\n')
+                    self.list_stack.append('ol')
+                    self.list_item_counter = 0
                 elif tag == 'li':
-                    self.markdown.append('\n' + '  ' * self.list_level + '- ')
+                    # Check if we're in an ordered or unordered list
+                    if self.list_stack and self.list_stack[-1] == 'ol':
+                        self.list_item_counter += 1
+                        self.markdown.append(f'\n{"  " * self.list_level}{self.list_item_counter}. ')
+                    else:
+                        self.markdown.append('\n' + '  ' * self.list_level + '- ')
                 elif tag == 'blockquote':
                     self.markdown.append('\n> ')
             
@@ -208,6 +219,8 @@ class MailProcessingService:
                         self.link_text = None
                         self.link_href = None
                 elif tag in ['ul', 'ol']:
+                    if self.list_stack:
+                        self.list_stack.pop()
                     self.markdown.append('\n')
             
             def handle_data(self, data):
