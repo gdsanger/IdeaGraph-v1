@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.core.exceptions import ValidationError
 from .auth_utils import validate_password
 from .models import Tag, Settings, Section, User, Item, Task, Client, Milestone
 
@@ -106,13 +107,19 @@ def _resolve_client_values(client_values):
     for value in client_values:
         if not value:
             continue
+        # Skip new client names (prefixed with "new:") - clients cannot be created inline
+        if isinstance(value, str) and value[:4].lower() == 'new:':
+            continue
         # Client values should only be existing IDs (no creation like tags)
         if str(value) not in seen_ids:
             try:
                 client = Client.objects.get(id=value)
                 resolved_clients.append(client)
                 seen_ids.add(str(value))
-            except Client.DoesNotExist:
+            except (Client.DoesNotExist, ValueError, TypeError, ValidationError):
+                # ValueError: invalid UUID format
+                # TypeError: unexpected type for UUID conversion
+                # ValidationError: Django validation error for invalid UUID
                 continue
     
     return resolved_clients
