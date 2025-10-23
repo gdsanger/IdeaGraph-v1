@@ -925,3 +925,97 @@ class RelationModelTest(TestCase):
             type='dependency'
         )
         self.assertIsInstance(relation.id, uuid.UUID)
+
+
+class ClientResolverTest(TestCase):
+    """Test the _resolve_client_values helper function"""
+
+    def setUp(self):
+        """Set up test data"""
+        from .models import Client
+        self.client1 = Client.objects.create(name="Test Client 1")
+        self.client2 = Client.objects.create(name="Test Client 2")
+
+    def test_resolve_valid_client_ids(self):
+        """Test resolving valid client IDs"""
+        from main.views import _resolve_client_values
+        
+        client_values = [str(self.client1.id), str(self.client2.id)]
+        resolved = _resolve_client_values(client_values)
+        
+        self.assertEqual(len(resolved), 2)
+        self.assertIn(self.client1, resolved)
+        self.assertIn(self.client2, resolved)
+
+    def test_resolve_ignores_new_prefix(self):
+        """Test that values with 'new:' prefix are ignored"""
+        from main.views import _resolve_client_values
+        
+        client_values = [str(self.client1.id), "new:Acme Corp", "NEW:Another Client"]
+        resolved = _resolve_client_values(client_values)
+        
+        # Should only resolve the valid client ID, ignoring the new: prefixed values
+        self.assertEqual(len(resolved), 1)
+        self.assertIn(self.client1, resolved)
+
+    def test_resolve_ignores_invalid_uuids(self):
+        """Test that invalid UUID values are ignored without raising exceptions"""
+        from main.views import _resolve_client_values
+        
+        client_values = [str(self.client1.id), "invalid-uuid", "12345", "not-a-uuid"]
+        resolved = _resolve_client_values(client_values)
+        
+        # Should only resolve the valid client ID
+        self.assertEqual(len(resolved), 1)
+        self.assertIn(self.client1, resolved)
+
+    def test_resolve_ignores_nonexistent_clients(self):
+        """Test that non-existent client IDs are ignored"""
+        from main.views import _resolve_client_values
+        
+        fake_uuid = str(uuid.uuid4())
+        client_values = [str(self.client1.id), fake_uuid]
+        resolved = _resolve_client_values(client_values)
+        
+        # Should only resolve the valid client ID
+        self.assertEqual(len(resolved), 1)
+        self.assertIn(self.client1, resolved)
+
+    def test_resolve_empty_values(self):
+        """Test handling of empty values"""
+        from main.views import _resolve_client_values
+        
+        client_values = [str(self.client1.id), "", None, "  "]
+        resolved = _resolve_client_values(client_values)
+        
+        # Should only resolve the valid client ID
+        self.assertEqual(len(resolved), 1)
+        self.assertIn(self.client1, resolved)
+
+    def test_resolve_deduplicated(self):
+        """Test that duplicate client IDs are deduplicated"""
+        from main.views import _resolve_client_values
+        
+        client_values = [str(self.client1.id), str(self.client1.id), str(self.client2.id)]
+        resolved = _resolve_client_values(client_values)
+        
+        # Should return unique clients only
+        self.assertEqual(len(resolved), 2)
+        self.assertIn(self.client1, resolved)
+        self.assertIn(self.client2, resolved)
+
+    def test_resolve_none_input(self):
+        """Test handling of None input"""
+        from main.views import _resolve_client_values
+        
+        resolved = _resolve_client_values(None)
+        
+        self.assertEqual(resolved, [])
+
+    def test_resolve_empty_list(self):
+        """Test handling of empty list"""
+        from main.views import _resolve_client_values
+        
+        resolved = _resolve_client_values([])
+        
+        self.assertEqual(resolved, [])
