@@ -386,6 +386,58 @@ class GitHubService:
             logger.error(f"Error listing issues: {str(e)}")
             raise GitHubServiceError("Error listing issues", details=str(e))
     
+    def create_issue_comment(
+        self,
+        issue_number: int,
+        body: str,
+        repo: Optional[str] = None,
+        owner: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a comment on an issue
+        
+        Args:
+            issue_number: Issue number
+            body: Comment body/text
+            repo: Repository name (uses default if not provided)
+            owner: Repository owner (uses default if not provided)
+            
+        Returns:
+            Dict with success status and comment data
+        """
+        owner = owner or self.default_owner
+        repo = repo or self.default_repo
+        
+        if not owner or not repo:
+            raise GitHubServiceError(
+                "Repository information required",
+                details="owner and repo must be provided or configured as defaults"
+            )
+        
+        endpoint = f"repos/{owner}/{repo}/issues/{issue_number}/comments"
+        
+        comment_data = {
+            'body': body
+        }
+        
+        try:
+            response = self._make_request('POST', endpoint, json_data=comment_data)
+            comment = self._handle_response(response, success_codes=[201])
+            
+            logger.info(f"Created comment on issue #{issue_number} in {owner}/{repo}")
+            return {
+                'success': True,
+                'comment': comment,
+                'comment_id': comment.get('id'),
+                'url': comment.get('html_url')
+            }
+            
+        except GitHubServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error creating comment: {str(e)}")
+            raise GitHubServiceError("Error creating comment", details=str(e))
+    
     # Pull Request Methods
     
     def get_pull_request(
