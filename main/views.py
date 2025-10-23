@@ -896,6 +896,7 @@ def item_detail(request, item_id):
     
     # Handle POST request for updating the item
     selected_tags_payload = list(item.tags.values('id', 'name', 'color'))
+    selected_clients_payload = list(item.clients.values('id', 'name'))
 
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
@@ -904,6 +905,7 @@ def item_detail(request, item_id):
         section_id = request.POST.get('section')
         status = request.POST.get('status', item.status)
         tag_values = request.POST.getlist('tags')
+        client_values = request.POST.getlist('clients')
         parent_id = request.POST.get('parent')
         is_template = request.POST.get('is_template') == 'on'
         inherit_context = request.POST.get('inherit_context') == 'on'
@@ -911,6 +913,7 @@ def item_detail(request, item_id):
         if not title:
             messages.error(request, 'Title is required.')
             selected_tags_payload = _build_selected_tags_payload(tag_values)
+            selected_clients_payload = _build_selected_clients_payload(client_values)
         else:
             try:
                 item.title = title
@@ -939,6 +942,13 @@ def item_detail(request, item_id):
                 else:
                     item.tags.clear()
 
+                # Update clients
+                resolved_clients = _resolve_client_values(client_values)
+                if resolved_clients:
+                    item.clients.set(resolved_clients)
+                else:
+                    item.clients.clear()
+
                 # Sync update to Weaviate
                 sync_service = None
                 try:
@@ -956,10 +966,12 @@ def item_detail(request, item_id):
 
                 messages.success(request, f'Item "{title}" updated successfully!')
                 selected_tags_payload = list(item.tags.values('id', 'name', 'color'))
+                selected_clients_payload = list(item.clients.values('id', 'name'))
 
             except Exception as e:
                 messages.error(request, f'Error updating item: {str(e)}')
                 selected_tags_payload = _build_selected_tags_payload(tag_values)
+                selected_clients_payload = _build_selected_clients_payload(client_values)
     
     # Get show_completed filter parameter (default: false - don't show completed)
     show_completed = request.GET.get('show_completed', 'false').lower() == 'true'
@@ -990,9 +1002,10 @@ def item_detail(request, item_id):
     paginator = Paginator(tasks, 10)
     tasks_page = paginator.get_page(page_number)
     
-    # Get all sections, tags, items, and status choices for the form
+    # Get all sections, tags, clients, items, and status choices for the form
     sections = Section.objects.all()
     all_tags = list(Tag.objects.values('id', 'name', 'color'))
+    all_clients = list(Client.objects.values('id', 'name'))
     all_items = Item.objects.exclude(id=item.id).order_by('title')  # Exclude current item
     status_choices = Item.STATUS_CHOICES
 
@@ -1011,8 +1024,10 @@ def item_detail(request, item_id):
         'tasks': tasks_page,
         'sections': sections,
         'all_tags': all_tags,
+        'all_clients': all_clients,
         'all_items': all_items,
         'selected_tags': selected_tags_payload,
+        'selected_clients': selected_clients_payload,
         'status_choices': status_choices,
         'show_completed': show_completed,
         'search_query': search_query,

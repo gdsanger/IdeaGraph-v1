@@ -309,152 +309,178 @@
                     <form method="post" id="itemForm">
                         {% csrf_token %}
                         
-                        <!-- Title -->
-                        <div class="mb-2">
-                            <label for="title" class="form-label">Title</label>
-                            <div class="input-group">
-                                <input type="text" class="form-control" id="title" name="title" value="{{ item.title }}" required>
-                                <button type="button" class="btn btn-outline-success ai-button" id="generateTitleBtn" title="Generate title from description using AI">
-                                    <i class="bi bi-stars"></i>
-                                    <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Description with Toast UI Editor -->
-                        <div class="mb-2">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <label for="description" class="form-label mb-0">Description (Markdown)</label>
-                                <button type="button" class="btn btn-sm btn-outline-success ai-button" id="optimizeDescriptionBtn" title="Optimize description using AI">
-                                    <i class="bi bi-stars"></i> Optimize Text
-                                    <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
-                                </button>
-                            </div>
-                            <div id="editor"></div>
-                            <textarea name="description" id="description" style="display: none;">{{ item.description }}</textarea>
-                        </div>
-
+                        <!-- ROW 1: Title/Description (col-9) and Fields (col-3) -->
                         <div class="row">
-                            <!-- GitHub Repository -->
-                            <div class="col-md-3 mb-2">
-                                <label for="github_repo" class="form-label">GitHub Repository</label>
-                                <input type="text" class="form-control" id="github_repo" name="github_repo" value="{{ item.github_repo }}" placeholder="owner/repository">
+                            <!-- Left Column: Title and Description -->
+                            <div class="col-md-9">
+                                <!-- Title -->
+                                <div class="mb-2">
+                                    <label for="title" class="form-label">Title</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="title" name="title" value="{{ item.title }}" required>
+                                        <button type="button" class="btn btn-outline-success ai-button" id="generateTitleBtn" title="Generate title from description using AI">
+                                            <i class="bi bi-stars"></i>
+                                            <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Description with Toast UI Editor -->
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <label for="description" class="form-label mb-0">Description (Markdown)</label>
+                                        <button type="button" class="btn btn-sm btn-outline-success ai-button" id="optimizeDescriptionBtn" title="Optimize description using AI">
+                                            <i class="bi bi-stars"></i> Optimize Text
+                                            <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                                        </button>
+                                    </div>
+                                    <div id="editor"></div>
+                                    <textarea name="description" id="description" style="display: none;">{{ item.description }}</textarea>
+                                </div>
                             </div>
 
-                            <!-- Section -->
-                            <div class="col-md-3 mb-2">
-                                <label for="section" class="form-label">Section</label>
-                                <select class="form-select" id="section" name="section">
-                                    <option value="">No Section</option>
-                                    {% for section in sections %}
-                                    <option value="{{ section.id }}" {% if item.section and item.section.id == section.id %}selected{% endif %}>{{ section.name }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
+                            <!-- Right Column: Other Fields -->
+                            <div class="col-md-3">
+                                <!-- GitHub Repository -->
+                                <div class="mb-2">
+                                    <label for="github_repo" class="form-label">GitHub Repository</label>
+                                    <input type="text" class="form-control" id="github_repo" name="github_repo" value="{{ item.github_repo }}" placeholder="owner/repository">
+                                </div>
 
-                            <!-- Status -->
-                            <div class="col-md-3 mb-2">
-                                <label for="status" class="form-label">Status</label>
-                                <select class="form-select" id="status" name="status">
-                                    {% for value, label in status_choices %}
-                                    <option value="{{ value }}" {% if item.status == value %}selected{% endif %}>{{ label }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
+                                <!-- Section -->
+                                <div class="mb-2">
+                                    <label for="section" class="form-label">Section</label>
+                                    <select class="form-select" id="section" name="section">
+                                        <option value="">No Section</option>
+                                        {% for section in sections %}
+                                        <option value="{{ section.id }}" {% if item.section and item.section.id == section.id %}selected{% endif %}>{{ section.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
 
-                            <!-- Tags -->
-                            <div class="col-md-3 mb-2">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <label class="form-label mb-0">Tags</label>
-                                    <button type="button" class="btn btn-sm btn-outline-success ai-button" id="extractTagsBtn" title="Extract tags from description using AI">
-                                        <i class="bi bi-stars"></i>
+                                <!-- Status -->
+                                <div class="mb-2">
+                                    <label for="status" class="form-label">Status</label>
+                                    <select class="form-select" id="status" name="status">
+                                        {% for value, label in status_choices %}
+                                        <option value="{{ value }}" {% if item.status == value %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <!-- Parent Item -->
+                                <div class="mb-2">
+                                    <label for="parent" class="form-label">Parent Item</label>
+                                    <select class="form-select" id="parent" name="parent">
+                                        <option value="">No Parent</option>
+                                        {% for parent_item in all_items %}
+                                        {% if parent_item.id != item.id %}
+                                        <option value="{{ parent_item.id }}" 
+                                                {% if item.parent and item.parent.id == parent_item.id %}selected{% endif %}>
+                                            {{ parent_item.title }}
+                                        </option>
+                                        {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <!-- Template -->
+                                <div class="mb-2">
+                                    <label for="is_template" class="form-label">Template</label>
+                                    <select class="form-select" id="is_template" name="is_template">
+                                        <option value="" {% if not item.is_template %}selected{% endif %}>Not a template</option>
+                                        <option value="on" {% if item.is_template %}selected{% endif %}>Is template</option>
+                                    </select>
+                                </div>
+
+                                <!-- Context -->
+                                <div class="mb-2">
+                                    <label for="inherit_context" class="form-label">Context</label>
+                                    <textarea class="form-control" id="inherit_context_display" rows="3" readonly>{% if item.inherit_context %}Inherits from parent{% else %}No inheritance{% endif %}</textarea>
+                                    <input type="hidden" id="inherit_context" name="inherit_context" {% if item.inherit_context %}value="on"{% endif %}>
+                                    <div class="form-check form-switch mt-1">
+                                        <input class="form-check-input" type="checkbox" id="inherit_context_switch" 
+                                               {% if item.inherit_context %}checked{% endif %}
+                                               onchange="document.getElementById('inherit_context').value = this.checked ? 'on' : ''; document.getElementById('inherit_context_display').value = this.checked ? 'Inherits from parent' : 'No inheritance';">
+                                        <label class="form-check-label" for="inherit_context_switch" style="font-size: 0.75rem;">
+                                            Inherit from parent
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Tags -->
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <label class="form-label mb-0">Tags</label>
+                                        <button type="button" class="btn btn-sm btn-outline-success ai-button" id="extractTagsBtn" title="Extract tags from description using AI">
+                                            <i class="bi bi-stars"></i>
+                                            <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                                        </button>
+                                    </div>
+                                    <div id="itemDetailTagTokenBox" class="tag-token-box"></div>
+                                    <div id="itemDetailTagHiddenInputs"></div>
+                                    <small class="text-muted" style="font-size: 0.7rem;">Type and press Enter to add.</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ROW 2: Clients (col-12) -->
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <label class="form-label">Clients</label>
+                                <div id="itemDetailClientTokenBox" class="tag-token-box"></div>
+                                <div id="itemDetailClientHiddenInputs"></div>
+                                <small class="text-muted">Type a client name and press Enter to add it. Existing clients will appear as suggestions.</small>
+                            </div>
+                        </div>
+
+                        <!-- ROW 3: Action Buttons (col-12) -->
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <div class="d-flex gap-2 flex-wrap action-buttons">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="bi bi-save"></i> Save
+                                    </button>
+                                    <a href="{% url 'main:item_delete' item.id %}" class="btn btn-danger">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </a>
+                                    <button type="button" class="btn btn-success ai-button" id="aiEnhanceBtn">
+                                        <span class="button-text"><i class="bi bi-stars"></i> AI Enhancer</span>
+                                        <span class="spinner-border" role="status"></span>
+                                    </button>
+                                    <button type="button" class="btn btn-info ai-button" id="buildTasksBtn" {% if item.status != 'ready' %}disabled title="Only available when status is Ready"{% endif %}>
+                                        <span class="button-text"><i class="bi bi-brain"></i> Build Tasks</span>
+                                        <span class="spinner-border" role="status"></span>
+                                    </button>
+                                    <button type="button" class="btn btn-warning ai-button" id="checkSimilarityBtn">
+                                        <span class="button-text"><i class="bi bi-search"></i> Check Similarity</span>
+                                        <span class="spinner-border" role="status"></span>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-primary" id="syncGitHubIssuesBtn" 
+                                            {% if not settings.github_api_enabled or not item.github_repo %}
+                                            disabled 
+                                            title="{% if not settings.github_api_enabled %}GitHub is not enabled{% elif not item.github_repo %}No GitHub repository set for this item{% endif %}"
+                                            {% else %}
+                                            title="Sync GitHub Issues to Tasks"
+                                            {% endif %}>
+                                        <span class="button-text"><i class="bi bi-github"></i> Sync GitHub Issues</span>
                                         <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
                                     </button>
-                                </div>
-                                <div id="itemDetailTagTokenBox" class="tag-token-box"></div>
-                                <div id="itemDetailTagHiddenInputs"></div>
-                                <small class="text-muted">Type a tag name and press Enter to add it. Existing tags will appear as suggestions.</small>
-                            </div>
-                        </div>
-
-                        <!-- Hierarchical fields -->
-                        <div class="row">
-                            <!-- Parent Item -->
-                            <div class="col-md-4 mb-2">
-                                <label for="parent" class="form-label">
-                                    <i class="bi bi-diagram-2"></i> Parent Item
-                                </label>
-                                <select class="form-select" id="parent" name="parent">
-                                    <option value="">No Parent</option>
-                                    {% for parent_item in all_items %}
-                                    {% if parent_item.id != item.id %}
-                                    <option value="{{ parent_item.id }}" 
-                                            {% if item.parent and item.parent.id == parent_item.id %}selected{% endif %}>
-                                        {{ parent_item.title }}
-                                    </option>
-                                    {% endif %}
-                                    {% endfor %}
-                                </select>
-                            </div>
-
-                            <!-- Is Template -->
-                            <div class="col-md-4 mb-2">
-                                <label for="is_template" class="form-label">Template</label>
-                                <div class="form-check form-switch mt-2">
-                                    <input class="form-check-input" type="checkbox" id="is_template" name="is_template" 
-                                           {% if item.is_template %}checked{% endif %}>
-                                    <label class="form-check-label" for="is_template">
-                                        Is template item
-                                    </label>
-                                </div>
-                            </div>
-
-                            <!-- Inherit Context -->
-                            <div class="col-md-4 mb-2">
-                                <label for="inherit_context" class="form-label">Context</label>
-                                <div class="form-check form-switch mt-2">
-                                    <input class="form-check-input" type="checkbox" id="inherit_context" name="inherit_context" 
-                                           {% if item.inherit_context %}checked{% endif %}>
-                                    <label class="form-check-label" for="inherit_context">
-                                        Inherit from parent
-                                    </label>
+                                    <button type="button" class="btn btn-secondary" id="sendEmailBtn" data-bs-toggle="modal" data-bs-target="#sendEmailModal">
+                                        <i class="bi bi-envelope"></i> Send via Email
+                                    </button>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Action Buttons -->
-                        <div class="d-flex gap-2 flex-wrap action-buttons mt-2">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-save"></i> Save
-                            </button>
-                            <a href="{% url 'main:item_delete' item.id %}" class="btn btn-danger">
-                                <i class="bi bi-trash"></i> Delete
-                            </a>
-                            <button type="button" class="btn btn-success ai-button" id="aiEnhanceBtn">
-                                <span class="button-text"><i class="bi bi-stars"></i> AI Enhancer</span>
-                                <span class="spinner-border" role="status"></span>
-                            </button>
-                            <button type="button" class="btn btn-info ai-button" id="buildTasksBtn" {% if item.status != 'ready' %}disabled title="Only available when status is Ready"{% endif %}>
-                                <span class="button-text"><i class="bi bi-brain"></i> Build Tasks</span>
-                                <span class="spinner-border" role="status"></span>
-                            </button>
-                            <button type="button" class="btn btn-warning ai-button" id="checkSimilarityBtn">
-                                <span class="button-text"><i class="bi bi-search"></i> Check Similarity</span>
-                                <span class="spinner-border" role="status"></span>
-                            </button>
-                            <button type="button" class="btn btn-outline-primary" id="syncGitHubIssuesBtn" 
-                                    {% if not settings.github_api_enabled or not item.github_repo %}
-                                    disabled 
-                                    title="{% if not settings.github_api_enabled %}GitHub is not enabled{% elif not item.github_repo %}No GitHub repository set for this item{% endif %}"
-                                    {% else %}
-                                    title="Sync GitHub Issues to Tasks"
-                                    {% endif %}>
-                                <span class="button-text"><i class="bi bi-github"></i> Sync GitHub Issues</span>
-                                <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
-                            </button>
-                            <button type="button" class="btn btn-secondary" id="sendEmailBtn" data-bs-toggle="modal" data-bs-target="#sendEmailModal">
-                                <i class="bi bi-envelope"></i> Send via Email
-                            </button>
+                        <!-- ROW 4: Metadata (col-12) -->
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <small class="text-muted">
+                                    <i class="bi bi-clock-history"></i> CreatedAt: {{ item.created_at|date:"Y-m-d H:i" }}
+                                    · LastUpdated: {{ item.updated_at|date:"Y-m-d H:i" }}
+                                </small>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -734,6 +760,8 @@
 <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
 {{ all_tags|json_script:"item-detail-all-tags" }}
 {{ selected_tags|json_script:"item-detail-selected-tags" }}
+{{ all_clients|json_script:"item-detail-all-clients" }}
+{{ selected_clients|json_script:"item-detail-selected-clients" }}
 <script src="{% static 'main/js/tag-token.js' %}"></script>
 
 <!-- Sigma.js and dependencies for semantic network -->
@@ -825,6 +853,28 @@ initializeTagTokenBox('itemDetailTagTokenBox', {
     selectedTags: itemDetailSelectedTags,
     hiddenInputContainerId: 'itemDetailTagHiddenInputs',
     inputPlaceholder: 'Add a tag and press Enter'
+});
+
+// Initialize client token box
+const itemDetailAllClients = JSON.parse(document.getElementById('item-detail-all-clients').textContent || '[]');
+const itemDetailSelectedClients = JSON.parse(document.getElementById('item-detail-selected-clients').textContent || '[]');
+// Convert clients to tag format (id, name, color) for the token box
+const clientsAsTagFormat = itemDetailAllClients.map(client => ({
+    id: client.id,
+    name: client.name,
+    color: '#6366f1'  // Use indigo color for clients
+}));
+const selectedClientsAsTagFormat = itemDetailSelectedClients.map(client => ({
+    id: client.id,
+    name: client.name,
+    color: '#6366f1'
+}));
+initializeTagTokenBox('itemDetailClientTokenBox', {
+    allTags: clientsAsTagFormat,
+    selectedTags: selectedClientsAsTagFormat,
+    hiddenInputContainerId: 'itemDetailClientHiddenInputs',
+    inputPlaceholder: 'Add a client and press Enter',
+    fieldName: 'clients'  // Use 'clients' as the field name instead of 'tags'
 });
 
 // Helper function to show alerts
