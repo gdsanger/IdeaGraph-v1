@@ -290,7 +290,7 @@ class SupportAnalysisTest(TestCase):
         self.assertEqual(data['error'], 'Service error')
     
     @patch('main.api_views.TaskFileService')
-    @patch('main.api_views.WeaviateItemSyncService')
+    @patch('core.services.weaviate_sync_service.WeaviateItemSyncService')
     def test_api_task_support_analysis_save_success(self, mock_weaviate_service, mock_file_service):
         """Test successful saving of support analysis"""
         # Mock TaskFileService
