@@ -116,11 +116,55 @@ class MailProcessingServiceTestCase(TestCase):
         self.settings.save()
         
         service = MailProcessingService(self.settings)
-        html = '<h1>Test Heading</h1>'
+        html = '<h1>Test Heading</h1><p>Test paragraph</p>'
         markdown = service.convert_html_to_markdown(html)
         
-        # Should return original HTML when service not available
-        self.assertEqual(markdown, html)
+        # Should return Markdown using fallback converter
+        self.assertIn('# Test Heading', markdown)
+        self.assertIn('Test paragraph', markdown)
+        # Should NOT contain HTML tags
+        self.assertNotIn('<h1>', markdown)
+        self.assertNotIn('<p>', markdown)
+    
+    def test_convert_html_to_markdown_with_fallback_comprehensive(self, mock_weaviate_init):
+        """Test comprehensive HTML to Markdown conversion with fallback converter"""
+        self.settings.kigate_api_enabled = False
+        self.settings.save()
+        
+        service = MailProcessingService(self.settings)
+        
+        # Test various HTML elements
+        html = '''
+        <h1>Main Heading</h1>
+        <h2>Subheading</h2>
+        <p>This is a <strong>bold</strong> and <em>italic</em> text.</p>
+        <p>Here is a <a href="https://example.com">link</a>.</p>
+        <ul>
+            <li>First item</li>
+            <li>Second item</li>
+        </ul>
+        <blockquote>A quote</blockquote>
+        <p>Inline <code>code</code> example.</p>
+        <pre><code>Code block</code></pre>
+        '''
+        
+        markdown = service.convert_html_to_markdown(html)
+        
+        # Verify conversions
+        self.assertIn('# Main Heading', markdown)
+        self.assertIn('## Subheading', markdown)
+        self.assertIn('**bold**', markdown)
+        self.assertIn('*italic*', markdown)
+        self.assertIn('[link](https://example.com)', markdown)
+        self.assertIn('- First item', markdown)
+        self.assertIn('- Second item', markdown)
+        self.assertIn('`code`', markdown)
+        
+        # Verify no HTML tags remain
+        self.assertNotIn('<h1>', markdown)
+        self.assertNotIn('<p>', markdown)
+        self.assertNotIn('<strong>', markdown)
+        self.assertNotIn('<em>', markdown)
     
     @patch('core.services.kigate_service.KiGateService.execute_agent')
     def test_convert_markdown_to_html_success(self, mock_weaviate_init, mock_execute):
