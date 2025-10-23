@@ -745,9 +745,13 @@ document.querySelector('#createGitHubIssueBtn').addEventListener('click', async 
             }
             showAlert(`GitHub Issue #${data.issue_number} created successfully!`, 'success');
             
-            // Reload page to show updated GitHub link
+            // Redirect to item view after successful GitHub issue creation
             setTimeout(() => {
-                window.location.reload();
+                {% if task.item %}
+                window.location.href = '{% url "main:item_detail" task.item.id %}';
+                {% else %}
+                window.location.href = '{% url "main:item_list" %}';
+                {% endif %}
             }, 2000);
         } else {
             showAlert(data.error || 'Failed to create GitHub issue', 'danger');
