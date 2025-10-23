@@ -251,6 +251,37 @@
         height: 100%;
     }
 
+    /* Drag and Drop Zone Styles */
+    .drop-zone {
+        border: 2px dashed var(--bs-border-color);
+        border-radius: 0.5rem;
+        padding: 2rem;
+        text-align: center;
+        background: rgba(15, 23, 42, 0.3);
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .drop-zone:hover {
+        border-color: var(--autumn-accent);
+        background: rgba(15, 23, 42, 0.5);
+    }
+    
+    .drop-zone.drag-over {
+        border-color: var(--autumn-accent);
+        background: rgba(245, 158, 11, 0.1);
+        border-width: 3px;
+    }
+    
+    .drop-zone-content {
+        pointer-events: none;
+    }
+    
+    .drop-zone i {
+        color: var(--autumn-accent);
+        opacity: 0.7;
+    }
+
 </style>
 {% endblock %}
 
@@ -551,15 +582,25 @@
                                       hx-swap="innerHTML"
                                       hx-indicator="#uploadProgress">
                                     <label for="fileInputHtmx" class="btn btn-primary">
-                                        <i class="bi bi-upload"></i> Upload File
+                                        <i class="bi bi-upload"></i> Upload Files
                                     </label>
                                     <input type="file" 
                                            id="fileInputHtmx" 
-                                           name="file" 
+                                           name="files" 
+                                           multiple
                                            style="display: none;"
-                                           onchange="this.closest('form').dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}));" />
-                                    <small class="text-muted ms-2">Maximum file size: 25 MB</small>
+                                           onchange="handleFileSelect(this);" />
+                                    <small class="text-muted ms-2">Maximum file size: 25 MB per file. You can select multiple files.</small>
                                 </form>
+                            </div>
+                            
+                            <!-- Drag and Drop Zone -->
+                            <div id="dropZone" class="drop-zone mb-3">
+                                <div class="drop-zone-content">
+                                    <i class="bi bi-cloud-upload" style="font-size: 3rem;"></i>
+                                    <p class="mt-2 mb-0">Drag and drop files here</p>
+                                    <p class="text-muted small">or click the "Upload Files" button above</p>
+                                </div>
                             </div>
                             
                             <!-- Upload progress -->
@@ -567,7 +608,7 @@
                                 <div class="progress">
                                     <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
                                 </div>
-                                <small class="text-muted">Processing file...</small>
+                                <small class="text-muted">Processing files...</small>
                             </div>
                             
                             <!-- Files list - loaded via htmx -->
@@ -1433,6 +1474,117 @@ document.addEventListener('DOMContentLoaded', function() {
 // File Upload Functionality - Now handled by htmx
 // The JavaScript functions are kept for backward compatibility and toast notifications
 (function() {
+    // Handle file selection from input
+    window.handleFileSelect = function(input) {
+        if (input.files && input.files.length > 0) {
+            uploadFiles(input.files);
+        }
+    };
+    
+    // Upload files function
+    function uploadFiles(files) {
+        const formData = new FormData();
+        
+        // Add all files to FormData
+        for (let i = 0; i < files.length; i++) {
+            formData.append('files', files[i]);
+        }
+        
+        // Show progress indicator
+        const uploadProgress = document.getElementById('uploadProgress');
+        if (uploadProgress) {
+            uploadProgress.style.display = 'block';
+        }
+        
+        // Upload using fetch API
+        fetch('/api/items/{{ item.id }}/files/upload', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+                'HX-Request': 'true'  // Mark as HTMX request for proper response
+            }
+        })
+        .then(response => response.text())
+        .then(html => {
+            // Update the files list container with the response
+            document.getElementById('filesListContainer').innerHTML = html;
+            
+            // Hide progress indicator
+            if (uploadProgress) {
+                uploadProgress.style.display = 'none';
+            }
+            
+            // Show success message
+            const fileCount = files.length;
+            const message = fileCount === 1 ? '1 file uploaded successfully' : `${fileCount} files uploaded successfully`;
+            showAlert(message, 'success');
+            
+            // Clear file input
+            const fileInput = document.getElementById('fileInputHtmx');
+            if (fileInput) {
+                fileInput.value = '';
+            }
+        })
+        .catch(error => {
+            console.error('Upload error:', error);
+            if (uploadProgress) {
+                uploadProgress.style.display = 'none';
+            }
+            showAlert('Error uploading files: ' + error.message, 'danger');
+        });
+    }
+    
+    // Drag and Drop functionality
+    const dropZone = document.getElementById('dropZone');
+    
+    if (dropZone) {
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        // Highlight drop zone when item is dragged over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+        
+        // Handle dropped files
+        dropZone.addEventListener('drop', handleDrop, false);
+        
+        // Also make it clickable to trigger file input
+        dropZone.addEventListener('click', function() {
+            document.getElementById('fileInputHtmx').click();
+        });
+    }
+    
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    function highlight(e) {
+        dropZone.classList.add('drag-over');
+    }
+    
+    function unhighlight(e) {
+        dropZone.classList.remove('drag-over');
+    }
+    
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        
+        if (files.length > 0) {
+            uploadFiles(files);
+        }
+    }
+    
     // Re-show htmx indicator when htmx:beforeRequest event fires
     document.body.addEventListener('htmx:beforeRequest', function(event) {
         // Check if this is a file upload or delete request
