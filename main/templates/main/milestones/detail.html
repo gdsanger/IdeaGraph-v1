@@ -454,6 +454,21 @@
                                                 data-context-id="{{ context.id }}" title="Analyze with AI">
                                             <i class="bi bi-robot"></i> Analyze
                                         </button>
+                                        {% else %}
+                                        <button class="btn btn-sm btn-outline-info show-results-btn" 
+                                                data-context-id="{{ context.id }}" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#resultsModal"
+                                                title="View analysis results">
+                                            <i class="bi bi-eye"></i> Show Results
+                                        </button>
+                                        {% endif %}
+                                        {% if context.analyzed and context.derived_tasks %}
+                                        <button class="btn btn-sm btn-outline-success accept-results-btn" 
+                                                data-context-id="{{ context.id }}" 
+                                                title="Accept and apply results">
+                                            <i class="bi bi-check-circle"></i> Accept
+                                        </button>
                                         {% endif %}
                                         {% if context.derived_tasks %}
                                         <button class="btn btn-sm btn-outline-success create-tasks-btn" 
@@ -477,6 +492,67 @@
                         {% endif %}
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Analysis Results Modal -->
+<div class="modal fade" id="resultsModal" tabindex="-1" aria-labelledby="resultsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content bg-dark">
+            <div class="modal-header">
+                <h5 class="modal-title" id="resultsModalLabel">
+                    <i class="bi bi-robot"></i> AI Analysis Results
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modalContextTitle" class="mb-3">
+                    <h6 class="text-muted">Context Object:</h6>
+                    <h5 id="modalContextTitleText"></h5>
+                </div>
+                
+                <!-- Summary Section -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6><i class="bi bi-file-text"></i> Summary</h6>
+                        <button class="btn btn-sm btn-outline-primary" id="enhanceSummaryBtn">
+                            <i class="bi bi-magic"></i> Enhance Summary
+                        </button>
+                    </div>
+                    <textarea class="form-control" id="modalSummaryText" rows="6" 
+                              placeholder="AI-generated summary will appear here"></textarea>
+                    <small class="text-muted">You can edit the summary before accepting.</small>
+                </div>
+                
+                <!-- Derived Tasks Section -->
+                <div class="mb-4">
+                    <h6><i class="bi bi-list-task"></i> Derived Tasks</h6>
+                    <div id="modalTasksList" class="list-group mb-2">
+                        <!-- Tasks will be dynamically loaded here -->
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary" id="addTaskBtn">
+                        <i class="bi bi-plus"></i> Add Task
+                    </button>
+                </div>
+                
+                <!-- Statistics -->
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    When you accept these results:
+                    <ul class="mb-0 mt-2">
+                        <li>The summary will be added to the milestone with source reference</li>
+                        <li>Tasks can be created from the derived task list</li>
+                        <li>The context object will be marked as accepted</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="acceptResultsBtn">
+                    <i class="bi bi-check-circle"></i> Accept & Apply
+                </button>
             </div>
         </div>
     </div>
@@ -787,6 +863,264 @@ function regenerateSummary(btn) {
     })
     .catch(error => {
         showToast('Error regenerating summary: ' + error, 'error');
+    })
+    .finally(() => {
+        setLoading(btn, false);
+    });
+}
+
+// Show results modal
+let currentContextData = null;
+document.querySelectorAll('.show-results-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const contextId = this.dataset.contextId;
+        loadContextResults(contextId);
+    });
+});
+
+function loadContextResults(contextId) {
+    // Find context object data from the page
+    const contextCard = document.querySelector(`[data-context-id="${contextId}"]`);
+    if (!contextCard) return;
+    
+    const contextTitle = contextCard.querySelector('h5').textContent;
+    
+    // Load from API
+    fetch(`/api/milestones/context/${contextId}/analyze`, {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success || data.context) {
+            const context = data.context || data;
+            currentContextData = {
+                id: contextId,
+                title: contextTitle,
+                summary: context.summary || '',
+                derived_tasks: context.derived_tasks || []
+            };
+            
+            displayResultsInModal(currentContextData);
+        } else {
+            showToast('Error loading results: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        showToast('Error loading results: ' + error, 'error');
+    });
+}
+
+function displayResultsInModal(contextData) {
+    // Set title
+    document.getElementById('modalContextTitleText').textContent = contextData.title;
+    
+    // Set summary
+    document.getElementById('modalSummaryText').value = contextData.summary;
+    
+    // Display derived tasks
+    const tasksList = document.getElementById('modalTasksList');
+    tasksList.innerHTML = '';
+    
+    if (contextData.derived_tasks && contextData.derived_tasks.length > 0) {
+        contextData.derived_tasks.forEach((task, index) => {
+            const taskTitle = task.Titel || task.titel || task.title || '';
+            const taskDesc = task.Beschreibung || task.beschreibung || task.description || '';
+            
+            const taskItem = document.createElement('div');
+            taskItem.className = 'list-group-item bg-dark border-secondary';
+            taskItem.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1 me-2">
+                        <input type="text" class="form-control form-control-sm mb-1 task-title-input" 
+                               value="${escapeHtml(taskTitle)}" placeholder="Task title" data-task-index="${index}">
+                        <textarea class="form-control form-control-sm task-desc-input" 
+                                  rows="2" placeholder="Task description" data-task-index="${index}">${escapeHtml(taskDesc)}</textarea>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger remove-task-btn" data-task-index="${index}">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </div>
+            `;
+            tasksList.appendChild(taskItem);
+        });
+        
+        // Add event listeners for remove buttons
+        tasksList.querySelectorAll('.remove-task-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const index = parseInt(this.dataset.taskIndex);
+                removeTaskFromModal(index);
+            });
+        });
+    } else {
+        tasksList.innerHTML = '<div class="alert alert-secondary">No tasks derived yet.</div>';
+    }
+}
+
+function removeTaskFromModal(index) {
+    if (currentContextData && currentContextData.derived_tasks) {
+        currentContextData.derived_tasks.splice(index, 1);
+        displayResultsInModal(currentContextData);
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Add new task button
+document.getElementById('addTaskBtn')?.addEventListener('click', function() {
+    if (!currentContextData) return;
+    
+    if (!currentContextData.derived_tasks) {
+        currentContextData.derived_tasks = [];
+    }
+    
+    currentContextData.derived_tasks.push({
+        Titel: '',
+        Beschreibung: ''
+    });
+    
+    displayResultsInModal(currentContextData);
+});
+
+// Enhance summary button
+document.getElementById('enhanceSummaryBtn')?.addEventListener('click', function() {
+    if (!currentContextData) return;
+    
+    const btn = this;
+    setLoading(btn, true);
+    
+    fetch(`/api/milestones/context/${currentContextData.id}/enhance-summary`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('modalSummaryText').value = data.enhanced_summary;
+            currentContextData.summary = data.enhanced_summary;
+            showToast('Summary enhanced successfully!', 'success');
+        } else {
+            showToast('Error enhancing summary: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        showToast('Error enhancing summary: ' + error, 'error');
+    })
+    .finally(() => {
+        setLoading(btn, false);
+    });
+});
+
+// Accept results button
+document.getElementById('acceptResultsBtn')?.addEventListener('click', function() {
+    if (!currentContextData) return;
+    
+    const btn = this;
+    setLoading(btn, true);
+    
+    // Get edited values from modal
+    const editedSummary = document.getElementById('modalSummaryText').value;
+    
+    // Collect edited tasks
+    const editedTasks = [];
+    const tasksList = document.getElementById('modalTasksList');
+    tasksList.querySelectorAll('.list-group-item').forEach((item) => {
+        const titleInput = item.querySelector('.task-title-input');
+        const descInput = item.querySelector('.task-desc-input');
+        
+        if (titleInput && descInput) {
+            const title = titleInput.value.trim();
+            const desc = descInput.value.trim();
+            
+            if (title) {
+                editedTasks.push({
+                    Titel: title,
+                    Beschreibung: desc
+                });
+            }
+        }
+    });
+    
+    // Send accept request
+    fetch(`/api/milestones/context/${currentContextData.id}/accept-results`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            summary: editedSummary,
+            derived_tasks: editedTasks
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Results accepted and applied!', 'success');
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('resultsModal'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Reload page after short delay
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast('Error accepting results: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        showToast('Error accepting results: ' + error, 'error');
+    })
+    .finally(() => {
+        setLoading(btn, false);
+    });
+});
+
+// Accept results button on context card
+document.querySelectorAll('.accept-results-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const contextId = this.dataset.contextId;
+        acceptResultsDirectly(contextId, this);
+    });
+});
+
+function acceptResultsDirectly(contextId, btn) {
+    if (!confirm('Accept the current analysis results and apply them to the milestone?')) {
+        return;
+    }
+    
+    setLoading(btn, true);
+    
+    fetch(`/api/milestones/context/${contextId}/accept-results`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Results accepted and applied!', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast('Error: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        showToast('Error accepting results: ' + error, 'error');
     })
     .finally(() => {
         setLoading(btn, false);
