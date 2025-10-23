@@ -92,8 +92,8 @@ class MailProcessingService:
             Markdown string
         """
         if not self.kigate_service:
-            logger.warning("KiGate service not available, returning HTML as-is")
-            return html_content
+            logger.warning("KiGate service not available, using fallback HTML-to-Markdown conversion")
+            return self._basic_html_to_markdown(html_content)
         
         try:
             result = self.kigate_service.execute_agent(
@@ -105,16 +105,151 @@ class MailProcessingService:
             )
             
             if result.get('success'):
-                markdown = result.get('result', html_content)
-                logger.info("Successfully converted HTML to Markdown")
-                return markdown
+                markdown = result.get('result', '')
+                # Verify that we actually got markdown back (not HTML)
+                if markdown and not (markdown.strip().startswith('<') and '>' in markdown):
+                    logger.info("Successfully converted HTML to Markdown")
+                    return markdown
+                else:
+                    logger.warning("HTML to Markdown conversion returned HTML-like content, using fallback")
+                    return self._basic_html_to_markdown(html_content)
             else:
-                logger.warning("HTML to Markdown conversion failed, returning original")
-                return html_content
+                logger.warning("HTML to Markdown conversion failed, using fallback")
+                return self._basic_html_to_markdown(html_content)
                 
         except KiGateServiceError as e:
-            logger.warning(f"KiGate service error: {e.message}, returning HTML as-is")
-            return html_content
+            logger.warning(f"KiGate service error: {e.message}, using fallback HTML-to-Markdown conversion")
+            return self._basic_html_to_markdown(html_content)
+    
+    def _basic_html_to_markdown(self, html_content: str) -> str:
+        """
+        Basic fallback method to convert HTML to Markdown
+        
+        Uses Python's html.parser to parse HTML and convert to markdown format.
+        This is a simple converter for common HTML elements.
+        
+        Args:
+            html_content: HTML string to convert
+            
+        Returns:
+            Markdown string with basic formatting
+        """
+        from html.parser import HTMLParser
+        
+        class HTMLToMarkdownParser(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.markdown = []
+                self.current_tag = []
+                self.list_level = 0
+                self.in_pre = False
+                self.link_text = None
+                self.link_href = None
+                self.list_stack = []  # Track list types (ul/ol)
+                self.list_item_counter = 0
+                
+            def handle_starttag(self, tag, attrs):
+                self.current_tag.append(tag)
+                
+                if tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                    level = int(tag[1])
+                    self.markdown.append('\n' + '#' * level + ' ')
+                elif tag == 'p':
+                    self.markdown.append('\n\n')
+                elif tag == 'br':
+                    self.markdown.append('  \n')
+                elif tag == 'hr':
+                    self.markdown.append('\n\n---\n\n')
+                elif tag == 'strong' or tag == 'b':
+                    self.markdown.append('**')
+                elif tag == 'em' or tag == 'i':
+                    self.markdown.append('*')
+                elif tag == 'code':
+                    if not self.in_pre:
+                        self.markdown.append('`')
+                elif tag == 'pre':
+                    self.in_pre = True
+                    self.markdown.append('\n\n```\n')
+                elif tag == 'a':
+                    self.link_text = []
+                    for attr_name, attr_value in attrs:
+                        if attr_name == 'href':
+                            self.link_href = attr_value
+                            break
+                elif tag == 'ul':
+                    self.markdown.append('\n')
+                    self.list_stack.append('ul')
+                    self.list_item_counter = 0
+                elif tag == 'ol':
+                    self.markdown.append('\n')
+                    self.list_stack.append('ol')
+                    self.list_item_counter = 0
+                elif tag == 'li':
+                    # Check if we're in an ordered or unordered list
+                    if self.list_stack and self.list_stack[-1] == 'ol':
+                        self.list_item_counter += 1
+                        self.markdown.append(f'\n{"  " * self.list_level}{self.list_item_counter}. ')
+                    else:
+                        self.markdown.append('\n' + '  ' * self.list_level + '- ')
+                elif tag == 'blockquote':
+                    self.markdown.append('\n> ')
+            
+            def handle_endtag(self, tag):
+                if self.current_tag and self.current_tag[-1] == tag:
+                    self.current_tag.pop()
+                
+                if tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                    self.markdown.append('\n')
+                elif tag == 'p':
+                    pass  # Already handled in starttag
+                elif tag == 'strong' or tag == 'b':
+                    self.markdown.append('**')
+                elif tag == 'em' or tag == 'i':
+                    self.markdown.append('*')
+                elif tag == 'code':
+                    if not self.in_pre:
+                        self.markdown.append('`')
+                elif tag == 'pre':
+                    self.in_pre = False
+                    self.markdown.append('\n```\n\n')
+                elif tag == 'a':
+                    if self.link_text and self.link_href:
+                        text = ''.join(self.link_text)
+                        self.markdown.append(f'[{text}]({self.link_href})')
+                        self.link_text = None
+                        self.link_href = None
+                elif tag in ['ul', 'ol']:
+                    if self.list_stack:
+                        self.list_stack.pop()
+                    self.markdown.append('\n')
+            
+            def handle_data(self, data):
+                # Skip whitespace-only data in certain contexts
+                if data.strip() or (self.current_tag and self.current_tag[-1] in ['p', 'li', 'td', 'th']):
+                    if self.link_text is not None:
+                        self.link_text.append(data)
+                    else:
+                        self.markdown.append(data)
+            
+            def get_markdown(self):
+                result = ''.join(self.markdown)
+                # Clean up excessive newlines
+                import re
+                result = re.sub(r'\n{3,}', '\n\n', result)
+                return result.strip()
+        
+        try:
+            parser = HTMLToMarkdownParser()
+            parser.feed(html_content)
+            markdown = parser.get_markdown()
+            logger.info("Applied basic HTML-to-Markdown conversion")
+            return markdown
+        except Exception as e:
+            logger.warning(f"HTML parsing failed: {str(e)}, returning cleaned text")
+            # Fallback: strip all HTML tags and return plain text
+            import re
+            text = re.sub(r'<[^>]+>', '', html_content)
+            return text.strip()
     
     def convert_markdown_to_html(self, markdown_content: str) -> str:
         """
