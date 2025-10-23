@@ -2915,8 +2915,7 @@ def api_task_move(request, task_id):
         except Exception as e:
             logger.error(f'Failed to initialize TaskMoveService: {str(e)}')
             return JsonResponse({
-                'error': 'Service initialization failed',
-                'details': str(e)
+                'error': 'Service initialization failed'
             }, status=500)
         
         # Perform the move
@@ -2933,15 +2932,13 @@ def api_task_move(request, task_id):
         except TaskMoveServiceError as e:
             logger.error(f'Task move failed: {e.message}')
             return JsonResponse({
-                'error': e.message,
-                'details': e.details
+                'error': e.message
             }, status=400)
     
     except Exception as e:
         logger.error(f'Task move error: {str(e)}')
         return JsonResponse({
-            'error': 'An error occurred while moving the task',
-            'details': str(e)
+            'error': 'An error occurred while moving the task'
         }, status=500)
 
 
