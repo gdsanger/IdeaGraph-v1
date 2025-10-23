@@ -466,6 +466,9 @@ def settings_create(request):
             zammad_api_token=request.POST.get('zammad_api_token', ''),
             zammad_groups=request.POST.get('zammad_groups', ''),
             zammad_sync_interval=int(request.POST.get('zammad_sync_interval') or 15),
+            google_pse_enabled=request.POST.get('google_pse_enabled') == 'on',
+            google_search_api_key=request.POST.get('google_search_api_key', ''),
+            google_search_cx=request.POST.get('google_search_cx', ''),
         )
         messages.success(request, 'Settings created successfully!')
         return redirect('main:settings_list')
@@ -517,6 +520,9 @@ def settings_update(request, pk):
         settings.zammad_api_token = request.POST.get('zammad_api_token', '')
         settings.zammad_groups = request.POST.get('zammad_groups', '')
         settings.zammad_sync_interval = int(request.POST.get('zammad_sync_interval') or 15)
+        settings.google_pse_enabled = request.POST.get('google_pse_enabled') == 'on'
+        settings.google_search_api_key = request.POST.get('google_search_api_key', '')
+        settings.google_search_cx = request.POST.get('google_search_cx', '')
         settings.save()
         
         messages.success(request, 'Settings updated successfully!')
@@ -1424,6 +1430,9 @@ def task_detail(request, task_id):
     
     # Get all active users for requester selection
     all_users = User.objects.filter(is_active=True).order_by('username')
+    
+    # Get settings for Google PSE configuration
+    settings = Settings.objects.first()
 
     context = {
         'task': task,
@@ -1432,6 +1441,7 @@ def task_detail(request, task_id):
         'status_choices': status_choices,
         'milestones': milestones,
         'all_users': all_users,
+        'settings': settings,
     }
 
     return render(request, 'main/tasks/detail.html', context)

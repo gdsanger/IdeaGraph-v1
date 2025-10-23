@@ -59,12 +59,11 @@ class WebSearchAdapter:
         if not self.settings:
             raise WebSearchAdapterError("No settings found in database")
         
-        # Check for search API configuration
-        # Note: These settings would need to be added to the Settings model
-        # For now, we'll use environment variables as fallback
+        # Get search API configuration from settings
+        # Fall back to environment variables if not set in settings
         import os
-        self.google_api_key = os.environ.get('GOOGLE_SEARCH_API_KEY', '')
-        self.google_cx = os.environ.get('GOOGLE_SEARCH_CX', '')
+        self.google_api_key = getattr(self.settings, 'google_search_api_key', '') or os.environ.get('GOOGLE_SEARCH_API_KEY', '')
+        self.google_cx = getattr(self.settings, 'google_search_cx', '') or os.environ.get('GOOGLE_SEARCH_CX', '')
         self.brave_api_key = os.environ.get('BRAVE_SEARCH_API_KEY', '')
     
     def search_google(self, query: str, max_results: int = 5) -> Dict[str, Any]:
