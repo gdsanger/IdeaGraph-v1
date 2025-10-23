@@ -2801,8 +2801,7 @@ def api_task_support_analysis_internal(request, task_id):
     except Exception as e:
         logger.error(f'Internal support analysis error: {str(e)}')
         return JsonResponse({
-            'error': 'An error occurred during internal support analysis',
-            'details': str(e)
+            'error': 'An error occurred during internal support analysis'
         }, status=500)
 
 
@@ -2854,8 +2853,7 @@ def api_task_support_analysis_external(request, task_id):
     except Exception as e:
         logger.error(f'External support analysis error: {str(e)}')
         return JsonResponse({
-            'error': 'An error occurred during external support analysis',
-            'details': str(e)
+            'error': 'An error occurred during external support analysis'
         }, status=500)
 
 
