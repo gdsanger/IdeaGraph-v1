@@ -104,7 +104,7 @@ class WebSearchAdapter:
             
             logger.info(f"Searching Google for: {query}")
             logger.debug(f"Google Search request URL: {url}")
-            logger.debug(f"Google Search params: cx={self.google_cx[:10]}..., num={params['num']}")
+            logger.debug(f"Requesting up to {min(max_results, 10)} results")
             
             response = requests.get(url, params=params, timeout=10)
             
