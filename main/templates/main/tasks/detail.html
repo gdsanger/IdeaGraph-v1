@@ -745,6 +745,7 @@ document.querySelector('#createGitHubIssueBtn').addEventListener('click', async 
             }
             showAlert(`GitHub Issue #${data.issue_number} created successfully!`, 'success');
             
+            // Redirect to item view after successful creation
             // Redirect to item view after successful GitHub issue creation
             setTimeout(() => {
                 {% if task.item %}
