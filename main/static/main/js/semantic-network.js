@@ -233,8 +233,13 @@ class SemanticNetworkViewer {
         this.isLoading = true;
         
         try {
-            // Build API URL
-            const url = new URL(`/api/semantic-network/${objectType}/${objectId}`, window.location.origin);
+            // Build API URL - use milestone-specific endpoint for milestones
+            let url;
+            if (objectType === 'milestone') {
+                url = new URL(`/api/milestones/${objectId}/semantic-network`, window.location.origin);
+            } else {
+                url = new URL(`/api/semantic-network/${objectType}/${objectId}`, window.location.origin);
+            }
             url.searchParams.set('depth', this.options.depth);
             url.searchParams.set('summaries', this.options.generateSummaries);
             url.searchParams.set('include_hierarchy', this.options.includeHierarchy);

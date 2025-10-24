@@ -3283,6 +3283,91 @@ def api_semantic_network(request, object_type, object_id):
         }, status=500)
 
 
+def api_milestone_semantic_network(request, milestone_id):
+    """
+    Generate semantic network for a milestone
+    
+    Query parameters:
+        - depth: Network depth (1-3, default: 3)
+        - threshold_1: Similarity threshold for level 1 (default: 0.8)
+        - threshold_2: Similarity threshold for level 2 (default: 0.7)
+        - threshold_3: Similarity threshold for level 3 (default: 0.6)
+        - summaries: Generate AI summaries ('true'/'false', default: 'true')
+    
+    Returns:
+        JSON response with semantic network data
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        logger.warning(f'Unauthenticated request to milestone semantic network API')
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from main.models import Milestone
+        from core.services.semantic_network_service import SemanticNetworkService, SemanticNetworkServiceError
+        
+        # Verify milestone exists
+        try:
+            milestone = Milestone.objects.get(id=milestone_id)
+        except Milestone.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Milestone not found'
+            }, status=404)
+        
+        # Parse query parameters
+        depth = int(request.GET.get('depth', 3))
+        generate_summaries = request.GET.get('summaries', 'true').lower() == 'true'
+        
+        logger.info(f'Milestone semantic network request: milestone_id={milestone_id}, depth={depth}, summaries={generate_summaries}')
+        
+        # Custom thresholds if provided
+        thresholds = {}
+        for level in [1, 2, 3]:
+            threshold_key = f'threshold_{level}'
+            if threshold_key in request.GET:
+                try:
+                    thresholds[level] = float(request.GET[threshold_key])
+                except ValueError:
+                    pass
+        
+        # Generate semantic network
+        service = SemanticNetworkService()
+        try:
+            result = service.generate_network(
+                object_type='milestone',
+                object_id=str(milestone_id),
+                depth=depth,
+                user_id=str(user.id),
+                thresholds=thresholds if thresholds else None,
+                generate_summaries=generate_summaries,
+                include_hierarchy=False  # Milestones don't have hierarchical relationships
+            )
+            
+            logger.info(f'Milestone semantic network generated successfully: {len(result.get("nodes", []))} nodes, {len(result.get("edges", []))} edges')
+            return JsonResponse(result)
+            
+        finally:
+            service.close()
+    
+    except SemanticNetworkServiceError as e:
+        logger.error(f'Semantic network service error for milestone/{milestone_id}: {str(e)}', exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Unexpected error generating semantic network for milestone/{milestone_id}: {str(e)}', exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to generate semantic network'
+        }, status=500)
 
 
 # File Upload API Endpoints
