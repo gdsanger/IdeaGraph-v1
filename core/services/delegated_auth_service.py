@@ -26,18 +26,17 @@ class DelegatedAuthService:
     This service provides methods to:
     - Initiate device code flow for user authentication
     - Acquire and cache access tokens with refresh tokens
-    - Automatically refresh tokens using offline_access scope
+    - Automatically refresh tokens (MSAL handles offline_access internally)
     - Persist tokens to disk for long-term use (90-day sliding window)
     """
     
     AUTHORITY_BASE = 'https://login.microsoftonline.com'
     # Scopes needed for Teams channel operations (read/write)
-    # offline_access is included for refresh token support
+    # Note: Reserved scopes like 'offline_access', 'openid', 'profile' are automatically added by MSAL
     SCOPES = [
         'https://graph.microsoft.com/ChannelMessage.Send',
         'https://graph.microsoft.com/Channel.ReadBasic.All',
-        'https://graph.microsoft.com/Team.ReadBasic.All',
-        'offline_access'
+        'https://graph.microsoft.com/Team.ReadBasic.All'
     ]
     
     def __init__(self, client_id: str = None, tenant_id: str = None, token_cache_path: str = None):
