@@ -4,6 +4,9 @@ from django.core.paginator import Paginator
 from django.core.exceptions import ValidationError
 from .auth_utils import validate_password
 from .models import Tag, Settings, Section, User, Item, Task, Client, Milestone
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _separate_tag_values(tag_values):
@@ -1815,6 +1818,7 @@ def milestone_create(request, item_id):
         description = request.POST.get('description', '').strip()
         due_date = request.POST.get('due_date', '').strip()
         status = request.POST.get('status', 'planned').strip()
+        summary = request.POST.get('summary', '').strip()
         
         if not name:
             messages.error(request, 'Name is required.')
@@ -1828,9 +1832,19 @@ def milestone_create(request, item_id):
                     description=description,
                     due_date=due_date,
                     status=status,
-                    item=item
+                    item=item,
+                    summary=summary
                 )
                 milestone.save()
+                
+                # Sync to Weaviate
+                try:
+                    from core.services.milestone_knowledge_service import MilestoneKnowledgeService
+                    service = MilestoneKnowledgeService()
+                    service.sync_to_weaviate(milestone)
+                except Exception as weaviate_error:
+                    logger.warning(f'Failed to sync milestone to Weaviate: {str(weaviate_error)}')
+                    # Don't fail the whole operation if Weaviate sync fails
                 
                 messages.success(request, f'Milestone "{name}" created successfully!')
                 return redirect('main:item_detail', item_id=item_id)
@@ -1866,6 +1880,7 @@ def milestone_edit(request, milestone_id):
         description = request.POST.get('description', '').strip()
         due_date = request.POST.get('due_date', '').strip()
         status = request.POST.get('status', 'planned').strip()
+        summary = request.POST.get('summary', '').strip()
         
         if not name:
             messages.error(request, 'Name is required.')
@@ -1877,7 +1892,30 @@ def milestone_edit(request, milestone_id):
                 milestone.description = description
                 milestone.due_date = due_date
                 milestone.status = status
+                
+                # Build summary with task list
+                summary_parts = []
+                if summary:
+                    summary_parts.append(summary)
+                
+                # Add task list if there are tasks
+                tasks = milestone.tasks.all()
+                if tasks.exists():
+                    task_titles = [f"- {task.title}" for task in tasks]
+                    task_list = "\n\nAufgaben:\n" + "\n".join(task_titles)
+                    summary_parts.append(task_list)
+                
+                milestone.summary = "\n\n".join(summary_parts) if summary_parts else summary
                 milestone.save()
+                
+                # Sync to Weaviate
+                try:
+                    from core.services.milestone_knowledge_service import MilestoneKnowledgeService
+                    service = MilestoneKnowledgeService()
+                    service.sync_to_weaviate(milestone)
+                except Exception as weaviate_error:
+                    logger.warning(f'Failed to sync milestone to Weaviate: {str(weaviate_error)}')
+                    # Don't fail the whole operation if Weaviate sync fails
                 
                 messages.success(request, f'Milestone "{name}" updated successfully!')
                 return redirect('main:item_detail', item_id=item.id)
