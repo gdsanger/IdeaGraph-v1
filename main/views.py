@@ -470,6 +470,9 @@ def settings_create(request):
             google_pse_enabled=request.POST.get('google_pse_enabled') == 'on',
             google_search_api_key=request.POST.get('google_search_api_key', ''),
             google_search_cx=request.POST.get('google_search_cx', ''),
+            teams_enabled=request.POST.get('teams_enabled') == 'on',
+            teams_team_id=request.POST.get('teams_team_id', ''),
+            team_welcome_post=request.POST.get('team_welcome_post', ''),
         )
         messages.success(request, 'Settings created successfully!')
         return redirect('main:settings_list')
@@ -525,6 +528,9 @@ def settings_update(request, pk):
         settings.google_pse_enabled = request.POST.get('google_pse_enabled') == 'on'
         settings.google_search_api_key = request.POST.get('google_search_api_key', '')
         settings.google_search_cx = request.POST.get('google_search_cx', '')
+        settings.teams_enabled = request.POST.get('teams_enabled') == 'on'
+        settings.teams_team_id = request.POST.get('teams_team_id', '')
+        settings.team_welcome_post = request.POST.get('team_welcome_post', '')
         settings.save()
         
         messages.success(request, 'Settings updated successfully!')
@@ -885,6 +891,9 @@ def item_kanban(request):
     sections = Section.objects.all()
     status_choices = Item.STATUS_CHOICES
     
+    # Get settings for Teams integration
+    settings = Settings.objects.first()
+    
     context = {
         'items': page_obj,
         'sections': sections,
@@ -892,6 +901,7 @@ def item_kanban(request):
         'status_filter': status_filter,
         'section_filter': section_filter,
         'search_query': search_query,
+        'settings': settings,
     }
     
     return render(request, 'main/items/kanban.html', context)
