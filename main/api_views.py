@@ -5325,6 +5325,7 @@ def api_get_items_for_move(request):
         }, status=500)
 
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def create_teams_channel(request, item_id):
     """
@@ -5420,6 +5421,7 @@ def create_teams_channel(request, item_id):
         }, status=500)
 
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def poll_teams_messages(request):
     """
@@ -5475,6 +5477,7 @@ def poll_teams_messages(request):
         }, status=500)
 
 
+@csrf_exempt
 @require_http_methods(["GET"])
 def teams_integration_status(request):
     """
