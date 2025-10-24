@@ -2,6 +2,7 @@
 Tests for Quick Task Management API endpoints
 """
 import json
+import uuid
 from django.test import TestCase, Client
 from main.models import User, Item, Task, Settings
 
@@ -141,7 +142,6 @@ class TaskQuickManagementTest(TestCase):
         self.login_user()
         token = self.get_jwt_token()
         
-        import uuid
         fake_task_id = uuid.uuid4()
         
         response = self.client.post(
