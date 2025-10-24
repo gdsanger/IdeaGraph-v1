@@ -16,7 +16,7 @@ The Sigma.js visualization in the milestone detail page was showing that the obj
 - This caused the semantic network query to fail finding the milestone object
 
 **Evidence:**
-- `milestone_knowledge_service.py` line 516: `'type': 'milestone'`
+- `milestone_knowledge_service.py` line 658: `'type': 'milestone'` (before fix)
 - `semantic_network_service.py` line 58: `TYPE_MAPPING = {'milestone': 'Milestone'}`
 - `weaviate_sync_service.py` line 185: Items use `'type': 'Item'` (capitalized)
 

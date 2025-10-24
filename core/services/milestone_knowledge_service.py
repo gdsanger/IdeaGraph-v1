@@ -181,7 +181,7 @@ class MilestoneKnowledgeService:
                 # Search for similar objects using near_text
                 response = collection.query.near_text(
                     query=query_text,
-                    limit=max_results * self.RAG_SEARCH_MULTIPLIER,  # Get extra to filter different types
+                    limit=max_results * self.RAG_SEARCH_MULTIPLIER,  # Get extra results to account for similarity filtering
                     return_metadata=MetadataQuery(distance=True)
                 )
                 
@@ -199,7 +199,7 @@ class MilestoneKnowledgeService:
                         continue
                     
                     similar_objects.append({
-                        'type': obj_type.lower(),
+                        'type': obj_type,  # Keep original capitalization from Weaviate
                         'id': obj_id,
                         'title': obj.properties.get('title', 'N/A'),
                         'description': obj.properties.get('description', '')[:300],
