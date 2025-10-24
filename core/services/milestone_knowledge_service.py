@@ -131,6 +131,91 @@ class MilestoneKnowledgeService:
         if not self.settings:
             raise MilestoneKnowledgeServiceError("No settings found in database")
     
+    def search_similar_context(
+        self,
+        query_text: str,
+        milestone=None,
+        max_results: int = 5
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for similar knowledge objects using RAG (Weaviate)
+        
+        This method searches across all types of knowledge objects (Tasks, Items, Milestones)
+        to provide relevant context for AI analysis.
+        
+        Args:
+            query_text: Text to search for similar content
+            milestone: Optional milestone to filter or reference
+            max_results: Maximum number of results to return per type
+            
+        Returns:
+            List of similar knowledge objects with metadata
+        """
+        similar_objects = []
+        
+        try:
+            import weaviate
+            from weaviate.classes.init import Auth
+            from weaviate.classes.query import MetadataQuery
+            
+            # Initialize Weaviate client
+            if self.settings.weaviate_cloud_enabled:
+                client = weaviate.connect_to_weaviate_cloud(
+                    cluster_url=self.settings.weaviate_url,
+                    auth_credentials=Auth.api_key(self.settings.weaviate_api_key)
+                )
+            else:
+                client = weaviate.connect_to_local(
+                    host="localhost",
+                    port=8081
+                )
+            
+            try:
+                collection = client.collections.get('KnowledgeObject')
+                
+                # Search for similar objects using near_text
+                response = collection.query.near_text(
+                    query=query_text,
+                    limit=max_results * 3,  # Get extra to filter different types
+                    return_metadata=MetadataQuery(distance=True)
+                )
+                
+                # Process and categorize results
+                for obj in response.objects:
+                    obj_type = obj.properties.get('type', '')
+                    obj_id = str(obj.uuid)
+                    
+                    # Calculate similarity from distance
+                    distance = obj.metadata.distance if obj.metadata else 1.0
+                    similarity = max(0, 1 - distance)
+                    
+                    # Only include results with reasonable similarity
+                    if similarity < 0.5:
+                        continue
+                    
+                    similar_objects.append({
+                        'type': obj_type.lower(),
+                        'id': obj_id,
+                        'title': obj.properties.get('title', 'N/A'),
+                        'description': obj.properties.get('description', '')[:300],
+                        'similarity': similarity,
+                        'distance': distance
+                    })
+                    
+                    # Stop if we have enough results
+                    if len(similar_objects) >= max_results:
+                        break
+                
+                logger.info(f"Found {len(similar_objects)} similar objects via RAG for query")
+                
+            finally:
+                client.close()
+                
+        except Exception as e:
+            logger.warning(f"Could not search similar context via RAG: {str(e)}")
+        
+        return similar_objects
+    
     def add_context_object(
         self,
         milestone,
@@ -292,12 +377,38 @@ class MilestoneKnowledgeService:
             # Step 2: Derive tasks using text-analysis-task-derivation-agent
             logger.info(f"Deriving tasks for context object {context_obj.id}")
             
+            # Search for similar context using RAG
+            rag_context = []
+            try:
+                similar_objects = self.search_similar_context(
+                    query_text=context_obj.content[:1000],  # Use first 1000 chars for search
+                    milestone=context_obj.milestone,
+                    max_results=3
+                )
+                
+                if similar_objects:
+                    logger.info(f"Found {len(similar_objects)} similar objects via RAG")
+                    rag_context = [
+                        f"- [{obj['type'].upper()}] {obj['title']}: {obj['description']}"
+                        for obj in similar_objects
+                    ]
+            except Exception as e:
+                logger.warning(f"Could not retrieve RAG context: {str(e)}")
+            
             all_derived_tasks = []
             for i, chunk in enumerate(chunks):
                 logger.info(f"Processing chunk {i+1}/{len(chunks)} for task derivation")
                 
-                # Build message with context
-                task_message = f"Milestone: {context_obj.milestone.name}\n\nContent:\n{chunk}"
+                # Build message with RAG context
+                task_message = f"Milestone: {context_obj.milestone.name}\n\n"
+                
+                # Add RAG context if available
+                if rag_context:
+                    task_message += "--- Similar objects from knowledge base (RAG) ---\n"
+                    task_message += "\n".join(rag_context)
+                    task_message += "\n--- End of similar objects ---\n\n"
+                
+                task_message += f"Content:\n{chunk}"
                 
                 task_derivation_result = kigate.execute_agent(
                     agent_name='text-analysis-task-derivation-agent',
@@ -410,8 +521,34 @@ class MilestoneKnowledgeService:
             # Get default model from settings
             default_model = getattr(self.settings, 'openai_default_model', 'gpt-4') or 'gpt-4'
             
-            # Build message with milestone context
-            summary_message = f"Zusammenfassung für Milestone: {milestone.name}\n\n{full_context}"
+            # Search for similar context using RAG
+            rag_context = []
+            try:
+                similar_objects = self.search_similar_context(
+                    query_text=full_context[:1000],  # Use first 1000 chars for search
+                    milestone=milestone,
+                    max_results=3
+                )
+                
+                if similar_objects:
+                    logger.info(f"Found {len(similar_objects)} similar objects via RAG for milestone summary")
+                    rag_context = [
+                        f"- [{obj['type'].upper()}] {obj['title']}: {obj['description']}"
+                        for obj in similar_objects
+                    ]
+            except Exception as e:
+                logger.warning(f"Could not retrieve RAG context for summary: {str(e)}")
+            
+            # Build message with milestone context and RAG
+            summary_message = f"Zusammenfassung für Milestone: {milestone.name}\n\n"
+            
+            # Add RAG context if available
+            if rag_context:
+                summary_message += "--- Similar objects from knowledge base (RAG) ---\n"
+                summary_message += "\n".join(rag_context)
+                summary_message += "\n--- End of similar objects ---\n\n"
+            
+            summary_message += full_context
             
             logger.info(f"Generating milestone summary for {milestone.id}")
             summary_result = kigate.execute_agent(
@@ -513,7 +650,7 @@ class MilestoneKnowledgeService:
                 
                 # Create or update the milestone in Weaviate
                 milestone_data = {
-                    'type': 'milestone',
+                    'type': 'Milestone',  # Capitalized to match TYPE_MAPPING in SemanticNetworkService
                     'title': milestone.name,
                     'description': combined_description,
                     'status': milestone.status,
