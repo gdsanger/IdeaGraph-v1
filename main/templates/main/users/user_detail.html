@@ -43,6 +43,24 @@
 
                     <div class="row mb-3">
                         <div class="col-md-4 text-muted">
+                            <i class="bi bi-person"></i> <strong>First Name (Vorname):</strong>
+                        </div>
+                        <div class="col-md-8">
+                            {{ user.first_name|default:"-" }}
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4 text-muted">
+                            <i class="bi bi-person"></i> <strong>Last Name (Nachname):</strong>
+                        </div>
+                        <div class="col-md-8">
+                            {{ user.last_name|default:"-" }}
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4 text-muted">
                             <i class="bi bi-envelope"></i> <strong>Email:</strong>
                         </div>
                         <div class="col-md-8">
