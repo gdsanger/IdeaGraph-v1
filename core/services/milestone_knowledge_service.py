@@ -281,6 +281,15 @@ class MilestoneKnowledgeService:
                 'type': context_obj.type
             }
             
+            # Sync context object to Weaviate
+            try:
+                sync_result = self.sync_context_object_to_weaviate(context_obj)
+                result['weaviate_sync'] = sync_result
+                logger.info(f"Context object {context_obj.id} synced to Weaviate")
+            except Exception as e:
+                logger.warning(f"Failed to sync context object {context_obj.id} to Weaviate: {str(e)}")
+                result['weaviate_sync_error'] = str(e)
+            
             # Auto-analyze if requested and content is available
             if auto_analyze and content.strip():
                 try:
@@ -454,6 +463,13 @@ class MilestoneKnowledgeService:
             context_obj.derived_tasks = all_derived_tasks
             context_obj.analyzed = True
             context_obj.save()
+            
+            # Re-sync to Weaviate with updated summary
+            try:
+                self.sync_context_object_to_weaviate(context_obj)
+                logger.info(f"Context object {context_obj.id} re-synced to Weaviate with summary")
+            except Exception as e:
+                logger.warning(f"Failed to re-sync context object {context_obj.id} to Weaviate: {str(e)}")
             
             logger.info(f"Analysis complete for context object {context_obj.id}: "
                        f"{len(all_derived_tasks)} tasks derived")
@@ -688,6 +704,92 @@ class MilestoneKnowledgeService:
             logger.error(f"Failed to sync milestone to Weaviate: {str(e)}")
             raise MilestoneKnowledgeServiceError(
                 "Failed to sync to Weaviate",
+                details=str(e)
+            )
+    
+    def sync_context_object_to_weaviate(self, context_obj) -> Dict[str, Any]:
+        """
+        Sync a milestone context object to Weaviate as a separate KnowledgeObject
+        
+        This allows individual context objects (files, emails, transcripts, notes)
+        to be searched and retrieved through the semantic network.
+        
+        Args:
+            context_obj: MilestoneContextObject instance
+        
+        Returns:
+            Dictionary with sync result
+        
+        Raises:
+            MilestoneKnowledgeServiceError: If sync fails
+        """
+        try:
+            from main.models import Settings
+            from core.services.weaviate_sync_service import WeaviateItemSyncService
+            
+            # Get settings
+            settings = Settings.objects.first()
+            if not settings:
+                raise MilestoneKnowledgeServiceError("Settings not configured")
+            
+            # Initialize Weaviate service
+            weaviate_service = WeaviateItemSyncService(settings)
+            
+            try:
+                # Get the collection
+                collection = weaviate_service._client.collections.get('KnowledgeObject')
+                
+                # Map context object type to KnowledgeObject type
+                type_mapping = {
+                    'file': 'File',
+                    'email': 'Email',
+                    'transcript': 'Transcript',
+                    'note': 'Note'
+                }
+                
+                # Prepare context object data for Weaviate
+                # Use summary if available, otherwise use content
+                description = context_obj.summary if context_obj.summary else context_obj.content
+                
+                # Add metadata to description
+                description_parts = []
+                if context_obj.milestone:
+                    description_parts.append(f"Milestone: {context_obj.milestone.name}")
+                if description:
+                    description_parts.append(description)
+                
+                combined_description = "\n\n".join(description_parts)
+                
+                context_data = {
+                    'type': type_mapping.get(context_obj.type, 'File'),  # Capitalized for consistency
+                    'title': context_obj.title,
+                    'description': combined_description,
+                    'status': None,  # Context objects don't have status
+                    'createdAt': context_obj.created_at.isoformat() if context_obj.created_at else None,
+                    'milestoneId': str(context_obj.milestone.id) if context_obj.milestone else None,
+                    'sourceId': context_obj.source_id if context_obj.source_id else None,
+                    'url': context_obj.url if context_obj.url else None,
+                }
+                
+                # Use upsert to create or update
+                collection.data.insert(
+                    properties=context_data,
+                    uuid=str(context_obj.id)
+                )
+                
+                logger.info(f"Context object {context_obj.id} synced to Weaviate successfully")
+                
+                return {
+                    'success': True,
+                    'message': f'Context object "{context_obj.title}" synced to Weaviate successfully'
+                }
+            finally:
+                weaviate_service.close()
+            
+        except Exception as e:
+            logger.error(f"Failed to sync context object to Weaviate: {str(e)}")
+            raise MilestoneKnowledgeServiceError(
+                "Failed to sync context object to Weaviate",
                 details=str(e)
             )
     
