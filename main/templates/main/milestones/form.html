@@ -69,6 +69,14 @@
                             </select>
                         </div>
 
+                        <!-- Summary -->
+                        <div class="mb-3">
+                            <label for="summary" class="form-label">Summary</label>
+                            <textarea class="form-control" id="summary" name="summary" rows="5" 
+                                      placeholder="KI-Zusammenfassung über alle Kontextobjekte und Aufgaben">{% if milestone %}{{ milestone.summary }}{% endif %}</textarea>
+                            <small class="text-muted">Optional: Zusammenfassung des Meilensteins. Beim Speichern wird automatisch eine Liste der Aufgaben hinzugefügt.</small>
+                        </div>
+
                         <!-- Action Buttons -->
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-primary">

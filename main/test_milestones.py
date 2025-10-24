@@ -330,3 +330,74 @@ class MilestoneViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Milestone')
         self.assertContains(response, 'Test Milestone')
+    
+    def test_milestone_edit_with_summary_and_tasks(self):
+        """Test milestone edit with summary field and task list generation"""
+        milestone = Milestone.objects.create(
+            name='Test Milestone',
+            description='Test description',
+            due_date=date.today() + timedelta(days=30),
+            status='planned',
+            item=self.item
+        )
+        
+        # Create some tasks associated with this milestone
+        task1 = Task.objects.create(
+            title='Task 1',
+            description='First task',
+            item=self.item,
+            milestone=milestone,
+            created_by=self.user
+        )
+        task2 = Task.objects.create(
+            title='Task 2',
+            description='Second task',
+            item=self.item,
+            milestone=milestone,
+            created_by=self.user
+        )
+        
+        # Edit the milestone with a summary
+        response = self.client.post(
+            reverse('main:milestone_edit', kwargs={'milestone_id': milestone.id}),
+            {
+                'name': 'Updated Milestone',
+                'description': 'Updated description',
+                'due_date': (date.today() + timedelta(days=60)).isoformat(),
+                'status': 'in_progress',
+                'summary': 'This is a test summary'
+            }
+        )
+        
+        # Should redirect to item detail
+        self.assertEqual(response.status_code, 302)
+        
+        # Check milestone was updated with summary and task list
+        milestone.refresh_from_db()
+        self.assertEqual(milestone.name, 'Updated Milestone')
+        self.assertIn('This is a test summary', milestone.summary)
+        self.assertIn('Aufgaben:', milestone.summary)
+        self.assertIn('- Task 1', milestone.summary)
+        self.assertIn('- Task 2', milestone.summary)
+    
+    def test_milestone_create_with_summary(self):
+        """Test milestone creation with summary field"""
+        response = self.client.post(
+            reverse('main:milestone_create', kwargs={'item_id': self.item.id}),
+            {
+                'name': 'Test Milestone',
+                'description': 'Test description',
+                'due_date': (date.today() + timedelta(days=30)).isoformat(),
+                'status': 'planned',
+                'summary': 'Initial summary text'
+            }
+        )
+        
+        # Should redirect to item detail
+        self.assertEqual(response.status_code, 302)
+        
+        # Check milestone was created with summary
+        self.assertEqual(Milestone.objects.count(), 1)
+        milestone = Milestone.objects.first()
+        self.assertEqual(milestone.name, 'Test Milestone')
+        self.assertEqual(milestone.summary, 'Initial summary text')
