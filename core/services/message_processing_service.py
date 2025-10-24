@@ -293,6 +293,11 @@ class MessageProcessingService:
         sender_upn = sender.get('userPrincipalName', 'unknown@example.com')
         sender_name = sender.get('displayName', 'Unknown User')
         
+        # DEBUG: Log message analysis attempt
+        logger.info(f"DEBUG: Analyzing message from sender:")
+        logger.info(f"  - Sender UPN: '{sender_upn}'")
+        logger.info(f"  - Sender Name: '{sender_name}'")
+        
         # CRITICAL: Double-check we're not analyzing our own messages
         # This should have been filtered earlier, but add defensive check
         # Normalize both values: strip whitespace and convert to lowercase
@@ -300,12 +305,18 @@ class MessageProcessingService:
         if bot_upn and sender_upn:
             bot_upn_normalized = bot_upn.strip().lower()
             sender_upn_normalized = sender_upn.strip().lower()
+            logger.info(f"  - Bot UPN check: comparing '{sender_upn_normalized}' vs '{bot_upn_normalized}'")
             if sender_upn_normalized == bot_upn_normalized:
                 logger.error(f"CRITICAL: Attempted to analyze message from bot itself! Message ID: {message.get('id')}, Sender: {sender_upn}")
+                logger.error(f"  This message should have been filtered in TeamsListenerService!")
                 return {
                     'success': False,
                     'error': 'Cannot analyze message from bot itself (infinite loop prevention)'
                 }
+        elif not bot_upn:
+            logger.warning(f"  ⚠ Bot UPN not configured (default_mail_sender is empty) - cannot verify sender is not bot")
+        
+        logger.info(f"  → Proceeding with analysis (sender is not the bot)")
         
         # Search for similar context using RAG
         search_query = f"{item.title}\n{content}"

@@ -85,7 +85,13 @@ class TeamsListenerService:
                 details=str(e)
             )
         
-        logger.debug(f"TeamsListenerService initialized with team_id: {self.team_id}, bot_upn: {self.bot_upn}")
+        # Log bot UPN configuration for debugging
+        if self.bot_upn:
+            logger.info(f"TeamsListenerService initialized with team_id: {self.team_id}")
+            logger.info(f"DEBUG: Bot UPN configured as: '{self.bot_upn}' (will filter messages from this sender)")
+        else:
+            logger.warning(f"TeamsListenerService initialized with team_id: {self.team_id}")
+            logger.warning(f"DEBUG: Bot UPN is NOT configured (default_mail_sender is empty)! Bot messages will NOT be filtered!")
     
     def get_items_with_channels(self) -> List:
         """
@@ -139,33 +145,43 @@ class TeamsListenerService:
                     logger.warning(f"Message has no ID, skipping")
                     continue
                 
+                # Extract sender information for detailed logging
+                sender_upn = message.get('from', {}).get('user', {}).get('userPrincipalName', '')
+                sender_name = message.get('from', {}).get('user', {}).get('displayName', '')
+                
+                # DEBUG: Log every message with sender details
+                logger.info(f"DEBUG: Processing message {message_id}")
+                logger.info(f"  - Sender UPN: '{sender_upn}' (empty: {not sender_upn})")
+                logger.info(f"  - Sender Name: '{sender_name}'")
+                logger.info(f"  - Bot UPN configured: '{self.bot_upn}' (empty: {not self.bot_upn})")
+                
                 # CRITICAL: Skip messages from IdeaGraph Bot to avoid infinite loops
                 # Check by UPN (userPrincipalName) which is the most reliable method
-                sender_upn = message.get('from', {}).get('user', {}).get('userPrincipalName', '')
-                
-                # Always skip if sender matches bot UPN (case-insensitive)
-                # Normalize both values: strip whitespace and convert to lowercase
                 if self.bot_upn and sender_upn:
                     bot_upn_normalized = self.bot_upn.strip().lower()
                     sender_upn_normalized = sender_upn.strip().lower()
+                    logger.info(f"  - Comparing UPNs: '{sender_upn_normalized}' == '{bot_upn_normalized}' ? {sender_upn_normalized == bot_upn_normalized}")
                     if sender_upn_normalized == bot_upn_normalized:
-                        logger.info(f"SKIPPED: Message {message_id} from bot itself (UPN: {sender_upn})")
+                        logger.info(f"  ✓ SKIPPED: Message {message_id} from bot itself (UPN match)")
                         continue
+                elif self.bot_upn:
+                    logger.warning(f"  ⚠ Cannot compare UPNs: sender_upn is empty for message {message_id}")
+                else:
+                    logger.warning(f"  ⚠ Cannot filter by UPN: bot_upn not configured (default_mail_sender is empty)")
                 
                 # Fallback: also check display name for backwards compatibility
-                sender_name = message.get('from', {}).get('user', {}).get('displayName', '')
                 if sender_name == self.IDEAGRAPH_BOT_NAME:
-                    logger.info(f"SKIPPED: Message {message_id} from bot itself (display name: {sender_name})")
+                    logger.info(f"  ✓ SKIPPED: Message {message_id} from bot itself (display name match: '{sender_name}')")
                     continue
                 
                 # Check if we already have a task for this message (prevents re-processing)
                 existing_task = Task.objects.filter(message_id=message_id).first()
                 if existing_task:
-                    logger.debug(f"SKIPPED: Task {existing_task.id} already exists for message {message_id}")
+                    logger.info(f"  ✓ SKIPPED: Task {existing_task.id} already exists for message {message_id}")
                     continue
                 
                 # This is a new message that needs processing
-                logger.debug(f"New message to process: {message_id} from {sender_upn or sender_name}")
+                logger.info(f"  → ACCEPTED: Message {message_id} from {sender_upn or sender_name} will be processed")
                 new_messages.append(message)
             
             logger.info(f"Found {len(new_messages)} new messages to process for item {item.id}")
