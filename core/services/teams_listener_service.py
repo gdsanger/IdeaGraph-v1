@@ -73,6 +73,7 @@ class TeamsListenerService:
             )
         
         self.team_id = self.settings.teams_team_id
+        self.bot_upn = self.settings.default_mail_sender if self.settings.default_mail_sender else None
         
         # Initialize Graph Service for API calls
         try:
@@ -84,7 +85,7 @@ class TeamsListenerService:
                 details=str(e)
             )
         
-        logger.debug(f"TeamsListenerService initialized with team_id: {self.team_id}")
+        logger.debug(f"TeamsListenerService initialized with team_id: {self.team_id}, bot_upn: {self.bot_upn}")
     
     def get_items_with_channels(self) -> List:
         """
@@ -134,9 +135,16 @@ class TeamsListenerService:
             new_messages = []
             for message in messages:
                 # Skip messages from IdeaGraph Bot to avoid infinite loops
+                # Check by UPN (userPrincipalName) which is more reliable than display name
+                sender_upn = message.get('from', {}).get('user', {}).get('userPrincipalName', '')
+                if self.bot_upn and sender_upn and sender_upn.lower() == self.bot_upn.lower():
+                    logger.debug(f"Skipping message from IdeaGraph Bot (UPN: {sender_upn}): {message.get('id')}")
+                    continue
+                
+                # Fallback: also check display name for backwards compatibility
                 sender_name = message.get('from', {}).get('user', {}).get('displayName', '')
                 if sender_name == self.IDEAGRAPH_BOT_NAME:
-                    logger.debug(f"Skipping message from IdeaGraph Bot: {message.get('id')}")
+                    logger.debug(f"Skipping message from IdeaGraph Bot (display name): {message.get('id')}")
                     continue
                 
                 # Check if we already have a task for this message

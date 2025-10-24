@@ -34,7 +34,8 @@ class TeamsListenerServiceTestCase(TestCase):
             graph_api_enabled=True,
             tenant_id='test-tenant-id',
             client_id='test-client-id',
-            client_secret='test-client-secret'
+            client_secret='test-client-secret',
+            default_mail_sender='bot@example.com'
         )
         
         # Create item with channel
@@ -120,6 +121,100 @@ class TeamsListenerServiceTestCase(TestCase):
         # Should only get one message (not from bot)
         self.assertEqual(len(messages), 1)
         self.assertEqual(messages[0]['id'], 'msg-2')
+    
+    @patch('core.services.teams_listener_service.GraphService')
+    def test_get_new_messages_filters_bot_by_upn(self, mock_graph_service):
+        """Test that messages from bot UPN (userPrincipalName) are filtered out"""
+        # Mock graph service response with bot message using different display name
+        # but matching UPN from settings
+        mock_instance = mock_graph_service.return_value
+        mock_instance.get_channel_messages.return_value = {
+            'success': True,
+            'messages': [
+                {
+                    'id': 'msg-1',
+                    'from': {
+                        'user': {
+                            'displayName': 'ISARtec IdeaGraph Bot',  # Different display name
+                            'userPrincipalName': 'bot@example.com'  # Matches settings
+                        }
+                    },
+                    'body': {'content': 'Bot message', 'contentType': 'text'}
+                },
+                {
+                    'id': 'msg-2',
+                    'from': {
+                        'user': {
+                            'displayName': 'Real User',
+                            'userPrincipalName': 'user@example.com'
+                        }
+                    },
+                    'body': {'content': 'User message', 'contentType': 'text'}
+                },
+                {
+                    'id': 'msg-3',
+                    'from': {
+                        'user': {
+                            'displayName': 'Another User',
+                            'userPrincipalName': 'BOT@EXAMPLE.COM'  # Case insensitive match
+                        }
+                    },
+                    'body': {'content': 'Another bot message', 'contentType': 'text'}
+                }
+            ]
+        }
+        
+        service = TeamsListenerService(settings=self.settings)
+        messages = service.get_new_messages_for_item(self.item)
+        
+        # Should only get one message (not from bot by UPN, case insensitive)
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0]['id'], 'msg-2')
+        self.assertEqual(messages[0]['from']['user']['userPrincipalName'], 'user@example.com')
+    
+    @patch('core.services.teams_listener_service.GraphService')
+    def test_get_new_messages_filters_bot_isartec_scenario(self, mock_graph_service):
+        """Test the exact scenario from the issue: ISARtec IdeaGraph Bot with idea@isartec.de UPN"""
+        # Update settings to use the real bot UPN from the issue
+        self.settings.default_mail_sender = 'idea@isartec.de'
+        self.settings.save()
+        
+        # Mock graph service response with the exact bot from the issue
+        mock_instance = mock_graph_service.return_value
+        mock_instance.get_channel_messages.return_value = {
+            'success': True,
+            'messages': [
+                {
+                    'id': 'msg-bot',
+                    'from': {
+                        'user': {
+                            'displayName': 'ISARtec IdeaGraph Bot',
+                            'userPrincipalName': 'idea@isartec.de',
+                            'id': 'd00107be-fe52-4ec6-9a8a-a596e7a50434'
+                        }
+                    },
+                    'body': {'content': 'Bot response message', 'contentType': 'text'}
+                },
+                {
+                    'id': 'msg-user',
+                    'from': {
+                        'user': {
+                            'displayName': 'Real User',
+                            'userPrincipalName': 'user@isartec.de'
+                        }
+                    },
+                    'body': {'content': 'User message', 'contentType': 'text'}
+                }
+            ]
+        }
+        
+        service = TeamsListenerService(settings=self.settings)
+        messages = service.get_new_messages_for_item(self.item)
+        
+        # Should only get the user message, not the bot message
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0]['id'], 'msg-user')
+        self.assertEqual(messages[0]['from']['user']['userPrincipalName'], 'user@isartec.de')
     
     @patch('core.services.teams_listener_service.GraphService')
     def test_get_new_messages_filters_existing_tasks(self, mock_graph_service):
