@@ -71,9 +71,14 @@ class GraphResponseService:
         
         self.team_id = self.settings.teams_team_id
         
-        # Initialize Graph Service for API calls
+        # Check if delegated auth should be used
+        use_delegated = getattr(self.settings, 'teams_use_delegated_auth', True)
+        
+        # Initialize Graph Service for API calls with delegated authentication
+        # Note: Posting messages to Teams requires delegated user authentication
         try:
-            self.graph_service = GraphService(settings=settings)
+            self.graph_service = GraphService(settings=settings, use_delegated_auth=use_delegated)
+            logger.debug(f"GraphResponseService initialized with delegated_auth={use_delegated}")
         except GraphServiceError as e:
             logger.error(f"Failed to initialize Graph Service: {str(e)}")
             raise GraphResponseServiceError(
