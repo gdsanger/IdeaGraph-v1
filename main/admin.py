@@ -11,13 +11,13 @@ class TagAdmin(admin.ModelAdmin):
 
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
-    list_display = ['username', 'email', 'role', 'is_active', 'created_at', 'last_login']
+    list_display = ['username', 'first_name', 'last_name', 'email', 'role', 'is_active', 'created_at', 'last_login']
     list_filter = ['role', 'is_active', 'created_at']
-    search_fields = ['username', 'email']
+    search_fields = ['username', 'email', 'first_name', 'last_name']
     readonly_fields = ['id', 'password_hash', 'created_at', 'last_login']
     fieldsets = (
         ('Basic Information', {
-            'fields': ('id', 'username', 'email', 'role', 'is_active')
+            'fields': ('id', 'username', 'first_name', 'last_name', 'email', 'role', 'is_active')
         }),
         ('Security', {
             'fields': ('password_hash',)

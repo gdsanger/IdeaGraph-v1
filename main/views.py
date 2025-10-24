@@ -562,7 +562,9 @@ def user_list(request):
         from django.db.models import Q
         users = users.filter(
             Q(username__icontains=search_query) | 
-            Q(email__icontains=search_query)
+            Q(email__icontains=search_query) |
+            Q(first_name__icontains=search_query) |
+            Q(last_name__icontains=search_query)
         )
     
     if role_filter:
@@ -594,6 +596,8 @@ def user_create(request):
     if request.method == 'POST':
         username = request.POST.get('username', '').strip()
         email = request.POST.get('email', '').strip()
+        first_name = request.POST.get('first_name', '').strip()
+        last_name = request.POST.get('last_name', '').strip()
         password = request.POST.get('password', '')
         password_confirm = request.POST.get('password_confirm', '')
         role = request.POST.get('role', 'user')
@@ -624,6 +628,8 @@ def user_create(request):
                     user = User(
                         username=username,
                         email=email,
+                        first_name=first_name,
+                        last_name=last_name,
                         role=role,
                         is_active=is_active,
                         ai_classification=ai_classification
@@ -652,6 +658,8 @@ def user_edit(request, user_id):
     
     if request.method == 'POST':
         email = request.POST.get('email', '').strip()
+        first_name = request.POST.get('first_name', '').strip()
+        last_name = request.POST.get('last_name', '').strip()
         role = request.POST.get('role', user.role)
         is_active = request.POST.get('is_active') == 'on'
         ai_classification = request.POST.get('ai_classification', '').strip()
@@ -681,6 +689,8 @@ def user_edit(request, user_id):
             
             try:
                 user.email = email
+                user.first_name = first_name
+                user.last_name = last_name
                 user.role = role
                 user.is_active = is_active
                 user.ai_classification = ai_classification
