@@ -936,3 +936,184 @@ class TeamsMessageDeduplicationTestCase(TestCase):
         # Verify the task has the correct message_id for deduplication
         task = tasks.first()
         self.assertEqual(task.message_id, 'msg-info-only')
+
+
+class GraphServiceTimeFilteringTestCase(TestCase):
+    """Test suite for 30-minute time filtering in get_channel_messages"""
+    
+    def setUp(self):
+        """Set up test data"""
+        self.settings = Settings.objects.create(
+            teams_enabled=True,
+            teams_team_id='test-team-id',
+            graph_api_enabled=True,
+            tenant_id='test-tenant-id',
+            client_id='test-client-id',
+            client_secret='test-client-secret'
+        )
+    
+    @patch('core.services.graph_service.GraphService._make_request')
+    @patch('core.services.graph_service.GraphService._get_access_token')
+    def test_filters_old_messages(self, mock_token, mock_request):
+        """Test that messages older than 30 minutes are filtered out"""
+        from datetime import datetime, timedelta
+        from core.services.graph_service import GraphService
+        
+        # Mock token
+        mock_token.return_value = 'test-token'
+        
+        # Create timestamps
+        now = datetime.utcnow()
+        recent_time = (now - timedelta(minutes=15)).isoformat() + 'Z'
+        old_time = (now - timedelta(minutes=45)).isoformat() + 'Z'
+        
+        # Mock response with mixed messages
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'value': [
+                {
+                    'id': 'msg-recent',
+                    'createdDateTime': recent_time,
+                    'from': {'user': {'displayName': 'User1'}},
+                    'body': {'content': 'Recent message'}
+                },
+                {
+                    'id': 'msg-old',
+                    'createdDateTime': old_time,
+                    'from': {'user': {'displayName': 'User2'}},
+                    'body': {'content': 'Old message'}
+                }
+            ]
+        }
+        mock_request.return_value = mock_response
+        
+        service = GraphService(settings=self.settings)
+        result = service.get_channel_messages('team-123', 'channel-456', top=50)
+        
+        self.assertTrue(result['success'])
+        self.assertEqual(len(result['messages']), 1)
+        self.assertEqual(result['messages'][0]['id'], 'msg-recent')
+    
+    @patch('core.services.graph_service.GraphService._make_request')
+    @patch('core.services.graph_service.GraphService._get_access_token')
+    def test_includes_messages_within_30_minutes(self, mock_token, mock_request):
+        """Test that messages within last 30 minutes are included"""
+        from datetime import datetime, timedelta
+        from core.services.graph_service import GraphService
+        
+        mock_token.return_value = 'test-token'
+        
+        now = datetime.utcnow()
+        time_29_min_ago = (now - timedelta(minutes=29)).isoformat() + 'Z'
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'value': [
+                {
+                    'id': 'msg-1',
+                    'createdDateTime': time_29_min_ago,
+                    'from': {'user': {'displayName': 'User1'}},
+                    'body': {'content': 'Message within window'}
+                }
+            ]
+        }
+        mock_request.return_value = mock_response
+        
+        service = GraphService(settings=self.settings)
+        result = service.get_channel_messages('team-123', 'channel-456')
+        
+        self.assertTrue(result['success'])
+        self.assertEqual(len(result['messages']), 1)
+
+
+class MessageProcessingSelfReplyPreventionTestCase(TestCase):
+    """Test suite for preventing bot from analyzing its own messages"""
+    
+    def setUp(self):
+        """Set up test data"""
+        self.user = AppUser.objects.create(
+            username='testuser',
+            email='test@example.com',
+            role='user',
+            is_active=True
+        )
+        
+        self.section = Section.objects.create(name='Test Section')
+        
+        self.settings = Settings.objects.create(
+            teams_enabled=True,
+            teams_team_id='test-team-id',
+            default_mail_sender='bot@example.com',
+            kigate_api_enabled=True,
+            kigate_api_base_url='http://localhost:8000',
+            kigate_api_token='test-token'
+        )
+        
+        self.item = Item.objects.create(
+            title='Test Item',
+            description='Test description',
+            section=self.section,
+            created_by=self.user,
+            channel_id='test-channel-id'
+        )
+    
+    @patch('core.services.message_processing_service.KiGateService')
+    def test_rejects_bot_own_messages(self, mock_kigate_service):
+        """Test that analyze_message rejects messages from bot itself"""
+        service = MessageProcessingService(settings=self.settings)
+        
+        # Create message from bot itself
+        message = {
+            'id': 'msg-from-bot',
+            'from': {
+                'user': {
+                    'displayName': 'IdeaGraph Bot',
+                    'userPrincipalName': 'bot@example.com'  # Matches default_mail_sender
+                }
+            },
+            'body': {'content': 'Bot message', 'contentType': 'text'}
+        }
+        
+        result = service.analyze_message(message, self.item)
+        
+        # Should reject the message
+        self.assertFalse(result['success'])
+        self.assertIn('bot itself', result['error'])
+        self.assertIn('infinite loop', result['error'])
+        
+        # KiGate should NOT have been called
+        mock_kigate_service.return_value.execute_agent.assert_not_called()
+    
+    @patch('core.services.message_processing_service.KiGateService')
+    def test_accepts_user_messages(self, mock_kigate_service):
+        """Test that analyze_message accepts normal user messages"""
+        # Mock KiGate response
+        mock_kigate_instance = mock_kigate_service.return_value
+        mock_kigate_instance.execute_agent.return_value = {
+            'success': True,
+            'result': 'Helpful response'
+        }
+        
+        service = MessageProcessingService(settings=self.settings)
+        
+        # Create message from regular user
+        message = {
+            'id': 'msg-from-user',
+            'from': {
+                'user': {
+                    'displayName': 'Real User',
+                    'userPrincipalName': 'user@example.com'  # Different from bot
+                }
+            },
+            'body': {'content': 'User message', 'contentType': 'text'}
+        }
+        
+        result = service.analyze_message(message, self.item)
+        
+        # Should process the message
+        self.assertTrue(result['success'])
+        
+        # KiGate should have been called
+        mock_kigate_instance.execute_agent.assert_called_once()

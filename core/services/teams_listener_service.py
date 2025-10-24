@@ -134,32 +134,35 @@ class TeamsListenerService:
             # Filter out messages that should not be processed
             new_messages = []
             for message in messages:
-                # Skip messages from IdeaGraph Bot to avoid infinite loops
-                # Check by UPN (userPrincipalName) which is more reliable than display name
-                sender_upn = message.get('from', {}).get('user', {}).get('userPrincipalName', '')
-                if self.bot_upn and sender_upn and sender_upn.lower() == self.bot_upn.lower():
-                    logger.debug(f"Skipping message from IdeaGraph Bot (UPN: {sender_upn}): {message.get('id')}")
-                    continue
-                
-                # Fallback: also check display name for backwards compatibility
-                sender_name = message.get('from', {}).get('user', {}).get('displayName', '')
-                if sender_name == self.IDEAGRAPH_BOT_NAME:
-                    logger.debug(f"Skipping message from IdeaGraph Bot (display name): {message.get('id')}")
-                    continue
-                
-                # Check if we already have a task for this message
                 message_id = message.get('id')
                 if not message_id:
                     logger.warning(f"Message has no ID, skipping")
                     continue
                 
-                # Check if task already exists for this message
+                # CRITICAL: Skip messages from IdeaGraph Bot to avoid infinite loops
+                # Check by UPN (userPrincipalName) which is the most reliable method
+                sender_upn = message.get('from', {}).get('user', {}).get('userPrincipalName', '')
+                
+                # Always skip if sender matches bot UPN (case-insensitive)
+                if self.bot_upn and sender_upn:
+                    if sender_upn.lower() == self.bot_upn.lower():
+                        logger.info(f"SKIPPED: Message {message_id} from bot itself (UPN: {sender_upn})")
+                        continue
+                
+                # Fallback: also check display name for backwards compatibility
+                sender_name = message.get('from', {}).get('user', {}).get('displayName', '')
+                if sender_name == self.IDEAGRAPH_BOT_NAME:
+                    logger.info(f"SKIPPED: Message {message_id} from bot itself (display name: {sender_name})")
+                    continue
+                
+                # Check if we already have a task for this message (prevents re-processing)
                 existing_task = Task.objects.filter(message_id=message_id).first()
                 if existing_task:
-                    logger.debug(f"Task already exists for message {message_id}, skipping")
+                    logger.debug(f"SKIPPED: Task {existing_task.id} already exists for message {message_id}")
                     continue
                 
                 # This is a new message that needs processing
+                logger.debug(f"New message to process: {message_id} from {sender_upn or sender_name}")
                 new_messages.append(message)
             
             logger.info(f"Found {len(new_messages)} new messages to process for item {item.id}")
