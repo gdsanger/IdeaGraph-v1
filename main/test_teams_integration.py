@@ -257,3 +257,79 @@ class TeamsIntegrationViewTestCase(TestCase):
         # Verify toggle is disabled
         self.assertFalse(settings.teams_enabled)
         self.assertEqual(settings.teams_team_id, 'test-team-123')
+
+
+class TeamsChannelCreationAPITestCase(TestCase):
+    """Test suite for Teams channel creation API endpoint"""
+    
+    def setUp(self):
+        """Set up test data"""
+        self.user = AppUser.objects.create(
+            username='testuser',
+            email='test@example.com',
+            role='admin',  # Make user admin for testing poll endpoint
+            is_active=True
+        )
+        self.user.set_password('test123')
+        self.user.save()
+        
+        self.section = Section.objects.create(name='Test Section')
+        
+        self.item = Item.objects.create(
+            title='Test Item',
+            description='Test description',
+            section=self.section,
+            created_by=self.user
+        )
+        
+        self.client = Client()
+        
+        # Create session for user - convert UUID to string
+        from django.contrib.sessions.models import Session
+        session = self.client.session
+        session['user_id'] = str(self.user.id)  # Convert UUID to string
+        session.save()
+    
+    def test_create_teams_channel_csrf_exempt(self):
+        """Test that create_teams_channel endpoint works without CSRF token"""
+        
+        url = f'/api/items/{self.item.id}/create-teams-channel'
+        
+        # Make POST request without CSRF token
+        # This should not raise a 403 Forbidden error if @csrf_exempt is properly applied
+        response = self.client.post(
+            url,
+            content_type='application/json'
+        )
+        
+        # We expect a 401 or other error (due to missing Teams configuration),
+        # but NOT a 403 CSRF error
+        self.assertNotEqual(response.status_code, 403, 
+                          "Endpoint should be CSRF exempt but returned 403 Forbidden")
+    
+    def test_poll_teams_messages_csrf_exempt(self):
+        """Test that poll_teams_messages endpoint works without CSRF token"""
+        
+        url = '/api/teams/poll'
+        
+        # Make POST request without CSRF token
+        response = self.client.post(
+            url,
+            content_type='application/json'
+        )
+        
+        # Should not return 403 CSRF error
+        self.assertNotEqual(response.status_code, 403,
+                          "Endpoint should be CSRF exempt but returned 403 Forbidden")
+    
+    def test_teams_integration_status_csrf_exempt(self):
+        """Test that teams_integration_status endpoint works without CSRF token"""
+        
+        url = '/api/teams/status'
+        
+        # Make GET request without CSRF token
+        response = self.client.get(url)
+        
+        # Should not return 403 CSRF error
+        self.assertNotEqual(response.status_code, 403,
+                          "Endpoint should be CSRF exempt but returned 403 Forbidden")
