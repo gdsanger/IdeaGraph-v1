@@ -144,8 +144,11 @@ class TeamsListenerService:
                 sender_upn = message.get('from', {}).get('user', {}).get('userPrincipalName', '')
                 
                 # Always skip if sender matches bot UPN (case-insensitive)
+                # Normalize both values: strip whitespace and convert to lowercase
                 if self.bot_upn and sender_upn:
-                    if sender_upn.lower() == self.bot_upn.lower():
+                    bot_upn_normalized = self.bot_upn.strip().lower()
+                    sender_upn_normalized = sender_upn.strip().lower()
+                    if sender_upn_normalized == bot_upn_normalized:
                         logger.info(f"SKIPPED: Message {message_id} from bot itself (UPN: {sender_upn})")
                         continue
                 
