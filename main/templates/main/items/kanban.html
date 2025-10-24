@@ -89,6 +89,41 @@
         color: #9ca3af;
         border: 1px solid #9ca3af;
     }
+    
+    .teams-indicator {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: transform 0.2s;
+        z-index: 10;
+    }
+    
+    .teams-indicator:hover {
+        transform: scale(1.2);
+    }
+    
+    .teams-indicator.has-channel {
+        background: rgba(34, 197, 94, 0.2);
+        border: 2px solid #22c55e;
+        color: #22c55e;
+    }
+    
+    .teams-indicator.no-channel {
+        background: rgba(239, 68, 68, 0.2);
+        border: 2px solid #ef4444;
+        color: #ef4444;
+    }
+    
+    .teams-indicator i {
+        font-size: 0.9rem;
+    }
 </style>
 {% endblock %}
 
@@ -159,7 +194,28 @@
         {% if items %}
             {% for item in items %}
             <div class="col-auto">
-                <div class="tile-card" data-item-id="{{ item.id }}" onclick="window.location.href='{% url 'main:item_detail' item.id %}'" style="width: 280px;">
+                <div class="tile-card" data-item-id="{{ item.id }}" style="width: 280px; position: relative;">
+                    {% if settings.teams_enabled %}
+                    <!-- Teams Channel Indicator -->
+                    {% if item.channel_id %}
+                    <a href="#" class="teams-indicator has-channel" 
+                       data-item-id="{{ item.id }}"
+                       data-channel-id="{{ item.channel_id }}"
+                       title="Teams Channel exists - Click to open"
+                       onclick="event.stopPropagation(); openTeamsChannel('{{ item.id }}', '{{ item.channel_id }}'); return false;">
+                        <i class="bi bi-microsoft-teams"></i>
+                    </a>
+                    {% else %}
+                    <a href="#" class="teams-indicator no-channel" 
+                       data-item-id="{{ item.id }}"
+                       title="No Teams Channel - Click to create"
+                       onclick="event.stopPropagation(); createTeamsChannel('{{ item.id }}', '{{ item.title|escapejs }}'); return false;">
+                        <i class="bi bi-microsoft-teams"></i>
+                    </a>
+                    {% endif %}
+                    {% endif %}
+                    
+                    <div onclick="window.location.href='{% url 'main:item_detail' item.id %}'">
                     <div class="tile-card-header">
                         <span class="tile-card-status status-{{ item.status }}">
                             {% if item.status == 'ready' %}
@@ -189,6 +245,7 @@
                         {% for tag in item.tags.all %}
                         <span class="badge" style="background-color: {{ tag.color }}; font-size: 0.7rem;">{{ tag.name }}</span>
                         {% endfor %}
+                    </div>
                     </div>
                 </div>
             </div>
@@ -248,5 +305,133 @@
 <script>
 // Tile view: Items are displayed in a responsive grid layout
 // Clicking on a tile opens the detail view where status can be changed
+
+// Function to show toast notification
+function showToast(message, type = 'info') {
+    // Create Bootstrap toast element
+    const toastContainer = document.getElementById('toast-container') || createToastContainer();
+    const toastId = 'toast-' + Date.now();
+    const iconClass = type === 'success' ? 'bi-check-circle-fill' : type === 'error' ? 'bi-exclamation-circle-fill' : 'bi-info-circle-fill';
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
+    
+    const toastHtml = `
+        <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="bi ${iconClass}"></i> ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement, { delay: 5000 });
+    toast.show();
+    
+    // Remove element after it's hidden
+    toastElement.addEventListener('hidden.bs.toast', function () {
+        toastElement.remove();
+    });
+}
+
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'toast-container position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+    return container;
+}
+
+// Function to get CSRF token
+function getCsrfToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+}
+
+// Function to create a Teams channel
+async function createTeamsChannel(itemId, itemTitle) {
+    console.log('Creating Teams channel for item:', itemId);
+    
+    try {
+        // Show loading indicator
+        const indicator = document.querySelector(`.teams-indicator[data-item-id="${itemId}"]`);
+        if (indicator) {
+            indicator.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+            indicator.style.pointerEvents = 'none';
+        }
+        
+        const response = await fetch(`/api/items/${itemId}/create-teams-channel`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showToast(data.message || 'Teams channel created successfully!', 'success');
+            
+            // Update the indicator to show the channel exists
+            if (indicator) {
+                indicator.classList.remove('no-channel');
+                indicator.classList.add('has-channel');
+                indicator.setAttribute('data-channel-id', data.channel_id);
+                indicator.setAttribute('title', 'Teams Channel exists - Click to open');
+                indicator.innerHTML = '<i class="bi bi-microsoft-teams"></i>';
+                indicator.style.pointerEvents = 'auto';
+                
+                // Update onclick handler
+                indicator.setAttribute('onclick', `event.stopPropagation(); openTeamsChannel('${itemId}', '${data.channel_id}'); return false;`);
+            }
+            
+            // Reload page after a short delay to reflect changes
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            showToast(data.error || 'Failed to create Teams channel', 'error');
+            
+            // Reset indicator
+            if (indicator) {
+                indicator.innerHTML = '<i class="bi bi-microsoft-teams"></i>';
+                indicator.style.pointerEvents = 'auto';
+            }
+        }
+    } catch (error) {
+        console.error('Error creating Teams channel:', error);
+        showToast('Error creating Teams channel: ' + error.message, 'error');
+        
+        // Reset indicator
+        const indicator = document.querySelector(`.teams-indicator[data-item-id="${itemId}"]`);
+        if (indicator) {
+            indicator.innerHTML = '<i class="bi bi-microsoft-teams"></i>';
+            indicator.style.pointerEvents = 'auto';
+        }
+    }
+}
+
+// Function to open a Teams channel
+async function openTeamsChannel(itemId, channelId) {
+    console.log('Opening Teams channel:', channelId, 'for item:', itemId);
+    
+    try {
+        // Try to get the web URL from the channel
+        // For now, we'll construct a generic Teams URL
+        // In a production environment, you would fetch the actual web URL from the API
+        const teamsUrl = `https://teams.microsoft.com/`;
+        
+        // Open in new tab
+        window.open(teamsUrl, '_blank');
+        
+        showToast('Opening Teams...', 'info');
+    } catch (error) {
+        console.error('Error opening Teams channel:', error);
+        showToast('Error opening Teams channel', 'error');
+    }
+}
 </script>
 {% endblock %}

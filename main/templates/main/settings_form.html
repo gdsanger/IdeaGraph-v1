@@ -715,6 +715,56 @@
 
                     <hr style="border-color: var(--autumn-primary);">
 
+                    <!-- Microsoft Teams Integration -->
+                    <div class="mb-4">
+                        <h5 class="mb-3" style="color: var(--autumn-accent);">
+                            <i class="bi bi-microsoft-teams"></i> Microsoft Teams Integration
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <div class="form-check form-switch">
+                                    <input 
+                                        class="form-check-input" 
+                                        type="checkbox" 
+                                        id="teams_enabled" 
+                                        name="teams_enabled"
+                                        {% if settings.teams_enabled %}checked{% endif %}>
+                                    <label class="form-check-label" for="teams_enabled">
+                                        Enable Teams Integration
+                                    </label>
+                                </div>
+                                <div class="form-text">Aktiviert/Deaktiviert die Teams-Integration</div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="teams_team_id" class="form-label">Teams Team ID</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="teams_team_id" 
+                                    name="teams_team_id" 
+                                    value="{{ settings.teams_team_id|default:'' }}"
+                                    placeholder="Team ID (Workspace)">
+                                <div class="form-text">ID des Teams (Workspace), das beobachtet wird</div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label for="team_welcome_post" class="form-label">Teams Welcome Post Template</label>
+                                <textarea 
+                                    class="form-control" 
+                                    id="team_welcome_post" 
+                                    name="team_welcome_post" 
+                                    rows="3"
+                                    placeholder="Willkommen im Channel für {{Item}}!">{{ settings.team_welcome_post|default:'Willkommen im Channel für {{Item}}! Hier können Sie Nachrichten zu diesem Item senden und diskutieren.' }}</textarea>
+                                <div class="form-text">Vorlage für einen Begrüßungspost. Verwenden Sie {{Item}} als Platzhalter für den Item-Titel.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr style="border-color: var(--autumn-primary);">
+
                     <!-- Additional Settings -->
                     <div class="mb-4">
                         <h5 class="mb-3" style="color: var(--autumn-accent);">

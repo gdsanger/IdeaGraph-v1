@@ -19,6 +19,7 @@ from core.services.openai_service import OpenAIService, OpenAIServiceError
 from core.services.weaviate_task_sync_service import WeaviateTaskSyncService, WeaviateTaskSyncServiceError
 from core.services.support_advisor_service import SupportAdvisorService, SupportAdvisorServiceError
 from core.services.task_file_service import TaskFileService, TaskFileServiceError
+from core.services.teams_service import TeamsService, TeamsServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -5322,4 +5323,104 @@ def api_get_items_for_move(request):
         return JsonResponse({
             'error': 'An error occurred while fetching items'
         }, status=500)
+
+
+@require_http_methods(["POST"])
+def create_teams_channel(request, item_id):
+    """
+    API endpoint to create a Teams channel for an item
+    
+    This endpoint creates a channel in the configured Teams workspace,
+    posts a welcome message, and stores the channel ID in the item.
+    
+    Args:
+        request: HTTP request
+        item_id: UUID of the item
+        
+    Returns:
+        JSON response with success status and channel details
+    """
+    logger.info(f'Creating Teams channel for item {item_id}')
+    
+    try:
+        # Get current user from session
+        user_id = request.session.get('user_id')
+        if not user_id:
+            logger.warning('Unauthorized attempt to create Teams channel')
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+        
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            logger.warning(f'User {user_id} not found')
+            return JsonResponse({'error': 'User not found'}, status=404)
+        
+        # Get the item
+        from .models import Item
+        try:
+            item = Item.objects.get(id=item_id)
+        except Item.DoesNotExist:
+            logger.warning(f'Item {item_id} not found')
+            return JsonResponse({'error': 'Item not found'}, status=404)
+        
+        # Check if channel already exists
+        if item.channel_id:
+            logger.warning(f'Item {item_id} already has a Teams channel: {item.channel_id}')
+            return JsonResponse({
+                'error': 'Channel already exists for this item',
+                'channel_id': item.channel_id
+            }, status=400)
+        
+        # Initialize Teams service
+        try:
+            teams_service = TeamsService()
+        except TeamsServiceError as e:
+            logger.error(f'Failed to initialize Teams service: {str(e)}')
+            return JsonResponse({
+                'error': 'Teams integration not configured',
+                'details': str(e)
+            }, status=503)
+        
+        # Create the channel
+        try:
+            result = teams_service.create_channel_for_item(
+                item_title=item.title,
+                item_description=item.description
+            )
+            
+            if result.get('success'):
+                # Store channel ID in item
+                item.channel_id = result['channel_id']
+                item.save(update_fields=['channel_id'])
+                
+                logger.info(f'Successfully created Teams channel for item {item_id}: {result["channel_id"]}')
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Teams channel "{item.title}" created successfully',
+                    'channel_id': result['channel_id'],
+                    'web_url': result.get('web_url', ''),
+                    'display_name': result.get('display_name', item.title)
+                })
+            else:
+                logger.error(f'Failed to create Teams channel for item {item_id}')
+                return JsonResponse({
+                    'error': 'Failed to create Teams channel',
+                    'details': result.get('message', 'Unknown error')
+                }, status=500)
+                
+        except TeamsServiceError as e:
+            logger.error(f'Teams service error while creating channel: {str(e)}')
+            return JsonResponse({
+                'error': 'Failed to create Teams channel',
+                'details': str(e)
+            }, status=500)
+        
+    except Exception as e:
+        logger.error(f'Unexpected error creating Teams channel for item {item_id}: {str(e)}')
+        return JsonResponse({
+            'error': 'An unexpected error occurred',
+            'details': str(e)
+        }, status=500)
+
 
