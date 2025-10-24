@@ -311,6 +311,28 @@ class MessageProcessingService:
         logger.info(f"Created new user: {user_identifier} ({first_name} {last_name}, Object ID: {user_object_id})")
         return user
     
+    def get_or_create_user_from_upn(self, upn: str, display_name: str = '') -> Any:
+        """
+        Backward compatibility wrapper for get_or_create_user_from_sender
+        
+        Args:
+            upn: User Principal Name (email)
+            display_name: Display name of the user
+            
+        Returns:
+            User object
+        """
+        # Create a minimal sender object for backward compatibility
+        sender = {
+            'id': '',  # No object ID available in old API
+            'userPrincipalName': upn,
+            'mail': upn,
+            'displayName': display_name,
+            'givenName': '',
+            'surname': ''
+        }
+        return self.get_or_create_user_from_sender(sender)
+    
     def analyze_message(self, message: Dict[str, Any], item) -> Dict[str, Any]:
         """
         Analyze a Teams message using KIGate AI agent with RAG-enhanced context
@@ -526,6 +548,7 @@ Use the similar objects from the knowledge base (if provided) to give more infor
         
         # Get or create user from full sender information
         sender = analysis_result.get('sender', {})
+        sender_name = sender.get('displayName', 'Unknown User')
         
         try:
             requester = self.get_or_create_user_from_sender(sender)

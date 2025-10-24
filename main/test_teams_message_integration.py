@@ -1269,3 +1269,324 @@ class MessageProcessingSelfReplyPreventionTestCase(TestCase):
         
         # KiGate should have been called
         mock_kigate_instance.execute_agent.assert_called_once()
+
+
+class TeamsObjectIDTestCase(TestCase):
+    """Test suite for Teams Object ID functionality"""
+    
+    def setUp(self):
+        """Set up test data"""
+        self.user = AppUser.objects.create(
+            username='testuser',
+            email='test@example.com',
+            role='user',
+            is_active=True
+        )
+        
+        self.section = Section.objects.create(name='Test Section')
+        
+        self.settings = Settings.objects.create(
+            teams_enabled=True,
+            teams_team_id='test-team-id',
+            graph_api_enabled=True,
+            tenant_id='test-tenant-id',
+            client_id='test-client-id',
+            client_secret='test-client-secret',
+            default_mail_sender='bot@example.com'
+        )
+        
+        self.item = Item.objects.create(
+            title='Test Item',
+            description='Test description',
+            section=self.section,
+            created_by=self.user,
+            channel_id='test-channel-id'
+        )
+    
+    @patch('core.services.graph_service.requests.post')
+    @patch('core.services.graph_service.requests.request')
+    def test_get_user_by_id_success(self, mock_request, mock_post):
+        """Test fetching user details by object ID"""
+        from core.services.graph_service import GraphService
+        
+        # Mock token response
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {
+            'access_token': 'test-token',
+            'expires_in': 3600
+        }
+        
+        # Mock user details response
+        mock_request.return_value.status_code = 200
+        mock_request.return_value.json.return_value = {
+            'id': 'user-object-id-123',
+            'userPrincipalName': 'user@example.com',
+            'mail': 'user@example.com',
+            'displayName': 'Test User',
+            'givenName': 'Test',
+            'surname': 'User'
+        }
+        
+        service = GraphService(settings=self.settings)
+        result = service.get_user_by_id('user-object-id-123')
+        
+        self.assertTrue(result['success'])
+        self.assertEqual(result['user']['id'], 'user-object-id-123')
+        self.assertEqual(result['user']['userPrincipalName'], 'user@example.com')
+        self.assertEqual(result['user']['givenName'], 'Test')
+        self.assertEqual(result['user']['surname'], 'User')
+    
+    @patch('core.services.graph_service.requests.post')
+    @patch('core.services.graph_service.requests.request')
+    def test_get_user_by_id_not_found(self, mock_request, mock_post):
+        """Test fetching user details for non-existent user"""
+        from core.services.graph_service import GraphService, GraphServiceError
+        
+        # Mock token response
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {
+            'access_token': 'test-token',
+            'expires_in': 3600
+        }
+        
+        # Mock user not found response
+        mock_request.return_value.status_code = 404
+        mock_request.return_value.text = 'User not found'
+        
+        service = GraphService(settings=self.settings)
+        
+        with self.assertRaises(GraphServiceError):
+            service.get_user_by_id('non-existent-id')
+    
+    @patch('core.services.teams_listener_service.GraphService')
+    def test_enrich_message_sender_info_when_upn_empty(self, mock_graph_service):
+        """Test enriching message with sender info when UPN is empty"""
+        # Mock GraphService
+        mock_instance = mock_graph_service.return_value
+        mock_instance.get_user_by_id.side_effect = [
+            # First call: bot user lookup during initialization
+            {
+                'success': True,
+                'user': {
+                    'id': 'bot-object-id',
+                    'userPrincipalName': 'bot@example.com',
+                    'mail': 'bot@example.com',
+                    'displayName': 'IdeaGraph Bot',
+                    'givenName': 'IdeaGraph',
+                    'surname': 'Bot'
+                }
+            },
+            # Second call: enriching message sender
+            {
+                'success': True,
+                'user': {
+                    'id': 'user-object-id-123',
+                    'userPrincipalName': 'user@example.com',
+                    'mail': 'user@example.com',
+                    'displayName': 'Real User',
+                    'givenName': 'Real',
+                    'surname': 'User'
+                }
+            }
+        ]
+        mock_instance.get_channel_messages.return_value = {
+            'success': True,
+            'messages': []
+        }
+        
+        service = TeamsListenerService(settings=self.settings)
+        
+        # Message with empty UPN but with object ID
+        message = {
+            'id': 'msg-1',
+            'from': {
+                'user': {
+                    'id': 'user-object-id-123',
+                    'userPrincipalName': '',  # Empty UPN (the problem)
+                    'displayName': 'Real User'
+                }
+            },
+            'body': {'content': 'User message', 'contentType': 'text'}
+        }
+        
+        enriched_message = service._enrich_message_sender_info(message)
+        
+        # Should have called get_user_by_id twice (once for bot, once for enrichment)
+        self.assertEqual(mock_instance.get_user_by_id.call_count, 2)
+        
+        # Message should be enriched with UPN and other details
+        self.assertEqual(enriched_message['from']['user']['userPrincipalName'], 'user@example.com')
+        self.assertEqual(enriched_message['from']['user']['mail'], 'user@example.com')
+        self.assertEqual(enriched_message['from']['user']['givenName'], 'Real')
+        self.assertEqual(enriched_message['from']['user']['surname'], 'User')
+    
+    @patch('core.services.teams_listener_service.GraphService')
+    def test_filter_bot_messages_by_object_id(self, mock_graph_service):
+        """Test filtering bot messages using object ID when UPN is empty"""
+        # Mock GraphService
+        mock_instance = mock_graph_service.return_value
+        
+        # Mock bot user lookup
+        mock_instance.get_user_by_id.side_effect = [
+            # First call: bot user lookup during initialization
+            {
+                'success': True,
+                'user': {
+                    'id': 'bot-object-id-456',
+                    'userPrincipalName': 'bot@example.com',
+                    'mail': 'bot@example.com',
+                    'displayName': 'IdeaGraph Bot',
+                    'givenName': 'IdeaGraph',
+                    'surname': 'Bot'
+                }
+            }
+        ]
+        
+        # Mock channel messages response
+        mock_instance.get_channel_messages.return_value = {
+            'success': True,
+            'messages': [
+                {
+                    'id': 'msg-1',
+                    'from': {
+                        'user': {
+                            'id': 'bot-object-id-456',  # Bot's object ID
+                            'userPrincipalName': '',  # Empty UPN
+                            'displayName': 'IdeaGraph Bot'
+                        }
+                    },
+                    'body': {'content': 'Bot message', 'contentType': 'text'}
+                },
+                {
+                    'id': 'msg-2',
+                    'from': {
+                        'user': {
+                            'id': 'user-object-id-123',
+                            'userPrincipalName': '',  # Empty UPN
+                            'displayName': 'Real User'
+                        }
+                    },
+                    'body': {'content': 'User message', 'contentType': 'text'}
+                }
+            ]
+        }
+        
+        service = TeamsListenerService(settings=self.settings)
+        messages = service.get_new_messages_for_item(self.item)
+        
+        # Should filter out bot message even without UPN
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0]['id'], 'msg-2')
+    
+    @patch('core.services.message_processing_service.KiGateService')
+    def test_get_or_create_user_from_sender_with_object_id(self, mock_kigate):
+        """Test creating user with object ID from enriched sender info"""
+        service = MessageProcessingService(settings=self.settings)
+        
+        sender = {
+            'id': 'user-object-id-789',
+            'userPrincipalName': 'newuser@example.com',
+            'mail': 'newuser@example.com',
+            'displayName': 'New User',
+            'givenName': 'New',
+            'surname': 'User'
+        }
+        
+        user = service.get_or_create_user_from_sender(sender)
+        
+        self.assertIsNotNone(user)
+        self.assertEqual(user.username, 'newuser@example.com')
+        self.assertEqual(user.email, 'newuser@example.com')
+        self.assertEqual(user.first_name, 'New')
+        self.assertEqual(user.last_name, 'User')
+        self.assertEqual(user.ms_user_id, 'user-object-id-789')
+        self.assertEqual(user.auth_type, 'msauth')
+    
+    @patch('core.services.message_processing_service.KiGateService')
+    def test_get_or_create_user_finds_existing_by_object_id(self, mock_kigate):
+        """Test finding existing user by object ID"""
+        service = MessageProcessingService(settings=self.settings)
+        
+        # Create existing user with object ID
+        existing_user = AppUser.objects.create(
+            username='existinguser@example.com',
+            email='existinguser@example.com',
+            ms_user_id='existing-object-id',
+            first_name='Existing',
+            last_name='User',
+            role='user',
+            is_active=True,
+            auth_type='msauth'
+        )
+        
+        sender = {
+            'id': 'existing-object-id',
+            'userPrincipalName': 'existinguser@example.com',
+            'mail': 'existinguser@example.com',
+            'displayName': 'Existing User',
+            'givenName': 'Existing',
+            'surname': 'User'
+        }
+        
+        user = service.get_or_create_user_from_sender(sender)
+        
+        # Should find existing user
+        self.assertEqual(user.id, existing_user.id)
+        self.assertEqual(user.ms_user_id, 'existing-object-id')
+    
+    @patch('core.services.message_processing_service.KiGateService')
+    def test_get_or_create_user_updates_object_id(self, mock_kigate):
+        """Test updating existing user with object ID"""
+        service = MessageProcessingService(settings=self.settings)
+        
+        # Create user without object ID
+        existing_user = AppUser.objects.create(
+            username='updateuser@example.com',
+            email='updateuser@example.com',
+            ms_user_id='',  # No object ID yet
+            first_name='Update',
+            last_name='User',
+            role='user',
+            is_active=True,
+            auth_type='msauth'
+        )
+        
+        sender = {
+            'id': 'new-object-id-999',
+            'userPrincipalName': 'updateuser@example.com',
+            'mail': 'updateuser@example.com',
+            'displayName': 'Update User',
+            'givenName': 'Update',
+            'surname': 'User'
+        }
+        
+        user = service.get_or_create_user_from_sender(sender)
+        
+        # Should find existing user and update object ID
+        self.assertEqual(user.id, existing_user.id)
+        self.assertEqual(user.ms_user_id, 'new-object-id-999')
+        
+        # Verify in database
+        user.refresh_from_db()
+        self.assertEqual(user.ms_user_id, 'new-object-id-999')
+    
+    @patch('core.services.message_processing_service.KiGateService')
+    def test_get_or_create_user_from_sender_with_empty_upn(self, mock_kigate):
+        """Test creating user when UPN is empty but email is available"""
+        service = MessageProcessingService(settings=self.settings)
+        
+        sender = {
+            'id': 'user-object-id-empty-upn',
+            'userPrincipalName': '',  # Empty UPN
+            'mail': 'emailonly@example.com',  # But email is available
+            'displayName': 'Email Only User',
+            'givenName': 'Email',
+            'surname': 'Only'
+        }
+        
+        user = service.get_or_create_user_from_sender(sender)
+        
+        self.assertIsNotNone(user)
+        self.assertEqual(user.username, 'emailonly@example.com')
+        self.assertEqual(user.email, 'emailonly@example.com')
+        self.assertEqual(user.ms_user_id, 'user-object-id-empty-upn')

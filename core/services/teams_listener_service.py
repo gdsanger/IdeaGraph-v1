@@ -98,7 +98,11 @@ class TeamsListenerService:
                     logger.info(f"Bot object ID retrieved: {self.bot_object_id}")
                 else:
                     logger.warning(f"Could not fetch bot user details: {bot_user_result.get('error', 'Unknown error')}")
+            except GraphServiceError as e:
+                logger.warning(f"Failed to fetch bot object ID: {str(e)}")
+                # Non-critical error, continue without object ID
             except Exception as e:
+                # Catch any other exception (including test mock issues)
                 logger.warning(f"Failed to fetch bot object ID: {str(e)}")
                 # Non-critical error, continue without object ID
         
