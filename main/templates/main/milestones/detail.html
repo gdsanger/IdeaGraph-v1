@@ -6,6 +6,8 @@
 {% block extra_css %}
 <!-- Semantic Network CSS -->
 <link rel="stylesheet" href="{% static 'main/css/semantic-network.css' %}" />
+<!-- Weaviate Indicator CSS -->
+<link rel="stylesheet" href="{% static 'main/css/weaviate-indicator.css' %}" />
 
 <style>
     .milestone-detail-card {
@@ -190,13 +192,20 @@
                     <p class="text-muted mb-0">{{ milestone.description }}</p>
                     {% endif %}
                 </div>
-                <div class="btn-group" role="group">
-                    <a href="{% url 'main:milestone_edit' milestone.id %}" class="btn btn-outline-primary">
-                        <i class="bi bi-pencil"></i> Edit
-                    </a>
-                    <a href="{% url 'main:milestone_delete' milestone.id %}" class="btn btn-outline-danger">
-                        <i class="bi bi-trash"></i> Delete
-                    </a>
+                <div class="d-flex align-items-center gap-3">
+                    <!-- Weaviate Indicator -->
+                    <div class="weaviate-indicator-container">
+                        <span class="weaviate-indicator-label">Weaviate:</span>
+                        <div data-weaviate-indicator data-weaviate-type="milestone" data-weaviate-id="{{ milestone.id }}"></div>
+                    </div>
+                    <div class="btn-group" role="group">
+                        <a href="{% url 'main:milestone_edit' milestone.id %}" class="btn btn-outline-primary">
+                            <i class="bi bi-pencil"></i> Edit
+                        </a>
+                        <a href="{% url 'main:milestone_delete' milestone.id %}" class="btn btn-outline-danger">
+                            <i class="bi bi-trash"></i> Delete
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1614,4 +1623,6 @@ document.getElementById('semantic-network-tab')?.addEventListener('shown.bs.tab'
 <script src="https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/build/graphology-layout-forceatlas2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0-beta.20/build/sigma.min.js"></script>
 <script src="{% static 'main/js/semantic-network.js' %}"></script>
+<!-- Weaviate Indicator JavaScript -->
+<script src="{% static 'main/js/weaviate-indicator.js' %}"></script>
 {% endblock %}

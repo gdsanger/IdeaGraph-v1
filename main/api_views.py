@@ -5022,10 +5022,10 @@ def api_milestone_summary_history(request, milestone_id):
 @require_http_methods(["GET"])
 def check_weaviate_status(request, object_type, object_id):
     """
-    Check if an Item, Task, or File exists in Weaviate database.
+    Check if an Item, Task, Milestone, or File exists in Weaviate database.
     
     Args:
-        object_type: 'item', 'task', 'item_file', or 'task_file'
+        object_type: 'item', 'task', 'milestone', 'item_file', or 'task_file'
         object_id: UUID of the object
     
     Returns:
@@ -5036,7 +5036,7 @@ def check_weaviate_status(request, object_type, object_id):
         return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=401)
     
     try:
-        from .models import Item, Task, ItemFile, TaskFile, Settings
+        from .models import Item, Task, Milestone, ItemFile, TaskFile, Settings
         from core.services.weaviate_sync_service import WeaviateItemSyncService
         
         settings = Settings.objects.first()
@@ -5093,10 +5093,10 @@ def check_weaviate_status(request, object_type, object_id):
 @require_http_methods(["POST"])
 def add_to_weaviate(request, object_type, object_id):
     """
-    Add an Item, Task, or File to Weaviate database.
+    Add an Item, Task, Milestone, or File to Weaviate database.
     
     Args:
-        object_type: 'item', 'task', 'item_file', or 'task_file'
+        object_type: 'item', 'task', 'milestone', 'item_file', or 'task_file'
         object_id: UUID of the object
     
     Returns:
@@ -5107,9 +5107,10 @@ def add_to_weaviate(request, object_type, object_id):
         return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=401)
     
     try:
-        from .models import Item, Task, ItemFile, TaskFile, Settings
+        from .models import Item, Task, Milestone, ItemFile, TaskFile, Settings
         from core.services.weaviate_sync_service import WeaviateItemSyncService, WeaviateItemSyncServiceError
         from core.services.weaviate_task_sync_service import WeaviateTaskSyncService, WeaviateTaskSyncServiceError
+        from core.services.milestone_knowledge_service import MilestoneKnowledgeService, MilestoneKnowledgeServiceError
         
         settings = Settings.objects.first()
         if not settings:
@@ -5165,6 +5166,28 @@ def add_to_weaviate(request, object_type, object_id):
                     'error': str(e)
                 }, status=500)
                 
+        elif object_type == 'milestone':
+            try:
+                milestone = Milestone.objects.get(id=object_id)
+                milestone_service = MilestoneKnowledgeService()
+                result = milestone_service.sync_to_weaviate(milestone)
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Milestone "{milestone.name}" added to Weaviate successfully'
+                })
+            except Milestone.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Milestone not found'
+                }, status=404)
+            except MilestoneKnowledgeServiceError as e:
+                logger.error(f'Weaviate sync error: {str(e)}')
+                return JsonResponse({
+                    'success': False,
+                    'error': str(e)
+                }, status=500)
+                
         elif object_type in ['item_file', 'task_file']:
             # For files, we need to sync them through the parent object's sync service
             try:
@@ -5211,7 +5234,7 @@ def get_weaviate_dump(request, object_type, object_id):
     Get a dump of an object from Weaviate database.
     
     Args:
-        object_type: 'item', 'task', 'item_file', or 'task_file'
+        object_type: 'item', 'task', 'milestone', 'item_file', or 'task_file'
         object_id: UUID of the object
     
     Returns:
