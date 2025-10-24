@@ -68,13 +68,15 @@ python manage.py shell
            ↓
 2. IdeaGraph holt Nachricht (Graph API)
            ↓
-3. KI analysiert Nachricht (KIGate)
+3. RAG-Suche: Ähnliche Tasks/Items (Weaviate) ← NEU
            ↓
-4. Task wird erstellt (falls nötig)
+4. KI analysiert Nachricht mit Kontext (KIGate)
            ↓
-5. Antwort wird gepostet (Teams)
+5. Task wird erstellt (falls nötig)
            ↓
-6. Konversation wird gespeichert (Weaviate)
+6. Antwort wird gepostet (Teams)
+           ↓
+7. Konversation wird gespeichert (Weaviate)
 ```
 
 ## 🛡️ Sicherheitsfeatures
@@ -85,6 +87,12 @@ python manage.py shell
 - ✅ API-Endpoints sind authentifiziert
 
 ## 📝 Wichtige Konzepte
+
+### RAG (Retrieval-Augmented Generation) - NEU
+- Sucht ähnliche Tasks/Items in Weaviate
+- Reichert AI-Kontext mit historischen Lösungen an
+- Liefert bessere, informierte Antworten
+- Optional: Funktioniert auch ohne Weaviate
 
 ### Message-ID
 - Eindeutige ID der Teams-Nachricht

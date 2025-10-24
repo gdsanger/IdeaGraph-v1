@@ -6,10 +6,12 @@ This service analyzes Teams messages using KIGate AI agents and creates tasks.
 
 import logging
 import re
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 from .kigate_service import KiGateService, KiGateServiceError
+from .weaviate_sync_service import WeaviateItemSyncService, WeaviateItemSyncServiceError
+from .weaviate_task_sync_service import WeaviateTaskSyncService, WeaviateTaskSyncServiceError
 
 
 logger = logging.getLogger('message_processing_service')
@@ -72,6 +74,16 @@ class MessageProcessingService:
                 details=str(e)
             )
         
+        # Initialize Weaviate services for RAG
+        try:
+            self.weaviate_item_service = WeaviateItemSyncService(settings=settings)
+            self.weaviate_task_service = WeaviateTaskSyncService(settings=settings)
+        except (WeaviateItemSyncServiceError, WeaviateTaskSyncServiceError, Exception) as e:
+            # Log warning but don't fail - RAG is optional enhancement
+            logger.warning(f"Failed to initialize Weaviate services for RAG: {str(e)}")
+            self.weaviate_item_service = None
+            self.weaviate_task_service = None
+        
         logger.debug("MessageProcessingService initialized")
     
     def extract_message_content(self, message: Dict[str, Any]) -> str:
@@ -100,6 +112,112 @@ class MessageProcessingService:
             content = content.replace('&amp;', '&')
         
         return content.strip()
+    
+    def search_similar_context(
+        self,
+        query_text: str,
+        item_id: str = None,
+        max_results: int = 3
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for similar knowledge objects using RAG (Weaviate)
+        
+        Args:
+            query_text: Text to search for similar content
+            item_id: Optional item ID to filter results
+            max_results: Maximum number of results to return
+            
+        Returns:
+            List of similar knowledge objects with metadata
+        """
+        similar_objects = []
+        
+        # Return empty if Weaviate services are not available
+        if not self.weaviate_item_service or not self.weaviate_task_service:
+            logger.debug("Weaviate services not available, skipping RAG context search")
+            return similar_objects
+        
+        try:
+            # Search for similar tasks
+            try:
+                task_results = self.weaviate_task_service.search_similar(
+                    query_text,
+                    n_results=max_results
+                )
+                
+                if task_results.get('success') and task_results.get('results'):
+                    for result in task_results['results']:
+                        metadata = result.get('metadata', {})
+                        similar_objects.append({
+                            'type': 'task',
+                            'id': metadata.get('task_id', ''),
+                            'title': metadata.get('title', 'N/A'),
+                            'description': result.get('document', '')[:300],
+                            'similarity': result.get('distance', 0)
+                        })
+                    logger.info(f"Found {len(task_results['results'])} similar tasks via RAG")
+            except Exception as e:
+                logger.warning(f"Could not search similar tasks: {str(e)}")
+            
+            # Search for similar items
+            try:
+                item_results = self.weaviate_item_service.search_similar(
+                    query_text,
+                    n_results=max_results
+                )
+                
+                if item_results.get('success') and item_results.get('results'):
+                    for result in item_results['results']:
+                        metadata = result.get('metadata', {})
+                        similar_objects.append({
+                            'type': 'item',
+                            'id': result.get('id', ''),
+                            'title': metadata.get('title', 'N/A'),
+                            'description': result.get('document', '')[:300],
+                            'similarity': result.get('distance', 0)
+                        })
+                    logger.info(f"Found {len(item_results['results'])} similar items via RAG")
+            except Exception as e:
+                logger.warning(f"Could not search similar items: {str(e)}")
+            
+            # Sort by similarity (lower distance is better)
+            similar_objects.sort(key=lambda x: x.get('similarity', float('inf')))
+            
+            # Return top results
+            return similar_objects[:max_results]
+            
+        except Exception as e:
+            logger.warning(f"RAG context search failed: {str(e)}")
+            return []
+    
+    def _format_rag_context(self, similar_objects: List[Dict[str, Any]]) -> str:
+        """
+        Format similar objects from RAG into context text for AI
+        
+        Args:
+            similar_objects: List of similar knowledge objects
+            
+        Returns:
+            Formatted context string
+        """
+        if not similar_objects:
+            return ""
+        
+        context_items = []
+        for idx, obj in enumerate(similar_objects, 1):
+            obj_type = obj['type'].capitalize()
+            context_items.append(
+                f"{obj_type} {idx}: {obj['title']}\n"
+                f"Beschreibung: {obj['description']}..."
+            )
+        
+        context_text = "\n\n".join(context_items)
+        
+        return f"""
+--- Ähnliche Objekte aus der Wissensbasis (RAG) ---
+{context_text}
+--- Ende der ähnlichen Objekte ---
+"""
     
     def get_or_create_user_from_upn(self, upn: str, display_name: str = '') -> Any:
         """
@@ -151,7 +269,7 @@ class MessageProcessingService:
     
     def analyze_message(self, message: Dict[str, Any], item) -> Dict[str, Any]:
         """
-        Analyze a Teams message using KIGate AI agent
+        Analyze a Teams message using KIGate AI agent with RAG-enhanced context
         
         Args:
             message: Teams message object
@@ -175,20 +293,34 @@ class MessageProcessingService:
         sender_upn = sender.get('userPrincipalName', 'unknown@example.com')
         sender_name = sender.get('displayName', 'Unknown User')
         
-        # Prepare context for AI agent
+        # Search for similar context using RAG
+        search_query = f"{item.title}\n{content}"
+        similar_objects = self.search_similar_context(
+            query_text=search_query,
+            item_id=str(item.id),
+            max_results=3
+        )
+        
+        # Format RAG context for AI prompt
+        rag_context = self._format_rag_context(similar_objects)
+        
+        # Prepare context for AI agent with RAG enhancement
         ai_prompt = f"""Item: {item.title}
 Item Description: {item.description[:500] if item.description else 'No description'}
 
 User Message from {sender_name}:
 {content}
+{rag_context}
 
 Analyze this message and provide:
 1. A helpful response to the user
 2. Whether a task should be created (yes/no)
-3. If yes, suggest a task title and description"""
+3. If yes, suggest a task title and description
+
+Use the similar objects from the knowledge base (if provided) to give more informed and contextually relevant recommendations."""
         
         try:
-            logger.info(f"Analyzing message with KIGate agent: {self.TEAMS_SUPPORT_ANALYSIS_AGENT}")
+            logger.info(f"Analyzing message with KIGate agent: {self.TEAMS_SUPPORT_ANALYSIS_AGENT} (RAG-enhanced)")
             
             # Execute KIGate agent
             result = self.kigate_service.execute_agent(
@@ -200,7 +332,9 @@ Analyze this message and provide:
                 parameters={
                     'item_id': str(item.id),
                     'item_title': item.title,
-                    'message_id': message.get('id')
+                    'message_id': message.get('id'),
+                    'rag_enabled': bool(similar_objects),
+                    'similar_objects_count': len(similar_objects)
                 }
             )
             
@@ -213,7 +347,7 @@ Analyze this message and provide:
             
             ai_response = result.get('result', '')
             
-            logger.info(f"AI analysis complete for message {message.get('id')}")
+            logger.info(f"AI analysis complete for message {message.get('id')} with {len(similar_objects)} RAG context objects")
             
             return {
                 'success': True,
@@ -221,7 +355,9 @@ Analyze this message and provide:
                 'message_content': content,
                 'sender_upn': sender_upn,
                 'sender_name': sender_name,
-                'should_create_task': self._should_create_task(ai_response)
+                'should_create_task': self._should_create_task(ai_response),
+                'rag_context_used': bool(similar_objects),
+                'similar_objects_count': len(similar_objects)
             }
             
         except KiGateServiceError as e:

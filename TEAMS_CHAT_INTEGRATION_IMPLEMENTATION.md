@@ -40,7 +40,14 @@ Diese Implementierung ermöglicht es IdeaGraph, Microsoft Teams als primären Ko
 - `get_or_create_user_from_upn(upn, display_name)`: Erstellt Benutzer automatisch aus UPN
   - Extrahiert Vor- und Nachname aus Display Name
   - Setzt Rolle auf 'user' und auth_type auf 'msauth'
+- `search_similar_context(query_text, item_id, max_results)`: **NEU** - Sucht ähnliche Objekte in Weaviate (RAG)
+  - Durchsucht Tasks und Items nach semantisch ähnlichen Inhalten
+  - Liefert max. 3 relevante Treffer mit Metadaten
+  - Graceful Degradation: Funktioniert auch ohne Weaviate
 - `analyze_message(message, item)`: Analysiert Nachricht mit KIGate Agent `teams-support-analysis-agent`
+  - **Verwendet RAG-Kontext:** Sucht ähnliche Tasks/Items in Weaviate
+  - Reichert AI-Prompt mit relevanten historischen Informationen an
+  - Liefert kontextbasierte, informierte Antworten
 - `_should_create_task(ai_response)`: Bestimmt, ob ein Task erstellt werden soll
 - `create_task_from_analysis(item, message, analysis_result)`: Erstellt Task mit AI-Response und Original-Nachricht
 
@@ -139,9 +146,13 @@ python manage.py poll_teams_messages --interval 300
 
 ### 2. Nachricht analysieren
 1. `MessageProcessingService` extrahiert Nachrichteninhalt
-2. Kontext wird zusammengestellt (Item-Titel, -Beschreibung, Nachricht)
-3. KIGate Agent `teams-support-analysis-agent` analysiert Nachricht
-4. AI-Response wird evaluiert: Task erstellen ja/nein?
+2. **RAG-Kontext wird aus Weaviate geladen:**
+   - Suche nach ähnlichen Tasks (max. 3 Treffer)
+   - Suche nach ähnlichen Items (max. 3 Treffer)
+   - Kombination der relevantesten Treffer
+3. Kontext wird zusammengestellt (Item-Titel, -Beschreibung, Nachricht, **RAG-Kontext**)
+4. KIGate Agent `teams-support-analysis-agent` analysiert Nachricht **mit RAG-Kontext**
+5. AI-Response wird evaluiert: Task erstellen ja/nein?
 
 ### 3. Benutzer erstellen/finden
 1. Prüfung auf existierenden Benutzer (UPN als username)
@@ -180,11 +191,38 @@ Falls AI bestimmt, dass Task benötigt wird:
 
 ## Konfiguration
 
+### RAG-Funktionalität (Retrieval-Augmented Generation)
+
+**NEU:** Der MessageProcessingService nutzt jetzt RAG, um Nachrichten mit historischem Kontext zu analysieren.
+
+#### Funktionsweise
+1. **Semantische Suche:** Bei jeder Nachricht wird Weaviate nach ähnlichen Tasks und Items durchsucht
+2. **Kontext-Anreicherung:** Die Top-3 ähnlichsten Objekte werden dem AI-Prompt hinzugefügt
+3. **Informierte Antworten:** Der KIGate-Agent kann auf historische Lösungen zurückgreifen
+4. **Graceful Degradation:** Funktioniert auch ohne Weaviate (RAG wird übersprungen)
+
+#### Beispiel
+**Benutzer-Nachricht:** "Login funktioniert nicht"
+
+**RAG findet ähnlichen Task:** "Login-Problem behoben durch Auth-Modul-Update"
+
+**AI-Antwort:** "Basierend auf einem ähnlichen Problem empfehle ich, das Auth-Modul zu prüfen. Ein Update könnte helfen."
+
+#### Vorteile
+- ✅ Bessere, kontextbasierte Antworten
+- ✅ Lernt aus historischen Tasks
+- ✅ Reduziert doppelte Task-Erstellung
+- ✅ Konsistente Lösungsvorschläge
+
 ### Voraussetzungen
 1. **Graph API aktiviert** in Settings
 2. **Teams Integration aktiviert** in Settings
 3. **Teams Team ID** konfiguriert
 4. **KIGate API aktiviert** und `teams-support-analysis-agent` verfügbar
+5. **Weaviate konfiguriert** (optional, aber empfohlen für RAG-Funktionalität)
+   - Lokale Instanz: localhost:8081
+   - Cloud: Weaviate Cloud mit API-Key
+   - RAG funktioniert auch ohne Weaviate (Graceful Degradation)
 
 ### Azure AD Berechtigungen
 Folgende Berechtigungen werden benötigt:
@@ -204,7 +242,7 @@ kigate_api_enabled = True
 
 ## Tests
 
-### Test-Coverage: 17 Tests (alle bestanden)
+### Test-Coverage: 23 Tests (alle bestanden)
 
 **TeamsListenerServiceTestCase:**
 - Initialisierung mit deaktiviertem Teams
@@ -217,6 +255,14 @@ kigate_api_enabled = True
 - Benutzer-Erstellung/Abruf via UPN
 - Task-Erstellung basierend auf AI-Response
 - Erkennung, ob Task erstellt werden soll
+
+**MessageProcessingServiceRAGTestCase:** **NEU**
+- RAG-Kontext-Suche mit erfolgreichen Ergebnissen
+- RAG-Kontext-Suche ohne Ergebnisse
+- RAG-Funktion bei Weaviate-Ausfall (Graceful Degradation)
+- Nachrichtenanalyse mit RAG-Kontext-Anreicherung
+- Formatierung von RAG-Kontext für AI-Prompt
+- Leerer RAG-Kontext
 
 **TeamsIntegrationAPITestCase:**
 - Status-Endpoint Authentifizierung
