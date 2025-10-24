@@ -903,6 +903,20 @@ class Settings(models.Model):
         help_text='Interval in seconds for polling Teams channels for new messages'
     )
     
+    # Delegated Authentication for Teams (Device Code Flow)
+    teams_use_delegated_auth = models.BooleanField(
+        default=True,
+        verbose_name='Use Delegated Auth for Teams',
+        help_text='Use delegated user authentication (device code flow) for Teams channel posting. Required for posting messages.'
+    )
+    teams_delegated_user_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='Delegated User ID',
+        help_text='User ID (UPN or email) for delegated authentication'
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

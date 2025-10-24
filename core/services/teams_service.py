@@ -76,9 +76,13 @@ class TeamsService:
         self.team_id = self.settings.teams_team_id
         self.welcome_post_template = self.settings.team_welcome_post or 'Willkommen im Channel für {{Item}}!'
         
+        # Check if delegated auth should be used
+        use_delegated = getattr(self.settings, 'teams_use_delegated_auth', True)
+        
         # Initialize Graph Service for API calls
         try:
-            self.graph_service = GraphService(settings=settings)
+            self.graph_service = GraphService(settings=settings, use_delegated_auth=use_delegated)
+            logger.debug(f"TeamsService initialized with delegated_auth={use_delegated}")
         except GraphServiceError as e:
             logger.error(f"Failed to initialize Graph Service: {str(e)}")
             raise TeamsServiceError(

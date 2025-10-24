@@ -48,12 +48,13 @@ class GraphService:
     TOKEN_CACHE_DURATION = 3300  # 55 minutes (tokens expire in 60 minutes)
     REQUEST_TIMEOUT = 15  # seconds
     
-    def __init__(self, settings=None):
+    def __init__(self, settings=None, use_delegated_auth=False):
         """
         Initialize GraphService with settings
         
         Args:
             settings: Settings object. If None, will fetch from database
+            use_delegated_auth: If True, use delegated user authentication instead of app-only
         """
         if settings is None:
             from main.models import Settings
@@ -95,9 +96,26 @@ class GraphService:
         self.sharepoint_site_id = self.settings.sharepoint_site_id
         self.default_sender = self.settings.default_mail_sender
         
+        # Delegated authentication support
+        self.use_delegated_auth = use_delegated_auth
+        self.delegated_auth_service = None
+        if use_delegated_auth:
+            from .delegated_auth_service import DelegatedAuthService
+            try:
+                self.delegated_auth_service = DelegatedAuthService(
+                    client_id=self.client_id,
+                    tenant_id=self.tenant_id
+                )
+                logger.info("GraphService initialized with delegated authentication")
+            except Exception as e:
+                logger.warning(f"Failed to initialize delegated auth service: {e}")
+                # Fall back to app-only if delegated auth fails
+                self.use_delegated_auth = False
+        
         logger.debug(f"GraphService initialized with base_url: {self.base_url}")
         logger.debug(f"SharePoint site ID: {self.sharepoint_site_id}")
         logger.debug(f"Tenant ID: {self.tenant_id}")
+        logger.debug(f"Using delegated auth: {self.use_delegated_auth}")
         
         self._token = None
         self._token_expires_at = None
@@ -122,7 +140,7 @@ class GraphService:
     
     def _get_access_token(self) -> str:
         """
-        Get OAuth2 access token using client credentials flow
+        Get OAuth2 access token using either delegated or client credentials flow
         
         Returns:
             str: Access token
@@ -130,6 +148,19 @@ class GraphService:
         Raises:
             GraphServiceError: If token acquisition fails
         """
+        # Use delegated authentication if enabled
+        if self.use_delegated_auth and self.delegated_auth_service:
+            token = self.delegated_auth_service.get_access_token()
+            if token:
+                logger.debug("Using delegated user access token")
+                return token
+            else:
+                raise GraphServiceError(
+                    "Delegated authentication token not available",
+                    details="Run 'python manage.py auth_teams' to authenticate"
+                )
+        
+        # Fall back to client credentials flow (app-only)
         # Check cache first
         cached_token = self._get_token_from_cache()
         if cached_token:
