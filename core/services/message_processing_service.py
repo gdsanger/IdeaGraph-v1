@@ -326,7 +326,7 @@ Use the similar objects from the knowledge base (if provided) to give more infor
             result = self.kigate_service.execute_agent(
                 agent_name=self.TEAMS_SUPPORT_ANALYSIS_AGENT,
                 provider='openai',  # Default provider
-                model='gpt-5',  # GPT-5 model
+                model='gpt-4',  # GPT-4 model
                 message=ai_prompt,
                 user_id=sender_upn,
                 parameters={

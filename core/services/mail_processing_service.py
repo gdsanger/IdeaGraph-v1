@@ -99,7 +99,7 @@ class MailProcessingService:
             result = self.kigate_service.execute_agent(
                 agent_name='html-to-markdown-converter',
                 provider='openai',
-                model='gpt-4o-mini',
+                model='gpt-4',
                 message=html_content,
                 user_id='system'
             )
@@ -269,7 +269,7 @@ class MailProcessingService:
             result = self.kigate_service.execute_agent(
                 agent_name='markdown-to-html-converter',
                 provider='openai',
-                model='gpt-4o-mini',
+                model='gpt-4',
                 message=markdown_content,
                 user_id='system'
             )
@@ -519,7 +519,7 @@ Analyze this email and create a normalized task description in Markdown format:
             result = self.kigate_service.execute_agent(
                 agent_name='teams-support-analysis-agent',
                 provider='openai',
-                model='gpt-4o-mini',
+                model='gpt-4',
                 message=ai_prompt,
                 user_id='system',
                 parameters={
