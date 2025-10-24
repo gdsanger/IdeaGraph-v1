@@ -29,16 +29,29 @@ IdeaGraph v1.0 unterstützt jetzt die Integration mit Microsoft Teams. Diese Int
 
 Die Teams Integration verwendet die gleiche App-Registrierung wie die Graph API Integration. Folgende Berechtigungen werden benötigt:
 
+**WICHTIG:** Für das Posten von Nachrichten in Channels sind **Delegated Permissions** erforderlich, nicht Application Permissions!
+
 1. Gehe zu [Azure Portal](https://portal.azure.com)
 2. Navigiere zu **Azure Active Directory** → **App registrations**
 3. Wähle deine bestehende IdeaGraph App-Registrierung
 4. Gehe zu **API permissions**
 5. Füge folgende Microsoft Graph-Berechtigungen hinzu:
+   
+   **Application Permissions (für Channel-Erstellung):**
    - `Channel.Create` - Zum Erstellen von Channels
-   - `ChannelMessage.Send` - Zum Senden von Nachrichten in Channels
-   - `TeamMember.Read.All` - (Optional) Zum Lesen von Team-Mitgliedern
    - `Group.Read.All` - Zum Lesen von Team-Informationen
+   
+   **Delegated Permissions (für Nachrichten-Posting):**
+   - `ChannelMessage.Send` - Zum Senden von Nachrichten in Channels
+   - `Channel.ReadBasic.All` - Zum Lesen von Channel-Informationen
+   - `Team.ReadBasic.All` - Zum Lesen von Team-Informationen
+   - `offline_access` - Für Token-Refresh (automatisch inkludiert)
+   
 6. Klicke auf **Grant admin consent** für die Organisation
+7. Gehe zu **Authentication** → Aktiviere "Allow public client flows" = **Yes**
+
+**Hinweis zur Delegated Authentication:**
+Seit dieser Version verwendet IdeaGraph delegierte Benutzer-Authentifizierung (Device Code Flow) für das Posten von Nachrichten. Dies ist erforderlich, da Microsoft Graph API das Posten von Channel-Nachrichten nur mit Benutzerkontext erlaubt. Siehe [TEAMS_DEVICE_CODE_AUTH_GUIDE.md](TEAMS_DEVICE_CODE_AUTH_GUIDE.md) für Details.
 
 ### 2. Teams Team ID ermitteln
 
@@ -85,11 +98,35 @@ Stelle sicher, dass die Graph API Integration bereits konfiguriert ist:
 3. Scrolle zum Abschnitt **Microsoft Teams Integration**
 4. Konfiguriere:
    - ✅ **Enable Teams Integration**: Aktiviert
+   - ✅ **Use Delegated Auth for Teams**: Aktiviert (empfohlen, Standard)
    - **Teams Team ID**: Deine Team ID (siehe oben)
    - **Teams Welcome Post Template**: Vorlage für Willkommensnachricht
 5. Klicke auf **Update Settings**
 
-### 3. Willkommensnachricht anpassen
+### 3. Device Code Authentifizierung (Erstmaliges Setup)
+
+**Wichtig:** Für das Posten von Nachrichten ist eine einmalige Benutzer-Authentifizierung erforderlich.
+
+```bash
+python manage.py auth_teams
+```
+
+**Ablauf:**
+1. Der Befehl zeigt einen Code und eine URL an
+2. Öffne die URL im Browser
+3. Gib den angezeigten Code ein
+4. Melde dich mit deinem Microsoft-Account an (muss Mitglied des Teams sein)
+5. Bestätige die Berechtigungen
+6. Der Token wird gespeichert und automatisch für 90 Tage erneuert
+
+**Token-Status prüfen:**
+```bash
+python manage.py auth_teams --check
+```
+
+**Details:** Siehe [TEAMS_DEVICE_CODE_AUTH_GUIDE.md](TEAMS_DEVICE_CODE_AUTH_GUIDE.md)
+
+### 4. Willkommensnachricht anpassen
 
 Die Willkommensnachricht kann mit Platzhaltern angepasst werden:
 
