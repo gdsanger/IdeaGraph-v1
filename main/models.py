@@ -552,6 +552,9 @@ class Task(models.Model):
         ordering = ['-created_at']
         verbose_name = 'Task'
         verbose_name_plural = 'Tasks'
+        indexes = [
+            models.Index(fields=['message_id'], name='task_message_id_idx'),
+        ]
     
     def __str__(self):
         return self.title

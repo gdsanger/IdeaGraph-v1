@@ -996,8 +996,34 @@ class GraphService:
             
             if response.status_code == 200:
                 data = response.json()
-                messages = data.get('value', [])
-                logger.info(f"Retrieved {len(messages)} messages from channel")
+                all_messages = data.get('value', [])
+                
+                # Filter messages to only include those from the last 30 minutes
+                cutoff_time = datetime.utcnow() - timedelta(minutes=30)
+                messages = []
+                
+                for message in all_messages:
+                    created_at_str = message.get('createdDateTime')
+                    if created_at_str:
+                        try:
+                            # Parse ISO 8601 datetime (remove 'Z' and parse)
+                            created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                            # Make timezone-naive for comparison
+                            created_at_naive = created_at.replace(tzinfo=None)
+                            
+                            if created_at_naive >= cutoff_time:
+                                messages.append(message)
+                            else:
+                                logger.debug(f"Skipping message {message.get('id')} - older than 30 minutes")
+                        except (ValueError, AttributeError) as e:
+                            logger.warning(f"Could not parse message timestamp: {created_at_str}, error: {e}")
+                            # Include message if we can't parse timestamp (defensive behavior)
+                            messages.append(message)
+                    else:
+                        # Include message if no timestamp (defensive behavior)
+                        messages.append(message)
+                
+                logger.info(f"Retrieved {len(messages)} messages from channel (filtered from {len(all_messages)} total, last 30 minutes only)")
                 
                 return {
                     'success': True,
