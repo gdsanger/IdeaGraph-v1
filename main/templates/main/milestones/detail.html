@@ -4,6 +4,9 @@
 {% block title %}{{ milestone.name }} - Milestone Details{% endblock %}
 
 {% block extra_css %}
+<!-- Semantic Network CSS -->
+<link rel="stylesheet" href="{% static 'main/css/semantic-network.css' %}" />
+
 <style>
     .milestone-detail-card {
         background: rgba(31, 41, 55, 0.9);
@@ -217,6 +220,12 @@
             <button class="nav-link" id="context-tab" data-bs-toggle="tab" data-bs-target="#context" 
                     type="button" role="tab" aria-controls="context" aria-selected="false">
                 <i class="bi bi-collection"></i> Context ({{ milestone.context_objects.count }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="semantic-network-tab" data-bs-toggle="tab" data-bs-target="#semantic-network" 
+                    type="button" role="tab" aria-controls="semantic-network" aria-selected="false">
+                <i class="bi bi-diagram-3"></i> Semantic Network
             </button>
         </li>
     </ul>
@@ -567,6 +576,15 @@
                         </div>
                         {% endif %}
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Semantic Network Tab -->
+        <div class="tab-pane fade" id="semantic-network" role="tabpanel" aria-labelledby="semantic-network-tab">
+            <div class="card milestone-detail-card">
+                <div class="card-body">
+                    <div id="milestoneSemanticNetworkContainer"></div>
                 </div>
             </div>
         </div>
@@ -1560,5 +1578,40 @@ function setLoading(btn, loading) {
         btn.classList.remove('loading');
     }
 }
+
+// Initialize semantic network viewer when tab is shown
+let milestoneSemanticNetworkViewer = null;
+
+document.getElementById('semantic-network-tab')?.addEventListener('shown.bs.tab', function() {
+    if (!milestoneSemanticNetworkViewer) {
+        // Initialize the semantic network viewer on first show
+        milestoneSemanticNetworkViewer = new SemanticNetworkViewer('milestoneSemanticNetworkContainer', {
+            objectType: 'milestone',
+            objectId: '{{ milestone.id }}',
+            depth: 3,
+            generateSummaries: true,
+            includeHierarchy: false,
+            onNodeClick: function(node) {
+                // Handle node click - navigate to the object
+                if (node.type === 'item') {
+                    window.location.href = `/items/${node.id}/`;
+                } else if (node.type === 'task') {
+                    window.location.href = `/tasks/${node.id}/`;
+                } else if (node.type === 'milestone') {
+                    window.location.href = `/milestones/${node.id}/`;
+                }
+            }
+        });
+        
+        // Load the semantic network
+        milestoneSemanticNetworkViewer.load('milestone', '{{ milestone.id }}');
+    }
+});
 </script>
+
+<!-- Sigma.js and dependencies for semantic network -->
+<script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/build/graphology-layout-forceatlas2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0-beta.20/build/sigma.min.js"></script>
+<script src="{% static 'main/js/semantic-network.js' %}"></script>
 {% endblock %}
