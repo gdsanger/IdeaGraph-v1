@@ -471,47 +471,76 @@ class MilestoneKnowledgeService:
             MilestoneKnowledgeServiceError: If sync fails
         """
         try:
-            # Prepare milestone data for Weaviate
-            context_objects = milestone.context_objects.all()
+            from main.models import Settings
+            from core.services.weaviate_sync_service import WeaviateItemSyncService
             
-            # Combine all context
-            all_context = []
-            all_tags = set()
+            # Get settings
+            settings = Settings.objects.first()
+            if not settings:
+                raise MilestoneKnowledgeServiceError("Settings not configured")
             
-            for ctx in context_objects:
-                all_context.append(f"{ctx.title}: {ctx.content or ctx.summary}")
-                if ctx.tags:
-                    all_tags.update(ctx.tags)
+            # Initialize Weaviate service
+            weaviate_service = WeaviateItemSyncService(settings)
             
-            context_text = "\n\n".join(all_context)
-            
-            # Prepare data for Weaviate
-            weaviate_data = {
-                'type': 'milestone',
-                'title': milestone.name,
-                'description': milestone.description or milestone.summary,
-                'context': context_text,
-                'tags': list(all_tags),
-                'status': milestone.status,
-                'due_date': milestone.due_date.isoformat() if milestone.due_date else None,
-                'item_id': str(milestone.item.id) if milestone.item else None,
-                'milestone_id': str(milestone.id)
-            }
-            
-            # Use Weaviate sync service
-            # Note: This assumes WeaviateItemSyncService can handle milestone objects
-            # You may need to create a dedicated WeaviateMilestoneSyncService
-            logger.info(f"Syncing milestone {milestone.id} to Weaviate")
-            
-            # For now, we'll log that this would sync to Weaviate
-            # Full implementation would require extending Weaviate service
-            logger.info(f"Milestone {milestone.id} ready for Weaviate sync with data: {weaviate_data}")
-            
-            return {
-                'success': True,
-                'message': 'Milestone prepared for Weaviate sync',
-                'weaviate_data': weaviate_data
-            }
+            try:
+                # Prepare milestone data for Weaviate
+                context_objects = milestone.context_objects.all()
+                
+                # Combine all context
+                all_context = []
+                all_tags = set()
+                
+                for ctx in context_objects:
+                    all_context.append(f"{ctx.title}: {ctx.content or ctx.summary}")
+                    if ctx.tags:
+                        all_tags.update(ctx.tags)
+                
+                context_text = "\n\n".join(all_context)
+                
+                # Prepare combined description
+                description_parts = []
+                if milestone.description:
+                    description_parts.append(milestone.description)
+                if milestone.summary:
+                    description_parts.append(f"Summary: {milestone.summary}")
+                if context_text:
+                    description_parts.append(f"Context: {context_text}")
+                
+                combined_description = "\n\n".join(description_parts)
+                
+                # Get the collection
+                collection = weaviate_service._client.collections.get('KnowledgeObject')
+                
+                # Create or update the milestone in Weaviate
+                milestone_data = {
+                    'type': 'milestone',
+                    'title': milestone.name,
+                    'description': combined_description,
+                    'status': milestone.status,
+                    'createdAt': milestone.created_at.isoformat() if milestone.created_at else None,
+                    'itemId': str(milestone.item.id) if milestone.item else None,
+                    'dueDate': milestone.due_date.isoformat() if milestone.due_date else None,
+                }
+                
+                # Use upsert to create or update
+                collection.data.insert(
+                    properties=milestone_data,
+                    uuid=str(milestone.id)
+                )
+                
+                logger.info(f"Milestone {milestone.id} synced to Weaviate successfully")
+                
+                # Update weaviate_id on milestone if not set
+                if not milestone.weaviate_id:
+                    milestone.weaviate_id = milestone.id
+                    milestone.save(update_fields=['weaviate_id'])
+                
+                return {
+                    'success': True,
+                    'message': f'Milestone "{milestone.name}" synced to Weaviate successfully'
+                }
+            finally:
+                weaviate_service.close()
             
         except Exception as e:
             logger.error(f"Failed to sync milestone to Weaviate: {str(e)}")
