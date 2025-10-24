@@ -225,10 +225,12 @@ Falls AI bestimmt, dass Task benötigt wird:
    - RAG funktioniert auch ohne Weaviate (Graceful Degradation)
 
 ### Azure AD Berechtigungen
-Folgende Berechtigungen werden benötigt:
+Folgende delegierte Berechtigungen werden benötigt:
 - `Channel.ReadBasic.All`: Lesen von Kanälen
+- `Channel.Create`: Erstellen von Kanälen
 - `ChannelMessage.Read.All`: Lesen von Nachrichten
 - `ChannelMessage.Send`: Senden von Nachrichten
+- `Team.ReadBasic.All`: Lesen von Team-Informationen
 - `User.Read.All`: Lesen von Benutzerinformationen
 
 ### Settings-Felder

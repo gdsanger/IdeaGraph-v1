@@ -37,13 +37,10 @@ Die Teams Integration verwendet die gleiche App-Registrierung wie die Graph API 
 4. Gehe zu **API permissions**
 5. Füge folgende Microsoft Graph-Berechtigungen hinzu:
    
-   **Application Permissions (für Channel-Erstellung):**
-   - `Channel.Create` - Zum Erstellen von Channels
-   - `Group.Read.All` - Zum Lesen von Team-Informationen
-   
-   **Delegated Permissions (für Nachrichten-Posting):**
+   **Delegated Permissions (für Channel-Erstellung und Nachrichten-Posting):**
    - `ChannelMessage.Send` - Zum Senden von Nachrichten in Channels
    - `Channel.ReadBasic.All` - Zum Lesen von Channel-Informationen
+   - `Channel.Create` - Zum Erstellen von Channels
    - `Team.ReadBasic.All` - Zum Lesen von Team-Informationen
    - `offline_access` - Für Token-Refresh (automatisch inkludiert)
    
