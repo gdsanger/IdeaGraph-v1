@@ -71,6 +71,7 @@ Hauptservice für delegierte Authentifizierung:
 SCOPES = [
     'https://graph.microsoft.com/ChannelMessage.Send',
     'https://graph.microsoft.com/Channel.ReadBasic.All',
+    'https://graph.microsoft.com/Channel.Create',
     'https://graph.microsoft.com/Team.ReadBasic.All',
     'offline_access'  # Ermöglicht Refresh Token
 ]
