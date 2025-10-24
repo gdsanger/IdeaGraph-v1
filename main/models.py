@@ -243,6 +243,15 @@ class Item(models.Model):
     ai_tags_generated = models.BooleanField(default=False)
     similarity_checked = models.BooleanField(default=False)
     
+    # Microsoft Teams Integration
+    channel_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='Teams Channel ID',
+        help_text='Channel ID aus dem Teams Workspace'
+    )
+    
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'Item'
@@ -858,6 +867,26 @@ class Settings(models.Model):
         default='',
         verbose_name='Google Search CX',
         help_text='Google Custom Search Engine ID (CX)'
+    )
+    
+    # Microsoft Teams Integration
+    teams_enabled = models.BooleanField(
+        default=False,
+        verbose_name='Enable Teams Integration',
+        help_text='Aktiviert/Deaktiviert die Teams-Integration'
+    )
+    teams_team_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='Teams Team ID',
+        help_text='ID des Teams (Workspace), das beobachtet wird'
+    )
+    team_welcome_post = models.TextField(
+        blank=True,
+        default='Willkommen im Channel für {{Item}}! Hier können Sie Nachrichten zu diesem Item senden und diskutieren.',
+        verbose_name='Teams Welcome Post Template',
+        help_text='Vorlage für einen Begrüßungspost. Verwenden Sie {{Item}} als Platzhalter für den Item-Titel.'
     )
     
     created_at = models.DateTimeField(auto_now_add=True)
