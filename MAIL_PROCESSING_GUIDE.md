@@ -13,7 +13,7 @@ The main service that orchestrates the entire workflow:
 - **Mail Retrieval**: Fetches unread emails from a mailbox via Microsoft Graph API
 - **HTML to Markdown Conversion**: Converts HTML email bodies to Markdown using KiGate agent
 - **Item Matching**: Uses RAG (Retrieval Augmented Generation) with Weaviate to find the most relevant Item
-- **AI Normalization**: Generates normalized task descriptions using OpenAI
+- **AI Normalization**: Generates normalized task descriptions using KiGate's 'teams-support-analysis-agent'
 - **Task Creation**: Creates new tasks in the database linked to matched Items
 - **Confirmation Emails**: Sends professional confirmation emails to senders
 - **Markdown to HTML Conversion**: Converts confirmation email content to HTML using KiGate agent
@@ -58,15 +58,15 @@ The following settings must be configured in the Django admin panel:
    - `client_secret`: Azure app client secret
    - `default_mail_sender`: Default mailbox to process (e.g., idea@angermeier.net)
 
-2. **OpenAI API Settings:**
-   - `openai_api_enabled`: Must be True
-   - `openai_api_key`: OpenAI API key
-   - `openai_default_model`: Model to use (e.g., 'gpt-4')
-
-3. **KiGate API Settings (Optional but Recommended):**
-   - `kigate_api_enabled`: Should be True for HTML/Markdown conversion
+2. **KiGate API Settings (Required):**
+   - `kigate_api_enabled`: Must be True
    - `kigate_api_base_url`: KiGate API endpoint
    - `kigate_api_token`: KiGate authentication token
+
+3. **OpenAI API Settings (Optional - only used for multi-item selection):**
+   - `openai_api_enabled`: Can be True for enhanced item matching
+   - `openai_api_key`: OpenAI API key
+   - `openai_default_model`: Model to use (e.g., 'gpt-4')
 
 4. **Weaviate Settings:**
    - `weaviate_cloud_enabled`: True for cloud, False for local
@@ -75,10 +75,11 @@ The following settings must be configured in the Django admin panel:
 
 ### Required KiGate Agents
 
-If using KiGate, ensure these agents are available:
+The following KiGate agents must be available and configured:
 
 1. `html-to-markdown-converter`: Converts HTML email content to Markdown
 2. `markdown-to-html-converter`: Converts Markdown content to HTML for emails
+3. `teams-support-analysis-agent`: Analyzes emails and generates normalized task descriptions in Markdown format
 
 ### Email Archiving
 
@@ -176,7 +177,8 @@ sudo systemctl start ideagraph-mail-processing.timer
    - If only one result, uses distance-based selection
 
 5. **Description Normalization**:
-   - OpenAI generates a clear, actionable task description
+   - KiGate's 'teams-support-analysis-agent' analyzes the email
+   - Generates a clear, actionable task description in Markdown format
    - Maintains context from the email
    - Uses Item context to add relevant details
    - Lists unclear points as "ggf. noch zu klären:"
@@ -209,10 +211,11 @@ sudo systemctl start ideagraph-mail-processing.timer
 The service includes comprehensive error handling:
 
 - **No Matching Item**: Email processing skipped with warning log
-- **AI Service Failures**: Fallback to simpler formatting
-- **KiGate Unavailable**: HTML content used as-is (or basic conversion)
+- **AI Service Failures**: Fallback to formatted original content
+- **KiGate Unavailable**: Fallback to basic HTML-to-Markdown conversion and original email content
 - **Graph API Errors**: Logged with detailed error messages
 - **Task Creation Failures**: Logged but doesn't stop processing other emails
+- **Archiving Failures**: Non-critical, task creation still succeeds
 
 ## Security
 

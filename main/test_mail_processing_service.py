@@ -84,7 +84,7 @@ class MailProcessingServiceTestCase(TestCase):
         self.assertIsNone(service.openai_service)
     
     @patch('core.services.kigate_service.KiGateService.execute_agent')
-    def test_convert_html_to_markdown_success(self, mock_weaviate_init, mock_execute):
+    def test_convert_html_to_markdown_success(self, mock_execute, mock_weaviate_init):
         """Test successful HTML to Markdown conversion"""
         mock_execute.return_value = {
             'success': True,
@@ -99,16 +99,17 @@ class MailProcessingServiceTestCase(TestCase):
         mock_execute.assert_called_once()
     
     @patch('core.services.kigate_service.KiGateService.execute_agent')
-    def test_convert_html_to_markdown_failure(self, mock_weaviate_init, mock_execute):
+    def test_convert_html_to_markdown_failure(self, mock_execute, mock_weaviate_init):
         """Test HTML to Markdown conversion fallback on failure"""
-        mock_execute.side_effect = Exception('KiGate error')
+        from core.services.kigate_service import KiGateServiceError
+        mock_execute.side_effect = KiGateServiceError('KiGate error')
         
         service = MailProcessingService(self.settings)
         html = '<h1>Test Heading</h1>'
         markdown = service.convert_html_to_markdown(html)
         
-        # Should return original HTML on error
-        self.assertEqual(markdown, html)
+        # Should fallback to basic HTML-to-Markdown conversion
+        self.assertIn('Test Heading', markdown)
     
     def test_convert_html_to_markdown_no_kigate(self, mock_weaviate_init):
         """Test HTML to Markdown conversion without KiGate service"""
@@ -167,7 +168,7 @@ class MailProcessingServiceTestCase(TestCase):
         self.assertNotIn('<em>', markdown)
     
     @patch('core.services.kigate_service.KiGateService.execute_agent')
-    def test_convert_markdown_to_html_success(self, mock_weaviate_init, mock_execute):
+    def test_convert_markdown_to_html_success(self, mock_execute, mock_weaviate_init):
         """Test successful Markdown to HTML conversion"""
         mock_execute.return_value = {
             'success': True,
@@ -201,7 +202,7 @@ class MailProcessingServiceTestCase(TestCase):
         self.assertIn('<li>Item 1</li>', html)
     
     @patch('core.services.weaviate_sync_service.WeaviateItemSyncService.search_similar')
-    def test_find_matching_item_success(self, mock_weaviate_init, mock_search):
+    def test_find_matching_item_success(self, mock_search, mock_weaviate_init):
         """Test finding matching item successfully"""
         mock_search.return_value = {
             'success': True,
@@ -228,7 +229,7 @@ class MailProcessingServiceTestCase(TestCase):
         self.assertEqual(result['metadata']['title'], self.item.title)
     
     @patch('core.services.weaviate_sync_service.WeaviateItemSyncService.search_similar')
-    def test_find_matching_item_no_results(self, mock_weaviate_init, mock_search):
+    def test_find_matching_item_no_results(self, mock_search, mock_weaviate_init):
         """Test finding matching item when no results found"""
         mock_search.return_value = {
             'success': True,
@@ -243,7 +244,7 @@ class MailProcessingServiceTestCase(TestCase):
     
     @patch('core.services.weaviate_sync_service.WeaviateItemSyncService.search_similar')
     @patch('core.services.openai_service.OpenAIService.chat_completion')
-    def test_find_matching_item_with_ai_selection(self, mock_weaviate_init, mock_chat, mock_search):
+    def test_find_matching_item_with_ai_selection(self, mock_chat, mock_search, mock_weaviate_init):
         """Test finding matching item with AI selection from multiple results"""
         # Create second item
         item2 = Item.objects.create(
@@ -293,12 +294,12 @@ class MailProcessingServiceTestCase(TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result['id'], str(item2.id))
     
-    @patch('core.services.openai_service.OpenAIService.chat_completion')
-    def test_generate_normalized_description_success(self, mock_weaviate_init, mock_chat):
-        """Test generating normalized description successfully"""
-        mock_chat.return_value = {
+    @patch('core.services.kigate_service.KiGateService.execute_agent')
+    def test_generate_normalized_description_success(self, mock_execute, mock_weaviate_init):
+        """Test generating normalized description successfully with KiGate agent"""
+        mock_execute.return_value = {
             'success': True,
-            'content': 'Normalisierte Aufgabenbeschreibung\n\nggf. noch zu klären:\n- Punkt 1\n\n---\nOriginale E-Mail:\n\nBetreff: Test\n\nOriginaler Inhalt'
+            'result': 'Normalisierte Aufgabenbeschreibung\n\nggf. noch zu klären:\n- Punkt 1\n\n---\nOriginale E-Mail:\n\nBetreff: Test\n\nOriginaler Inhalt'
         }
         
         service = MailProcessingService(self.settings)
@@ -306,6 +307,7 @@ class MailProcessingServiceTestCase(TestCase):
             mail_subject='Test',
             mail_body='Original content',
             item_context={
+                'id': str(self.item.id),
                 'metadata': {
                     'title': self.item.title,
                     'description': self.item.description,
@@ -316,10 +318,16 @@ class MailProcessingServiceTestCase(TestCase):
         
         self.assertIn('Normalisierte Aufgabenbeschreibung', result)
         self.assertIn('Originale E-Mail', result)
+        # Verify the KiGate agent was called
+        mock_execute.assert_called_once()
+        call_args = mock_execute.call_args
+        self.assertEqual(call_args[1]['agent_name'], 'teams-support-analysis-agent')
+        self.assertEqual(call_args[1]['provider'], 'openai')
+        self.assertEqual(call_args[1]['model'], 'gpt-4o-mini')
     
-    def test_generate_normalized_description_no_openai(self, mock_weaviate_init):
-        """Test generating normalized description without OpenAI"""
-        self.settings.openai_api_enabled = False
+    def test_generate_normalized_description_no_kigate(self, mock_weaviate_init):
+        """Test generating normalized description without KiGate"""
+        self.settings.kigate_api_enabled = False
         self.settings.save()
         
         service = MailProcessingService(self.settings)
@@ -329,6 +337,24 @@ class MailProcessingServiceTestCase(TestCase):
         )
         
         # Should return formatted original content
+        self.assertIn('Original content', result)
+        self.assertIn('Originale E-Mail', result)
+    
+    @patch('core.services.kigate_service.KiGateService.execute_agent')
+    def test_generate_normalized_description_kigate_failure(self, mock_execute, mock_weaviate_init):
+        """Test generating normalized description when KiGate fails"""
+        mock_execute.return_value = {
+            'success': False,
+            'error': 'Agent execution failed'
+        }
+        
+        service = MailProcessingService(self.settings)
+        result = service.generate_normalized_description(
+            mail_subject='Test',
+            mail_body='Original content'
+        )
+        
+        # Should return formatted original content as fallback
         self.assertIn('Original content', result)
         self.assertIn('Originale E-Mail', result)
     
@@ -380,7 +406,7 @@ class MailProcessingServiceTestCase(TestCase):
         self.assertIsNotNone(task.created_by)
         self.assertEqual(task.created_by, task.requester)
     
-    def test_create_task_from_mail_invalid_item(self):
+    def test_create_task_from_mail_invalid_item(self, mock_weaviate_init):
         """Test creating task with invalid item ID"""
         service = MailProcessingService(self.settings)
         
@@ -395,7 +421,7 @@ class MailProcessingServiceTestCase(TestCase):
     
     @patch('core.services.kigate_service.KiGateService.execute_agent')
     @patch('core.services.graph_service.GraphService.send_mail')
-    def test_send_confirmation_email_success(self, mock_weaviate_init, mock_send, mock_execute):
+    def test_send_confirmation_email_success(self, mock_send, mock_execute, mock_weaviate_init):
         """Test sending confirmation email successfully"""
         mock_execute.return_value = {
             'success': True,
@@ -415,7 +441,7 @@ class MailProcessingServiceTestCase(TestCase):
         mock_send.assert_called_once()
     
     @patch('core.services.graph_service.GraphService.send_mail')
-    def test_send_confirmation_email_failure(self, mock_weaviate_init, mock_send):
+    def test_send_confirmation_email_failure(self, mock_send, mock_weaviate_init):
         """Test sending confirmation email failure"""
         mock_send.side_effect = Exception('Send mail error')
         
@@ -435,13 +461,22 @@ class MailProcessingServiceTestCase(TestCase):
     @patch('core.services.graph_service.GraphService.send_mail')
     @patch('core.services.graph_service.GraphService.mark_message_as_read')
     @patch('core.services.graph_service.GraphService.move_message')
-    def test_process_mail_success(self, mock_weaviate_init, mock_move, mock_mark_read, mock_send, mock_chat, mock_search, mock_execute):
+    def test_process_mail_success(self, mock_move, mock_mark_read, mock_send, mock_chat, mock_search, mock_execute, mock_weaviate_init):
         """Test processing a single mail successfully"""
         # Setup mocks
-        mock_execute.return_value = {
-            'success': True,
-            'result': 'Converted content'
-        }
+        # Mock execute_agent returns different values based on agent
+        def execute_agent_side_effect(*args, **kwargs):
+            agent_name = kwargs.get('agent_name', '')
+            if agent_name == 'html-to-markdown-converter':
+                return {'success': True, 'result': 'Converted content'}
+            elif agent_name == 'teams-support-analysis-agent':
+                return {'success': True, 'result': 'Normalisierte Beschreibung\n\n---\nOriginale E-Mail:\n\nTest'}
+            elif agent_name == 'markdown-to-html-converter':
+                return {'success': True, 'result': '<p>HTML content</p>'}
+            return {'success': False}
+        
+        mock_execute.side_effect = execute_agent_side_effect
+        
         mock_search.return_value = {
             'success': True,
             'results': [
@@ -456,10 +491,6 @@ class MailProcessingServiceTestCase(TestCase):
                     'distance': 0.1
                 }
             ]
-        }
-        mock_chat.return_value = {
-            'success': True,
-            'content': 'Normalisierte Beschreibung\n\n---\nOriginale E-Mail:\n\nTest'
         }
         mock_send.return_value = {'success': True}
         mock_mark_read.return_value = {'success': True}
@@ -501,13 +532,22 @@ class MailProcessingServiceTestCase(TestCase):
     @patch('core.services.graph_service.GraphService.send_mail')
     @patch('core.services.graph_service.GraphService.mark_message_as_read')
     @patch('core.services.graph_service.GraphService.move_message')
-    def test_process_mail_archive_failure(self, mock_weaviate_init, mock_move, mock_mark_read, mock_send, mock_chat, mock_search, mock_execute):
+    def test_process_mail_archive_failure(self, mock_move, mock_mark_read, mock_send, mock_chat, mock_search, mock_execute, mock_weaviate_init):
         """Test processing mail when archiving fails - should still succeed"""
         # Setup mocks
-        mock_execute.return_value = {
-            'success': True,
-            'result': 'Converted content'
-        }
+        # Mock execute_agent returns different values based on agent
+        def execute_agent_side_effect(*args, **kwargs):
+            agent_name = kwargs.get('agent_name', '')
+            if agent_name == 'html-to-markdown-converter':
+                return {'success': True, 'result': 'Converted content'}
+            elif agent_name == 'teams-support-analysis-agent':
+                return {'success': True, 'result': 'Normalisierte Beschreibung\n\n---\nOriginale E-Mail:\n\nTest'}
+            elif agent_name == 'markdown-to-html-converter':
+                return {'success': True, 'result': '<p>HTML content</p>'}
+            return {'success': False}
+        
+        mock_execute.side_effect = execute_agent_side_effect
+        
         mock_search.return_value = {
             'success': True,
             'results': [
@@ -523,14 +563,11 @@ class MailProcessingServiceTestCase(TestCase):
                 }
             ]
         }
-        mock_chat.return_value = {
-            'success': True,
-            'content': 'Normalisierte Beschreibung\n\n---\nOriginale E-Mail:\n\nTest'
-        }
         mock_send.return_value = {'success': True}
         mock_mark_read.return_value = {'success': True}
-        # Archiving fails
-        mock_move.side_effect = Exception('Archive folder not found')
+        # Archiving fails with GraphServiceError (not generic Exception)
+        from core.services.graph_service import GraphServiceError
+        mock_move.side_effect = GraphServiceError('Archive folder not found')
         
         # Create test message
         message = {
@@ -561,7 +598,7 @@ class MailProcessingServiceTestCase(TestCase):
         self.assertEqual(task.title, 'Test Mail')
     
     @patch('core.services.weaviate_sync_service.WeaviateItemSyncService.search_similar')
-    def test_process_mail_no_matching_item(self, mock_weaviate_init, mock_search):
+    def test_process_mail_no_matching_item(self, mock_search, mock_weaviate_init):
         """Test processing mail when no matching item found"""
         mock_search.return_value = {
             'success': True,
@@ -594,7 +631,7 @@ class MailProcessingServiceTestCase(TestCase):
     @patch('core.services.graph_service.GraphService.send_mail')
     @patch('core.services.graph_service.GraphService.mark_message_as_read')
     @patch('core.services.graph_service.GraphService.move_message')
-    def test_process_mailbox_success(self, mock_weaviate_init, mock_move, mock_mark_read, mock_send, mock_chat, mock_search, mock_execute, mock_get_messages):
+    def test_process_mailbox_success(self, mock_move, mock_mark_read, mock_send, mock_chat, mock_search, mock_execute, mock_get_messages, mock_weaviate_init):
         """Test processing entire mailbox successfully"""
         # Setup mocks
         mock_get_messages.return_value = {
@@ -615,10 +652,19 @@ class MailProcessingServiceTestCase(TestCase):
             ]
         }
         
-        mock_execute.return_value = {
-            'success': True,
-            'result': 'Converted'
-        }
+        # Mock execute_agent returns different values based on agent
+        def execute_agent_side_effect(*args, **kwargs):
+            agent_name = kwargs.get('agent_name', '')
+            if agent_name == 'html-to-markdown-converter':
+                return {'success': True, 'result': 'Converted'}
+            elif agent_name == 'teams-support-analysis-agent':
+                return {'success': True, 'result': 'Normalisiert\n\n---\nOriginale E-Mail:\n\nTest'}
+            elif agent_name == 'markdown-to-html-converter':
+                return {'success': True, 'result': '<p>HTML content</p>'}
+            return {'success': False}
+        
+        mock_execute.side_effect = execute_agent_side_effect
+        
         mock_search.return_value = {
             'success': True,
             'results': [
@@ -634,10 +680,6 @@ class MailProcessingServiceTestCase(TestCase):
                 }
             ]
         }
-        mock_chat.return_value = {
-            'success': True,
-            'content': 'Normalisiert\n\n---\nOriginale E-Mail:\n\nTest'
-        }
         mock_send.return_value = {'success': True}
         mock_mark_read.return_value = {'success': True}
         mock_move.return_value = {'success': True}
@@ -651,7 +693,7 @@ class MailProcessingServiceTestCase(TestCase):
         self.assertEqual(result['failed'], 0)
     
     @patch('core.services.graph_service.GraphService.get_mailbox_messages')
-    def test_process_mailbox_no_messages(self, mock_weaviate_init, mock_get_messages):
+    def test_process_mailbox_no_messages(self, mock_get_messages, mock_weaviate_init):
         """Test processing mailbox with no messages"""
         mock_get_messages.return_value = {
             'success': True,

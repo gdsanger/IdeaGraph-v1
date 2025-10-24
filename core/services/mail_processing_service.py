@@ -472,7 +472,7 @@ Bitte antworte NUR mit der Item-ID (UUID) des am besten passenden Items. Falls k
         item_context: Optional[Dict[str, Any]] = None
     ) -> str:
         """
-        Generate a normalized task description from email content using AI
+        Generate a normalized task description from email content using KiGate AI agent
         
         Args:
             mail_subject: Email subject
@@ -480,59 +480,65 @@ Bitte antworte NUR mit der Item-ID (UUID) des am besten passenden Items. Falls k
             item_context: Optional context from the matched Item
             
         Returns:
-            Normalized description string
+            Normalized description string in Markdown format
         """
-        if not self.openai_service:
-            logger.warning("OpenAI service not available, returning original mail body")
+        if not self.kigate_service:
+            logger.warning("KiGate service not available, returning original mail body")
             return f"{mail_body}\n\n---\n**Originale E-Mail:**\n\nBetreff: {mail_subject}\n\n{mail_body}"
         
         # Build context from item if available
-        context_text = ""
+        item_title = "N/A"
+        item_description = "N/A"
         if item_context:
             metadata = item_context.get('metadata', {})
-            context_text = f"""
-Related Item Context:
-- Title: {metadata.get('title', 'N/A')}
-- Description: {metadata.get('description', 'N/A')}
-- Section: {metadata.get('section', 'N/A')}
-"""
+            item_title = metadata.get('title', 'N/A')
+            item_description = metadata.get('description', 'N/A')[:500] if metadata.get('description') else 'No description'
         
-        prompt = f"""Du bist ein KI-Assistent, der eingehende E-Mails verarbeitet und Aufgabenbeschreibungen erstellt.
+        # Prepare context for AI agent similar to Teams integration pattern
+        ai_prompt = f"""Item: {item_title}
+Item Description: {item_description}
 
 E-Mail-Betreff: {mail_subject}
 
 E-Mail-Text:
 {mail_body}
 
-{context_text}
-
-Deine Aufgabe ist es:
-1. Eine normalisierte, klare Aufgabenbeschreibung auf Deutsch basierend auf dem E-Mail-Inhalt zu erstellen
-2. Im Kontext des E-Mail-Textes zu bleiben
-3. Den Kontext des zugehörigen Items (falls vorhanden) zu nutzen, um relevante Details zu ergänzen
-4. Die Beschreibung prägnant und handlungsorientiert zu halten
-5. Falls es unklare oder offene Punkte gibt, diese am Ende mit "ggf. noch zu klären:" aufzulisten
-6. Ganz am Ende den originalen E-Mail-Inhalt unter einem Abschnitt "---\\nOriginale E-Mail:" zu bewahren
-
-Bitte erstelle jetzt die normalisierte Aufgabenbeschreibung auf Deutsch:
+Analyze this email and create a normalized task description in Markdown format:
+1. Provide a clear, actionable task description in German
+2. Stay within the context of the email content
+3. Use the Item context to add relevant details
+4. Keep the description concise and action-oriented
+5. If there are unclear or open points, list them at the end with "ggf. noch zu klären:"
+6. At the very end, preserve the original email content under a section "---\\nOriginale E-Mail:"
 """
         
         try:
-            response = self.openai_service.chat_completion(
-                messages=[{'role': 'user', 'content': prompt}],
-                model=self.settings.openai_default_model or 'gpt-4'
+            logger.info("Generating normalized description with KiGate agent: teams-support-analysis-agent")
+            
+            # Execute KiGate agent
+            result = self.kigate_service.execute_agent(
+                agent_name='teams-support-analysis-agent',
+                provider='openai',
+                model='gpt-4o-mini',
+                message=ai_prompt,
+                user_id='system',
+                parameters={
+                    'mail_subject': mail_subject,
+                    'item_id': item_context.get('id') if item_context else None,
+                    'item_title': item_title
+                }
             )
             
-            if response.get('success'):
-                normalized = response.get('content', '')
-                logger.info("Successfully generated normalized description")
+            if result.get('success'):
+                normalized = result.get('result', '')
+                logger.info("Successfully generated normalized description with KiGate agent")
                 return normalized
             else:
-                logger.warning("AI normalization failed, returning formatted original")
+                logger.warning("KiGate agent execution failed, returning formatted original")
                 return f"{mail_body}\n\n---\n**Originale E-Mail:**\n\nBetreff: {mail_subject}\n\n{mail_body}"
                 
-        except OpenAIServiceError as e:
-            logger.error(f"OpenAI service error: {e.message}")
+        except KiGateServiceError as e:
+            logger.error(f"KiGate service error: {e.message}")
             return f"{mail_body}\n\n---\n**Originale E-Mail:**\n\nBetreff: {mail_subject}\n\n{mail_body}"
     
     def create_task_from_mail(
