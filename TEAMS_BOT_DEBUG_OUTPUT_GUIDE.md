@@ -7,7 +7,7 @@ Als Reaktion auf das Problem, dass der Teams Bot möglicherweise immer noch sein
 ## Problem
 
 Der Issue beschreibt:
-- Der Bot `poll_teams_messages` holt immer noch seine eigenen Nachrichten ab
+- Der Bot `poll_teams_messages` hole immer noch seine eigenen Nachrichten ab
 - Es ist unklar, warum der String-Vergleich mit `default_mail_sender` nicht funktioniert
 - Debug-Ausgabe wird benötigt, um zu verstehen, was passiert
 
@@ -139,7 +139,7 @@ Wenn Sie diesen ERROR sehen, bedeutet das:
 
 ## Konfigurationsprüfung
 
-### Wo ist `default_mail_sender` konfiguriert?
+### Wo wird `default_mail_sender` konfiguriert?
 
 In der Django Admin-Oberfläche unter **Settings**:
 - Feld: `default_mail_sender`
