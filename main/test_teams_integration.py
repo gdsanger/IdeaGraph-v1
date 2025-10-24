@@ -333,3 +333,105 @@ class TeamsChannelCreationAPITestCase(TestCase):
         # Should not return 403 CSRF error
         self.assertNotEqual(response.status_code, 403,
                           "Endpoint should be CSRF exempt but returned 403 Forbidden")
+
+
+class TeamsChannelDescriptionTestCase(TestCase):
+    """Test suite for Teams channel description length validation"""
+    
+    def setUp(self):
+        """Set up test data"""
+        # Create settings for Teams service
+        self.settings = Settings.objects.create(
+            teams_enabled=True,
+            teams_team_id='test-team-id-123',
+            team_welcome_post='Willkommen im Channel für {{Item}}!',
+            graph_api_enabled=True,
+            tenant_id='test-tenant-id',
+            client_id='test-client-id',
+            client_secret='test-client-secret'
+        )
+    
+    def test_channel_description_simple_format(self):
+        """Test that channel description uses simple format"""
+        from unittest.mock import Mock, patch
+        
+        # Mock the graph service to avoid actual API calls
+        with patch('core.services.teams_service.GraphService') as mock_graph_service:
+            mock_graph_instance = Mock()
+            mock_graph_service.return_value = mock_graph_instance
+            
+            # Mock successful channel creation response
+            mock_response = Mock()
+            mock_response.status_code = 201
+            mock_response.json.return_value = {
+                'id': 'test-channel-id',
+                'displayName': 'Test Channel',
+                'description': 'Projekt Channel für Test Channel',
+                'webUrl': 'https://teams.microsoft.com/test'
+            }
+            mock_graph_instance._make_request.return_value = mock_response
+            
+            # Create Teams service and test channel creation
+            teams_service = TeamsService(settings=self.settings)
+            
+            # Test with a long item description (should be ignored)
+            long_description = "A" * 2000  # 2000 characters, way over the limit
+            result = teams_service.create_channel_for_item(
+                item_title="Test Channel",
+                item_description=long_description
+            )
+            
+            # Verify the service called _make_request with proper data
+            self.assertTrue(mock_graph_instance._make_request.called)
+            call_args = mock_graph_instance._make_request.call_args
+            
+            # Check that json_data was passed
+            json_data = call_args[1].get('json_data')
+            self.assertIsNotNone(json_data)
+            
+            # Verify description uses simple format and is within limit
+            description = json_data.get('description')
+            self.assertIsNotNone(description)
+            self.assertEqual(description, 'Projekt Channel für Test Channel')
+            self.assertLessEqual(len(description), 1024)
+            
+            # Verify result is successful
+            self.assertTrue(result.get('success'))
+    
+    def test_channel_description_length_limit(self):
+        """Test that excessively long descriptions are truncated"""
+        from unittest.mock import Mock, patch
+        
+        with patch('core.services.teams_service.GraphService') as mock_graph_service:
+            mock_graph_instance = Mock()
+            mock_graph_service.return_value = mock_graph_instance
+            
+            # Mock successful channel creation response
+            mock_response = Mock()
+            mock_response.status_code = 201
+            mock_response.json.return_value = {
+                'id': 'test-channel-id',
+                'displayName': 'Test Channel',
+                'description': 'Truncated description...',
+                'webUrl': 'https://teams.microsoft.com/test'
+            }
+            mock_graph_instance._make_request.return_value = mock_response
+            
+            teams_service = TeamsService(settings=self.settings)
+            
+            # Test create_channel directly with a very long description
+            very_long_description = "X" * 2000
+            result = teams_service.create_channel(
+                display_name="Test Channel",
+                description=very_long_description
+            )
+            
+            # Verify the service called _make_request
+            self.assertTrue(mock_graph_instance._make_request.called)
+            call_args = mock_graph_instance._make_request.call_args
+            
+            # Check the description was truncated to fit within 1024 characters
+            json_data = call_args[1].get('json_data')
+            description = json_data.get('description')
+            self.assertLessEqual(len(description), 1024)
+            self.assertTrue(description.endswith('...'))
