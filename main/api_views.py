@@ -5377,8 +5377,7 @@ def create_teams_channel(request, item_id):
         except TeamsServiceError as e:
             logger.error(f'Failed to initialize Teams service: {str(e)}')
             return JsonResponse({
-                'error': 'Teams integration not configured',
-                'details': str(e)
+                'error': 'Teams integration not configured properly. Please contact your administrator.'
             }, status=503)
         
         # Create the channel
@@ -5405,22 +5404,19 @@ def create_teams_channel(request, item_id):
             else:
                 logger.error(f'Failed to create Teams channel for item {item_id}')
                 return JsonResponse({
-                    'error': 'Failed to create Teams channel',
-                    'details': result.get('message', 'Unknown error')
+                    'error': 'Failed to create Teams channel. Please try again later.'
                 }, status=500)
                 
         except TeamsServiceError as e:
             logger.error(f'Teams service error while creating channel: {str(e)}')
             return JsonResponse({
-                'error': 'Failed to create Teams channel',
-                'details': str(e)
+                'error': 'Failed to create Teams channel. Please try again later.'
             }, status=500)
         
     except Exception as e:
         logger.error(f'Unexpected error creating Teams channel for item {item_id}: {str(e)}')
         return JsonResponse({
-            'error': 'An unexpected error occurred',
-            'details': str(e)
+            'error': 'An unexpected error occurred. Please try again later.'
         }, status=500)
 
 
