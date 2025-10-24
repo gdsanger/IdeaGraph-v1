@@ -353,7 +353,7 @@ class TeamsChannelDescriptionTestCase(TestCase):
     
     def test_channel_description_simple_format(self):
         """Test that channel description uses simple format"""
-        from unittest.mock import Mock, patch
+        from unittest.mock import Mock, patch, call
         
         # Mock the graph service to avoid actual API calls
         with patch('core.services.teams_service.GraphService') as mock_graph_service:
@@ -383,15 +383,18 @@ class TeamsChannelDescriptionTestCase(TestCase):
             
             # Verify the service called _make_request with proper data
             self.assertTrue(mock_graph_instance._make_request.called)
-            call_args = mock_graph_instance._make_request.call_args
             
-            # Check that json_data was passed
-            json_data = call_args[1].get('json_data')
-            self.assertIsNotNone(json_data)
+            # Get the first call to _make_request (for channel creation, not message posting)
+            first_call = mock_graph_instance._make_request.call_args_list[0]
+            call_kwargs = first_call.kwargs
+            
+            # Verify json_data was passed
+            self.assertIn('json_data', call_kwargs, "json_data should be in call arguments")
+            json_data = call_kwargs['json_data']
             
             # Verify description uses simple format and is within limit
             description = json_data.get('description')
-            self.assertIsNotNone(description)
+            self.assertIsNotNone(description, f"Description is None, json_data: {json_data}")
             self.assertEqual(description, 'Projekt Channel für Test Channel')
             self.assertLessEqual(len(description), 1024)
             
@@ -428,10 +431,15 @@ class TeamsChannelDescriptionTestCase(TestCase):
             
             # Verify the service called _make_request
             self.assertTrue(mock_graph_instance._make_request.called)
-            call_args = mock_graph_instance._make_request.call_args
+            
+            # Get the call arguments
+            call_kwargs = mock_graph_instance._make_request.call_args.kwargs
+            
+            # Verify json_data was passed
+            self.assertIn('json_data', call_kwargs, "json_data should be in call arguments")
+            json_data = call_kwargs['json_data']
             
             # Check the description was truncated to fit within 1024 characters
-            json_data = call_args[1].get('json_data')
             description = json_data.get('description')
             self.assertLessEqual(len(description), 1024)
             self.assertTrue(description.endswith('...'))
