@@ -137,6 +137,8 @@ urlpatterns = [
     path('api/tasks/<uuid:task_id>/support-analysis-save', api_views.api_task_support_analysis_save, name='api_task_support_analysis_save'),
     path('api/tasks/overview', api_views.api_task_overview, name='api_task_overview'),
     path('api/tasks/bulk-delete', api_views.api_task_bulk_delete, name='api_task_bulk_delete'),
+    path('api/tasks/<uuid:task_id>/quick-delete', api_views.api_task_quick_delete, name='api_task_quick_delete'),
+    path('api/tasks/<uuid:task_id>/quick-status-update', api_views.api_task_quick_status_update, name='api_task_quick_status_update'),
     path('api/items/for-move', api_views.api_get_items_for_move, name='api_get_items_for_move'),
     
     # Tags Network Graph API

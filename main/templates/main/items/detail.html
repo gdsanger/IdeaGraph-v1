@@ -626,9 +626,16 @@
                         <!-- Tasks Tab -->
                         <div class="tab-pane fade" id="tasks" role="tabpanel">
                             <div class="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                                <a href="{% url 'main:task_create' item.id %}" class="btn btn-primary">
-                                    <i class="bi bi-plus-circle"></i> New Task
-                                </a>
+                                <div class="d-flex gap-2">
+                                    <a href="{% url 'main:task_create' item.id %}" class="btn btn-primary">
+                                        <i class="bi bi-plus-circle"></i> New Task
+                                    </a>
+                                    <button type="button" class="btn btn-outline-secondary" 
+                                            onclick="refreshTaskList()"
+                                            title="Aufgabenliste aktualisieren">
+                                        <i class="bi bi-arrow-clockwise"></i> Aktualisieren
+                                    </button>
+                                </div>
                                 <div class="d-flex align-items-center gap-2 flex-wrap">
                                     <form method="get" class="d-flex align-items-center gap-2" id="taskSearchForm">
                                         <input type="text" class="form-control" name="search" placeholder="Suche in Tasks..." value="{{ search_query }}" style="min-width: 200px;">
@@ -1422,6 +1429,20 @@ document.querySelector('#confirmSendEmailBtn').addEventListener('click', async f
         btn.innerHTML = originalText;
     }
 });
+
+// Refresh Task List Function
+function refreshTaskList() {
+    // Get current URL parameters
+    const currentParams = new URLSearchParams(window.location.search);
+    const url = '?' + currentParams.toString();
+    
+    // Use HTMX to fetch and update the tasks table
+    htmx.ajax('GET', url, {
+        target: '#item-tasks-table-container',
+        swap: 'innerHTML',
+        indicator: '#tasks-loading-indicator'
+    });
+}
 
 // Show Completed Tasks Toggle - Using HTMX for async filtering
 const showCompletedSwitch = document.getElementById('showCompletedSwitch');
