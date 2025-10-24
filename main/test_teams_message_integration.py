@@ -451,3 +451,228 @@ class TeamsManagementCommandTestCase(TestCase):
         output = out.getvalue()
         self.assertIn('Poll complete', output)
         mock_instance.poll_and_process.assert_called_once()
+
+
+class MessageProcessingServiceRAGTestCase(TestCase):
+    """Test suite for MessageProcessingService RAG functionality"""
+    
+    def setUp(self):
+        """Set up test data"""
+        self.user = AppUser.objects.create(
+            username='testuser',
+            email='test@example.com',
+            role='user',
+            is_active=True
+        )
+        
+        self.section = Section.objects.create(name='Test Section')
+        
+        self.settings = Settings.objects.create(
+            teams_enabled=True,
+            teams_team_id='test-team-id',
+            kigate_api_enabled=True,
+            kigate_api_base_url='http://localhost:8000',
+            kigate_api_token='test-token'
+        )
+        
+        self.item = Item.objects.create(
+            title='Test Item',
+            description='Test description',
+            section=self.section,
+            created_by=self.user,
+            channel_id='test-channel-id'
+        )
+    
+    @patch('core.services.message_processing_service.WeaviateTaskSyncService')
+    @patch('core.services.message_processing_service.WeaviateItemSyncService')
+    @patch('core.services.message_processing_service.KiGateService')
+    def test_search_similar_context_success(self, mock_kigate, mock_item_service, mock_task_service):
+        """Test successful RAG context search"""
+        # Mock task search results
+        mock_task_instance = mock_task_service.return_value
+        mock_task_instance.search_similar.return_value = {
+            'success': True,
+            'results': [
+                {
+                    'id': 'task-1',
+                    'metadata': {
+                        'title': 'Similar Task 1',
+                        'description': 'This is a similar task',
+                        'status': 'completed',
+                        'owner': 'testuser',
+                        'created_at': '2024-01-01T00:00:00'
+                    },
+                    'document': 'This is a similar task about fixing bugs',
+                    'distance': 0.1
+                }
+            ]
+        }
+        
+        # Mock item search results
+        mock_item_instance = mock_item_service.return_value
+        mock_item_instance.search_similar.return_value = {
+            'success': True,
+            'results': [
+                {
+                    'id': 'item-1',
+                    'metadata': {
+                        'title': 'Similar Item 1',
+                        'description': 'This is a similar item',
+                        'status': 'active',
+                        'owner': 'testuser'
+                    },
+                    'document': 'This is a similar item about development',
+                    'distance': 0.15
+                }
+            ]
+        }
+        
+        service = MessageProcessingService(settings=self.settings)
+        similar_objects = service.search_similar_context('bug fix help', max_results=3)
+        
+        self.assertEqual(len(similar_objects), 2)
+        self.assertEqual(similar_objects[0]['type'], 'task')
+        self.assertEqual(similar_objects[0]['title'], 'Similar Task 1')
+        self.assertEqual(similar_objects[1]['type'], 'item')
+        self.assertEqual(similar_objects[1]['title'], 'Similar Item 1')
+    
+    @patch('core.services.message_processing_service.WeaviateTaskSyncService')
+    @patch('core.services.message_processing_service.WeaviateItemSyncService')
+    @patch('core.services.message_processing_service.KiGateService')
+    def test_search_similar_context_no_results(self, mock_kigate, mock_item_service, mock_task_service):
+        """Test RAG context search with no results"""
+        # Mock empty search results
+        mock_task_instance = mock_task_service.return_value
+        mock_task_instance.search_similar.return_value = {
+            'success': True,
+            'results': []
+        }
+        
+        mock_item_instance = mock_item_service.return_value
+        mock_item_instance.search_similar.return_value = {
+            'success': True,
+            'results': []
+        }
+        
+        service = MessageProcessingService(settings=self.settings)
+        similar_objects = service.search_similar_context('test query', max_results=3)
+        
+        self.assertEqual(len(similar_objects), 0)
+    
+    @patch('core.services.message_processing_service.KiGateService')
+    def test_search_similar_context_weaviate_unavailable(self, mock_kigate):
+        """Test RAG context search when Weaviate is unavailable"""
+        # Don't mock Weaviate services to simulate unavailability
+        with patch('core.services.message_processing_service.WeaviateItemSyncService', side_effect=Exception("Weaviate unavailable")):
+            with patch('core.services.message_processing_service.WeaviateTaskSyncService', side_effect=Exception("Weaviate unavailable")):
+                service = MessageProcessingService(settings=self.settings)
+                
+                # Service should initialize without Weaviate
+                self.assertIsNone(service.weaviate_item_service)
+                self.assertIsNone(service.weaviate_task_service)
+                
+                # Search should return empty list without failing
+                similar_objects = service.search_similar_context('test query', max_results=3)
+                self.assertEqual(len(similar_objects), 0)
+    
+    @patch('core.services.message_processing_service.WeaviateTaskSyncService')
+    @patch('core.services.message_processing_service.WeaviateItemSyncService')
+    @patch('core.services.message_processing_service.KiGateService')
+    def test_analyze_message_with_rag_context(self, mock_kigate, mock_item_service, mock_task_service):
+        """Test message analysis with RAG context enrichment"""
+        # Mock Weaviate search results
+        mock_task_instance = mock_task_service.return_value
+        mock_task_instance.search_similar.return_value = {
+            'success': True,
+            'results': [
+                {
+                    'id': 'task-1',
+                    'metadata': {
+                        'title': 'Fix login bug',
+                        'description': 'Users cannot log in',
+                        'status': 'completed'
+                    },
+                    'document': 'Users cannot log in. Issue was fixed by updating auth module.',
+                    'distance': 0.1
+                }
+            ]
+        }
+        
+        mock_item_instance = mock_item_service.return_value
+        mock_item_instance.search_similar.return_value = {
+            'success': True,
+            'results': []
+        }
+        
+        # Mock KiGate response
+        mock_kigate_instance = mock_kigate.return_value
+        mock_kigate_instance.execute_agent.return_value = {
+            'success': True,
+            'result': 'Based on similar task "Fix login bug", I recommend checking the auth module. Task should be created: yes'
+        }
+        
+        service = MessageProcessingService(settings=self.settings)
+        
+        message = {
+            'id': 'msg-1',
+            'from': {
+                'user': {
+                    'displayName': 'Test User',
+                    'userPrincipalName': 'test@example.com'
+                }
+            },
+            'body': {
+                'content': 'Help! Users cannot login to the system',
+                'contentType': 'text'
+            }
+        }
+        
+        result = service.analyze_message(message, self.item)
+        
+        self.assertTrue(result['success'])
+        self.assertTrue(result.get('rag_context_used'))
+        self.assertEqual(result.get('similar_objects_count'), 1)
+        self.assertIn('auth module', result['ai_response'])
+        
+        # Verify KiGate was called with RAG context in prompt
+        call_args = mock_kigate_instance.execute_agent.call_args
+        prompt = call_args[1]['message']
+        self.assertIn('Ähnliche Objekte aus der Wissensbasis', prompt)
+        self.assertIn('Fix login bug', prompt)
+    
+    @patch('core.services.message_processing_service.WeaviateTaskSyncService')
+    @patch('core.services.message_processing_service.WeaviateItemSyncService')
+    @patch('core.services.message_processing_service.KiGateService')
+    def test_format_rag_context(self, mock_kigate, mock_item_service, mock_task_service):
+        """Test formatting of RAG context for AI prompt"""
+        service = MessageProcessingService(settings=self.settings)
+        
+        similar_objects = [
+            {
+                'type': 'task',
+                'title': 'Test Task 1',
+                'description': 'This is a test task description'
+            },
+            {
+                'type': 'item',
+                'title': 'Test Item 1',
+                'description': 'This is a test item description'
+            }
+        ]
+        
+        formatted = service._format_rag_context(similar_objects)
+        
+        self.assertIn('Ähnliche Objekte aus der Wissensbasis', formatted)
+        self.assertIn('Task 1: Test Task 1', formatted)
+        self.assertIn('Item 2: Test Item 1', formatted)
+        self.assertIn('This is a test task description', formatted)
+        self.assertIn('This is a test item description', formatted)
+    
+    @patch('core.services.message_processing_service.KiGateService')
+    def test_format_rag_context_empty(self, mock_kigate):
+        """Test formatting empty RAG context"""
+        service = MessageProcessingService(settings=self.settings)
+        
+        formatted = service._format_rag_context([])
+        
+        self.assertEqual(formatted, "")
