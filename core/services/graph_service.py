@@ -1099,3 +1099,64 @@ class GraphService:
         except Exception as e:
             logger.error(f"Error posting channel message: {str(e)}")
             raise GraphServiceError("Error posting channel message", details=str(e))
+    
+    def get_user_by_id(self, user_id: str) -> Dict[str, Any]:
+        """
+        Get user details by object ID
+        
+        This method is used to retrieve full user information including UPN,
+        email, and display name when the UPN is not available in the message.
+        This is a known issue with Microsoft Teams Graph API where the sender
+        UPN can be empty in chat messages.
+        
+        Args:
+            user_id: Microsoft User Object ID (from message.from.user.id)
+            
+        Returns:
+            Dict with success status and user details including:
+            - id: User object ID
+            - userPrincipalName: User's UPN (email)
+            - mail: User's email address
+            - displayName: User's display name
+            - givenName: User's first name
+            - surname: User's last name
+            
+        Raises:
+            GraphServiceError: If request fails
+        """
+        if not user_id:
+            raise GraphServiceError("User ID is required")
+        
+        endpoint = f"users/{user_id}"
+        
+        try:
+            logger.info(f"Getting user details for user ID: {user_id}")
+            response = self._make_request('GET', endpoint)
+            
+            if response.status_code == 200:
+                user_data = response.json()
+                logger.info(f"Retrieved user details for: {user_data.get('userPrincipalName', 'N/A')}")
+                
+                return {
+                    'success': True,
+                    'user': {
+                        'id': user_data.get('id'),
+                        'userPrincipalName': user_data.get('userPrincipalName', ''),
+                        'mail': user_data.get('mail', ''),
+                        'displayName': user_data.get('displayName', ''),
+                        'givenName': user_data.get('givenName', ''),
+                        'surname': user_data.get('surname', '')
+                    }
+                }
+            else:
+                raise GraphServiceError(
+                    "Failed to get user details",
+                    status_code=response.status_code,
+                    details=response.text
+                )
+                
+        except GraphServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting user details: {str(e)}")
+            raise GraphServiceError("Error getting user details", details=str(e))

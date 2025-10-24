@@ -74,6 +74,7 @@ class TeamsListenerService:
         
         self.team_id = self.settings.teams_team_id
         self.bot_upn = self.settings.default_mail_sender if self.settings.default_mail_sender else None
+        self.bot_object_id = None  # Will be fetched if needed
         
         # Initialize Graph Service for API calls
         try:
@@ -85,13 +86,75 @@ class TeamsListenerService:
                 details=str(e)
             )
         
+        # Fetch bot's object ID if UPN is configured
+        # This allows us to filter bot messages even when UPN is empty in message
+        if self.bot_upn:
+            try:
+                logger.info(f"Fetching bot user details for UPN: {self.bot_upn}")
+                bot_user_result = self.graph_service.get_user_by_id(self.bot_upn)
+                if bot_user_result.get('success'):
+                    bot_user = bot_user_result.get('user', {})
+                    self.bot_object_id = bot_user.get('id')
+                    logger.info(f"Bot object ID retrieved: {self.bot_object_id}")
+                else:
+                    logger.warning(f"Could not fetch bot user details: {bot_user_result.get('error', 'Unknown error')}")
+            except GraphServiceError as e:
+                logger.warning(f"Failed to fetch bot object ID: {str(e)}")
+                # Non-critical error, continue without object ID
+            except Exception as e:
+                # Catch any other exception (including test mock issues)
+                logger.warning(f"Failed to fetch bot object ID: {str(e)}")
+                # Non-critical error, continue without object ID
+        
         # Log bot UPN configuration for debugging
         if self.bot_upn:
             logger.info(f"TeamsListenerService initialized with team_id: {self.team_id}")
             logger.info(f"DEBUG: Bot UPN configured as: '{self.bot_upn}' (will filter messages from this sender)")
+            logger.info(f"DEBUG: Bot Object ID: '{self.bot_object_id or 'Not available'}'")
         else:
             logger.warning(f"TeamsListenerService initialized with team_id: {self.team_id}")
             logger.warning(f"DEBUG: Bot UPN is NOT configured (default_mail_sender is empty)! Bot messages will NOT be filtered!")
+    
+    def _enrich_message_sender_info(self, message: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Enrich message with full sender information from Graph API
+        
+        This method addresses the known Microsoft Teams Graph API issue where
+        the sender UPN can be empty in chat messages. It uses the user object ID
+        to fetch complete user details including UPN, email, and name.
+        
+        Args:
+            message: Teams message object from Graph API
+            
+        Returns:
+            Enriched message object with full sender information
+        """
+        sender = message.get('from', {}).get('user', {})
+        sender_upn = sender.get('userPrincipalName', '')
+        sender_id = sender.get('id', '')
+        
+        # If UPN is empty but we have object ID, fetch full user details
+        if not sender_upn and sender_id:
+            logger.info(f"  - Sender UPN is empty, fetching user details by object ID: {sender_id}")
+            try:
+                user_result = self.graph_service.get_user_by_id(sender_id)
+                if user_result.get('success'):
+                    user_data = user_result.get('user', {})
+                    # Enrich the message with full user information
+                    message['from']['user']['userPrincipalName'] = user_data.get('userPrincipalName', '')
+                    message['from']['user']['mail'] = user_data.get('mail', '')
+                    message['from']['user']['displayName'] = user_data.get('displayName', sender.get('displayName', ''))
+                    message['from']['user']['givenName'] = user_data.get('givenName', '')
+                    message['from']['user']['surname'] = user_data.get('surname', '')
+                    
+                    logger.info(f"  ✓ Enriched sender info: UPN={user_data.get('userPrincipalName', 'N/A')}, "
+                              f"Name={user_data.get('displayName', 'N/A')}")
+                else:
+                    logger.warning(f"  ⚠ Could not fetch user details: {user_result.get('error', 'Unknown error')}")
+            except Exception as e:
+                logger.warning(f"  ⚠ Failed to enrich sender info: {str(e)}")
+        
+        return message
     
     def get_items_with_channels(self) -> List:
         """
@@ -145,18 +208,31 @@ class TeamsListenerService:
                     logger.warning(f"Message has no ID, skipping")
                     continue
                 
+                # Enrich message with full sender information if UPN is empty
+                message = self._enrich_message_sender_info(message)
+                
                 # Extract sender information for detailed logging
-                sender_upn = message.get('from', {}).get('user', {}).get('userPrincipalName', '')
-                sender_name = message.get('from', {}).get('user', {}).get('displayName', '')
+                sender = message.get('from', {}).get('user', {})
+                sender_upn = sender.get('userPrincipalName', '')
+                sender_id = sender.get('id', '')
+                sender_name = sender.get('displayName', '')
                 
                 # DEBUG: Log every message with sender details
                 logger.info(f"DEBUG: Processing message {message_id}")
+                logger.info(f"  - Sender Object ID: '{sender_id}' (empty: {not sender_id})")
                 logger.info(f"  - Sender UPN: '{sender_upn}' (empty: {not sender_upn})")
                 logger.info(f"  - Sender Name: '{sender_name}'")
+                logger.info(f"  - Bot Object ID configured: '{self.bot_object_id}' (empty: {not self.bot_object_id})")
                 logger.info(f"  - Bot UPN configured: '{self.bot_upn}' (empty: {not self.bot_upn})")
                 
                 # CRITICAL: Skip messages from IdeaGraph Bot to avoid infinite loops
-                # Check by UPN (userPrincipalName) which is the most reliable method
+                # Primary method: Check by Object ID (most reliable, works even when UPN is empty)
+                if self.bot_object_id and sender_id:
+                    if sender_id.lower() == self.bot_object_id.lower():
+                        logger.info(f"  ✓ SKIPPED: Message {message_id} from bot itself (Object ID match)")
+                        continue
+                
+                # Secondary method: Check by UPN (userPrincipalName) for backward compatibility
                 if self.bot_upn and sender_upn:
                     bot_upn_normalized = self.bot_upn.strip().lower()
                     sender_upn_normalized = sender_upn.strip().lower()
@@ -164,12 +240,12 @@ class TeamsListenerService:
                     if sender_upn_normalized == bot_upn_normalized:
                         logger.info(f"  ✓ SKIPPED: Message {message_id} from bot itself (UPN match)")
                         continue
-                elif self.bot_upn:
-                    logger.warning(f"  ⚠ Cannot compare UPNs: sender_upn is empty for message {message_id}")
-                else:
+                elif self.bot_upn and not sender_upn:
+                    logger.warning(f"  ⚠ Cannot compare UPNs: sender_upn is empty for message {message_id} (but Object ID check already performed)")
+                elif not self.bot_upn:
                     logger.warning(f"  ⚠ Cannot filter by UPN: bot_upn not configured (default_mail_sender is empty)")
                 
-                # Fallback: also check display name for backwards compatibility
+                # Tertiary fallback: also check display name for backwards compatibility
                 if sender_name == self.IDEAGRAPH_BOT_NAME:
                     logger.info(f"  ✓ SKIPPED: Message {message_id} from bot itself (display name match: '{sender_name}')")
                     continue

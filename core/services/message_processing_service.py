@@ -219,33 +219,76 @@ class MessageProcessingService:
 --- Ende der ähnlichen Objekte ---
 """
     
-    def get_or_create_user_from_upn(self, upn: str, display_name: str = '') -> Any:
+    def get_or_create_user_from_sender(
+        self,
+        sender: Dict[str, Any]
+    ) -> Any:
         """
-        Get or create a user based on UserPrincipalName (UPN)
+        Get or create a user based on sender information from a Teams message
+        
+        This method handles the enriched sender information including object ID,
+        UPN, email, and name fields. It uses object ID as the primary identifier
+        and falls back to UPN/email if needed.
         
         Args:
-            upn: User Principal Name (email)
-            display_name: Display name of the user
+            sender: Sender user object from Teams message (message.from.user)
+                Expected fields:
+                - id: Microsoft User Object ID
+                - userPrincipalName: User's UPN (may be empty)
+                - mail: User's email address
+                - displayName: User's display name
+                - givenName: User's first name
+                - surname: User's last name
             
         Returns:
             User object
         """
         from main.models import User
         
-        # Try to find existing user by UPN (used as both username and email)
-        user = User.objects.filter(username=upn).first()
+        # Extract information from sender
+        user_object_id = sender.get('id', '')
+        upn = sender.get('userPrincipalName', '')
+        email = sender.get('mail', '')
+        display_name = sender.get('displayName', '')
+        given_name = sender.get('givenName', '')
+        surname = sender.get('surname', '')
+        
+        # Use UPN as primary identifier, fall back to email
+        user_identifier = upn or email
+        
+        if not user_identifier:
+            logger.error(f"Cannot create user: no UPN or email available. Object ID: {user_object_id}")
+            raise ValueError("Cannot create user without UPN or email")
+        
+        # Try to find existing user by ms_user_id (object ID) first
+        user = None
+        if user_object_id:
+            user = User.objects.filter(ms_user_id=user_object_id).first()
+            if user:
+                logger.debug(f"Found existing user by Object ID: {user_identifier} (ID: {user_object_id})")
+                return user
+        
+        # Try to find by username (UPN)
+        user = User.objects.filter(username=user_identifier).first()
         
         if user:
-            logger.debug(f"Found existing user: {upn}")
+            logger.debug(f"Found existing user by username: {user_identifier}")
+            # Update ms_user_id if not set
+            if user_object_id and not user.ms_user_id:
+                user.ms_user_id = user_object_id
+                user.save(update_fields=['ms_user_id'])
+                logger.info(f"Updated user {user_identifier} with Object ID: {user_object_id}")
             return user
         
         # User doesn't exist, create new user
-        logger.info(f"Creating new user from UPN: {upn}")
+        logger.info(f"Creating new user from sender info: {user_identifier}")
         
-        # Extract first and last name from display name
-        first_name = ''
-        last_name = ''
-        if display_name:
+        # Use provided first/last name, or extract from display name as fallback
+        first_name = given_name
+        last_name = surname
+        
+        if not first_name and not last_name and display_name:
+            # Extract from display name
             name_parts = display_name.strip().split()
             if len(name_parts) >= 2:
                 first_name = name_parts[0]
@@ -255,17 +298,40 @@ class MessageProcessingService:
         
         # Create new user with 'user' role
         user = User.objects.create(
-            username=upn,
-            email=upn,
-            first_name=first_name,
-            last_name=last_name,
+            username=user_identifier,
+            email=email or user_identifier,
+            first_name=first_name or '',
+            last_name=last_name or '',
+            ms_user_id=user_object_id or '',
             role='user',
             is_active=True,
             auth_type='msauth'  # Mark as Microsoft authenticated user
         )
         
-        logger.info(f"Created new user: {upn} ({first_name} {last_name})")
+        logger.info(f"Created new user: {user_identifier} ({first_name} {last_name}, Object ID: {user_object_id})")
         return user
+    
+    def get_or_create_user_from_upn(self, upn: str, display_name: str = '') -> Any:
+        """
+        Backward compatibility wrapper for get_or_create_user_from_sender
+        
+        Args:
+            upn: User Principal Name (email)
+            display_name: Display name of the user
+            
+        Returns:
+            User object
+        """
+        # Create a minimal sender object for backward compatibility
+        sender = {
+            'id': '',  # No object ID available in old API
+            'userPrincipalName': upn,
+            'mail': upn,
+            'displayName': display_name,
+            'givenName': '',
+            'surname': ''
+        }
+        return self.get_or_create_user_from_sender(sender)
     
     def analyze_message(self, message: Dict[str, Any], item) -> Dict[str, Any]:
         """
@@ -290,11 +356,13 @@ class MessageProcessingService:
         
         # Get sender information
         sender = message.get('from', {}).get('user', {})
+        sender_id = sender.get('id', '')
         sender_upn = sender.get('userPrincipalName', 'unknown@example.com')
         sender_name = sender.get('displayName', 'Unknown User')
         
         # DEBUG: Log message analysis attempt
         logger.info(f"DEBUG: Analyzing message from sender:")
+        logger.info(f"  - Sender Object ID: '{sender_id}'")
         logger.info(f"  - Sender UPN: '{sender_upn}'")
         logger.info(f"  - Sender Name: '{sender_name}'")
         
@@ -378,6 +446,7 @@ Use the similar objects from the knowledge base (if provided) to give more infor
                 'success': True,
                 'ai_response': ai_response,
                 'message_content': content,
+                'sender': sender,  # Full sender object with all enriched information
                 'sender_upn': sender_upn,
                 'sender_name': sender_name,
                 'should_create_task': self._should_create_task(ai_response),
@@ -477,12 +546,12 @@ Use the similar objects from the knowledge base (if provided) to give more infor
             logger.error("Cannot create task from failed analysis")
             return None
         
-        # Get or create user
-        sender_upn = analysis_result.get('sender_upn')
-        sender_name = analysis_result.get('sender_name', '')
+        # Get or create user from full sender information
+        sender = analysis_result.get('sender', {})
+        sender_name = sender.get('displayName', 'Unknown User')
         
         try:
-            requester = self.get_or_create_user_from_upn(sender_upn, sender_name)
+            requester = self.get_or_create_user_from_sender(sender)
         except Exception as e:
             logger.error(f"Failed to get/create user: {str(e)}")
             requester = None
