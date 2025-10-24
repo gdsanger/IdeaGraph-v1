@@ -18,6 +18,7 @@ from core.services.kigate_service import KiGateService, KiGateServiceError
 from core.services.openai_service import OpenAIService, OpenAIServiceError
 from core.services.weaviate_task_sync_service import WeaviateTaskSyncService, WeaviateTaskSyncServiceError
 from core.services.support_advisor_service import SupportAdvisorService, SupportAdvisorServiceError
+from core.services.task_file_service import TaskFileService, TaskFileServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -2926,6 +2927,133 @@ def api_task_support_analysis_external(request, task_id):
 
 
 @csrf_exempt
+@require_http_methods(["POST"])
+def api_task_support_analysis_save(request, task_id):
+    """
+    API endpoint to save support analysis results
+    
+    POST /api/tasks/{task_id}/support-analysis-save
+    Body: {
+        "analysis": "markdown content",
+        "mode": "internal" or "external"
+    }
+    
+    Saves the analysis result as:
+    - Markdown file uploaded to SharePoint
+    - KnowledgeObject in Weaviate
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Task, Settings
+    from datetime import datetime
+    from core.services.weaviate_sync_service import WeaviateItemSyncService
+    
+    try:
+        task = Task.objects.get(id=task_id)
+        
+        data = json.loads(request.body)
+        analysis = data.get('analysis', '').strip()
+        mode = data.get('mode', 'internal')
+        
+        if not analysis:
+            return JsonResponse({'error': 'Analysis content is required'}, status=400)
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        mode_prefix = 'intern' if mode == 'internal' else 'extern'
+        filename = f"Support_Analyse_{mode_prefix}_{timestamp}.md"
+        
+        # Convert analysis to bytes
+        file_content = analysis.encode('utf-8')
+        
+        # Upload file to SharePoint using TaskFileService
+        try:
+            file_service = TaskFileService()
+            upload_result = file_service.upload_file(
+                task=task,
+                file_content=file_content,
+                filename=filename,
+                content_type='text/markdown',
+                user=user
+            )
+            
+            if not upload_result['success']:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Failed to upload file to SharePoint',
+                    'details': upload_result.get('error', '')
+                }, status=500)
+            
+            logger.info(f"Support analysis saved as file: {filename}")
+            
+        except TaskFileServiceError as e:
+            logger.error(f'File upload error: {e.message}')
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to save analysis file',
+                'details': e.details
+            }, status=500)
+        
+        # Save to Weaviate as KnowledgeObject
+        try:
+            settings = Settings.objects.first()
+            weaviate_service = WeaviateItemSyncService(settings)
+            
+            # Get collection
+            collection = weaviate_service._client.collections.get(weaviate_service.COLLECTION_NAME)
+            
+            # Create metadata for KnowledgeObject
+            import uuid
+            analysis_id = str(uuid.uuid4())
+            
+            properties = {
+                'type': 'SupportAnalysis',
+                'title': f"Support-Analyse: {task.title}",
+                'description': analysis,
+                'section': '',
+                'owner': user.username,
+                'status': 'completed',
+                'createdAt': datetime.now().isoformat(),
+                'tags': [mode, 'support-analysis'],
+                'url': f'/tasks/{task.id}/',
+                'parent_id': str(task.id),
+                'context_inherited': True,
+            }
+            
+            # Add to Weaviate
+            collection.data.insert(
+                properties=properties,
+                uuid=analysis_id
+            )
+            
+            logger.info(f"Support analysis saved to Weaviate: {analysis_id}")
+            
+        except Exception as e:
+            logger.warning(f'Failed to save to Weaviate: {str(e)}')
+            # Don't fail the request if Weaviate fails, file was already saved
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Analysis saved successfully',
+            'filename': filename,
+            'sharepoint_url': upload_result.get('sharepoint_url', ''),
+            'file_id': upload_result.get('file_id', '')
+        })
+        
+    except Task.DoesNotExist:
+        return JsonResponse({'error': 'Task not found'}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f'Save support analysis error: {str(e)}')
+        return JsonResponse({
+            'error': 'An error occurred while saving analysis'
+        }, status=500)
+
+
+@csrf_exempt
 @require_http_methods(['GET'])
 def api_tags_network_data(request):
     """
@@ -3155,6 +3283,91 @@ def api_semantic_network(request, object_type, object_id):
         }, status=500)
 
 
+def api_milestone_semantic_network(request, milestone_id):
+    """
+    Generate semantic network for a milestone
+    
+    Query parameters:
+        - depth: Network depth (1-3, default: 3)
+        - threshold_1: Similarity threshold for level 1 (default: 0.8)
+        - threshold_2: Similarity threshold for level 2 (default: 0.7)
+        - threshold_3: Similarity threshold for level 3 (default: 0.6)
+        - summaries: Generate AI summaries ('true'/'false', default: 'true')
+    
+    Returns:
+        JSON response with semantic network data
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        logger.warning(f'Unauthenticated request to milestone semantic network API')
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from main.models import Milestone
+        from core.services.semantic_network_service import SemanticNetworkService, SemanticNetworkServiceError
+        
+        # Verify milestone exists
+        try:
+            milestone = Milestone.objects.get(id=milestone_id)
+        except Milestone.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Milestone not found'
+            }, status=404)
+        
+        # Parse query parameters
+        depth = int(request.GET.get('depth', 3))
+        generate_summaries = request.GET.get('summaries', 'true').lower() == 'true'
+        
+        logger.info(f'Milestone semantic network request: milestone_id={milestone_id}, depth={depth}, summaries={generate_summaries}')
+        
+        # Custom thresholds if provided
+        thresholds = {}
+        for level in [1, 2, 3]:
+            threshold_key = f'threshold_{level}'
+            if threshold_key in request.GET:
+                try:
+                    thresholds[level] = float(request.GET[threshold_key])
+                except ValueError:
+                    pass
+        
+        # Generate semantic network
+        service = SemanticNetworkService()
+        try:
+            result = service.generate_network(
+                object_type='milestone',
+                object_id=str(milestone_id),
+                depth=depth,
+                user_id=str(user.id),
+                thresholds=thresholds if thresholds else None,
+                generate_summaries=generate_summaries,
+                include_hierarchy=False  # Milestones don't have hierarchical relationships
+            )
+            
+            logger.info(f'Milestone semantic network generated successfully: {len(result.get("nodes", []))} nodes, {len(result.get("edges", []))} edges')
+            return JsonResponse(result)
+            
+        finally:
+            service.close()
+    
+    except SemanticNetworkServiceError as e:
+        logger.error(f'Semantic network service error for milestone/{milestone_id}: {str(e)}', exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Unexpected error generating semantic network for milestone/{milestone_id}: {str(e)}', exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to generate semantic network'
+        }, status=500)
 
 
 # File Upload API Endpoints

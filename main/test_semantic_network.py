@@ -140,7 +140,9 @@ class SemanticNetworkAPITest(TestCase):
     
     def test_api_endpoint_requires_authentication(self):
         """Test that API endpoint requires authentication"""
-        response = self.client.get('/api/semantic-network/item/test-uuid/')
+        import uuid
+        test_id = uuid.uuid4()
+        response = self.client.get(f'/api/semantic-network/item/{test_id}')
         
         # Should return 401 Unauthorized
         self.assertEqual(response.status_code, 401)
@@ -157,3 +159,21 @@ class SemanticNetworkAPITest(TestCase):
             self.assertTrue(url.startswith('/api/semantic-network/'))
         except NoReverseMatch:
             self.fail('URL pattern not registered')
+    
+    def test_milestone_type_in_mapping(self):
+        """Test that milestone type is included in TYPE_MAPPING"""
+        self.assertIn('milestone', SemanticNetworkService.TYPE_MAPPING)
+        self.assertEqual(SemanticNetworkService.TYPE_MAPPING['milestone'], 'Milestone')
+    
+    def test_milestone_semantic_network_url_registered(self):
+        """Test that milestone semantic network URL is registered"""
+        from django.urls import reverse, NoReverseMatch
+        
+        try:
+            url = reverse('main:api_milestone_semantic_network', kwargs={
+                'milestone_id': '12345678-1234-1234-1234-123456789abc'
+            })
+            self.assertTrue(url.startswith('/api/milestones/'))
+            self.assertTrue(url.endswith('/semantic-network'))
+        except NoReverseMatch:
+            self.fail('Milestone semantic network URL pattern not registered')

@@ -227,10 +227,18 @@
                                             <h5 class="mb-0">
                                                 <i class="bi bi-lightbulb"></i> Support-Analyse Ergebnis
                                             </h5>
-                                            <button type="button" class="btn-close btn-close-white" id="closeSupportAnalysisBtn" aria-label="Close"></button>
                                         </div>
                                         <div class="card-body">
                                             <div id="supportAnalysisResult"></div>
+                                        </div>
+                                        <div class="card-footer bg-transparent border-info d-flex justify-content-end gap-2">
+                                            <button type="button" class="btn btn-secondary" id="closeSupportAnalysisBtn">
+                                                <i class="bi bi-x-circle"></i> Schließen (ohne Speichern)
+                                            </button>
+                                            <button type="button" class="btn btn-success" id="saveSupportAnalysisBtn">
+                                                <i class="bi bi-save"></i> Speichern
+                                                <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -935,9 +943,17 @@ function renderMarkdown(markdown) {
 }
 
 // Helper function to display support analysis result
+let currentAnalysisData = null; // Store current analysis data for saving
+
 function displaySupportAnalysisResult(analysisMarkdown, mode) {
     const resultContainer = document.getElementById('supportAnalysisResultContainer');
     const resultDiv = document.getElementById('supportAnalysisResult');
+    
+    // Store analysis data for potential saving
+    currentAnalysisData = {
+        analysis: analysisMarkdown,
+        mode: mode
+    };
     
     // Render markdown to HTML
     const htmlContent = renderMarkdown(analysisMarkdown);
@@ -954,6 +970,63 @@ function displaySupportAnalysisResult(analysisMarkdown, mode) {
 document.querySelector('#closeSupportAnalysisBtn').addEventListener('click', function() {
     const resultContainer = document.getElementById('supportAnalysisResultContainer');
     resultContainer.style.display = 'none';
+    currentAnalysisData = null; // Clear stored data
+    showAlert('ℹ️ Analyse verworfen – keine Daten gespeichert.', 'info');
+});
+
+// Save Support Analysis Result Button
+document.querySelector('#saveSupportAnalysisBtn').addEventListener('click', async function() {
+    const btn = this;
+    const spinner = btn.querySelector('.spinner-border');
+    
+    if (!currentAnalysisData) {
+        showAlert('Keine Analysedaten zum Speichern vorhanden.', 'warning');
+        return;
+    }
+    
+    btn.disabled = true;
+    spinner.style.display = 'inline-block';
+    
+    try {
+        const response = await fetch('/api/tasks/{{ task.id }}/support-analysis-save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                analysis: currentAnalysisData.analysis,
+                mode: currentAnalysisData.mode
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            // Close the result container
+            const resultContainer = document.getElementById('supportAnalysisResultContainer');
+            resultContainer.style.display = 'none';
+            currentAnalysisData = null;
+            
+            // Show success message
+            showAlert('✅ Analyse gespeichert (Datei + Knowledge Base aktualisiert)', 'success');
+            
+            // Reload files list to show the new file
+            // Trigger htmx refresh on the files list
+            const filesContainer = document.getElementById('taskFilesListContainer');
+            if (filesContainer) {
+                htmx.trigger(filesContainer, 'load');
+            }
+        } else {
+            showAlert(data.error || 'Fehler beim Speichern der Analyse', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Fehler: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+    }
 });
 
 // Initialize Semantic Network Viewer

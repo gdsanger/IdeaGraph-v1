@@ -129,6 +129,7 @@ urlpatterns = [
     path('api/tasks/<uuid:task_id>/move', api_views.api_task_move, name='api_task_move'),
     path('api/tasks/<uuid:task_id>/support-analysis-internal', api_views.api_task_support_analysis_internal, name='api_task_support_analysis_internal'),
     path('api/tasks/<uuid:task_id>/support-analysis-external', api_views.api_task_support_analysis_external, name='api_task_support_analysis_external'),
+    path('api/tasks/<uuid:task_id>/support-analysis-save', api_views.api_task_support_analysis_save, name='api_task_support_analysis_save'),
     path('api/tasks/overview', api_views.api_task_overview, name='api_task_overview'),
     path('api/tasks/bulk-delete', api_views.api_task_bulk_delete, name='api_task_bulk_delete'),
     path('api/items/for-move', api_views.api_get_items_for_move, name='api_get_items_for_move'),
@@ -138,6 +139,7 @@ urlpatterns = [
     
     # Semantic Network API
     path('api/semantic-network/<str:object_type>/<uuid:object_id>', api_views.api_semantic_network, name='api_semantic_network'),
+    path('api/milestones/<uuid:milestone_id>/semantic-network', api_views.api_milestone_semantic_network, name='api_milestone_semantic_network'),
     
     # Item File Upload API Endpoints
     path('api/items/<uuid:item_id>/files/upload', api_views.api_item_file_upload, name='api_item_file_upload'),
