@@ -4,7 +4,7 @@
 
 **Issue:** Sigma.js Container in Milestones zeigt an, dass die ID nicht verfügbar ist.
 
-The Sigma.js visualization in the milestone detail page was showing that the object ID was not available, even though the milestone existed in the Weaviate database. Additionally, RAG (Retrieval-Augmented Generation) was not being used in AI API calls.
+The Sigma.js visualization in the milestone detail page was showing that the object ID was not available, even though the milestone existed in the Weaviate database. Additionally, RAG (Retrieval-Augmented Generation) was not being used in AI API calls, and individual context objects were not stored separately in Weaviate.
 
 ## Root Causes
 
@@ -32,11 +32,23 @@ The Sigma.js visualization in the milestone detail page was showing that the obj
 - Milestone service had no `search_similar_context` method
 - AI calls in `analyze_context_object` and `generate_milestone_summary` lacked RAG context
 
+### 3. Context Objects Not Stored Separately
+
+**Problem:**
+- MilestoneContextObjects (files, emails, transcripts, notes) were only aggregated into the milestone summary
+- Individual context objects were not stored as separate KnowledgeObjects in Weaviate
+- This prevented individual context objects from being searched and retrieved in the semantic network
+
+**Evidence:**
+- Only the milestone itself was synced to Weaviate with aggregated content
+- No separate sync method for individual context objects
+- Semantic network could not display or search individual context items
+
 ## Solutions Implemented
 
 ### Fix 1: Corrected Type Capitalization
 
-**File:** `core/services/milestone_knowledge_service.py` (line 651)
+**File:** `core/services/milestone_knowledge_service.py` (line 658)
 
 **Change:**
 ```python
@@ -54,7 +66,7 @@ The Sigma.js visualization in the milestone detail page was showing that the obj
 
 ### Fix 2: Added RAG Support
 
-**Added Method:** `search_similar_context` (lines 134-220)
+**Added Method:** `search_similar_context` (lines 139-223)
 
 ```python
 def search_similar_context(
@@ -79,28 +91,69 @@ def search_similar_context(
 
 **Updated Methods:**
 
-1. **analyze_context_object** (lines 377-412)
+1. **analyze_context_object** (lines 388-419)
    - Now searches for similar context before task derivation
    - Includes RAG results in AI prompt
    - Format: `--- Similar objects from knowledge base (RAG) ---`
 
-2. **generate_milestone_summary** (lines 518-556)
+2. **generate_milestone_summary** (lines 538-571)
    - Searches for similar context before summary generation
    - Includes RAG results in AI prompt
    - Provides more informed and context-aware summaries
+
+### Fix 3: Store Context Objects Separately
+
+**Added Method:** `sync_context_object_to_weaviate` (lines 694-779)
+
+```python
+def sync_context_object_to_weaviate(self, context_obj) -> Dict[str, Any]:
+    """
+    Sync a milestone context object to Weaviate as a separate KnowledgeObject
+    
+    This allows individual context objects (files, emails, transcripts, notes)
+    to be searched and retrieved through the semantic network.
+    """
+```
+
+**Key Features:**
+- Stores each MilestoneContextObject as a separate KnowledgeObject
+- Maps context types: file→File, email→Email, transcript→Transcript, note→Note
+- Includes milestone reference and metadata (sourceId, url)
+- Syncs on creation and re-syncs after analysis (to include summary)
+
+**Updated TYPE_MAPPING** in `semantic_network_service.py`:
+- Added 'email': 'Email'
+- Added 'transcript': 'Transcript'
+- Added 'note': 'Note'
+
+**Updated Methods:**
+1. **add_context_object** (lines 275-291)
+   - Syncs context object to Weaviate immediately after creation
+   
+2. **analyze_context_object** (lines 461-472)
+   - Re-syncs context object after analysis to include generated summary
 
 ## Benefits
 
 ### For Semantic Network Visualization
 - ✅ Milestones now appear correctly in Sigma.js graphs
 - ✅ Relationships between milestones and other objects are visible
+- ✅ Individual context objects (files, emails, etc.) appear as separate nodes
 - ✅ Users can navigate the semantic network from milestone detail pages
+- ✅ Complete knowledge graph with granular relationships
 
 ### For AI Analysis
 - ✅ Task derivation includes context from similar objects
 - ✅ Summary generation is more informed and accurate
 - ✅ AI can reference previous work and related content
 - ✅ Reduced hallucination and improved recommendations
+- ✅ RAG searches can find specific files, emails, transcripts, notes
+
+### For Knowledge Management
+- ✅ Individual context objects are searchable
+- ✅ Better discoverability of related content
+- ✅ Enhanced semantic relationships across all knowledge types
+- ✅ More accurate similarity matching
 
 ## Testing
 
@@ -112,14 +165,24 @@ def search_similar_context(
    2. Click on "Semantic Network" tab
    3. Verify that the graph displays without errors
    4. Verify that the milestone node appears
+   5. Verify that context objects appear as separate nodes
    ```
 
-2. **Verify RAG in AI Calls:**
+2. **Verify Context Objects in Weaviate:**
+   ```
+   1. Add a file, email, transcript, or note to a milestone
+   2. Check Weaviate for the context object with correct type
+   3. Verify the object has milestoneId reference
+   4. Verify the object includes summary after analysis
+   ```
+
+3. **Verify RAG in AI Calls:**
    ```
    1. Add a context object to a milestone
    2. Analyze the context object
    3. Check logs for "Found X similar objects via RAG"
    4. Verify that task derivation includes relevant context
+   5. Verify RAG results include individual context objects
    ```
 
 ### Automated Tests
@@ -149,6 +212,23 @@ for milestone in Milestone.objects.all():
         print(f"Failed to sync milestone {milestone.id}: {e}")
 ```
 
+### For Existing Context Objects
+
+Existing context objects also need to be synced to Weaviate:
+
+```python
+from main.models import MilestoneContextObject
+from core.services.milestone_knowledge_service import MilestoneKnowledgeService
+
+service = MilestoneKnowledgeService()
+for context_obj in MilestoneContextObject.objects.all():
+    try:
+        service.sync_context_object_to_weaviate(context_obj)
+        print(f"Synced context object {context_obj.id} - {context_obj.title}")
+    except Exception as e:
+        print(f"Failed to sync context object {context_obj.id}: {e}")
+```
+
 ## Performance Considerations
 
 ### RAG Search Performance
@@ -160,6 +240,11 @@ for milestone in Milestone.objects.all():
 - Additional context increases token usage slightly
 - Improved response quality outweighs token cost
 - Can be disabled by setting `max_results=0` if needed
+
+### Context Object Sync
+- Syncs happen on creation and after analysis
+- Minimal overhead (~50-100ms per object)
+- Asynchronous approach could be considered for large batches
 
 ## Related Documentation
 
