@@ -1,5 +1,7 @@
 # 💡 IdeaGraph
 
+**AI-driven Knowledge & Project Intelligence**
+
 **IdeaGraph** ist eine KI-gestützte Plattform zur Erfassung, Verwaltung und Konkretisierung von Ideen.  
 Sie verknüpft Kreativität, Struktur und Automatisierung – von der ersten Idee bis zur Umsetzung in GitHub.
 
