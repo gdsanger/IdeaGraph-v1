@@ -1,7 +1,7 @@
 # Teams Bot Sender UPN Fix - Documentation
 
 ## Problem
-Der Sender UPN (UserPrincipalName) ist in Chatnachrichten von Microsoft Teams über die Graph API leer. Dies ist ein bekanntes Problem bei Microsoft Teams in Verbindung mit der Graph API. Ohne UPN konnten wir:
+Der Sender UPN (UserPrincipalName) ist in Chatnachrichten von Microsoft Teams über die Graph API leer. Dies ist ein bekanntes Problem bei Microsoft Teams in Verbindung mit der Graph API. Ohne UPN können wir:
 1. Unsere eigenen Nachrichten nicht zuverlässig erkennen (Gefahr von Endlosschleifen)
 2. Keine Benutzer ordnungsgemäß in der Datenbank anlegen (fehlende E-Mail, Vor- und Nachname)
 
@@ -129,14 +129,14 @@ Für jede Nachricht mit leerem UPN wird ein zusätzlicher API Call gemacht:
 GET https://graph.microsoft.com/v1.0/users/{user_object_id}
 ```
 
-Dies ist notwendig und acceptable, da:
+Dies ist notwendig und akzeptabel, da:
 - Es nur bei leeren UPNs passiert (bekanntes Microsoft Problem)
-- Die Information gecached wird (im Message-Objekt)
+- Die Information zwischengespeichert wird (im Message-Objekt)
 - Es eine einmalige Operation pro Nachricht ist
 - Die Alternative (keine Bot-Filterung, keine User-Creation) nicht akzeptabel ist
 
 ### Performance
-- Bot Object ID wird einmalig beim Start abgerufen und gecacht
+- Bot Object ID wird einmalig beim Start abgerufen und zwischengespeichert
 - User-Informationen werden pro Message angereichert (nur wenn UPN leer)
 - Keine zusätzlichen DB-Queries (Object ID nutzt bestehenden Index)
 
