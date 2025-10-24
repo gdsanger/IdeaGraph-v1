@@ -3366,8 +3366,7 @@ def api_milestone_semantic_network(request, milestone_id):
         logger.error(f'Unexpected error generating semantic network for milestone/{milestone_id}: {str(e)}', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': 'Failed to generate semantic network',
-            'details': str(e)
+            'error': 'Failed to generate semantic network'
         }, status=500)
 
 
