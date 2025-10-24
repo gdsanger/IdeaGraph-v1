@@ -71,6 +71,10 @@ urlpatterns = [
     path('api/items/<uuid:item_id>/send-email', api_views.api_send_item_email, name='api_send_item_email'),
     path('api/items/<uuid:item_id>/create-teams-channel', api_views.create_teams_channel, name='api_create_teams_channel'),
     
+    # Teams Integration URLs
+    path('api/teams/poll', api_views.poll_teams_messages, name='api_poll_teams_messages'),
+    path('api/teams/status', api_views.teams_integration_status, name='api_teams_integration_status'),
+    
     # Task Management URLs
     path('items/<uuid:item_id>/tasks/', views.task_list, name='task_list'),
     path('items/<uuid:item_id>/tasks/create/', views.task_create, name='task_create'),

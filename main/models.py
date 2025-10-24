@@ -530,6 +530,15 @@ class Task(models.Model):
     github_issue_url = models.URLField(max_length=500, blank=True, default='')
     github_synced_at = models.DateTimeField(null=True, blank=True)
     
+    # Microsoft Teams Integration
+    message_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='Teams Message ID',
+        help_text='ID of the Teams channel message that triggered this task'
+    )
+    
     # AI-related fields
     ai_enhanced = models.BooleanField(default=False)
     ai_generated = models.BooleanField(default=False)
@@ -887,6 +896,11 @@ class Settings(models.Model):
         default='Willkommen im Channel für {{Item}}! Hier können Sie Nachrichten zu diesem Item senden und diskutieren.',
         verbose_name='Teams Welcome Post Template',
         help_text='Vorlage für einen Begrüßungspost. Verwenden Sie {{Item}} als Platzhalter für den Item-Titel.'
+    )
+    graph_poll_interval = models.IntegerField(
+        default=60,
+        verbose_name='Graph Poll Interval',
+        help_text='Interval in seconds for polling Teams channels for new messages'
     )
     
     created_at = models.DateTimeField(auto_now_add=True)
