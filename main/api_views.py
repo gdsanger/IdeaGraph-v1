@@ -5420,3 +5420,106 @@ def create_teams_channel(request, item_id):
         }, status=500)
 
 
+@require_http_methods(["POST"])
+def poll_teams_messages(request):
+    """
+    API endpoint to manually trigger Teams message polling
+    
+    POST /api/teams/poll
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    # Check if user is admin
+    if user.role != 'admin':
+        return JsonResponse({'error': 'Admin access required'}, status=403)
+    
+    try:
+        from .models import Settings
+        
+        settings = Settings.objects.first()
+        if not settings:
+            return JsonResponse({'error': 'Settings not configured'}, status=500)
+        
+        if not settings.teams_enabled:
+            return JsonResponse({'error': 'Teams integration is not enabled'}, status=400)
+        
+        # Import here to avoid circular dependency
+        from core.services.teams_integration_service import TeamsIntegrationService
+        
+        # Initialize service and poll
+        service = TeamsIntegrationService(settings=settings)
+        result = service.poll_and_process()
+        
+        logger.info(f'Manual Teams poll triggered by user {user.username}')
+        
+        return JsonResponse({
+            'success': True,
+            'result': {
+                'items_checked': result.get('items_checked', 0),
+                'messages_found': result.get('messages_found', 0),
+                'messages_processed': result.get('messages_processed', 0),
+                'tasks_created': result.get('tasks_created', 0),
+                'responses_posted': result.get('responses_posted', 0),
+                'errors': len(result.get('errors', []))
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f'Error during manual Teams poll: {str(e)}')
+        return JsonResponse({
+            'error': 'Failed to poll Teams messages',
+            'details': str(e)
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def teams_integration_status(request):
+    """
+    API endpoint to get Teams integration status
+    
+    GET /api/teams/status
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        from .models import Settings, Item, Task
+        
+        settings = Settings.objects.first()
+        if not settings:
+            return JsonResponse({'error': 'Settings not configured'}, status=500)
+        
+        # Get items with channels
+        items_with_channels = Item.objects.filter(
+            channel_id__isnull=False
+        ).exclude(channel_id='').count()
+        
+        # Get tasks created from Teams messages
+        tasks_from_teams = Task.objects.filter(
+            message_id__isnull=False
+        ).exclude(message_id='').count()
+        
+        return JsonResponse({
+            'success': True,
+            'status': {
+                'enabled': settings.teams_enabled,
+                'team_id': settings.teams_team_id if settings.teams_enabled else None,
+                'poll_interval': settings.graph_poll_interval,
+                'items_with_channels': items_with_channels,
+                'tasks_from_teams': tasks_from_teams
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f'Error getting Teams integration status: {str(e)}')
+        return JsonResponse({
+            'error': 'Failed to get status',
+            'details': str(e)
+        }, status=500)
+
+

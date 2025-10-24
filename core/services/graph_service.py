@@ -934,3 +934,111 @@ class GraphService:
         except Exception as e:
             logger.error(f"Error moving message: {str(e)}")
             raise GraphServiceError("Error moving message", details=str(e))
+    
+    # Teams Channel Methods
+    
+    def get_channel_messages(
+        self,
+        team_id: str,
+        channel_id: str,
+        top: int = 50
+    ) -> Dict[str, Any]:
+        """
+        Get messages from a Teams channel
+        
+        Args:
+            team_id: ID of the Teams team
+            channel_id: ID of the channel
+            top: Maximum number of messages to retrieve (default: 50)
+            
+        Returns:
+            Dict with success status and list of messages
+            
+        Raises:
+            GraphServiceError: If request fails
+        """
+        endpoint = f"teams/{team_id}/channels/{channel_id}/messages?$top={top}"
+        
+        try:
+            logger.info(f"Getting messages from channel {channel_id} in team {team_id}")
+            response = self._make_request('GET', endpoint)
+            
+            if response.status_code == 200:
+                data = response.json()
+                messages = data.get('value', [])
+                logger.info(f"Retrieved {len(messages)} messages from channel")
+                
+                return {
+                    'success': True,
+                    'messages': messages,
+                    'count': len(messages)
+                }
+            else:
+                raise GraphServiceError(
+                    "Failed to get channel messages",
+                    status_code=response.status_code,
+                    details=response.text
+                )
+                
+        except GraphServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting channel messages: {str(e)}")
+            raise GraphServiceError("Error getting channel messages", details=str(e))
+    
+    def post_channel_message(
+        self,
+        team_id: str,
+        channel_id: str,
+        message_content: str
+    ) -> Dict[str, Any]:
+        """
+        Post a message to a Teams channel
+        
+        Args:
+            team_id: ID of the Teams team
+            channel_id: ID of the channel
+            message_content: Content of the message (supports HTML)
+            
+        Returns:
+            Dict with success status and message details
+            
+        Raises:
+            GraphServiceError: If request fails
+        """
+        endpoint = f"teams/{team_id}/channels/{channel_id}/messages"
+        
+        message_data = {
+            "body": {
+                "contentType": "html",
+                "content": message_content
+            }
+        }
+        
+        try:
+            logger.info(f"Posting message to channel {channel_id} in team {team_id}")
+            response = self._make_request('POST', endpoint, json_data=message_data)
+            
+            if response.status_code in [200, 201]:
+                message_info = response.json()
+                message_id = message_info.get('id')
+                logger.info(f"Successfully posted message with ID: {message_id}")
+                
+                return {
+                    'success': True,
+                    'message_id': message_id,
+                    'created_at': message_info.get('createdDateTime'),
+                    'web_url': message_info.get('webUrl', '')
+                }
+            else:
+                raise GraphServiceError(
+                    "Failed to post channel message",
+                    status_code=response.status_code,
+                    details=response.text
+                )
+                
+        except GraphServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error posting channel message: {str(e)}")
+            raise GraphServiceError("Error posting channel message", details=str(e))
