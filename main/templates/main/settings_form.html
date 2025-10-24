@@ -757,7 +757,7 @@
                                     id="team_welcome_post" 
                                     name="team_welcome_post" 
                                     rows="3"
-                                    placeholder="Willkommen im Channel für {{Item}}!">{{ settings.team_welcome_post|default:'Willkommen im Channel für {{Item}}! Hier können Sie Nachrichten zu diesem Item senden und diskutieren.' }}</textarea>
+                                    placeholder="Willkommen im Channel für {{Item}}!">{{ settings.team_welcome_post|default_if_none:"" }}</textarea>
                                 <div class="form-text">Vorlage für einen Begrüßungspost. Verwenden Sie {{Item}} als Platzhalter für den Item-Titel.</div>
                             </div>
                         </div>
