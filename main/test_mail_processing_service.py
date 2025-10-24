@@ -406,6 +406,72 @@ class MailProcessingServiceTestCase(TestCase):
         self.assertIsNotNone(task.created_by)
         self.assertEqual(task.created_by, task.requester)
     
+    def test_create_task_from_mail_with_sender_name(self, mock_weaviate_init):
+        """Test creating task from mail with sender name - extracts first and last name"""
+        service = MailProcessingService(self.settings)
+        
+        result = service.create_task_from_mail(
+            mail_subject='Test Task',
+            mail_body_markdown='Test task description',
+            item_id=str(self.item.id),
+            sender_email='john.doe@example.com',
+            sender_name='John Doe'
+        )
+        
+        self.assertIsNotNone(result)
+        
+        # Verify task was created with auto-created requester
+        task = Task.objects.get(id=result['id'])
+        self.assertIsNotNone(task.requester)
+        self.assertEqual(task.requester.email, 'john.doe@example.com')
+        self.assertEqual(task.requester.username, 'john.doe@example.com')
+        self.assertEqual(task.requester.first_name, 'John')
+        self.assertEqual(task.requester.last_name, 'Doe')
+        self.assertEqual(task.requester.role, 'user')
+        self.assertTrue(task.requester.is_active)
+    
+    def test_create_task_from_mail_with_single_name(self, mock_weaviate_init):
+        """Test creating task from mail with single name - sets only first name"""
+        service = MailProcessingService(self.settings)
+        
+        result = service.create_task_from_mail(
+            mail_subject='Test Task',
+            mail_body_markdown='Test task description',
+            item_id=str(self.item.id),
+            sender_email='madonna@example.com',
+            sender_name='Madonna'
+        )
+        
+        self.assertIsNotNone(result)
+        
+        # Verify task was created with auto-created requester
+        task = Task.objects.get(id=result['id'])
+        self.assertIsNotNone(task.requester)
+        self.assertEqual(task.requester.email, 'madonna@example.com')
+        self.assertEqual(task.requester.first_name, 'Madonna')
+        self.assertEqual(task.requester.last_name, '')
+        self.assertEqual(task.requester.role, 'user')
+    
+    def test_create_task_from_mail_with_compound_last_name(self, mock_weaviate_init):
+        """Test creating task from mail with compound last name"""
+        service = MailProcessingService(self.settings)
+        
+        result = service.create_task_from_mail(
+            mail_subject='Test Task',
+            mail_body_markdown='Test task description',
+            item_id=str(self.item.id),
+            sender_email='maria.garcia@example.com',
+            sender_name='Maria Garcia Lopez'
+        )
+        
+        self.assertIsNotNone(result)
+        
+        # Verify task was created with auto-created requester
+        task = Task.objects.get(id=result['id'])
+        self.assertIsNotNone(task.requester)
+        self.assertEqual(task.requester.first_name, 'Maria')
+        self.assertEqual(task.requester.last_name, 'Garcia Lopez')
+    
     def test_create_task_from_mail_invalid_item(self, mock_weaviate_init):
         """Test creating task with invalid item ID"""
         service = MailProcessingService(self.settings)
@@ -525,6 +591,77 @@ class MailProcessingServiceTestCase(TestCase):
         
         # Verify that move_message was called
         mock_move.assert_called_once_with('msg-123', destination_folder='archive')
+    
+    @patch('core.services.kigate_service.KiGateService.execute_agent')
+    @patch('core.services.weaviate_sync_service.WeaviateItemSyncService.search_similar')
+    @patch('core.services.openai_service.OpenAIService.chat_completion')
+    @patch('core.services.graph_service.GraphService.send_mail')
+    @patch('core.services.graph_service.GraphService.mark_message_as_read')
+    @patch('core.services.graph_service.GraphService.move_message')
+    def test_process_mail_extracts_sender_name(self, mock_move, mock_mark_read, mock_send, mock_chat, mock_search, mock_execute, mock_weaviate_init):
+        """Test that process_mail extracts sender name and creates user with proper first/last name"""
+        # Setup mocks
+        def execute_agent_side_effect(*args, **kwargs):
+            agent_name = kwargs.get('agent_name', '')
+            if agent_name == 'html-to-markdown-converter':
+                return {'success': True, 'result': 'Converted content'}
+            elif agent_name == 'teams-support-analysis-agent':
+                return {'success': True, 'result': 'Normalisierte Beschreibung\n\n---\nOriginale E-Mail:\n\nTest'}
+            elif agent_name == 'markdown-to-html-converter':
+                return {'success': True, 'result': '<p>HTML content</p>'}
+            return {'success': False}
+        
+        mock_execute.side_effect = execute_agent_side_effect
+        
+        mock_search.return_value = {
+            'success': True,
+            'results': [
+                {
+                    'id': str(self.item.id),
+                    'metadata': {
+                        'title': self.item.title,
+                        'description': self.item.description,
+                        'section': self.section.name,
+                        'status': self.item.status
+                    },
+                    'distance': 0.1
+                }
+            ]
+        }
+        mock_send.return_value = {'success': True}
+        mock_mark_read.return_value = {'success': True}
+        mock_move.return_value = {'success': True}
+        
+        # Create test message with sender name
+        message = {
+            'id': 'msg-456',
+            'subject': 'Test Mail from New User',
+            'body': {
+                'content': '<p>Test content from new user</p>'
+            },
+            'from': {
+                'emailAddress': {
+                    'address': 'jane.smith@example.com',
+                    'name': 'Jane Smith'
+                }
+            }
+        }
+        
+        service = MailProcessingService(self.settings)
+        result = service.process_mail(message)
+        
+        self.assertTrue(result['success'])
+        self.assertIn('task_id', result)
+        
+        # Verify task was created with requester having proper name
+        task = Task.objects.get(id=result['task_id'])
+        self.assertIsNotNone(task.requester)
+        self.assertEqual(task.requester.email, 'jane.smith@example.com')
+        self.assertEqual(task.requester.username, 'jane.smith@example.com')
+        self.assertEqual(task.requester.first_name, 'Jane')
+        self.assertEqual(task.requester.last_name, 'Smith')
+        self.assertEqual(task.requester.role, 'user')
+        self.assertTrue(task.requester.is_active)
     
     @patch('core.services.kigate_service.KiGateService.execute_agent')
     @patch('core.services.weaviate_sync_service.WeaviateItemSyncService.search_similar')

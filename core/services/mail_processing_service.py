@@ -546,7 +546,8 @@ Analyze this email and create a normalized task description in Markdown format:
         mail_subject: str,
         mail_body_markdown: str,
         item_id: str,
-        sender_email: str
+        sender_email: str,
+        sender_name: str = ''
     ) -> Optional[Dict[str, Any]]:
         """
         Create a new task from email content
@@ -556,6 +557,7 @@ Analyze this email and create a normalized task description in Markdown format:
             mail_body_markdown: Email body in Markdown
             item_id: UUID of the Item to attach task to
             sender_email: Email address of the sender
+            sender_name: Full name of the sender (optional)
             
         Returns:
             Dictionary with task info, or None on failure
@@ -573,13 +575,27 @@ Analyze this email and create a normalized task description in Markdown format:
             except User.DoesNotExist:
                 # Create new user with email as username
                 logger.info(f"Creating new user for email {sender_email}")
+                
+                # Extract first and last name from sender name
+                first_name = ''
+                last_name = ''
+                if sender_name:
+                    name_parts = sender_name.strip().split()
+                    if len(name_parts) >= 2:
+                        first_name = name_parts[0]
+                        last_name = ' '.join(name_parts[1:])
+                    elif len(name_parts) == 1:
+                        first_name = name_parts[0]
+                
                 requester = User.objects.create(
                     username=sender_email,
                     email=sender_email,
+                    first_name=first_name,
+                    last_name=last_name,
                     role='user',
                     is_active=True
                 )
-                logger.info(f"Created new user {requester.id} for email {sender_email}")
+                logger.info(f"Created new user {requester.id} for email {sender_email} ({first_name} {last_name})")
             
             # Create the task
             task = Task.objects.create(
@@ -717,8 +733,9 @@ Analyze this email and create a normalized task description in Markdown format:
             body_html = body_data.get('content', '')
             sender = message.get('from', {}).get('emailAddress', {})
             sender_email = sender.get('address', '')
+            sender_name = sender.get('name', '')
             
-            logger.info(f"Processing mail: {subject} from {sender_email}")
+            logger.info(f"Processing mail: {subject} from {sender_name} <{sender_email}>")
             
             # Step 1: Convert HTML to Markdown
             body_markdown = self.convert_html_to_markdown(body_html)
@@ -752,7 +769,8 @@ Analyze this email and create a normalized task description in Markdown format:
                 mail_subject=subject,
                 mail_body_markdown=normalized_description,
                 item_id=item_id,
-                sender_email=sender_email
+                sender_email=sender_email,
+                sender_name=sender_name
             )
             
             if not task_info:
