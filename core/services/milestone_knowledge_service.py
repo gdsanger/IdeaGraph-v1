@@ -111,6 +111,11 @@ class MilestoneKnowledgeService:
     - Syncing milestone knowledge to Weaviate
     """
     
+    # RAG search configuration constants
+    RAG_SIMILARITY_THRESHOLD = 0.5  # Minimum similarity score for RAG results
+    RAG_SEARCH_MULTIPLIER = 3  # Multiplier for initial search to filter different types
+    RAG_QUERY_LENGTH = 1000  # Maximum characters to use from content for RAG query
+    
     def __init__(self, settings=None):
         """
         Initialize MilestoneKnowledgeService with settings
@@ -176,7 +181,7 @@ class MilestoneKnowledgeService:
                 # Search for similar objects using near_text
                 response = collection.query.near_text(
                     query=query_text,
-                    limit=max_results * 3,  # Get extra to filter different types
+                    limit=max_results * self.RAG_SEARCH_MULTIPLIER,  # Get extra to filter different types
                     return_metadata=MetadataQuery(distance=True)
                 )
                 
@@ -190,7 +195,7 @@ class MilestoneKnowledgeService:
                     similarity = max(0, 1 - distance)
                     
                     # Only include results with reasonable similarity
-                    if similarity < 0.5:
+                    if similarity < self.RAG_SIMILARITY_THRESHOLD:
                         continue
                     
                     similar_objects.append({
@@ -381,7 +386,7 @@ class MilestoneKnowledgeService:
             rag_context = []
             try:
                 similar_objects = self.search_similar_context(
-                    query_text=context_obj.content[:1000],  # Use first 1000 chars for search
+                    query_text=context_obj.content[:self.RAG_QUERY_LENGTH],  # Use first N chars for search
                     milestone=context_obj.milestone,
                     max_results=3
                 )
@@ -525,7 +530,7 @@ class MilestoneKnowledgeService:
             rag_context = []
             try:
                 similar_objects = self.search_similar_context(
-                    query_text=full_context[:1000],  # Use first 1000 chars for search
+                    query_text=full_context[:self.RAG_QUERY_LENGTH],  # Use first N chars for search
                     milestone=milestone,
                     max_results=3
                 )
