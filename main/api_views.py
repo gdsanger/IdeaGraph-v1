@@ -5384,8 +5384,8 @@ def create_teams_channel(request, item_id):
         # Create the channel
         try:
             result = teams_service.create_channel_for_item(
-                item_title=item.title,
-                item_description=item.description
+                item_title=item.title
+                # Note: Not passing item_description to avoid exceeding 1024 character limit
             )
             
             if result.get('success'):

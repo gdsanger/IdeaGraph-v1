@@ -94,7 +94,7 @@ class TeamsService:
         
         Args:
             display_name: Name of the channel
-            description: Optional description of the channel
+            description: Optional description of the channel (max 1024 characters)
             
         Returns:
             Dict with success status and channel details including channel_id
@@ -104,9 +104,15 @@ class TeamsService:
         """
         endpoint = f"teams/{self.team_id}/channels"
         
+        # Ensure description doesn't exceed Microsoft's 1024 character limit
+        channel_description = description or f"Channel für {display_name}"
+        if len(channel_description) > 1024:
+            logger.warning(f"Channel description exceeds 1024 characters, truncating from {len(channel_description)} chars")
+            channel_description = channel_description[:1021] + "..."
+        
         channel_data = {
             "displayName": display_name,
-            "description": description or f"Channel für {display_name}",
+            "description": channel_description,
             "membershipType": "standard"  # standard channels are accessible to all team members
         }
         
@@ -253,7 +259,7 @@ class TeamsService:
         
         Args:
             item_title: Title of the item (used as channel name)
-            item_description: Description of the item
+            item_description: Description of the item (not used for channel description to avoid length limits)
             
         Returns:
             Dict with success status and channel details
@@ -263,10 +269,11 @@ class TeamsService:
         """
         try:
             # Step 1: Create the channel
+            # Use a simple, short description to avoid Microsoft's 1024 character limit
             logger.info(f"Creating Teams channel for item: {item_title}")
             channel_result = self.create_channel(
                 display_name=item_title,
-                description=item_description or f"Channel für Item: {item_title}"
+                description=f"Projekt Channel für {item_title}"
             )
             
             if not channel_result.get('success'):
