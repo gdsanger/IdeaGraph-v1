@@ -771,3 +771,168 @@ class MessageProcessingServiceRAGTestCase(TestCase):
         formatted = service._format_rag_context([])
         
         self.assertEqual(formatted, "")
+
+
+class TeamsMessageDeduplicationTestCase(TestCase):
+    """Test suite for ensuring messages are not processed multiple times"""
+    
+    def setUp(self):
+        """Set up test data"""
+        self.user = AppUser.objects.create(
+            username='testuser',
+            email='test@example.com',
+            role='user',
+            is_active=True
+        )
+        
+        self.section = Section.objects.create(name='Test Section')
+        
+        self.settings = Settings.objects.create(
+            teams_enabled=True,
+            teams_team_id='test-team-id',
+            graph_api_enabled=True,
+            tenant_id='test-tenant-id',
+            client_id='test-client-id',
+            client_secret='test-client-secret',
+            default_mail_sender='bot@example.com',
+            kigate_api_enabled=True,
+            kigate_api_base_url='http://localhost:8000',
+            kigate_api_token='test-token'
+        )
+        
+        self.item = Item.objects.create(
+            title='Test Item',
+            description='Test description',
+            section=self.section,
+            created_by=self.user,
+            channel_id='test-channel-id'
+        )
+    
+    @patch('core.services.teams_integration_service.WeaviateConversationSyncService')
+    @patch('core.services.teams_integration_service.GraphResponseService')
+    @patch('core.services.message_processing_service.KiGateService')
+    @patch('core.services.teams_listener_service.GraphService')
+    def test_message_processed_only_once(self, mock_graph_service, mock_kigate_service, 
+                                        mock_response_service, mock_weaviate_service):
+        """Test that a message is only processed once even if polled multiple times"""
+        
+        # Mock graph service response with the same message
+        mock_graph_instance = mock_graph_service.return_value
+        mock_graph_instance.get_channel_messages.return_value = {
+            'success': True,
+            'messages': [
+                {
+                    'id': 'msg-unique-123',
+                    'from': {
+                        'user': {
+                            'displayName': 'Test User',
+                            'userPrincipalName': 'testuser@example.com'
+                        }
+                    },
+                    'body': {'content': 'This is a test message', 'contentType': 'text'}
+                }
+            ]
+        }
+        
+        # Mock KiGate response
+        mock_kigate_instance = mock_kigate_service.return_value
+        mock_kigate_instance.execute_agent.return_value = {
+            'success': True,
+            'result': 'This is just informational. No task needed.'
+        }
+        
+        # Mock response service
+        mock_response_instance = mock_response_service.return_value
+        mock_response_instance.post_response.return_value = {'success': True}
+        
+        # Mock Weaviate service
+        mock_weaviate_instance = mock_weaviate_service.return_value
+        mock_weaviate_instance.sync_conversation.return_value = {'success': True}
+        
+        # First poll - should process the message and create a task
+        integration_service = TeamsIntegrationService(settings=self.settings)
+        result1 = integration_service.poll_and_process()
+        
+        self.assertTrue(result1['success'])
+        self.assertEqual(result1['messages_found'], 1)
+        self.assertEqual(result1['messages_processed'], 1)
+        self.assertEqual(result1['tasks_created'], 1)
+        
+        # Verify task was created with message_id
+        tasks = Task.objects.filter(message_id='msg-unique-123')
+        self.assertEqual(tasks.count(), 1)
+        task = tasks.first()
+        self.assertEqual(task.message_id, 'msg-unique-123')
+        self.assertIn('This is a test message', task.description)
+        
+        # Second poll - should skip the message because task already exists
+        result2 = integration_service.poll_and_process()
+        
+        self.assertTrue(result2['success'])
+        self.assertEqual(result2['messages_found'], 0)  # Message filtered out
+        self.assertEqual(result2['messages_processed'], 0)
+        
+        # Verify no duplicate task was created
+        tasks = Task.objects.filter(message_id='msg-unique-123')
+        self.assertEqual(tasks.count(), 1, "Should still only have one task")
+        
+        # Verify KiGate was only called once (first poll)
+        self.assertEqual(mock_kigate_instance.execute_agent.call_count, 1)
+    
+    @patch('core.services.teams_integration_service.WeaviateConversationSyncService')
+    @patch('core.services.teams_integration_service.GraphResponseService')
+    @patch('core.services.message_processing_service.KiGateService')
+    @patch('core.services.teams_listener_service.GraphService')
+    def test_all_messages_create_tasks(self, mock_graph_service, mock_kigate_service,
+                                       mock_response_service, mock_weaviate_service):
+        """Test that all processed messages create tasks, even informational ones"""
+        
+        # Mock graph service response
+        mock_graph_instance = mock_graph_service.return_value
+        mock_graph_instance.get_channel_messages.return_value = {
+            'success': True,
+            'messages': [
+                {
+                    'id': 'msg-info-only',
+                    'from': {
+                        'user': {
+                            'displayName': 'Test User',
+                            'userPrincipalName': 'testuser@example.com'
+                        }
+                    },
+                    'body': {'content': 'Just an FYI message', 'contentType': 'text'}
+                }
+            ]
+        }
+        
+        # Mock KiGate response saying no task needed
+        mock_kigate_instance = mock_kigate_service.return_value
+        mock_kigate_instance.execute_agent.return_value = {
+            'success': True,
+            'result': 'No task needed. This is just information.'
+        }
+        
+        # Mock response service
+        mock_response_instance = mock_response_service.return_value
+        mock_response_instance.post_response.return_value = {'success': True}
+        
+        # Mock Weaviate service
+        mock_weaviate_instance = mock_weaviate_service.return_value
+        mock_weaviate_instance.sync_conversation.return_value = {'success': True}
+        
+        # Process the message
+        integration_service = TeamsIntegrationService(settings=self.settings)
+        result = integration_service.poll_and_process()
+        
+        self.assertTrue(result['success'])
+        self.assertEqual(result['messages_found'], 1)
+        self.assertEqual(result['messages_processed'], 1)
+        
+        # Verify task was created even though AI said "no task needed"
+        self.assertEqual(result['tasks_created'], 1)
+        tasks = Task.objects.filter(message_id='msg-info-only')
+        self.assertEqual(tasks.count(), 1, "Task should be created for all messages")
+        
+        # Verify the task has the correct message_id for deduplication
+        task = tasks.first()
+        self.assertEqual(task.message_id, 'msg-info-only')

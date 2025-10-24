@@ -114,20 +114,20 @@ class TeamsIntegrationService:
             
             ai_response = analysis_result.get('ai_response', '')
             
-            # Step 2: Create task if needed
+            # Step 2: Always create task to track that message has been processed
+            # This prevents re-processing the same message on subsequent polls
             task = None
             task_url = None
-            if analysis_result.get('should_create_task'):
-                logger.info(f"Creating task for message {message.get('id')}")
-                task = self.processing_service.create_task_from_analysis(
-                    item, message, analysis_result
-                )
-                if task:
-                    result['task_created'] = True
-                    result['task_id'] = str(task.id)
-                    # Build task URL
-                    task_url = f"/tasks/{task.id}"
-                    logger.info(f"Task created: {task.id}")
+            logger.info(f"Creating task for message {message.get('id')}")
+            task = self.processing_service.create_task_from_analysis(
+                item, message, analysis_result
+            )
+            if task:
+                result['task_created'] = True
+                result['task_id'] = str(task.id)
+                # Build task URL
+                task_url = f"/tasks/{task.id}"
+                logger.info(f"Task created: {task.id}")
             
             # Step 3: Post response to Teams
             try:
