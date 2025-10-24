@@ -217,6 +217,106 @@ class TeamsListenerServiceTestCase(TestCase):
         self.assertEqual(messages[0]['from']['user']['userPrincipalName'], 'user@isartec.de')
     
     @patch('core.services.teams_listener_service.GraphService')
+    def test_get_new_messages_filters_bot_upn_with_whitespace(self, mock_graph_service):
+        """Test that UPN comparison handles whitespace correctly"""
+        # Mock graph service response with bot message that has whitespace in UPN
+        mock_instance = mock_graph_service.return_value
+        mock_instance.get_channel_messages.return_value = {
+            'success': True,
+            'messages': [
+                {
+                    'id': 'msg-1',
+                    'from': {
+                        'user': {
+                            'displayName': 'Bot User',
+                            'userPrincipalName': ' bot@example.com '  # UPN with leading/trailing whitespace
+                        }
+                    },
+                    'body': {'content': 'Bot message', 'contentType': 'text'}
+                },
+                {
+                    'id': 'msg-2',
+                    'from': {
+                        'user': {
+                            'displayName': 'Real User',
+                            'userPrincipalName': 'user@example.com'
+                        }
+                    },
+                    'body': {'content': 'User message', 'contentType': 'text'}
+                }
+            ]
+        }
+        
+        service = TeamsListenerService(settings=self.settings)
+        messages = service.get_new_messages_for_item(self.item)
+        
+        # Should filter out the bot message even with whitespace
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0]['id'], 'msg-2')
+    
+    @patch('core.services.teams_listener_service.GraphService')
+    def test_get_new_messages_filters_bot_mixed_case(self, mock_graph_service):
+        """Test that UPN comparison is truly case-insensitive"""
+        # Update settings to use mixed case
+        self.settings.default_mail_sender = 'Bot@Example.Com'
+        self.settings.save()
+        
+        # Mock graph service response with different case variations
+        mock_instance = mock_graph_service.return_value
+        mock_instance.get_channel_messages.return_value = {
+            'success': True,
+            'messages': [
+                {
+                    'id': 'msg-1',
+                    'from': {
+                        'user': {
+                            'displayName': 'Bot',
+                            'userPrincipalName': 'bot@example.com'  # All lowercase
+                        }
+                    },
+                    'body': {'content': 'Bot message 1', 'contentType': 'text'}
+                },
+                {
+                    'id': 'msg-2',
+                    'from': {
+                        'user': {
+                            'displayName': 'Bot',
+                            'userPrincipalName': 'BOT@EXAMPLE.COM'  # All uppercase
+                        }
+                    },
+                    'body': {'content': 'Bot message 2', 'contentType': 'text'}
+                },
+                {
+                    'id': 'msg-3',
+                    'from': {
+                        'user': {
+                            'displayName': 'Bot',
+                            'userPrincipalName': 'BoT@ExAmPlE.cOm'  # Random mixed case
+                        }
+                    },
+                    'body': {'content': 'Bot message 3', 'contentType': 'text'}
+                },
+                {
+                    'id': 'msg-4',
+                    'from': {
+                        'user': {
+                            'displayName': 'Real User',
+                            'userPrincipalName': 'user@example.com'
+                        }
+                    },
+                    'body': {'content': 'User message', 'contentType': 'text'}
+                }
+            ]
+        }
+        
+        service = TeamsListenerService(settings=self.settings)
+        messages = service.get_new_messages_for_item(self.item)
+        
+        # Should filter out all bot messages regardless of case
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0]['id'], 'msg-4')
+    
+    @patch('core.services.teams_listener_service.GraphService')
     def test_get_new_messages_filters_existing_tasks(self, mock_graph_service):
         """Test that messages with existing tasks are filtered out"""
         # Create task with message_id
@@ -1082,6 +1182,58 @@ class MessageProcessingSelfReplyPreventionTestCase(TestCase):
         self.assertFalse(result['success'])
         self.assertIn('bot itself', result['error'])
         self.assertIn('infinite loop', result['error'])
+        
+        # KiGate should NOT have been called
+        mock_kigate_service.return_value.execute_agent.assert_not_called()
+    
+    @patch('core.services.message_processing_service.KiGateService')
+    def test_rejects_bot_messages_with_whitespace(self, mock_kigate_service):
+        """Test that analyze_message rejects bot messages even with whitespace in UPN"""
+        service = MessageProcessingService(settings=self.settings)
+        
+        # Create message from bot with whitespace in UPN
+        message = {
+            'id': 'msg-from-bot-whitespace',
+            'from': {
+                'user': {
+                    'displayName': 'IdeaGraph Bot',
+                    'userPrincipalName': ' bot@example.com '  # Whitespace around UPN
+                }
+            },
+            'body': {'content': 'Bot message', 'contentType': 'text'}
+        }
+        
+        result = service.analyze_message(message, self.item)
+        
+        # Should reject the message
+        self.assertFalse(result['success'])
+        self.assertIn('bot itself', result['error'])
+        
+        # KiGate should NOT have been called
+        mock_kigate_service.return_value.execute_agent.assert_not_called()
+    
+    @patch('core.services.message_processing_service.KiGateService')
+    def test_rejects_bot_messages_case_insensitive(self, mock_kigate_service):
+        """Test that analyze_message rejects bot messages with different casing"""
+        service = MessageProcessingService(settings=self.settings)
+        
+        # Create message from bot with different casing
+        message = {
+            'id': 'msg-from-bot-case',
+            'from': {
+                'user': {
+                    'displayName': 'IdeaGraph Bot',
+                    'userPrincipalName': 'BOT@EXAMPLE.COM'  # All uppercase
+                }
+            },
+            'body': {'content': 'Bot message', 'contentType': 'text'}
+        }
+        
+        result = service.analyze_message(message, self.item)
+        
+        # Should reject the message
+        self.assertFalse(result['success'])
+        self.assertIn('bot itself', result['error'])
         
         # KiGate should NOT have been called
         mock_kigate_service.return_value.execute_agent.assert_not_called()

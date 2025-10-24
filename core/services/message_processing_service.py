@@ -295,13 +295,17 @@ class MessageProcessingService:
         
         # CRITICAL: Double-check we're not analyzing our own messages
         # This should have been filtered earlier, but add defensive check
+        # Normalize both values: strip whitespace and convert to lowercase
         bot_upn = self.settings.default_mail_sender
-        if bot_upn and sender_upn.lower() == bot_upn.lower():
-            logger.error(f"CRITICAL: Attempted to analyze message from bot itself! Message ID: {message.get('id')}, Sender: {sender_upn}")
-            return {
-                'success': False,
-                'error': 'Cannot analyze message from bot itself (infinite loop prevention)'
-            }
+        if bot_upn and sender_upn:
+            bot_upn_normalized = bot_upn.strip().lower()
+            sender_upn_normalized = sender_upn.strip().lower()
+            if sender_upn_normalized == bot_upn_normalized:
+                logger.error(f"CRITICAL: Attempted to analyze message from bot itself! Message ID: {message.get('id')}, Sender: {sender_upn}")
+                return {
+                    'success': False,
+                    'error': 'Cannot analyze message from bot itself (infinite loop prevention)'
+                }
         
         # Search for similar context using RAG
         search_query = f"{item.title}\n{content}"
