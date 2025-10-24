@@ -5428,7 +5428,7 @@ def poll_teams_messages(request):
     POST /api/teams/poll
     """
     # Check authentication
-    user = get_request_user(request)
+    user = get_user_from_request(request)
     if not user:
         return JsonResponse({'error': 'Authentication required'}, status=401)
     
@@ -5437,6 +5437,8 @@ def poll_teams_messages(request):
         return JsonResponse({'error': 'Admin access required'}, status=403)
     
     try:
+        from .models import Settings
+        
         settings = Settings.objects.first()
         if not settings:
             return JsonResponse({'error': 'Settings not configured'}, status=500)
@@ -5481,11 +5483,13 @@ def teams_integration_status(request):
     GET /api/teams/status
     """
     # Check authentication
-    user = get_request_user(request)
+    user = get_user_from_request(request)
     if not user:
         return JsonResponse({'error': 'Authentication required'}, status=401)
     
     try:
+        from .models import Settings, Item, Task
+        
         settings = Settings.objects.first()
         if not settings:
             return JsonResponse({'error': 'Settings not configured'}, status=500)
