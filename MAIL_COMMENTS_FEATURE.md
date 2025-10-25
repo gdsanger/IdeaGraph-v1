@@ -15,7 +15,7 @@ This feature implements automatic comment creation for tasks when processing inc
   - `comment_text`: Comment content (Markdown supported)
   - `author_user`: User object for the author (optional)
   - `author_name`: Name to display if author_user is None
-  - `source`: 'user' or 'agent'
+  - `source`: 'user' or 'agent' (must match TaskComment.SOURCE_CHOICES values)
 - Returns: `True` if successful, `False` otherwise
 
 #### Updated Method: `send_confirmation_email()`
@@ -36,6 +36,7 @@ Two new steps have been added:
   - Original email body in Markdown
 - Author: The user who sent the email (identified by email address)
 - Source: 'user'
+- **Note**: If the sender's email doesn't match any existing user in the system, comment creation is skipped and logged as a warning. The task is still created successfully.
 
 **Step 6a: Add Confirmation Email Comment**
 - After sending confirmation email, a comment is added with the confirmation content
@@ -107,7 +108,7 @@ Diese E-Mail wurde automatisch von IdeaGraph generiert.
 
 ## Error Handling
 
-- If user is not found when adding original mail comment, the error is logged but processing continues
+- If user with sender's email address is not found when adding original mail comment, the error is logged as a warning but processing continues
 - If adding either comment fails, the error is logged but processing continues
 - Comments are non-critical - task creation and email sending will succeed even if comment creation fails
 
