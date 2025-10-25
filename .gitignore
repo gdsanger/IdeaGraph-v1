@@ -65,6 +65,9 @@ db.sqlite3
 db.sqlite3-journal
 staticfiles/
 
+# Media files (user uploads)
+media/task_files/
+
 # ChromaDB local storage
 chroma_db/
 
