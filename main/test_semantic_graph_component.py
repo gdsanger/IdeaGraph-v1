@@ -12,21 +12,24 @@ from django.conf import settings
 class SemanticGraphComponentTest(TestCase):
     """Test the new modular semantic graph component"""
     
+    @classmethod
+    def setUpClass(cls):
+        """Set up class-level fixtures"""
+        super().setUpClass()
+        cls.base_path = os.path.join(settings.BASE_DIR, 'main', 'static', 'main', 'js', 'semantic-graph')
+    
     def test_component_structure_exists(self):
         """Test that component files exist in the correct locations"""
-        base_path = os.path.join(settings.BASE_DIR, 'main', 'static', 'main', 'js', 'semantic-graph')
-        
         # Check that all component files exist
-        self.assertTrue(os.path.exists(os.path.join(base_path, 'SemanticGraph.js')))
-        self.assertTrue(os.path.exists(os.path.join(base_path, 'useSemanticGraphData.js')))
-        self.assertTrue(os.path.exists(os.path.join(base_path, 'GraphNodeTooltip.js')))
-        self.assertTrue(os.path.exists(os.path.join(base_path, 'GraphToolbar.js')))
-        self.assertTrue(os.path.exists(os.path.join(base_path, 'README.md')))
+        self.assertTrue(os.path.exists(os.path.join(self.base_path, 'SemanticGraph.js')))
+        self.assertTrue(os.path.exists(os.path.join(self.base_path, 'useSemanticGraphData.js')))
+        self.assertTrue(os.path.exists(os.path.join(self.base_path, 'GraphNodeTooltip.js')))
+        self.assertTrue(os.path.exists(os.path.join(self.base_path, 'GraphToolbar.js')))
+        self.assertTrue(os.path.exists(os.path.join(self.base_path, 'README.md')))
     
     def test_semantic_graph_js_has_correct_class_name(self):
         """Test that SemanticGraph.js defines the SemanticGraph class"""
-        base_path = os.path.join(settings.BASE_DIR, 'main', 'static', 'main', 'js', 'semantic-graph')
-        file_path = os.path.join(base_path, 'SemanticGraph.js')
+        file_path = os.path.join(self.base_path, 'SemanticGraph.js')
         
         with open(file_path, 'r') as f:
             content = f.read()
@@ -35,8 +38,7 @@ class SemanticGraphComponentTest(TestCase):
     
     def test_data_manager_has_load_method(self):
         """Test that useSemanticGraphData.js defines SemanticGraphDataManager with load method"""
-        base_path = os.path.join(settings.BASE_DIR, 'main', 'static', 'main', 'js', 'semantic-graph')
-        file_path = os.path.join(base_path, 'useSemanticGraphData.js')
+        file_path = os.path.join(self.base_path, 'useSemanticGraphData.js')
         
         with open(file_path, 'r') as f:
             content = f.read()
@@ -45,8 +47,7 @@ class SemanticGraphComponentTest(TestCase):
     
     def test_tooltip_has_show_hide_methods(self):
         """Test that GraphNodeTooltip.js has show and hide methods"""
-        base_path = os.path.join(settings.BASE_DIR, 'main', 'static', 'main', 'js', 'semantic-graph')
-        file_path = os.path.join(base_path, 'GraphNodeTooltip.js')
+        file_path = os.path.join(self.base_path, 'GraphNodeTooltip.js')
         
         with open(file_path, 'r') as f:
             content = f.read()
@@ -56,8 +57,7 @@ class SemanticGraphComponentTest(TestCase):
     
     def test_toolbar_has_event_handlers(self):
         """Test that GraphToolbar.js has event handling methods"""
-        base_path = os.path.join(settings.BASE_DIR, 'main', 'static', 'main', 'js', 'semantic-graph')
-        file_path = os.path.join(base_path, 'GraphToolbar.js')
+        file_path = os.path.join(self.base_path, 'GraphToolbar.js')
         
         with open(file_path, 'r') as f:
             content = f.read()
@@ -69,8 +69,7 @@ class SemanticGraphComponentTest(TestCase):
     
     def test_readme_exists_and_has_content(self):
         """Test that README.md exists and has documentation"""
-        base_path = os.path.join(settings.BASE_DIR, 'main', 'static', 'main', 'js', 'semantic-graph')
-        file_path = os.path.join(base_path, 'README.md')
+        file_path = os.path.join(self.base_path, 'README.md')
         
         with open(file_path, 'r') as f:
             content = f.read()
