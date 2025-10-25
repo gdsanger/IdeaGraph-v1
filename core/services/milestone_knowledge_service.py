@@ -693,11 +693,24 @@ class MilestoneKnowledgeService:
                     'dueDate': milestone.due_date.isoformat() if milestone.due_date else None,
                 }
                 
-                # Use upsert to create or update
-                collection.data.insert(
-                    properties=milestone_data,
-                    uuid=str(milestone.id)
-                )
+                # Check if object already exists
+                milestone_uuid = str(milestone.id)
+                exists = collection.data.exists(milestone_uuid)
+                
+                if exists:
+                    # Update existing object
+                    logger.info(f"Milestone {milestone.id} already exists in Weaviate, updating...")
+                    collection.data.update(
+                        uuid=milestone_uuid,
+                        properties=milestone_data
+                    )
+                else:
+                    # Insert new object
+                    logger.info(f"Milestone {milestone.id} is new, inserting into Weaviate...")
+                    collection.data.insert(
+                        properties=milestone_data,
+                        uuid=milestone_uuid
+                    )
                 
                 logger.info(f"Milestone {milestone.id} synced to Weaviate successfully")
                 
@@ -800,11 +813,24 @@ class MilestoneKnowledgeService:
                     'sourceId': context_obj.source_id if context_obj.source_id else None,
                 }
                 
-                # Use upsert to create or update
-                collection.data.insert(
-                    properties=context_data,
-                    uuid=str(context_obj.id)
-                )
+                # Check if object already exists
+                context_uuid = str(context_obj.id)
+                exists = collection.data.exists(context_uuid)
+                
+                if exists:
+                    # Update existing object
+                    logger.info(f"Context object {context_obj.id} already exists in Weaviate, updating...")
+                    collection.data.update(
+                        uuid=context_uuid,
+                        properties=context_data
+                    )
+                else:
+                    # Insert new object
+                    logger.info(f"Context object {context_obj.id} is new, inserting into Weaviate...")
+                    collection.data.insert(
+                        properties=context_data,
+                        uuid=context_uuid
+                    )
                 
                 logger.info(f"Context object {context_obj.id} synced to Weaviate successfully")
                 
