@@ -193,7 +193,8 @@ def home(request):
     ).count()
     daily_completed_tasks = Task.objects.filter(
         status='done',
-        completed_at__gte=today_start
+        completed_at__gte=today_start,
+        completed_at__isnull=False
     ).count()
     
     # Fetch weekly statistics (current week)
@@ -205,7 +206,8 @@ def home(request):
     ).count()
     weekly_completed_tasks = Task.objects.filter(
         status='done',
-        completed_at__gte=week_start
+        completed_at__gte=week_start,
+        completed_at__isnull=False
     ).count()
     
     context = {
