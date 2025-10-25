@@ -7,6 +7,7 @@ Files are stored in SharePoint under: IdeaGraph/{normalized_item_title}/{task_uu
 """
 
 import logging
+import os
 import re
 from typing import Optional, Dict, Any, List
 from django.db import transaction
@@ -85,19 +86,21 @@ class TaskFileService:
     
     def normalize_folder_name(self, name: str) -> str:
         """
-        Normalize folder name for SharePoint
+        Normalize folder name for SharePoint and local filesystem
         
-        Removes or replaces special characters that are not allowed in SharePoint folder names.
+        Removes or replaces special characters that are not allowed in SharePoint folder names
+        or that could cause issues in local filesystems.
         
         Args:
             name: Original name
             
         Returns:
-            str: Normalized name safe for SharePoint
+            str: Normalized name safe for SharePoint and local filesystem
         """
         # SharePoint doesn't allow these characters: ~ " # % & * : < > ? / \ { | }
+        # Also remove @ and ! for better compatibility
         # Replace problematic characters with underscores
-        name = re.sub(r'[~"#%&*:<>?/\\{|}]', '_', name)
+        name = re.sub(r'[~"#%&*:<>?/\\{|}!@]', '_', name)
         
         # Remove leading/trailing dots and spaces
         name = name.strip('. ')
@@ -117,6 +120,53 @@ class TaskFileService:
             name = 'Untitled'
         
         return name
+    
+    def _save_file_locally(
+        self,
+        task,
+        file_content: bytes,
+        filename: str
+    ) -> str:
+        """
+        Save file to local filesystem
+        
+        Saves files in structure:
+        - media/task_files/{item_title}/{task_uuid}/ for tasks with items
+        - media/task_files/Tasks/{task_uuid}/ for standalone tasks
+        
+        Args:
+            task: Task object
+            file_content: File content as bytes
+            filename: Original filename
+            
+        Returns:
+            str: Local file path
+        """
+        # Determine local folder path
+        if task.item:
+            # Task belongs to an item: media/task_files/{item_title}/{task_uuid}/
+            normalized_item_name = self.normalize_folder_name(task.item.title)
+            folder_path = os.path.join('media', 'task_files', normalized_item_name, str(task.id))
+        else:
+            # Standalone task: media/task_files/Tasks/{task_uuid}/
+            folder_path = os.path.join('media', 'task_files', 'Tasks', str(task.id))
+        
+        # Create the directory structure
+        # Get absolute path from project root
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        full_folder_path = os.path.join(base_dir, folder_path)
+        os.makedirs(full_folder_path, exist_ok=True)
+        
+        # Save the file
+        file_path = os.path.join(folder_path, filename)
+        full_file_path = os.path.join(base_dir, file_path)
+        
+        with open(full_file_path, 'wb') as f:
+            f.write(file_content)
+        
+        logger.info(f"Saved file locally to: {file_path}")
+        
+        return file_path
     
     def upload_file(
         self,
@@ -159,8 +209,16 @@ class TaskFileService:
         logger.debug(f"Task ID: {task.id}, Task title: {task.title}")
         logger.debug(f"Content type: {content_type}")
         
+        # Save file locally to filesystem (always do this)
+        local_file_path = self._save_file_locally(task, file_content, filename)
+        logger.info(f"File saved locally to: {local_file_path}")
+        
+        # Initialize SharePoint variables
+        file_id = ''
+        sharepoint_url = ''
+        
         try:
-            # Upload to SharePoint
+            # Try to upload to SharePoint if enabled
             graph_service = self._get_graph_service()
             logger.debug(f"Graph service initialized with base URL: {graph_service.base_url}")
             logger.debug(f"SharePoint site ID: {graph_service.sharepoint_site_id}")
@@ -171,16 +229,20 @@ class TaskFileService:
                 content=file_content
             )
             
-            if not upload_result['success']:
-                logger.error(f"SharePoint upload failed for {filename}")
-                logger.error(f"Upload result: {upload_result}")
-                raise TaskFileServiceError("Failed to upload file to SharePoint")
-            
-            # Extract file metadata from upload result
-            file_id = upload_result.get('file_id', '')
-            metadata = upload_result.get('metadata', {})
-            sharepoint_url = metadata.get('webUrl', '')
-            
+            if upload_result['success']:
+                # Extract file metadata from upload result
+                file_id = upload_result.get('file_id', '')
+                metadata = upload_result.get('metadata', {})
+                sharepoint_url = metadata.get('webUrl', '')
+                logger.info(f"File uploaded to SharePoint: {sharepoint_url}")
+            else:
+                logger.warning(f"SharePoint upload failed for {filename}, but file is saved locally")
+                
+        except (GraphServiceError, TaskFileServiceError) as e:
+            # Log SharePoint errors but continue since we have local copy
+            logger.warning(f"SharePoint upload failed: {str(e)}, file is saved locally at {local_file_path}")
+        
+        try:
             # Save file record in database
             from main.models import TaskFile
             
@@ -189,6 +251,7 @@ class TaskFileService:
                     task=task,
                     filename=filename,
                     file_size=file_size,
+                    file_path=local_file_path,
                     sharepoint_file_id=file_id,
                     sharepoint_url=sharepoint_url,
                     content_type=content_type,
@@ -213,18 +276,23 @@ class TaskFileService:
                 'file_id': str(task_file.id),
                 'filename': filename,
                 'file_size': file_size,
+                'file_path': local_file_path,
                 'sharepoint_url': sharepoint_url,
                 'weaviate_synced': task_file.weaviate_synced,
                 'message': 'File uploaded successfully'
             }
             
-        except GraphServiceError as e:
-            logger.error(f"Graph service error during upload: {e.message}")
-            logger.error(f"Status code: {e.status_code}")
-            raise TaskFileServiceError(f"SharePoint upload failed: {e.message}", details=e.details)
-        
         except Exception as e:
-            logger.error(f"Unexpected error during file upload: {str(e)}")
+            logger.error(f"Error saving file record to database: {str(e)}")
+            # Try to clean up local file if database save fails
+            try:
+                base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                full_file_path = os.path.join(base_dir, local_file_path)
+                if os.path.exists(full_file_path):
+                    os.remove(full_file_path)
+                    logger.info(f"Cleaned up local file after database error: {full_file_path}")
+            except Exception as cleanup_error:
+                logger.error(f"Failed to clean up local file: {str(cleanup_error)}")
             raise TaskFileServiceError("File upload failed", details=str(e))
     
     def _sync_to_weaviate(
@@ -362,6 +430,17 @@ class TaskFileService:
                         logger.warning(f"Failed to delete file from SharePoint: {delete_result.get('error')}")
                 except GraphServiceError as e:
                     logger.warning(f"SharePoint deletion failed: {e.message}")
+            
+            # Delete from local filesystem
+            if task_file.file_path:
+                try:
+                    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                    full_file_path = os.path.join(base_dir, task_file.file_path)
+                    if os.path.exists(full_file_path):
+                        os.remove(full_file_path)
+                        logger.info(f"Deleted local file: {full_file_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete local file: {str(e)}")
             
             # Delete from database
             filename = task_file.filename
