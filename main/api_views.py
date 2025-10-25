@@ -5236,8 +5236,7 @@ Format the output as a standard CHANGELOG.md file.
             logger.error(f'KiGate service error: {str(e)}')
             return JsonResponse({
                 'success': False,
-                'error': 'Failed to generate changelog using AI',
-                'details': str(e)
+                'error': 'Failed to generate changelog using AI'
             }, status=500)
         
         # Save changelog to milestone
@@ -5246,7 +5245,9 @@ Format the output as a standard CHANGELOG.md file.
         
         # Create changelog file
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"CHANGELOG_{milestone_name.replace(' ', '_')}_{timestamp}.md"
+        # Sanitize milestone name for safe filename
+        safe_milestone_name = ''.join(c if c.isalnum() or c in ('_', '-') else '_' for c in milestone_name)
+        filename = f"CHANGELOG_{safe_milestone_name}_{timestamp}.md"
         file_content = changelog_content.encode('utf-8')
         file_size = len(file_content)
         
@@ -5263,7 +5264,9 @@ Format the output as a standard CHANGELOG.md file.
         # For now, we'll store it as a temporary approach
         files_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'media', 'milestone_files')
         os.makedirs(files_dir, exist_ok=True)
-        file_path = os.path.join(files_dir, f"{milestone_file.id}_{filename}")
+        # Use milestone_file.id for secure filename
+        safe_filename = f"{milestone_file.id}.md"
+        file_path = os.path.join(files_dir, safe_filename)
         
         with open(file_path, 'wb') as f:
             f.write(file_content)
@@ -5322,8 +5325,7 @@ Format the output as a standard CHANGELOG.md file.
         logger.error(f'Error generating changelog: {str(e)}', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': 'Failed to generate changelog',
-            'details': str(e)
+            'error': 'Failed to generate changelog'
         }, status=500)
 
 
