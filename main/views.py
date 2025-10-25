@@ -5,8 +5,27 @@ from django.core.exceptions import ValidationError
 from .auth_utils import validate_password
 from .models import Tag, Settings, Section, User, Item, Task, Client, Milestone
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_date_string(date_string):
+    """
+    Parse a date string in ISO format (YYYY-MM-DD) to a date object.
+    
+    Args:
+        date_string: Date string in YYYY-MM-DD format
+        
+    Returns:
+        date object if parsing succeeds, or None if date_string is empty
+        
+    Raises:
+        ValueError: If date string is not empty but has invalid format
+    """
+    if not date_string:
+        return None
+    return datetime.strptime(date_string, '%Y-%m-%d').date()
 
 
 def _separate_tag_values(tag_values):
@@ -1827,11 +1846,22 @@ def milestone_create(request, item_id):
             messages.error(request, 'Due date is required.')
         else:
             try:
+                # Parse due_date string to date object
+                try:
+                    due_date_obj = _parse_date_string(due_date)
+                except ValueError:
+                    messages.error(request, 'Invalid date format. Please use YYYY-MM-DD format.')
+                    context = {
+                        'item': item,
+                        'status_choices': Milestone.STATUS_CHOICES,
+                    }
+                    return render(request, 'main/milestones/form.html', context)
+                
                 # Create milestone
                 milestone = Milestone(
                     name=name,
                     description=description,
-                    due_date=due_date,
+                    due_date=due_date_obj,
                     status=status,
                     item=item,
                     summary=summary,
@@ -1891,9 +1921,21 @@ def milestone_edit(request, milestone_id):
             messages.error(request, 'Due date is required.')
         else:
             try:
+                # Parse due_date string to date object
+                try:
+                    due_date_obj = _parse_date_string(due_date)
+                except ValueError:
+                    messages.error(request, 'Invalid date format. Please use YYYY-MM-DD format.')
+                    context = {
+                        'milestone': milestone,
+                        'item': item,
+                        'status_choices': Milestone.STATUS_CHOICES,
+                    }
+                    return render(request, 'main/milestones/form.html', context)
+                
                 milestone.name = name
                 milestone.description = description
-                milestone.due_date = due_date
+                milestone.due_date = due_date_obj
                 milestone.status = status
                 milestone.changelog = changelog
                 
