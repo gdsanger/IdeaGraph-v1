@@ -400,8 +400,101 @@ class WeaviateItemSyncService:
                 details=str(e)
             )
     
+    def sync_knowledge_object(
+        self,
+        title: str,
+        content: str,
+        metadata: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Sync a generic knowledge object to Weaviate
+        
+        This method allows storing arbitrary knowledge objects (files, documents, etc.)
+        in the KnowledgeObject collection alongside Items.
+        
+        Args:
+            title: Title of the knowledge object
+            content: Text content to be stored and vectorized
+            metadata: Dictionary of additional metadata
+        
+        Returns:
+            Dictionary containing:
+                - success: bool
+                - message: str
+                - object_id: str (UUID of created object)
+        
+        Raises:
+            WeaviateItemSyncServiceError: If sync fails
+        """
+        try:
+            import uuid
+            
+            # Generate a unique ID for this knowledge object
+            object_id = str(uuid.uuid4())
+            
+            logger.info(f"Syncing knowledge object to Weaviate: {title}")
+            
+            # Prepare properties for KnowledgeObject schema
+            properties = {
+                'type': metadata.get('object_type', 'KnowledgeObject'),
+                'title': title,
+                'description': content,
+                'section': metadata.get('section', ''),
+                'owner': metadata.get('owner', ''),
+                'status': metadata.get('status', ''),
+                'createdAt': datetime.now().isoformat(),
+                'tags': metadata.get('tags', []),
+                'url': metadata.get('url', ''),
+                'parent_id': metadata.get('parent_id', ''),
+                'context_inherited': False,
+            }
+            
+            # Add custom metadata fields if provided
+            if 'task_id' in metadata:
+                properties['task_id'] = metadata['task_id']
+            if 'task_title' in metadata:
+                properties['task_title'] = metadata['task_title']
+            if 'item_id' in metadata:
+                properties['item_id'] = metadata['item_id']
+            if 'item_title' in metadata:
+                properties['item_title'] = metadata['item_title']
+            if 'filename' in metadata:
+                properties['filename'] = metadata['filename']
+            if 'file_id' in metadata:
+                properties['file_id'] = metadata['file_id']
+            if 'content_type' in metadata:
+                properties['content_type'] = metadata['content_type']
+            
+            # Get collection
+            collection = self._client.collections.get(self.COLLECTION_NAME)
+            
+            # Add to collection
+            collection.data.insert(
+                properties=properties,
+                uuid=object_id
+            )
+            
+            logger.info(f"Successfully synced knowledge object {object_id} to Weaviate")
+            
+            return {
+                'success': True,
+                'message': f'Knowledge object {object_id} synced to Weaviate',
+                'object_id': object_id
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to sync knowledge object to Weaviate: {str(e)}")
+            raise WeaviateItemSyncServiceError(
+                "Failed to sync knowledge object to Weaviate",
+                details=str(e)
+            )
+    
     def close(self):
         """Close the Weaviate client connection"""
         if self._client:
             self._client.close()
             logger.info("Weaviate client connection closed")
+
+
+# Alias for backward compatibility
+WeaviateSyncService = WeaviateItemSyncService

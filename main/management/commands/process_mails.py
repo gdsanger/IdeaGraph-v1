@@ -100,12 +100,17 @@ class Command(BaseCommand):
                         task_id = msg_result.get('task_id', 'N/A')
                         confirmation_sent = msg_result.get('confirmation_sent', False)
                         archived = msg_result.get('archived', False)
+                        attachments_processed = msg_result.get('attachments_processed', 0)
+                        attachments_failed = msg_result.get('attachments_failed', 0)
                         
                         self.stdout.write(self.style.SUCCESS(f'\n{i}. ✓ {subject}'))
                         self.stdout.write(f'   Item: {item_title}')
                         self.stdout.write(f'   Task ID: {task_id}')
                         self.stdout.write(f'   Confirmation sent: {"Yes" if confirmation_sent else "No"}')
                         self.stdout.write(f'   Archived: {"Yes" if archived else "No"}')
+                        
+                        if attachments_processed > 0 or attachments_failed > 0:
+                            self.stdout.write(f'   Attachments: {attachments_processed} processed, {attachments_failed} failed')
                     else:
                         message = msg_result.get('message', 'Unknown error')
                         self.stdout.write(self.style.ERROR(f'\n{i}. ✗ {subject}'))

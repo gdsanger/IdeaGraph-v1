@@ -966,6 +966,120 @@ class GraphService:
             logger.error(f"Error moving message: {str(e)}")
             raise GraphServiceError("Error moving message", details=str(e))
     
+    def get_message_attachments(
+        self,
+        message_id: str,
+        mailbox: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Get attachments from a message
+        
+        Args:
+            message_id: ID of the message
+            mailbox: Email address of the mailbox (uses default_sender if not provided)
+            
+        Returns:
+            Dict with success status and list of attachments
+        """
+        mailbox_address = mailbox or self.default_sender
+        
+        if not mailbox_address:
+            raise GraphServiceError(
+                "No mailbox specified",
+                details="mailbox parameter or default_mail_sender must be set"
+            )
+        
+        endpoint = f"users/{mailbox_address}/messages/{message_id}/attachments"
+        
+        try:
+            response = self._make_request('GET', endpoint)
+            
+            if response.status_code == 200:
+                data = response.json()
+                attachments = data.get('value', [])
+                logger.info(f"Retrieved {len(attachments)} attachments from message {message_id}")
+                return {
+                    'success': True,
+                    'attachments': attachments,
+                    'count': len(attachments)
+                }
+            else:
+                raise GraphServiceError(
+                    "Failed to retrieve attachments",
+                    status_code=response.status_code,
+                    details=response.text
+                )
+                
+        except GraphServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error retrieving attachments: {str(e)}")
+            raise GraphServiceError("Error retrieving attachments", details=str(e))
+    
+    def download_attachment(
+        self,
+        message_id: str,
+        attachment_id: str,
+        mailbox: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Download a specific attachment from a message
+        
+        Args:
+            message_id: ID of the message
+            attachment_id: ID of the attachment
+            mailbox: Email address of the mailbox (uses default_sender if not provided)
+            
+        Returns:
+            Dict with success status, filename, content_type, and file content as bytes
+        """
+        mailbox_address = mailbox or self.default_sender
+        
+        if not mailbox_address:
+            raise GraphServiceError(
+                "No mailbox specified",
+                details="mailbox parameter or default_mail_sender must be set"
+            )
+        
+        endpoint = f"users/{mailbox_address}/messages/{message_id}/attachments/{attachment_id}"
+        
+        try:
+            response = self._make_request('GET', endpoint)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Extract attachment details
+                filename = data.get('name', 'attachment')
+                content_type = data.get('contentType', 'application/octet-stream')
+                content_bytes_base64 = data.get('contentBytes', '')
+                
+                # Decode base64 content
+                import base64
+                content = base64.b64decode(content_bytes_base64)
+                
+                logger.info(f"Downloaded attachment {filename} ({len(content)} bytes)")
+                
+                return {
+                    'success': True,
+                    'filename': filename,
+                    'content_type': content_type,
+                    'content': content,
+                    'size': len(content)
+                }
+            else:
+                raise GraphServiceError(
+                    "Failed to download attachment",
+                    status_code=response.status_code,
+                    details=response.text
+                )
+                
+        except GraphServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error downloading attachment: {str(e)}")
+            raise GraphServiceError("Error downloading attachment", details=str(e))
+    
     # Teams Channel Methods
     
     def get_channel_messages(
