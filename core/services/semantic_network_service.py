@@ -55,7 +55,10 @@ class SemanticNetworkService:
         'github_issue': 'GitHubIssue',
         'mail': 'Mail',
         'file': 'File',
-        'milestone': 'Milestone'
+        'milestone': 'Milestone',
+        'email': 'Email',
+        'transcript': 'Transcript',
+        'note': 'Note'
     }
     
     # Default similarity thresholds for each level

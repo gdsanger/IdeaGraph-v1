@@ -111,6 +111,11 @@ class MilestoneKnowledgeService:
     - Syncing milestone knowledge to Weaviate
     """
     
+    # RAG search configuration constants
+    RAG_SIMILARITY_THRESHOLD = 0.5  # Minimum similarity score for RAG results
+    RAG_SEARCH_MULTIPLIER = 3  # Multiplier for initial search to filter different types
+    RAG_QUERY_LENGTH = 1000  # Maximum characters to use from content for RAG query
+    
     def __init__(self, settings=None):
         """
         Initialize MilestoneKnowledgeService with settings
@@ -130,6 +135,91 @@ class MilestoneKnowledgeService:
         
         if not self.settings:
             raise MilestoneKnowledgeServiceError("No settings found in database")
+    
+    def search_similar_context(
+        self,
+        query_text: str,
+        milestone=None,
+        max_results: int = 5
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for similar knowledge objects using RAG (Weaviate)
+        
+        This method searches across all types of knowledge objects (Tasks, Items, Milestones)
+        to provide relevant context for AI analysis.
+        
+        Args:
+            query_text: Text to search for similar content
+            milestone: Optional milestone to filter or reference
+            max_results: Maximum number of results to return per type
+            
+        Returns:
+            List of similar knowledge objects with metadata
+        """
+        similar_objects = []
+        
+        try:
+            import weaviate
+            from weaviate.classes.init import Auth
+            from weaviate.classes.query import MetadataQuery
+            
+            # Initialize Weaviate client
+            if self.settings.weaviate_cloud_enabled:
+                client = weaviate.connect_to_weaviate_cloud(
+                    cluster_url=self.settings.weaviate_url,
+                    auth_credentials=Auth.api_key(self.settings.weaviate_api_key)
+                )
+            else:
+                client = weaviate.connect_to_local(
+                    host="localhost",
+                    port=8081
+                )
+            
+            try:
+                collection = client.collections.get('KnowledgeObject')
+                
+                # Search for similar objects using near_text
+                response = collection.query.near_text(
+                    query=query_text,
+                    limit=max_results * self.RAG_SEARCH_MULTIPLIER,  # Get extra results to account for similarity filtering
+                    return_metadata=MetadataQuery(distance=True)
+                )
+                
+                # Process and categorize results
+                for obj in response.objects:
+                    obj_type = obj.properties.get('type', '')
+                    obj_id = str(obj.uuid)
+                    
+                    # Calculate similarity from distance
+                    distance = obj.metadata.distance if obj.metadata else 1.0
+                    similarity = max(0, 1 - distance)
+                    
+                    # Only include results with reasonable similarity
+                    if similarity < self.RAG_SIMILARITY_THRESHOLD:
+                        continue
+                    
+                    similar_objects.append({
+                        'type': obj_type,  # Keep original capitalization from Weaviate
+                        'id': obj_id,
+                        'title': obj.properties.get('title', 'N/A'),
+                        'description': obj.properties.get('description', '')[:300],
+                        'similarity': similarity,
+                        'distance': distance
+                    })
+                    
+                    # Stop if we have enough results
+                    if len(similar_objects) >= max_results:
+                        break
+                
+                logger.info(f"Found {len(similar_objects)} similar objects via RAG for query")
+                
+            finally:
+                client.close()
+                
+        except Exception as e:
+            logger.warning(f"Could not search similar context via RAG: {str(e)}")
+        
+        return similar_objects
     
     def add_context_object(
         self,
@@ -190,6 +280,15 @@ class MilestoneKnowledgeService:
                 'title': context_obj.title,
                 'type': context_obj.type
             }
+            
+            # Sync context object to Weaviate
+            try:
+                sync_result = self.sync_context_object_to_weaviate(context_obj)
+                result['weaviate_sync'] = sync_result
+                logger.info(f"Context object {context_obj.id} synced to Weaviate")
+            except Exception as e:
+                logger.warning(f"Failed to sync context object {context_obj.id} to Weaviate: {str(e)}")
+                result['weaviate_sync_error'] = str(e)
             
             # Auto-analyze if requested and content is available
             if auto_analyze and content.strip():
@@ -292,12 +391,38 @@ class MilestoneKnowledgeService:
             # Step 2: Derive tasks using text-analysis-task-derivation-agent
             logger.info(f"Deriving tasks for context object {context_obj.id}")
             
+            # Search for similar context using RAG
+            rag_context = []
+            try:
+                similar_objects = self.search_similar_context(
+                    query_text=context_obj.content[:self.RAG_QUERY_LENGTH],  # Use first N chars for search
+                    milestone=context_obj.milestone,
+                    max_results=3
+                )
+                
+                if similar_objects:
+                    logger.info(f"Found {len(similar_objects)} similar objects via RAG")
+                    rag_context = [
+                        f"- [{obj['type'].upper()}] {obj['title']}: {obj['description']}"
+                        for obj in similar_objects
+                    ]
+            except Exception as e:
+                logger.warning(f"Could not retrieve RAG context: {str(e)}")
+            
             all_derived_tasks = []
             for i, chunk in enumerate(chunks):
                 logger.info(f"Processing chunk {i+1}/{len(chunks)} for task derivation")
                 
-                # Build message with context
-                task_message = f"Milestone: {context_obj.milestone.name}\n\nContent:\n{chunk}"
+                # Build message with RAG context
+                task_message = f"Milestone: {context_obj.milestone.name}\n\n"
+                
+                # Add RAG context if available
+                if rag_context:
+                    task_message += "--- Similar objects from knowledge base (RAG) ---\n"
+                    task_message += "\n".join(rag_context)
+                    task_message += "\n--- End of similar objects ---\n\n"
+                
+                task_message += f"Content:\n{chunk}"
                 
                 task_derivation_result = kigate.execute_agent(
                     agent_name='text-analysis-task-derivation-agent',
@@ -338,6 +463,13 @@ class MilestoneKnowledgeService:
             context_obj.derived_tasks = all_derived_tasks
             context_obj.analyzed = True
             context_obj.save()
+            
+            # Re-sync to Weaviate with updated summary
+            try:
+                self.sync_context_object_to_weaviate(context_obj)
+                logger.info(f"Context object {context_obj.id} re-synced to Weaviate with summary")
+            except Exception as e:
+                logger.warning(f"Failed to re-sync context object {context_obj.id} to Weaviate: {str(e)}")
             
             logger.info(f"Analysis complete for context object {context_obj.id}: "
                        f"{len(all_derived_tasks)} tasks derived")
@@ -410,8 +542,34 @@ class MilestoneKnowledgeService:
             # Get default model from settings
             default_model = getattr(self.settings, 'openai_default_model', 'gpt-4') or 'gpt-4'
             
-            # Build message with milestone context
-            summary_message = f"Zusammenfassung für Milestone: {milestone.name}\n\n{full_context}"
+            # Search for similar context using RAG
+            rag_context = []
+            try:
+                similar_objects = self.search_similar_context(
+                    query_text=full_context[:self.RAG_QUERY_LENGTH],  # Use first N chars for search
+                    milestone=milestone,
+                    max_results=3
+                )
+                
+                if similar_objects:
+                    logger.info(f"Found {len(similar_objects)} similar objects via RAG for milestone summary")
+                    rag_context = [
+                        f"- [{obj['type'].upper()}] {obj['title']}: {obj['description']}"
+                        for obj in similar_objects
+                    ]
+            except Exception as e:
+                logger.warning(f"Could not retrieve RAG context for summary: {str(e)}")
+            
+            # Build message with milestone context and RAG
+            summary_message = f"Zusammenfassung für Milestone: {milestone.name}\n\n"
+            
+            # Add RAG context if available
+            if rag_context:
+                summary_message += "--- Similar objects from knowledge base (RAG) ---\n"
+                summary_message += "\n".join(rag_context)
+                summary_message += "\n--- End of similar objects ---\n\n"
+            
+            summary_message += full_context
             
             logger.info(f"Generating milestone summary for {milestone.id}")
             summary_result = kigate.execute_agent(
@@ -513,7 +671,7 @@ class MilestoneKnowledgeService:
                 
                 # Create or update the milestone in Weaviate
                 milestone_data = {
-                    'type': 'milestone',
+                    'type': 'Milestone',  # Capitalized to match TYPE_MAPPING in SemanticNetworkService
                     'title': milestone.name,
                     'description': combined_description,
                     'status': milestone.status,
@@ -546,6 +704,92 @@ class MilestoneKnowledgeService:
             logger.error(f"Failed to sync milestone to Weaviate: {str(e)}")
             raise MilestoneKnowledgeServiceError(
                 "Failed to sync to Weaviate",
+                details=str(e)
+            )
+    
+    def sync_context_object_to_weaviate(self, context_obj) -> Dict[str, Any]:
+        """
+        Sync a milestone context object to Weaviate as a separate KnowledgeObject
+        
+        This allows individual context objects (files, emails, transcripts, notes)
+        to be searched and retrieved through the semantic network.
+        
+        Args:
+            context_obj: MilestoneContextObject instance
+        
+        Returns:
+            Dictionary with sync result
+        
+        Raises:
+            MilestoneKnowledgeServiceError: If sync fails
+        """
+        try:
+            from main.models import Settings
+            from core.services.weaviate_sync_service import WeaviateItemSyncService
+            
+            # Get settings
+            settings = Settings.objects.first()
+            if not settings:
+                raise MilestoneKnowledgeServiceError("Settings not configured")
+            
+            # Initialize Weaviate service
+            weaviate_service = WeaviateItemSyncService(settings)
+            
+            try:
+                # Get the collection
+                collection = weaviate_service._client.collections.get('KnowledgeObject')
+                
+                # Map context object type to KnowledgeObject type
+                type_mapping = {
+                    'file': 'File',
+                    'email': 'Email',
+                    'transcript': 'Transcript',
+                    'note': 'Note'
+                }
+                
+                # Prepare context object data for Weaviate
+                # Use summary if available, otherwise use content
+                description = context_obj.summary if context_obj.summary else context_obj.content
+                
+                # Add metadata to description
+                description_parts = []
+                if context_obj.milestone:
+                    description_parts.append(f"Milestone: {context_obj.milestone.name}")
+                if description:
+                    description_parts.append(description)
+                
+                combined_description = "\n\n".join(description_parts)
+                
+                context_data = {
+                    'type': type_mapping.get(context_obj.type, 'File'),  # Capitalized for consistency
+                    'title': context_obj.title,
+                    'description': combined_description,
+                    'status': None,  # Context objects don't have status
+                    'createdAt': context_obj.created_at.isoformat() if context_obj.created_at else None,
+                    'milestoneId': str(context_obj.milestone.id) if context_obj.milestone else None,
+                    'sourceId': context_obj.source_id if context_obj.source_id else None,
+                    'url': context_obj.url if context_obj.url else None,
+                }
+                
+                # Use upsert to create or update
+                collection.data.insert(
+                    properties=context_data,
+                    uuid=str(context_obj.id)
+                )
+                
+                logger.info(f"Context object {context_obj.id} synced to Weaviate successfully")
+                
+                return {
+                    'success': True,
+                    'message': f'Context object "{context_obj.title}" synced to Weaviate successfully'
+                }
+            finally:
+                weaviate_service.close()
+            
+        except Exception as e:
+            logger.error(f"Failed to sync context object to Weaviate: {str(e)}")
+            raise MilestoneKnowledgeServiceError(
+                "Failed to sync context object to Weaviate",
                 details=str(e)
             )
     
