@@ -10,6 +10,24 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 
+def _parse_date_string(date_string):
+    """
+    Parse a date string in ISO format (YYYY-MM-DD) to a date object.
+    
+    Args:
+        date_string: Date string in YYYY-MM-DD format
+        
+    Returns:
+        date object or None if parsing fails
+        
+    Raises:
+        ValueError: If date string is invalid
+    """
+    if not date_string:
+        return None
+    return datetime.strptime(date_string, '%Y-%m-%d').date()
+
+
 def _separate_tag_values(tag_values):
     existing_ids = []
     new_names = []
@@ -1830,7 +1848,7 @@ def milestone_create(request, item_id):
             try:
                 # Parse due_date string to date object
                 try:
-                    due_date_obj = datetime.strptime(due_date, '%Y-%m-%d').date()
+                    due_date_obj = _parse_date_string(due_date)
                 except ValueError:
                     messages.error(request, 'Invalid date format. Please use YYYY-MM-DD format.')
                     context = {
@@ -1905,7 +1923,7 @@ def milestone_edit(request, milestone_id):
             try:
                 # Parse due_date string to date object
                 try:
-                    due_date_obj = datetime.strptime(due_date, '%Y-%m-%d').date()
+                    due_date_obj = _parse_date_string(due_date)
                 except ValueError:
                     messages.error(request, 'Invalid date format. Please use YYYY-MM-DD format.')
                     context = {
