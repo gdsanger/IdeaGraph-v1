@@ -18,10 +18,10 @@ def _parse_date_string(date_string):
         date_string: Date string in YYYY-MM-DD format
         
     Returns:
-        date object or None if parsing fails
+        date object if parsing succeeds, or None if date_string is empty
         
     Raises:
-        ValueError: If date string is invalid
+        ValueError: If date string is not empty but has invalid format
     """
     if not date_string:
         return None
