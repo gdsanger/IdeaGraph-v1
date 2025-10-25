@@ -854,7 +854,12 @@
 <script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/dist/graphology-layout-forceatlas2.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0-beta.20/build/sigma.min.js"></script>
-<script src="{% static 'main/js/semantic-network.js' %}"></script>
+
+<!-- Semantic Graph Component (Modular) -->
+<script src="{% static 'main/js/semantic-graph/useSemanticGraphData.js' %}"></script>
+<script src="{% static 'main/js/semantic-graph/GraphNodeTooltip.js' %}"></script>
+<script src="{% static 'main/js/semantic-graph/GraphToolbar.js' %}"></script>
+<script src="{% static 'main/js/semantic-graph/SemanticGraph.js' %}"></script>
 <!-- Weaviate Indicator JavaScript -->
 <script src="{% static 'main/js/weaviate-indicator.js' %}"></script>
 
@@ -1763,13 +1768,14 @@ let milestoneSemanticNetworkViewer = null;
 
 document.getElementById('semantic-network-tab')?.addEventListener('shown.bs.tab', function() {
     if (!milestoneSemanticNetworkViewer) {
-        // Initialize the semantic network viewer on first show
-        milestoneSemanticNetworkViewer = new SemanticNetworkViewer('milestoneSemanticNetworkContainer', {
+        // Initialize the semantic graph component (new modular version)
+        milestoneSemanticNetworkViewer = new SemanticGraph('milestoneSemanticNetworkContainer', {
             objectType: 'milestone',
             objectId: '{{ milestone.id }}',
             depth: 3,
             generateSummaries: true,
             includeHierarchy: false,
+            autoLoad: true,  // Auto-load when initialized
             onNodeClick: function(node) {
                 // Handle node click - navigate to the object
                 if (node.type === 'item') {
@@ -1781,9 +1787,7 @@ document.getElementById('semantic-network-tab')?.addEventListener('shown.bs.tab'
                 }
             }
         });
-        
-        // Load the semantic network
-        milestoneSemanticNetworkViewer.load('milestone', '{{ milestone.id }}');
+        // Note: The new component auto-loads by default, no need to call load() separately
     }
 });
 

@@ -836,7 +836,12 @@
 <script src="https://cdn.jsdelivr.net/npm/graphology@0.25.1/dist/graphology.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/dist/graphology-layout-forceatlas2.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0-alpha3/build/sigma.min.js"></script>
-<script src="{% static 'main/js/semantic-network.js' %}"></script>
+
+<!-- Semantic Graph Component (Modular) -->
+<script src="{% static 'main/js/semantic-graph/useSemanticGraphData.js' %}"></script>
+<script src="{% static 'main/js/semantic-graph/GraphNodeTooltip.js' %}"></script>
+<script src="{% static 'main/js/semantic-graph/GraphToolbar.js' %}"></script>
+<script src="{% static 'main/js/semantic-graph/SemanticGraph.js' %}"></script>
 
 <!-- Weaviate Indicator JS -->
 <script src="{% static 'main/js/weaviate-indicator.js' %}"></script>
@@ -1469,12 +1474,13 @@ if (showCompletedSwitch) {
 // Initialize Semantic Network Viewer
 let semanticNetworkViewer;
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize the semantic network viewer
-    semanticNetworkViewer = new SemanticNetworkViewer('semanticNetworkContainer', {
+    // Initialize the semantic graph component (new modular version)
+    semanticNetworkViewer = new SemanticGraph('semanticNetworkContainer', {
         objectType: 'item',
         objectId: '{{ item.id }}',
         depth: 3,
         generateSummaries: true,
+        includeHierarchy: true,
         onNodeClick: function(nodeData) {
             // Custom click handler - navigate to the clicked object
             const type = nodeData.type;
@@ -1487,9 +1493,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
-    
-    // Load the semantic network
-    semanticNetworkViewer.load('item', '{{ item.id }}');
+    // Note: The new component auto-loads by default, no need to call load() separately
 });
 
 // File Upload Functionality - Now handled by htmx
