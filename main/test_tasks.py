@@ -202,6 +202,44 @@ class TaskViewTest(TestCase):
         self.assertEqual(new_task.status, 'new')
         self.assertEqual(new_task.created_by, self.user)
     
+    def test_task_create_view_prepopulates_requester(self):
+        """Test that requester field is pre-populated with current user on task creation form"""
+        self.login()
+        url = reverse('main:task_create', args=[self.item.id])
+        
+        # GET request - check that the form contains the current user as selected requester
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify that current_user is in the context
+        self.assertIn('current_user', response.context)
+        self.assertEqual(response.context['current_user'], self.user)
+        
+        # Verify that the HTML contains the selected option for the current user
+        self.assertContains(response, f'<option value="{self.user.id}"')
+        self.assertContains(response, 'selected')
+    
+    def test_task_create_with_requester(self):
+        """Test task creation with requester field set"""
+        self.login()
+        url = reverse('main:task_create', args=[self.item.id])
+        
+        # POST request with requester
+        response = self.client.post(url, {
+            'title': 'Task With Requester',
+            'description': 'Task with requester description',
+            'status': 'new',
+            'requester': str(self.user.id),
+            'tags': [str(self.tag.id)]
+        })
+        
+        self.assertEqual(response.status_code, 302)  # Redirect after creation
+        
+        # Verify task was created with requester
+        new_task = Task.objects.get(title='Task With Requester')
+        self.assertEqual(new_task.requester, self.user)
+        self.assertEqual(new_task.created_by, self.user)
+    
     def test_task_edit_view(self):
         """Test task editing"""
         self.login()

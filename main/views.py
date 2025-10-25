@@ -1589,6 +1589,7 @@ def task_create(request, item_id):
         'status_choices': status_choices,
         'milestones': milestones,
         'all_users': all_users,
+        'current_user': user,
     }
     
     return render(request, 'main/tasks/form.html', context)
