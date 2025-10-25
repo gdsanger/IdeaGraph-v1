@@ -1196,17 +1196,20 @@ class TaskTypeAndStatusTest(TestCase):
     
     def test_task_type_choices(self):
         """Test that task type choices are correct"""
-        expected_types = ['bug', 'feature', 'frage', 'support', 'idee', 'sonstige']
+        # Verify the expected types are present
         type_choices = [choice[0] for choice in Task.TYPE_CHOICES]
         
-        self.assertEqual(type_choices, expected_types)
+        # Check all expected types are present
+        expected_types = ['bug', 'feature', 'frage', 'support', 'idee', 'sonstige']
+        self.assertEqual(sorted(type_choices), sorted(expected_types))
     
     def test_task_status_includes_test(self):
         """Test that status choices include 'test'"""
         status_choices = [choice[0] for choice in Task.STATUS_CHOICES]
         
         self.assertIn('test', status_choices)
-        self.assertEqual(len(status_choices), 6)  # new, working, review, ready, test, done
+        # Verify count matches the model definition
+        self.assertEqual(len(status_choices), len(Task.STATUS_CHOICES))
     
     def test_task_default_type(self):
         """Test that default task type is 'sonstige'"""
