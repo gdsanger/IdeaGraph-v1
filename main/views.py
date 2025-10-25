@@ -1119,6 +1119,9 @@ def item_detail(request, item_id):
     # Get settings for GitHub button state
     settings = Settings.objects.first()
     
+    # Filter non-completed milestones for the top badge bar
+    non_completed_milestones = item.milestones.exclude(status='completed').order_by('due_date')
+    
     context = {
         'item': item,
         'tasks': tasks_page,
@@ -1134,6 +1137,7 @@ def item_detail(request, item_id):
         'today': today,
         'week_from_today': week_from_today,
         'settings': settings,
+        'non_completed_milestones': non_completed_milestones,
     }
     
     # If HTMX request, return only the partial template

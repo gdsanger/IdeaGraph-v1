@@ -488,3 +488,76 @@ class ItemTileViewFilterTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # Should show item count badge (4 items in setup)
         self.assertContains(response, '4 items')
+    
+    def test_item_detail_shows_only_non_completed_milestones(self):
+        """Test that item detail page shows only non-completed milestones in the top badge bar"""
+        from main.models import Milestone
+        from datetime import date, timedelta
+        
+        # Create test milestones with different statuses
+        milestone_planned = Milestone.objects.create(
+            name='Planned Milestone',
+            due_date=date.today() + timedelta(days=30),
+            status='planned',
+            item=self.item
+        )
+        milestone_in_progress = Milestone.objects.create(
+            name='In Progress Milestone',
+            due_date=date.today() + timedelta(days=15),
+            status='in_progress',
+            item=self.item
+        )
+        milestone_completed = Milestone.objects.create(
+            name='Completed Milestone',
+            due_date=date.today() - timedelta(days=10),
+            status='completed',
+            item=self.item
+        )
+        
+        self.login_user(self.user)
+        response = self.client.get(f'/items/{self.item.id}/')
+        
+        # Should show non-completed milestones
+        self.assertContains(response, 'Planned Milestone')
+        self.assertContains(response, 'In Progress Milestone')
+        
+        # Should show the milestone badge bar since there are non-completed milestones
+        self.assertContains(response, 'milestone-badge-bar')
+        
+        # Verify the context contains filtered milestones
+        self.assertIn('non_completed_milestones', response.context)
+        non_completed = list(response.context['non_completed_milestones'])
+        self.assertEqual(len(non_completed), 2)
+        self.assertIn(milestone_planned, non_completed)
+        self.assertIn(milestone_in_progress, non_completed)
+        self.assertNotIn(milestone_completed, non_completed)
+    
+    def test_item_detail_hides_milestone_bar_when_all_completed(self):
+        """Test that milestone badge bar is hidden when all milestones are completed"""
+        from main.models import Milestone
+        from datetime import date, timedelta
+        
+        # Create only completed milestones
+        Milestone.objects.create(
+            name='Completed Milestone 1',
+            due_date=date.today() - timedelta(days=10),
+            status='completed',
+            item=self.item
+        )
+        Milestone.objects.create(
+            name='Completed Milestone 2',
+            due_date=date.today() - timedelta(days=5),
+            status='completed',
+            item=self.item
+        )
+        
+        self.login_user(self.user)
+        response = self.client.get(f'/items/{self.item.id}/')
+        
+        # Milestone badge bar should NOT be rendered when all milestones are completed
+        self.assertNotContains(response, 'milestone-badge-bar')
+        
+        # Verify the context contains empty filtered milestones
+        self.assertIn('non_completed_milestones', response.context)
+        non_completed = list(response.context['non_completed_milestones'])
+        self.assertEqual(len(non_completed), 0)
