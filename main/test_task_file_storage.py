@@ -3,6 +3,7 @@ Test Task File Storage functionality
 """
 import os
 import uuid
+from django.conf import settings
 from django.test import TestCase
 from main.models import User, Item, Task, Section, TaskFile, Settings
 from core.services.task_file_service import TaskFileService, TaskFileServiceError
@@ -59,8 +60,7 @@ class TaskFileStorageTest(TestCase):
     def tearDown(self):
         """Clean up test files"""
         # Clean up any test files created
-        base_dir = os.path.dirname(os.path.dirname(__file__))
-        task_files_dir = os.path.join(base_dir, 'media', 'task_files')
+        task_files_dir = os.path.join(settings.BASE_DIR, 'media', 'task_files')
         
         # Remove test files
         if os.path.exists(task_files_dir):
@@ -94,8 +94,7 @@ class TaskFileStorageTest(TestCase):
         self.assertIn(filename, file_path)
         
         # Verify file was actually created
-        base_dir = os.path.dirname(os.path.dirname(__file__))
-        full_path = os.path.join(base_dir, file_path)
+        full_path = os.path.join(settings.BASE_DIR, file_path)
         self.assertTrue(os.path.exists(full_path))
         
         # Verify file content
@@ -120,8 +119,7 @@ class TaskFileStorageTest(TestCase):
         self.assertIn(filename, file_path)
         
         # Verify file was actually created
-        base_dir = os.path.dirname(os.path.dirname(__file__))
-        full_path = os.path.join(base_dir, file_path)
+        full_path = os.path.join(settings.BASE_DIR, file_path)
         self.assertTrue(os.path.exists(full_path))
     
     def test_upload_file_saves_locally(self):
@@ -154,8 +152,7 @@ class TaskFileStorageTest(TestCase):
         self.assertIn(str(self.task.id), task_file.file_path)
         
         # Verify file exists on filesystem
-        base_dir = os.path.dirname(os.path.dirname(__file__))
-        full_path = os.path.join(base_dir, task_file.file_path)
+        full_path = os.path.join(settings.BASE_DIR, task_file.file_path)
         self.assertTrue(os.path.exists(full_path))
     
     def test_upload_file_size_validation(self):
@@ -213,8 +210,7 @@ class TaskFileStorageTest(TestCase):
         
         # Get the file path before deletion
         task_file = TaskFile.objects.get(id=file_id)
-        base_dir = os.path.dirname(os.path.dirname(__file__))
-        full_path = os.path.join(base_dir, task_file.file_path)
+        full_path = os.path.join(settings.BASE_DIR, task_file.file_path)
         
         # Verify file exists
         self.assertTrue(os.path.exists(full_path))

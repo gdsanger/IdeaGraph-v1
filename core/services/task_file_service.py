@@ -11,6 +11,7 @@ import logging
 import os
 import re
 from typing import Optional, Dict, Any, List
+from django.conf import settings
 from django.db import transaction
 
 from core.services.graph_service import GraphService, GraphServiceError
@@ -123,6 +124,27 @@ class TaskFileService:
         
         return name
     
+    def _get_base_dir(self) -> str:
+        """
+        Get the base directory for the project
+        
+        Returns:
+            str: Absolute path to project base directory
+        """
+        return str(settings.BASE_DIR)
+    
+    def _get_full_path(self, relative_path: str) -> str:
+        """
+        Convert relative path to absolute path
+        
+        Args:
+            relative_path: Relative path from project root
+            
+        Returns:
+            str: Absolute file path
+        """
+        return os.path.join(self._get_base_dir(), relative_path)
+    
     def _save_file_locally(
         self,
         task,
@@ -133,7 +155,7 @@ class TaskFileService:
         Save file to local filesystem
         
         Saves files in structure:
-        - media/task_files/{item_title}/{task_uuid}/ for tasks with items
+        - media/task_files/{normalized_item_title}/{task_uuid}/ for tasks with items
         - media/task_files/Tasks/{task_uuid}/ for standalone tasks
         
         Args:
@@ -154,14 +176,12 @@ class TaskFileService:
             folder_path = os.path.join('media', 'task_files', 'Tasks', str(task.id))
         
         # Create the directory structure
-        # Get absolute path from project root
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        full_folder_path = os.path.join(base_dir, folder_path)
+        full_folder_path = self._get_full_path(folder_path)
         os.makedirs(full_folder_path, exist_ok=True)
         
         # Save the file
         file_path = os.path.join(folder_path, filename)
-        full_file_path = os.path.join(base_dir, file_path)
+        full_file_path = self._get_full_path(file_path)
         
         with open(full_file_path, 'wb') as f:
             f.write(file_content)
@@ -288,8 +308,7 @@ class TaskFileService:
             logger.error(f"Error saving file record to database: {str(e)}")
             # Try to clean up local file if database save fails
             try:
-                base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-                full_file_path = os.path.join(base_dir, local_file_path)
+                full_file_path = self._get_full_path(local_file_path)
                 if os.path.exists(full_file_path):
                     os.remove(full_file_path)
                     logger.info(f"Cleaned up local file after database error: {full_file_path}")
@@ -436,8 +455,7 @@ class TaskFileService:
             # Delete from local filesystem
             if task_file.file_path:
                 try:
-                    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-                    full_file_path = os.path.join(base_dir, task_file.file_path)
+                    full_file_path = self._get_full_path(task_file.file_path)
                     if os.path.exists(full_file_path):
                         os.remove(full_file_path)
                         logger.info(f"Deleted local file: {full_file_path}")
