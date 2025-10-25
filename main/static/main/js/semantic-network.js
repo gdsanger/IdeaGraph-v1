@@ -430,17 +430,20 @@ class SemanticNetworkViewer {
         let forceAtlas2;
         
         // Try different possible namespaces for the UMD bundle
-        // The graphology-layout-forceatlas2 UMD bundle exposes GraphologyLayoutForceAtlas2
+        // The graphology-layout-forceatlas2 build exposes GraphologyLayoutForceAtlas2
         if (typeof GraphologyLayoutForceAtlas2 !== 'undefined') {
             forceAtlas2 = GraphologyLayoutForceAtlas2;
+        } else if (typeof window.GraphologyLayoutForceAtlas2 !== 'undefined') {
+            forceAtlas2 = window.GraphologyLayoutForceAtlas2;
         } else if (typeof graphologyLayoutForceAtlas2 !== 'undefined') {
             forceAtlas2 = graphologyLayoutForceAtlas2;
         } else if (typeof graphologyLibrary !== 'undefined' && graphologyLibrary.layoutForceAtlas2) {
             forceAtlas2 = graphologyLibrary.layoutForceAtlas2;
         } else {
-            console.warn('ForceAtlas2 layout library not found. Skipping layout optimization.');
-            console.warn('Available globals:', Object.keys(window).filter(k => k.toLowerCase().includes('graph')));
-            return; // Skip layout if library not available
+            console.warn('[SemanticNetwork] ForceAtlas2 layout library not found. Skipping layout optimization.');
+            console.warn('[SemanticNetwork] The network will still be displayed, but without force-directed layout.');
+            console.warn('[SemanticNetwork] Available globals:', Object.keys(window).filter(k => k.toLowerCase().includes('graph')));
+            return; // Skip layout if library not available - graph will still render with random positions
         }
         
         const settings = forceAtlas2.inferSettings(this.graph);
