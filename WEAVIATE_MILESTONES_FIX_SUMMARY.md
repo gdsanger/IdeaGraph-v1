@@ -1,7 +1,7 @@
 # Weaviate Milestones and Context Objects Fix - Summary
 
 ## Issue
-Die Entität Milestone wird im falschen Weaviate Schema gespeichert. Es muss anstatt Milestones auch, wie Task und Item im KnowledgeObject gespeichert werden. Das gleiche gilt auch für Mails, Notes, Files, und Transcripts. Wir müssen alle Informationen im KnowledgeObject speichern, da wir sonst die nicht die richtigen und vollständigen Similaritäten bekommen.
+Die Entität Milestone wird im falschen Weaviate Schema gespeichert. Es muss wie Task und Item im KnowledgeObject gespeichert werden. Das gleiche gilt auch für Mails, Notes, Files, und Transcripts. Wir müssen alle Informationen im KnowledgeObject speichern, da wir sonst nicht die richtigen und vollständigen Similaritäten bekommen.
 
 **Translation**: The Milestone entity is being stored in the wrong Weaviate schema. It must be stored in KnowledgeObject like Task and Item. The same applies to Mails, Notes, Files, and Transcripts. We must store all information in KnowledgeObject, otherwise we won't get the correct and complete similarities.
 
