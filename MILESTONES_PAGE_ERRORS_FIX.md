@@ -13,7 +13,7 @@ The `/milestones` detail page was experiencing three JavaScript errors that prev
 ### 1. Toast UI Editor API Misuse
 The code was using `toastui.Editor.factory()` which is not a valid API method. The correct way to initialize a Toast UI Viewer is using `new toastui.Editor.Viewer()`.
 
-**Location**: `main/templates/main/milestones/detail.html` line 1795
+**Location**: `main/templates/main/milestones/detail.html` in the `extra_js` block, within the DOMContentLoaded event handler for changelog initialization
 
 ### 2. Library Namespace Resolution
 The JavaScript libraries loaded from CDN (graphology, ForceAtlas2, Sigma.js) expose themselves under different global namespaces depending on the UMD bundle structure. The code was not checking all possible namespace variations.
@@ -143,12 +143,12 @@ if (typeof window.graphologyLibraryLayoutForceAtlas2 !== 'undefined') {
 ## Files Modified
 
 1. **main/templates/main/milestones/detail.html**
-   - Fixed Toast UI Editor initialization (line 1795)
+   - Fixed Toast UI Editor initialization in the `extra_js` block, DOMContentLoaded handler
 
 2. **main/static/main/js/semantic-network.js**
-   - Added Graphology namespace checks (lines 387-397)
-   - Added Sigma.js namespace checks (lines 420-428)
-   - Enhanced ForceAtlas2 namespace detection (lines 454-468)
+   - Added Graphology namespace checks in `renderNetwork()` method
+   - Added Sigma.js namespace checks in `renderNetwork()` method
+   - Enhanced ForceAtlas2 namespace detection in `applyLayout()` method
 
 ## Related Documentation
 
