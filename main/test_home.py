@@ -172,3 +172,60 @@ class HomeViewTest(TestCase):
         self.login_user()
         response = self.client.get(reverse('main:home'))
         self.assertEqual(response.context['github_issues'], 2)
+
+    def test_home_view_daily_statistics(self):
+        """Test that daily statistics are included in context"""
+        self.login_user()
+        response = self.client.get(reverse('main:home'))
+        
+        # Check that daily statistics are in context
+        self.assertIn('daily_items', response.context)
+        self.assertIn('daily_tasks', response.context)
+        self.assertIn('daily_github_issues', response.context)
+        self.assertIn('daily_completed_tasks', response.context)
+
+    def test_home_view_weekly_statistics(self):
+        """Test that weekly statistics are included in context"""
+        self.login_user()
+        response = self.client.get(reverse('main:home'))
+        
+        # Check that weekly statistics are in context
+        self.assertIn('weekly_items', response.context)
+        self.assertIn('weekly_tasks', response.context)
+        self.assertIn('weekly_github_issues', response.context)
+        self.assertIn('weekly_completed_tasks', response.context)
+
+    def test_home_view_renders_daily_statistics_in_html(self):
+        """Test that daily statistics are rendered in the HTML"""
+        self.login_user()
+        response = self.client.get(reverse('main:home'))
+        
+        # Check that daily stats header is present
+        self.assertContains(response, "Today's Statistics")
+
+    def test_home_view_renders_weekly_statistics_in_html(self):
+        """Test that weekly statistics are rendered in the HTML"""
+        self.login_user()
+        response = self.client.get(reverse('main:home'))
+        
+        # Check that weekly stats header is present
+        self.assertContains(response, "This Week's Statistics")
+
+    def test_home_view_renders_all_time_statistics_in_html(self):
+        """Test that all time statistics are rendered in the HTML"""
+        self.login_user()
+        response = self.client.get(reverse('main:home'))
+        
+        # Check that all time stats header is present
+        self.assertContains(response, "All Time Statistics")
+
+    def test_home_view_button_links(self):
+        """Test that buttons have proper links"""
+        self.login_user()
+        response = self.client.get(reverse('main:home'))
+        
+        # Check that Create New Idea button links to item_create
+        self.assertContains(response, reverse('main:item_create'))
+        
+        # Check that Explore Ideas button links to item_list
+        self.assertContains(response, reverse('main:item_list'))
