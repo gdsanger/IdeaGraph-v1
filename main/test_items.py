@@ -488,3 +488,91 @@ class ItemTileViewFilterTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # Should show item count badge (4 items in setup)
         self.assertContains(response, '4 items')
+    
+    def test_item_detail_shows_only_non_completed_milestones(self):
+        """Test that item detail page shows only non-completed milestones in the top badge bar"""
+        from main.models import Milestone
+        from datetime import date, timedelta
+        
+        # Create test milestones with different statuses
+        milestone_planned = Milestone.objects.create(
+            name='Planned Milestone',
+            due_date=date.today() + timedelta(days=30),
+            status='planned',
+            item=self.item
+        )
+        milestone_in_progress = Milestone.objects.create(
+            name='In Progress Milestone',
+            due_date=date.today() + timedelta(days=15),
+            status='in_progress',
+            item=self.item
+        )
+        milestone_completed = Milestone.objects.create(
+            name='Completed Milestone',
+            due_date=date.today() - timedelta(days=10),
+            status='completed',
+            item=self.item
+        )
+        
+        self.login_user()
+        response = self.client.get(f'/items/{self.item.id}/')
+        
+        # Should show non-completed milestones
+        self.assertContains(response, 'Planned Milestone')
+        self.assertContains(response, 'In Progress Milestone')
+        
+        # Should NOT show completed milestone in the badge bar
+        # Check that the milestone badge bar exists but completed milestone is not there
+        self.assertContains(response, 'milestone-badge-bar')
+        
+        # Parse response content to verify completed milestone is not in the badge bar
+        content = response.content.decode('utf-8')
+        
+        # Find the milestone badge bar section (between milestone-badge-bar div and the next major section)
+        badge_bar_start = content.find('milestone-badge-bar')
+        badge_bar_end = content.find('Two-Column Layout', badge_bar_start)
+        
+        if badge_bar_start != -1 and badge_bar_end != -1:
+            badge_bar_content = content[badge_bar_start:badge_bar_end]
+            # Completed milestone should not appear in the badge bar
+            self.assertNotIn('Completed Milestone', badge_bar_content)
+        
+        # All milestones should still be visible in the Milestones tab (full list)
+        self.assertContains(response, 'Completed Milestone')  # Should appear somewhere in the full page
+    
+    def test_item_detail_hides_milestone_bar_when_all_completed(self):
+        """Test that milestone badge bar is hidden when all milestones are completed"""
+        from main.models import Milestone
+        from datetime import date, timedelta
+        
+        # Create only completed milestones
+        Milestone.objects.create(
+            name='Completed Milestone 1',
+            due_date=date.today() - timedelta(days=10),
+            status='completed',
+            item=self.item
+        )
+        Milestone.objects.create(
+            name='Completed Milestone 2',
+            due_date=date.today() - timedelta(days=5),
+            status='completed',
+            item=self.item
+        )
+        
+        self.login_user()
+        response = self.client.get(f'/items/{self.item.id}/')
+        
+        # Milestone badge bar should NOT be rendered when all milestones are completed
+        content = response.content.decode('utf-8')
+        
+        # Check if milestone-badge-bar is present
+        # It should not be there if all milestones are completed
+        badge_bar_start = content.find('milestone-badge-bar')
+        two_column_start = content.find('Two-Column Layout')
+        
+        # If badge bar exists, verify it's not between breadcrumb and Two-Column Layout
+        if badge_bar_start != -1:
+            # Badge bar should not be in the top area (between breadcrumb and detail content)
+            breadcrumb_end = content.find('</nav>', content.find('breadcrumb'))
+            self.assertTrue(badge_bar_start < breadcrumb_end or badge_bar_start > two_column_start,
+                          "Milestone badge bar should not be visible when all milestones are completed")
