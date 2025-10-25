@@ -5,7 +5,7 @@
 **Problem**: The Sigma.js Graph at `/Milestones` was not displaying nodes correctly, and the ForceAtlas2 library was reported as missing or incomplete.
 
 **User Report**: 
-> "Im Sigma.js Graph bei /MileStones scheint etwas nicht zustimmen, es wir nur ein Knoten angezeigt. Da müsste aber deutlich mehr da sein. Bitte kontrollieren. Die ForceAtlas2 Libary scheint es nicht mehr zu geben, bzw. die, die es gibt ist unvollständig."
+> "Im Sigma.js Graph bei /MileStones scheint etwas nicht zu stimmen, es wird nur ein Knoten angezeigt. Da müsste aber deutlich mehr da sein. Bitte kontrollieren. Die ForceAtlas2 Library scheint es nicht mehr zu geben, bzw. die, die es gibt ist unvollständig."
 
 ## Root Cause
 
@@ -131,7 +131,7 @@ To verify the fix works:
 
 ## Related Documentation
 
-- **FORCEATLAS2_FIX.md** - Previous fix for namespace detection in semantic-network.js
+- **FORCEATLAS2_FIX.md** - Previous fix for namespace detection in SemanticGraph.js and semantic-network.js
 - **SIGMA_GRAPH_MILESTONE_FIX.md** - Fixes for type capitalization and context object syncing
 - **MILESTONES_PAGE_ERRORS_FIX.md** - Other JavaScript errors on the milestone page
 
@@ -159,10 +159,14 @@ ForceAtlas2 library is compatible with:
 
 ## Rollback Plan
 
-If issues occur, revert with:
+If issues occur, revert the commit that added the ForceAtlas2 library:
 
 ```bash
-git revert a449f4b
+# Find the commit hash
+git log --oneline | grep "ForceAtlas2"
+
+# Revert the specific commit
+git revert <commit-hash>
 ```
 
 This will remove the ForceAtlas2 library script tag. The graph will still render but without force-directed layout (nodes will use random positioning).
