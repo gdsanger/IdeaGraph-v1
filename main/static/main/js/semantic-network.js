@@ -384,7 +384,17 @@ class SemanticNetworkViewer {
         });
         
         // Create graph using graphology
-        this.graph = new graphology.Graph();
+        // Handle different possible graphology namespaces
+        const GraphConstructor = typeof graphology !== 'undefined' && graphology.Graph ? graphology.Graph :
+                                 (typeof window.graphology !== 'undefined' && window.graphology.Graph ? window.graphology.Graph : null);
+        
+        if (!GraphConstructor) {
+            console.error('[SemanticNetwork] Graphology library not found. Cannot create graph.');
+            this.showError('Graphology library not loaded. Please refresh the page.');
+            return;
+        }
+        
+        this.graph = new GraphConstructor();
         
         // Add nodes and edges
         nodes.forEach(node => {
@@ -407,7 +417,17 @@ class SemanticNetworkViewer {
         this.applyLayout();
         
         // Create Sigma instance
-        this.sigma = new Sigma(this.graph, graphContainer, {
+        // Handle different possible Sigma namespaces
+        const SigmaConstructor = typeof Sigma !== 'undefined' ? Sigma : 
+                                 (typeof window.Sigma !== 'undefined' ? window.Sigma : null);
+        
+        if (!SigmaConstructor) {
+            console.error('[SemanticNetwork] Sigma.js library not found. Cannot render graph.');
+            this.showError('Sigma.js library not loaded. Please refresh the page.');
+            return;
+        }
+        
+        this.sigma = new SigmaConstructor(this.graph, graphContainer, {
             renderEdgeLabels: false,
             defaultNodeColor: '#3b82f6',
             defaultEdgeColor: '#4b5563',
@@ -430,11 +450,13 @@ class SemanticNetworkViewer {
         let forceAtlas2;
         
         // Try different possible namespaces for the UMD bundle
-        // The graphology-layout-forceatlas2 build exposes GraphologyLayoutForceAtlas2
-        if (typeof GraphologyLayoutForceAtlas2 !== 'undefined') {
-            forceAtlas2 = GraphologyLayoutForceAtlas2;
+        // The graphology-layout-forceatlas2 UMD build can be exposed under different names
+        if (typeof window.graphologyLibraryLayoutForceAtlas2 !== 'undefined') {
+            forceAtlas2 = window.graphologyLibraryLayoutForceAtlas2;
         } else if (typeof window.GraphologyLayoutForceAtlas2 !== 'undefined') {
             forceAtlas2 = window.GraphologyLayoutForceAtlas2;
+        } else if (typeof GraphologyLayoutForceAtlas2 !== 'undefined') {
+            forceAtlas2 = GraphologyLayoutForceAtlas2;
         } else if (typeof graphologyLayoutForceAtlas2 !== 'undefined') {
             forceAtlas2 = graphologyLayoutForceAtlas2;
         } else if (typeof graphologyLibrary !== 'undefined' && graphologyLibrary.layoutForceAtlas2) {
