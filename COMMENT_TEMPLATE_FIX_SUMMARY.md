@@ -7,8 +7,7 @@
 **Problem:**
 When the comments list template was loaded via htmx, JavaScript variables (`MAX_LINES_COLLAPSED`, `HEIGHT_TOLERANCE`) and functions (`shouldShowExpandButton`, `updateExpandButton`, etc.) were being redeclared in the global scope, causing the error:
 ```
-Uncaught SyntaxError: Failed to execute 'insertBefore' on 'Node': 
-Identifier 'MAX_LINES_COLLAPSED' has already been declared
+Uncaught SyntaxError: Identifier 'MAX_LINES_COLLAPSED' has already been declared
 ```
 
 **Solution:**
@@ -93,8 +92,8 @@ Created `main/test_comment_template_fixes.py` with tests for:
 ### IIFE Pattern Benefits
 - Prevents variable pollution of global scope
 - Allows multiple htmx loads without conflicts
-- Maintains event handlers without duplication
-- Used `cloneNode()` to remove old event listeners before adding new ones
+- Event listeners are reattached on each load using `cloneNode()` to replace old buttons with fresh copies, effectively removing old event listeners
+- Each htmx reload runs the IIFE again, creating a fresh scope and reattaching event handlers
 
 ### Backward Compatibility
 - JSON API responses unchanged (still return ISO strings)
