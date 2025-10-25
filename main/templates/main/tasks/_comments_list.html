@@ -1,0 +1,279 @@
+{% load static %}
+
+{% if comments %}
+<div class="comments-container">
+    {% for comment in comments %}
+    <div class="comment-card mb-3 {% if comment.source == 'agent' %}comment-agent{% else %}comment-user{% endif %}" data-comment-id="{{ comment.id }}">
+        <div class="comment-header">
+            <div class="comment-author">
+                {% if comment.source == 'agent' %}
+                <i class="bi bi-robot"></i>
+                {% else %}
+                <i class="bi bi-person-circle"></i>
+                {% endif %}
+                <strong>{{ comment.author }}</strong>
+            </div>
+            <div class="comment-meta">
+                <small class="text-muted">{{ comment.created_at|date:"d.m.Y H:i" }}</small>
+                {% if comment.updated_at != comment.created_at %}
+                <small class="text-muted">(bearbeitet)</small>
+                {% endif %}
+            </div>
+        </div>
+        <div class="comment-body" data-comment-text="{{ comment.text|escapejs }}">
+            <div class="comment-text markdown-content">{{ comment.text|linebreaks }}</div>
+            <div class="comment-edit-form" style="display: none;">
+                <textarea class="form-control mb-2" rows="4">{{ comment.text }}</textarea>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-success save-comment-btn">
+                        <i class="bi bi-check-lg"></i> Speichern
+                    </button>
+                    <button class="btn btn-sm btn-secondary cancel-edit-btn">
+                        <i class="bi bi-x-lg"></i> Abbrechen
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% if comment.can_edit or comment.can_delete %}
+        <div class="comment-actions">
+            {% if comment.can_edit %}
+            <button class="btn btn-sm btn-outline-primary edit-comment-btn" title="Bearbeiten">
+                <i class="bi bi-pencil"></i>
+            </button>
+            {% endif %}
+            {% if comment.can_delete %}
+            <button class="btn btn-sm btn-outline-danger delete-comment-btn" title="Löschen">
+                <i class="bi bi-trash"></i>
+            </button>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center text-muted py-5">
+    <i class="bi bi-chat-left-text" style="font-size: 3rem;"></i>
+    <p class="mt-3">Noch keine Kommentare vorhanden</p>
+</div>
+{% endif %}
+
+<style>
+.comments-container {
+    max-height: 600px;
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+.comment-card {
+    background: rgba(31, 41, 55, 0.6);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    position: relative;
+    border-left: 3px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.comment-card:hover {
+    background: rgba(31, 41, 55, 0.8);
+}
+
+.comment-user {
+    border-left-color: #6b7280;
+}
+
+.comment-agent {
+    border-left-color: #8b5cf6;
+    background: rgba(139, 92, 246, 0.1);
+}
+
+.comment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.comment-author {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+}
+
+.comment-author i {
+    font-size: 1.2rem;
+}
+
+.comment-body {
+    margin-bottom: 0.5rem;
+}
+
+.comment-text {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.comment-actions {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    display: flex;
+    gap: 0.25rem;
+}
+
+.comment-card:hover .comment-actions {
+    opacity: 1;
+}
+
+.markdown-content {
+    line-height: 1.6;
+}
+
+/* Custom scrollbar */
+.comments-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.comments-container::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.5);
+    border-radius: 4px;
+}
+
+.comments-container::-webkit-scrollbar-thumb {
+    background: rgba(107, 114, 128, 0.5);
+    border-radius: 4px;
+}
+
+.comments-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(107, 114, 128, 0.7);
+}
+</style>
+
+<script>
+// Handle edit button click
+document.querySelectorAll('.edit-comment-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const commentCard = this.closest('.comment-card');
+        const textDiv = commentCard.querySelector('.comment-text');
+        const editForm = commentCard.querySelector('.comment-edit-form');
+        
+        textDiv.style.display = 'none';
+        editForm.style.display = 'block';
+    });
+});
+
+// Handle cancel edit button click
+document.querySelectorAll('.cancel-edit-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const commentCard = this.closest('.comment-card');
+        const textDiv = commentCard.querySelector('.comment-text');
+        const editForm = commentCard.querySelector('.comment-edit-form');
+        const textarea = editForm.querySelector('textarea');
+        
+        // Reset textarea to original value
+        textarea.value = commentCard.querySelector('.comment-body').dataset.commentText;
+        
+        textDiv.style.display = 'block';
+        editForm.style.display = 'none';
+    });
+});
+
+// Handle save comment button click
+document.querySelectorAll('.save-comment-btn').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        const commentCard = this.closest('.comment-card');
+        const commentId = commentCard.dataset.commentId;
+        const textarea = commentCard.querySelector('.comment-edit-form textarea');
+        const newText = textarea.value.trim();
+        
+        if (!newText) {
+            alert('Kommentartext darf nicht leer sein');
+            return;
+        }
+        
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        
+        try {
+            const response = await fetch(`/api/comments/${commentId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({ text: newText })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                // Reload comments list
+                // Extract task ID from URL like /tasks/{uuid}/
+                const taskId = window.location.pathname.split('/')[2];
+                htmx.ajax('GET', `/api/tasks/${taskId}/comments`, {
+                    target: '#taskCommentsListContainer',
+                    swap: 'innerHTML'
+                });
+            } else {
+                alert('Fehler beim Speichern: ' + (data.error || 'Unbekannter Fehler'));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-lg"></i> Speichern';
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Fehler beim Speichern: ' + error.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check-lg"></i> Speichern';
+        }
+    });
+});
+
+// Handle delete button click
+document.querySelectorAll('.delete-comment-btn').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        if (!confirm('Möchten Sie diesen Kommentar wirklich löschen?')) {
+            return;
+        }
+        
+        const commentCard = this.closest('.comment-card');
+        const commentId = commentCard.dataset.commentId;
+        
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        
+        try {
+            const response = await fetch(`/api/comments/${commentId}/delete`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                // Reload comments list
+                // Extract task ID from URL like /tasks/{uuid}/
+                const taskId = window.location.pathname.split('/')[2];
+                htmx.ajax('GET', `/api/tasks/${taskId}/comments`, {
+                    target: '#taskCommentsListContainer',
+                    swap: 'innerHTML'
+                });
+            } else {
+                alert('Fehler beim Löschen: ' + (data.error || 'Unbekannter Fehler'));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-trash"></i>';
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Fehler beim Löschen: ' + error.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-trash"></i>';
+        }
+    });
+});
+</script>

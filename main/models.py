@@ -594,6 +594,45 @@ class Task(models.Model):
         self.save(update_fields=['status', 'completed_at'])
 
 
+class TaskComment(models.Model):
+    """
+    Comment model for tasks - supports both user and agent comments.
+    Comments are stored locally and synchronized to Weaviate for semantic search.
+    """
+    
+    SOURCE_CHOICES = [
+        ('user', 'User'),
+        ('agent', 'Agent'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='task_comments')
+    author_name = models.CharField(max_length=255, blank=True, default='', help_text='Author name for agent comments or when user is deleted')
+    text = models.TextField(help_text='Comment content (Markdown supported)')
+    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default='user')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['created_at']
+        verbose_name = 'Task Comment'
+        verbose_name_plural = 'Task Comments'
+    
+    def __str__(self):
+        author_display = self.author.username if self.author else self.author_name
+        return f"Comment by {author_display} on {self.task.title}"
+    
+    def get_author_display(self):
+        """Get the display name for the comment author"""
+        if self.author:
+            return self.author.username
+        elif self.author_name:
+            return self.author_name
+        else:
+            return 'Unknown'
+
+
 class Settings(models.Model):
     """
     Settings model to store system configuration and API keys.

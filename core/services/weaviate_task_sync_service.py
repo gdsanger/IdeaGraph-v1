@@ -123,6 +123,9 @@ class WeaviateTaskSyncService:
         # Get tags as list of names
         tag_names = [tag.name for tag in task.tags.all()]
         
+        # Build comments text for semantic search
+        comments_text = self._build_comments_text(task)
+        
         properties = {
             'type': 'Task',
             'title': task.title,
@@ -132,6 +135,7 @@ class WeaviateTaskSyncService:
             'createdAt': task.created_at.isoformat(),
             'tags': tag_names,
             'url': f'/tasks/{task.id}/',
+            'commentsText': comments_text,
         }
         
         # Add itemId if task belongs to an item
@@ -143,6 +147,30 @@ class WeaviateTaskSyncService:
             properties['githubIssueId'] = task.github_issue_id
         
         return properties
+    
+    def _build_comments_text(self, task) -> str:
+        """
+        Build a formatted text representation of all comments for semantic search
+        
+        Args:
+            task: Task model instance
+        
+        Returns:
+            Formatted comments text as a single string
+        """
+        comments = task.comments.all().order_by('created_at')
+        
+        if not comments:
+            return ''
+        
+        comment_lines = []
+        for comment in comments:
+            author = comment.get_author_display()
+            # Format: [Author | DD.MM.YYYY HH:MM] Comment text
+            timestamp = comment.created_at.strftime('%d.%m.%Y %H:%M')
+            comment_lines.append(f"[{author} | {timestamp}] {comment.text}")
+        
+        return '\n'.join(comment_lines)
     
     def sync_create(self, task) -> Dict[str, Any]:
         """
