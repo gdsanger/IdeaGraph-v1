@@ -6369,3 +6369,98 @@ def api_task_comment_delete(request, comment_id):
         }, status=500)
 
 
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_global_search(request):
+    """
+    Global semantic search across all KnowledgeObject types
+    
+    Query Parameters:
+        query (required): Search query text (natural language)
+        limit (optional): Maximum number of results (default: 10, max: 50)
+        types (optional): Comma-separated list of object types to filter by
+                          (e.g., "Item,Task,File")
+    
+    Returns:
+        JSON response with:
+            - success: bool
+            - results: list of search results with metadata
+            - total: total number of results
+            - query: original query text
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        # Get query parameter
+        query = request.GET.get('query', '').strip()
+        
+        if not query:
+            return JsonResponse({
+                'success': False,
+                'error': 'Query parameter is required'
+            }, status=400)
+        
+        # Get optional parameters
+        limit = int(request.GET.get('limit', 10))
+        limit = min(max(1, limit), 50)  # Clamp between 1 and 50
+        
+        types_param = request.GET.get('types', '').strip()
+        object_types = None
+        if types_param:
+            object_types = [t.strip() for t in types_param.split(',') if t.strip()]
+        
+        # Perform search
+        from core.services.weaviate_search_service import WeaviateSearchService, WeaviateSearchServiceError
+        from .models import Settings
+        
+        settings = Settings.objects.first()
+        if not settings:
+            return JsonResponse({
+                'success': False,
+                'error': 'Settings not configured'
+            }, status=500)
+        
+        search_service = WeaviateSearchService(settings)
+        
+        try:
+            result = search_service.search(
+                query=query,
+                limit=limit,
+                object_types=object_types
+            )
+            
+            logger.info(f"Global search for '{query}' returned {result.get('total', 0)} results")
+            
+            return JsonResponse(result)
+            
+        finally:
+            search_service.close()
+    
+    except WeaviateSearchServiceError as e:
+        logger.error(f'Weaviate search error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Search service error'
+        }, status=500)
+    
+    except ValueError as e:
+        logger.error(f'Invalid parameter in search: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid parameter'
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Global search error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Search failed'
+        }, status=500)
+
+

@@ -6,6 +6,9 @@ app_name = 'main'
 urlpatterns = [
     path('', views.home, name='home'),
     
+    # Global Search
+    path('search/', views.global_search_view, name='global_search'),
+    
     # Authentication URLs
     path('login/', auth_views.login_view, name='login'),
     path('logout/', auth_views.logout_view, name='logout'),
@@ -194,4 +197,7 @@ urlpatterns = [
     path('api/weaviate/<str:object_type>/<uuid:object_id>/status', api_views.check_weaviate_status, name='api_weaviate_status'),
     path('api/weaviate/<str:object_type>/<uuid:object_id>/add', api_views.add_to_weaviate, name='api_weaviate_add'),
     path('api/weaviate/<str:object_type>/<uuid:object_id>/dump', api_views.get_weaviate_dump, name='api_weaviate_dump'),
+    
+    # Global Search API Endpoint
+    path('api/search', api_views.api_global_search, name='api_global_search'),
 ]
