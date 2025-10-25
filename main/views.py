@@ -5,7 +5,8 @@ from django.core.exceptions import ValidationError
 from .auth_utils import validate_password
 from .models import Tag, Settings, Section, User, Item, Task, Client, Milestone
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -172,17 +173,54 @@ def _build_selected_clients_payload(client_values):
 
 def home(request):
     """Home page view"""
-    # Fetch statistics from database
+    # Get current time and date ranges
+    now = timezone.now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    
+    # Fetch total statistics
     total_items = Item.objects.count()
     total_tasks = Task.objects.count()
     github_issues = Task.objects.filter(github_issue_id__isnull=False).count()
     completed_tasks = Task.objects.filter(status='done').count()
+    
+    # Fetch daily statistics (today)
+    daily_items = Item.objects.filter(created_at__gte=today_start).count()
+    daily_tasks = Task.objects.filter(created_at__gte=today_start).count()
+    daily_github_issues = Task.objects.filter(
+        github_issue_id__isnull=False,
+        created_at__gte=today_start
+    ).count()
+    daily_completed_tasks = Task.objects.filter(
+        status='done',
+        completed_at__gte=today_start
+    ).count()
+    
+    # Fetch weekly statistics (current week)
+    weekly_items = Item.objects.filter(created_at__gte=week_start).count()
+    weekly_tasks = Task.objects.filter(created_at__gte=week_start).count()
+    weekly_github_issues = Task.objects.filter(
+        github_issue_id__isnull=False,
+        created_at__gte=week_start
+    ).count()
+    weekly_completed_tasks = Task.objects.filter(
+        status='done',
+        completed_at__gte=week_start
+    ).count()
     
     context = {
         'total_items': total_items,
         'total_tasks': total_tasks,
         'github_issues': github_issues,
         'completed_tasks': completed_tasks,
+        'daily_items': daily_items,
+        'daily_tasks': daily_tasks,
+        'daily_github_issues': daily_github_issues,
+        'daily_completed_tasks': daily_completed_tasks,
+        'weekly_items': weekly_items,
+        'weekly_tasks': weekly_tasks,
+        'weekly_github_issues': weekly_github_issues,
+        'weekly_completed_tasks': weekly_completed_tasks,
     }
     
     return render(request, 'main/home.html', context)
