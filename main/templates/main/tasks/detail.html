@@ -540,25 +540,8 @@
 
 {% block extra_js %}
 <!-- Toast UI Editor JS -->
-<script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
 {{ all_tags|json_script:"task-detail-all-tags" }}
 {{ selected_tags|json_script:"task-detail-selected-tags" }}
-<script src="{% static 'main/js/tag-token.js' %}"></script>
-
-<!-- Sigma.js and dependencies for semantic network -->
-<script src="https://cdn.jsdelivr.net/npm/graphology@0.25.1/dist/graphology.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/dist/graphology-layout-forceatlas2.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0-alpha3/build/sigma.min.js"></script>
-
-<!-- Semantic Graph Component (Modular) -->
-<script src="{% static 'main/js/semantic-graph/useSemanticGraphData.js' %}"></script>
-<script src="{% static 'main/js/semantic-graph/GraphNodeTooltip.js' %}"></script>
-<script src="{% static 'main/js/semantic-graph/GraphToolbar.js' %}"></script>
-<script src="{% static 'main/js/semantic-graph/SemanticGraph.js' %}"></script>
-
-<!-- Weaviate Indicator JS -->
-<script src="{% static 'main/js/weaviate-indicator.js' %}"></script>
-
 <script>
 // Initialize Toast UI Editor
 const editor = new toastui.Editor({

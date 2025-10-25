@@ -1,87 +1,7 @@
 {% extends "main/base.html" %}
 {% load static %}
-
 {% block title %}{% if item %}Edit{% else %}Create{% endif %} Item{% endblock %}
-
 {% block extra_css %}
-<!-- Toast UI Editor CSS -->
-<link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
-
-<style>
-    /* Fix Toast UI Editor markdown panel background to match the application theme */
-    .toastui-editor-defaultUI .toastui-editor-main-container .toastui-editor-md-container,
-    .toastui-editor-defaultUI .toastui-editor-main-container .toastui-editor-md-container .toastui-editor-md-splitter,
-    .toastui-editor-defaultUI .toastui-editor-main-container .toastui-editor-md-vertical-style .toastui-editor-md-splitter {
-        background-color: #fff;
-    }
-    
-    .toastui-editor-defaultUI .toastui-editor-md-vertical-style .toastui-editor-md-preview {
-        background-color: #fff;
-    }
-    
-    .toastui-editor-defaultUI .ProseMirror {
-        background-color: #fff;       
-    }
-    .tag-token-box {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        min-height: calc(2.5rem + 2px);
-        padding: 0.35rem 0.5rem;
-        border: 1px solid var(--bs-border-color);
-        border-radius: 0.5rem;
-        background-color: rgba(15, 23, 42, 0.6);
-        cursor: text;
-    }
-
-    .tag-token-box:focus-within {
-        border-color: var(--autumn-accent);
-        box-shadow: 0 0 0 0.2rem rgba(245, 158, 11, 0.25);
-    }
-
-    .tag-token {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-        padding: 0.25rem 0.75rem;
-        border-radius: 999px;
-        font-size: 0.85rem;
-        color: #fff;
-        background-color: var(--autumn-primary);
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-    }
-
-    .tag-token-remove {
-        background: transparent;
-        border: none;
-        color: inherit;
-        cursor: pointer;
-        font-size: 1rem;
-        line-height: 1;
-        padding: 0;
-    }
-
-    .tag-token-remove:hover {
-        opacity: 0.8;
-    }
-
-    .tag-token-input {
-        flex: 1 0 140px;
-        min-width: 120px;
-        border: none;
-        background: transparent;
-        color: inherit;
-        padding: 0.35rem;
-        font-size: 0.95rem;
-    }
-
-    .tag-token-input:focus {
-        outline: none;
-        box-shadow: none;
-    }
-
-</style>
 {% endblock %}
 
 {% block content %}
@@ -256,13 +176,12 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Toast UI Editor JS -->
-<script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
+
 {{ all_tags|json_script:"item-all-tags" }}
 {{ selected_tags|json_script:"item-selected-tags" }}
 {{ all_clients|json_script:"item-all-clients" }}
 {{ selected_clients|json_script:"item-selected-clients" }}
-<script src="{% static 'main/js/tag-token.js' %}"></script>
+
 
 <script>
 // Initialize Toast UI Editor

@@ -4,12 +4,7 @@
 {% block title %}{{ item.title }} - Item Details{% endblock %}
 
 {% block extra_css %}
-<!-- Toast UI Editor CSS -->
-<link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
-<!-- Semantic Network CSS -->
-<link rel="stylesheet" href="{% static 'main/css/semantic-network.css' %}" />
-<!-- Weaviate Indicator CSS -->
-<link rel="stylesheet" href="{% static 'main/css/weaviate-indicator.css' %}" />
+
 
 <style>
     /* Compact layout adjustments */
@@ -825,26 +820,11 @@
 
 {% block extra_js %}
 <!-- Toast UI Editor JS -->
-<script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
+
 {{ all_tags|json_script:"item-detail-all-tags" }}
 {{ selected_tags|json_script:"item-detail-selected-tags" }}
 {{ all_clients|json_script:"item-detail-all-clients" }}
 {{ selected_clients|json_script:"item-detail-selected-clients" }}
-<script src="{% static 'main/js/tag-token.js' %}"></script>
-
-<!-- Sigma.js and dependencies for semantic network -->
-<script src="https://cdn.jsdelivr.net/npm/graphology@0.25.1/dist/graphology.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/dist/graphology-layout-forceatlas2.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0-alpha3/build/sigma.min.js"></script>
-
-<!-- Semantic Graph Component (Modular) -->
-<script src="{% static 'main/js/semantic-graph/useSemanticGraphData.js' %}"></script>
-<script src="{% static 'main/js/semantic-graph/GraphNodeTooltip.js' %}"></script>
-<script src="{% static 'main/js/semantic-graph/GraphToolbar.js' %}"></script>
-<script src="{% static 'main/js/semantic-graph/SemanticGraph.js' %}"></script>
-
-<!-- Weaviate Indicator JS -->
-<script src="{% static 'main/js/weaviate-indicator.js' %}"></script>
 
 <script>
 // Tab state persistence: Save and restore last opened tab

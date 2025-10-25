@@ -1,186 +1,8 @@
 {% extends "main/base.html" %}
 {% load static %}
-
 {% block title %}{{ milestone.name }} - Milestone Details{% endblock %}
-
 {% block extra_css %}
-<!-- Semantic Network CSS -->
-<link rel="stylesheet" href="{% static 'main/css/semantic-network.css' %}" />
-<!-- Weaviate Indicator CSS -->
-<link rel="stylesheet" href="{% static 'main/css/weaviate-indicator.css' %}" />
-<!-- Toast UI Editor/Viewer CSS -->
-<link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor-viewer.min.css" />
-
-<style>
-    .milestone-detail-card {
-        background: rgba(31, 41, 55, 0.9);
-    }
-    
-    .context-object-card {
-        background: rgba(15, 23, 42, 0.6);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        transition: all 0.3s ease;
-    }
-    
-    .context-object-card:hover {
-        border-color: var(--autumn-accent);
-        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
-    }
-    
-    .context-type-icon {
-        font-size: 2rem;
-        display: inline-block;
-        margin-right: 0.5rem;
-    }
-    
-    .ai-button {
-        position: relative;
-    }
-    
-    .ai-button .spinner-border {
-        display: none;
-        width: 1rem;
-        height: 1rem;
-        margin-left: 0.5rem;
-    }
-    
-    .ai-button.loading .spinner-border {
-        display: inline-block;
-    }
-    
-    .ai-button.loading .button-text {
-        opacity: 0.7;
-    }
-    
-    .file-upload-area {
-        border: 2px dashed rgba(255, 255, 255, 0.3);
-        border-radius: 0.5rem;
-        padding: 2rem;
-        text-align: center;
-        background: rgba(15, 23, 42, 0.4);
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-    
-    .file-upload-area:hover {
-        border-color: var(--autumn-accent);
-        background: rgba(15, 23, 42, 0.6);
-    }
-    
-    .file-upload-area.dragover {
-        border-color: var(--autumn-accent);
-        background: rgba(245, 158, 11, 0.1);
-    }
-    
-    .upload-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.8);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 9999;
-        backdrop-filter: blur(4px);
-    }
-    
-    .upload-overlay-content {
-        background: rgba(31, 41, 55, 0.95);
-        padding: 2rem;
-        border-radius: 1rem;
-        border: 2px solid var(--autumn-accent);
-        text-align: center;
-        min-width: 400px;
-        box-shadow: 0 10px 40px rgba(245, 158, 11, 0.3);
-    }
-    
-    .upload-spinner {
-        width: 4rem;
-        height: 4rem;
-        border: 4px solid rgba(245, 158, 11, 0.3);
-        border-top-color: var(--autumn-accent);
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-        margin: 0 auto 1.5rem;
-    }
-    
-    @keyframes spin {
-        to { transform: rotate(360deg); }
-    }
-    
-    .upload-status {
-        margin-top: 1rem;
-        color: rgba(255, 255, 255, 0.8);
-    }
-    
-    .file-progress-item {
-        display: flex;
-        align-items: center;
-        padding: 0.5rem;
-        margin: 0.5rem 0;
-        background: rgba(15, 23, 42, 0.6);
-        border-radius: 0.25rem;
-        border-left: 3px solid var(--autumn-accent);
-    }
-    
-    .file-progress-item i {
-        margin-right: 0.5rem;
-        color: var(--autumn-accent);
-    }
-    
-    .file-progress-item.success i {
-        color: #10b981;
-    }
-    
-    .file-progress-item.error i {
-        color: #ef4444;
-    }
-    
-    /* Changelog viewer styling */
-    #changelogViewer {
-        background-color: #1f2937;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        color: #e5e7eb;
-    }
-    
-    #changelogViewer h1,
-    #changelogViewer h2,
-    #changelogViewer h3,
-    #changelogViewer h4,
-    #changelogViewer h5,
-    #changelogViewer h6 {
-        color: var(--autumn-accent);
-        margin-top: 1rem;
-        margin-bottom: 0.5rem;
-    }
-    
-    #changelogViewer ul,
-    #changelogViewer ol {
-        padding-left: 2rem;
-    }
-    
-    #changelogViewer code {
-        background-color: rgba(15, 23, 42, 0.8);
-        padding: 0.2rem 0.4rem;
-        border-radius: 0.25rem;
-        color: #fbbf24;
-    }
-    
-    #changelogViewer pre {
-        background-color: rgba(15, 23, 42, 0.8);
-        padding: 1rem;
-        border-radius: 0.5rem;
-        overflow-x: auto;
-    }
-</style>
 {% endblock %}
-
 {% block content %}
 <div class="container-fluid">
     <!-- Breadcrumb -->
@@ -847,21 +669,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Toast UI Viewer JS -->
-<script src="https://uicdn.toast.com/editor/latest/toastui-editor-viewer.min.js"></script>
 
-<!-- Sigma.js and dependencies for semantic network -->
-<script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/dist/graphology-layout-forceatlas2.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0-beta.20/build/sigma.min.js"></script>
-
-<!-- Semantic Graph Component (Modular) -->
-<script src="{% static 'main/js/semantic-graph/useSemanticGraphData.js' %}"></script>
-<script src="{% static 'main/js/semantic-graph/GraphNodeTooltip.js' %}"></script>
-<script src="{% static 'main/js/semantic-graph/GraphToolbar.js' %}"></script>
-<script src="{% static 'main/js/semantic-graph/SemanticGraph.js' %}"></script>
-<!-- Weaviate Indicator JavaScript -->
-<script src="{% static 'main/js/weaviate-indicator.js' %}"></script>
 
 <script>
 // CSRF token for AJAX requests
@@ -1790,18 +1598,13 @@ document.getElementById('semantic-network-tab')?.addEventListener('shown.bs.tab'
         // Note: The new component auto-loads by default, no need to call load() separately
     }
 });
-
-// Initialize ToastUI Viewer for changelog markdown
-{% if milestone.changelog %}
-document.addEventListener('DOMContentLoaded', function() {
-    const changelogMarkdownElement = document.querySelector('#changelogMarkdown');
-    if (changelogMarkdownElement) {
-        const viewer = new toastui.Editor.Viewer({
-            el: document.querySelector('#changelogViewer'),
-            initialValue: changelogMarkdownElement.value
-        });
-    }
+// Initialize Toast UI Editor
+const editor = new toastui.Editor({
+    el: document.querySelector('#changelogMarkdown'),
+    height: '100%',
+    initialEditType: 'markdown',
+    previewStyle: 'vertical',
+    initialValue: document.querySelector('#description').value
 });
-{% endif %}
 </script>
 {% endblock %}

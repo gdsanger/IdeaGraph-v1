@@ -13,14 +13,31 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-    
+    <link rel="stylesheet" href="{% static 'main/css/site.css' %}" />
+    <!-- Toast UI Editor CSS -->
+    <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
+    <!-- Semantic Network CSS -->
+    <link rel="stylesheet" href="{% static 'main/css/semantic-network.css' %}" />
+    <!-- Weaviate Indicator CSS -->
+    <link rel="stylesheet" href="{% static 'main/css/weaviate-indicator.css' %}" />
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    
+    <!-- Toast UI Editor JS -->
+    <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
+    <script src="{% static 'main/js/tag-token.js' %}"></script>
+    <!-- Sigma.js and dependencies for semantic network -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sigma.js/2.4.0/sigma.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/graphology/0.25.4/graphology.umd.min.js"></script>
+    <!-- Semantic Graph Component (Modular) -->
+    <script src="{% static 'main/js/semantic-graph/useSemanticGraphData.js' %}"></script>
+    <script src="{% static 'main/js/semantic-graph/GraphNodeTooltip.js' %}"></script>
+    <script src="{% static 'main/js/semantic-graph/GraphToolbar.js' %}"></script>
+    <script src="{% static 'main/js/semantic-graph/SemanticGraph.js' %}"></script>
+    <!-- Weaviate Indicator JavaScript -->
+    <script src="{% static 'main/js/weaviate-indicator.js' %}"></script>
     <style>
         :root {
             /* IdeaGraph Corporate Identity Colors */
