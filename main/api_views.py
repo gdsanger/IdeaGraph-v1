@@ -6340,22 +6340,21 @@ def api_global_search(request):
         logger.error(f'Weaviate search error: {str(e)}')
         return JsonResponse({
             'success': False,
-            'error': 'Search service error',
-            'details': str(e)
+            'error': 'Search service error'
         }, status=500)
     
     except ValueError as e:
+        logger.error(f'Invalid parameter in search: {str(e)}')
         return JsonResponse({
             'success': False,
-            'error': f'Invalid parameter: {str(e)}'
+            'error': 'Invalid parameter'
         }, status=400)
     
     except Exception as e:
         logger.error(f'Global search error: {str(e)}')
         return JsonResponse({
             'success': False,
-            'error': 'Search failed',
-            'details': str(e)
+            'error': 'Search failed'
         }, status=500)
 
 
