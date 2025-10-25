@@ -3,8 +3,9 @@ Task File Service for IdeaGraph
 
 This module provides file upload/download/delete functionality for Tasks,
 integrating with SharePoint via Graph API and Weaviate for file content storage.
-Files are stored locally in: media/task_files/{normalized_item_title}/{task_uuid}/
-and optionally in SharePoint under: IdeaGraph/{normalized_item_title}/{task_uuid}/
+Files are stored locally in: media/task_files/{normalized_item_title}/{task.id}/
+and optionally in SharePoint under: IdeaGraph/{normalized_item_title}/{task.id}/
+where task.id is the task's UUID.
 """
 
 import logging
@@ -45,11 +46,13 @@ class TaskFileService:
     Manages file uploads for Tasks:
     - Validates file size (max 25MB)
     - Normalizes folder names for SharePoint and local filesystem
-    - Saves files locally in "media/task_files/{normalized_item_title}/{task_uuid}/"
-    - Uploads files to SharePoint under "IdeaGraph/{normalized_item_title}/{task_uuid}/" (optional)
+    - Saves files locally in "media/task_files/{normalized_item_title}/{task.id}/"
+    - Uploads files to SharePoint under "IdeaGraph/{normalized_item_title}/{task.id}/" (optional)
     - Extracts text content from supported file types
     - Stores content in Weaviate as KnowledgeObject
     - Tracks uploaded files in TaskFile model
+    
+    Where task.id is the task's UUID.
     """
     
     MAX_FILE_SIZE = 25 * 1024 * 1024  # 25MB in bytes
@@ -155,8 +158,10 @@ class TaskFileService:
         Save file to local filesystem
         
         Saves files in structure:
-        - media/task_files/{normalized_item_title}/{task_uuid}/ for tasks with items
-        - media/task_files/Tasks/{task_uuid}/ for standalone tasks
+        - media/task_files/{normalized_item_title}/{task.id}/ for tasks with items
+        - media/task_files/Tasks/{task.id}/ for standalone tasks
+        
+        Where task.id is the task's UUID.
         
         Args:
             task: Task object
