@@ -290,6 +290,17 @@ class SemanticGraph {
         
         // Bind Sigma events
         this.bindSigmaEvents();
+        
+        // Apply initial level visibility from toolbar state
+        if (this.toolbar) {
+            const toolbarState = this.toolbar.getState();
+            if (!toolbarState.showLevel2) {
+                this.applyLevelVisibility(2, false);
+            }
+            if (!toolbarState.showLevel3) {
+                this.applyLevelVisibility(3, false);
+            }
+        }
     }
     
     applyLayout() {
@@ -468,6 +479,10 @@ class SemanticGraph {
     }
     
     toggleLevel(level, visible) {
+        this.applyLevelVisibility(level, visible);
+    }
+    
+    applyLevelVisibility(level, visible) {
         if (!this.sigma || !this.graph) return;
         
         this.graph.forEachNode((nodeId, attributes) => {
@@ -483,7 +498,16 @@ class SemanticGraph {
             legend.style.display = visible ? 'flex' : 'none';
         }
         
-        this.sigma.refresh();
+        // Also update task level legends
+        const taskLegendId = `taskLevel${level}Legend`;
+        const taskLegend = document.getElementById(taskLegendId);
+        if (taskLegend) {
+            taskLegend.style.display = visible ? 'flex' : 'none';
+        }
+        
+        if (this.sigma) {
+            this.sigma.refresh();
+        }
     }
     
     showLoading() {

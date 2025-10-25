@@ -20,8 +20,8 @@ class GraphToolbar {
         
         this.state = {
             includeHierarchy: false,
-            showLevel2: true,
-            showLevel3: true
+            showLevel2: false,
+            showLevel3: false
         };
         
         this.init();
@@ -48,10 +48,10 @@ class GraphToolbar {
                     ` : ''}
                     ${this.options.showLevelToggles ? `
                         <button class="btn btn-sm btn-outline-warning" id="snToggleLevel2">
-                            <i class="bi bi-eye"></i> Ebene 2
+                            <i class="bi bi-eye-slash"></i> Ebene 2
                         </button>
                         <button class="btn btn-sm btn-outline-warning" id="snToggleLevel3">
-                            <i class="bi bi-eye"></i> Ebene 3
+                            <i class="bi bi-eye-slash"></i> Ebene 3
                         </button>
                     ` : ''}
                 </div>
@@ -67,6 +67,10 @@ class GraphToolbar {
         
         // Bind events
         this.bindEvents();
+        
+        // Update button states to reflect initial state
+        this.updateLevelButton(2);
+        this.updateLevelButton(3);
     }
     
     bindEvents() {
