@@ -1,0 +1,110 @@
+{% comment %}
+Example template showing how to integrate the Semantic Graph Component
+into any Django view.
+
+This example can be used as a reference for integrating the component
+into Item, Task, Milestone, File, or Conversation detail pages.
+{% endcomment %}
+
+{% extends "main/base.html" %}
+{% load static %}
+
+{% block title %}Semantic Graph Example{% endblock %}
+
+{% block extra_css %}
+<!-- Semantic Graph CSS -->
+<link rel="stylesheet" href="{% static 'main/css/semantic-network.css' %}" />
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- Left Column: Main Content -->
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Object Details</h3>
+                </div>
+                <div class="card-body">
+                    <h4>{{ object.title }}</h4>
+                    <p>{{ object.description }}</p>
+                    
+                    <div class="mt-3">
+                        <strong>Type:</strong> {{ object_type }}<br>
+                        <strong>ID:</strong> {{ object.id }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Column: Semantic Graph -->
+        <div class="col-lg-6">
+            <div id="semanticGraphContainer" style="width: 100%; height: 600px;"></div>
+        </div>
+    </div>
+    
+    <!-- Full Width Semantic Graph Example -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <h3>Alternative: Full-Width Semantic Graph</h3>
+            <div id="semanticGraphFullWidth" style="width: 100%; height: 600px;"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Sigma.js and dependencies -->
+<script src="https://cdn.jsdelivr.net/npm/graphology@0.25.1/dist/graphology.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sigma@2.4.0/build/sigma.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/build/graphology-layout-forceatlas2.umd.min.js"></script>
+
+<!-- Semantic Graph Component -->
+<script src="{% static 'main/js/semantic-graph/useSemanticGraphData.js' %}"></script>
+<script src="{% static 'main/js/semantic-graph/GraphNodeTooltip.js' %}"></script>
+<script src="{% static 'main/js/semantic-graph/GraphToolbar.js' %}"></script>
+<script src="{% static 'main/js/semantic-graph/SemanticGraph.js' %}"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Example 1: Basic usage in right column
+    const graph1 = new SemanticGraph('semanticGraphContainer', {
+        objectType: '{{ object_type }}',
+        objectId: '{{ object.id }}',
+        depth: 3,
+        generateSummaries: true,
+        includeHierarchy: true
+    });
+    
+    // Example 2: Full-width graph with custom click handler
+    const graph2 = new SemanticGraph('semanticGraphFullWidth', {
+        objectType: '{{ object_type }}',
+        objectId: '{{ object.id }}',
+        depth: 2,
+        generateSummaries: false,  // Faster loading
+        onNodeClick: function(nodeData) {
+            // Custom behavior when clicking nodes
+            console.log('Node clicked:', nodeData);
+            
+            // Example: Show modal with node details
+            // showNodeDetailsModal(nodeData);
+            
+            // Or navigate to the object
+            // Default navigation is already handled if onNodeClick is not provided
+        }
+    });
+    
+    // Example 3: Dynamic loading
+    // If you need to load different objects dynamically:
+    function loadDifferentObject(type, id) {
+        graph1.load(type, id);
+    }
+    
+    // Example cleanup on page unload
+    window.addEventListener('beforeunload', function() {
+        graph1.destroy();
+        graph2.destroy();
+    });
+});
+</script>
+{% endblock %}
