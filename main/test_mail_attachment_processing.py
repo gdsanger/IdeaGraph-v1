@@ -2,7 +2,6 @@
 Tests for Mail Attachment Processing in MailProcessingService
 """
 
-import json
 import base64
 from unittest.mock import Mock, patch, MagicMock, call
 from django.test import TestCase
@@ -64,6 +63,17 @@ class MailAttachmentProcessingTestCase(TestCase):
         """Clean up after tests"""
         cache.clear()
     
+    def _create_test_task(self, title='Test Task', description='Test task description'):
+        """Helper method to create a test task"""
+        return Task.objects.create(
+            title=title,
+            description=description,
+            status='new',
+            item=self.item,
+            requester=self.user,
+            created_by=self.user
+        )
+    
     @patch('core.services.graph_service.GraphService.get_message_attachments')
     @patch('core.services.graph_service.GraphService.download_attachment')
     @patch('core.services.task_file_service.TaskFileService.upload_file')
@@ -75,15 +85,8 @@ class MailAttachmentProcessingTestCase(TestCase):
         mock_weaviate_init
     ):
         """Test successful attachment processing"""
-        # Create a test task
-        task = Task.objects.create(
-            title='Test Task',
-            description='Test task description',
-            status='new',
-            item=self.item,
-            requester=self.user,
-            created_by=self.user
-        )
+        # Create a test task using helper
+        task = self._create_test_task()
         
         # Mock attachment list
         mock_get_attachments.return_value = {
@@ -151,15 +154,8 @@ class MailAttachmentProcessingTestCase(TestCase):
         mock_weaviate_init
     ):
         """Test processing when message has no attachments"""
-        # Create a test task
-        task = Task.objects.create(
-            title='Test Task',
-            description='Test task description',
-            status='new',
-            item=self.item,
-            requester=self.user,
-            created_by=self.user
-        )
+        # Create a test task using helper
+        task = self._create_test_task()
         
         # Mock empty attachment list
         mock_get_attachments.return_value = {
@@ -193,15 +189,8 @@ class MailAttachmentProcessingTestCase(TestCase):
         mock_weaviate_init
     ):
         """Test attachment processing with some failures"""
-        # Create a test task
-        task = Task.objects.create(
-            title='Test Task',
-            description='Test task description',
-            status='new',
-            item=self.item,
-            requester=self.user,
-            created_by=self.user
-        )
+        # Create a test task using helper
+        task = self._create_test_task()
         
         # Mock attachment list with 2 attachments
         mock_get_attachments.return_value = {
