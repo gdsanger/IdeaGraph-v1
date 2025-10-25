@@ -25,6 +25,7 @@
         :root {
             /* IdeaGraph Corporate Identity Colors */
             --primary-amber: #E49A28;        /* Primary Amber - Akzentfarbe */
+            --secondary-amber: #f59e0b;      /* Secondary Amber - Lighter shade for gradients */
             --secondary-cyan: #4BD0C7;       /* Secondary Cyan - Interaktive Elemente */
             --tech-blue: #2AB3D1;            /* Tech Blue - Hover-Effekte */
             --graph-gray: #1A1A1A;           /* Graph Gray - Darkmode-Hintergrund */
@@ -238,7 +239,7 @@
             display: inline-flex;
             align-items: center;
             padding: 0.5rem 1rem;
-            background: linear-gradient(135deg, var(--primary-amber), #f59e0b);
+            background: linear-gradient(135deg, var(--primary-amber), var(--secondary-amber));
             border-radius: 10px;
             color: white;
             font-weight: 600;
@@ -249,7 +250,7 @@
         }
         
         .mail-inbox-badge:hover {
-            background: linear-gradient(135deg, #f59e0b, var(--secondary-cyan));
+            background: linear-gradient(135deg, var(--secondary-amber), var(--secondary-cyan));
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(75, 208, 199, 0.4);
             color: white;

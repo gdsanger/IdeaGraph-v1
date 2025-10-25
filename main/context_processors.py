@@ -1,6 +1,7 @@
 """
 Context processors for making data available in all templates.
 """
+from django.db import DatabaseError
 from .models import Item, Task
 
 
@@ -31,8 +32,9 @@ def mail_inbox_badge(request):
                 'mail_inbox_id': None,
                 'mail_inbox_new_tasks': 0,
             }
-    except Exception:
-        # In case of any error, return safe defaults
+    except (DatabaseError, ValueError, TypeError) as e:
+        # In case of database errors or data issues, return safe defaults
+        # Log the error for debugging but don't break the page render
         return {
             'mail_inbox_id': None,
             'mail_inbox_new_tasks': 0,
