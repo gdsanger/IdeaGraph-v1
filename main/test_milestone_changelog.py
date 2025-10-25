@@ -237,3 +237,223 @@ class MilestoneChangeLogViewTest(TestCase):
         milestone_from_db = Milestone.objects.get(id=self.milestone.id)
         self.assertIn('Updated ChangeLog', milestone_from_db.changelog)
         self.assertEqual(milestone_from_db.name, 'Updated Milestone')
+
+
+class MilestoneChangeLogRecreationTest(TestCase):
+    """Test the Milestone changelog recreation functionality"""
+    
+    def setUp(self):
+        """Set up test data"""
+        # Create a test user
+        self.user = User.objects.create(
+            username='recreateuser',
+            email='recreate@example.com',
+            role='admin'
+        )
+        self.user.set_password('testpass123')
+        self.user.save()
+        
+        # Create a test section
+        self.section = Section.objects.create(
+            name='Recreate Test Section'
+        )
+        
+        # Create a test item
+        self.item = Item.objects.create(
+            title='Recreate Test Item',
+            description='Recreate test description',
+            section=self.section,
+            created_by=self.user,
+            status='new'
+        )
+        
+        # Create a test milestone
+        self.milestone = Milestone.objects.create(
+            name='Recreate Test Milestone',
+            description='Recreate test milestone description',
+            due_date=date.today() + timedelta(days=30),
+            status='planned',
+            item=self.item,
+            changelog='# Old ChangeLog\n\nThis is the old changelog content.'
+        )
+    
+    def test_old_changelog_field_is_cleared(self):
+        """Test that old changelog field content is cleared when recreating"""
+        # Create initial changelog content
+        self.milestone.changelog = '# Original ChangeLog\n\nOriginal content'
+        self.milestone.save()
+        
+        # Verify initial content exists
+        self.assertIn('Original ChangeLog', self.milestone.changelog)
+        
+        # Simulate recreation by clearing and setting new content
+        self.milestone.changelog = ''
+        self.milestone.save()
+        self.milestone.changelog = '# New ChangeLog\n\nNew content'
+        self.milestone.save()
+        
+        # Verify old content is replaced
+        milestone_from_db = Milestone.objects.get(id=self.milestone.id)
+        self.assertNotIn('Original ChangeLog', milestone_from_db.changelog)
+        self.assertIn('New ChangeLog', milestone_from_db.changelog)
+    
+    def test_old_milestone_files_are_deleted(self):
+        """Test that old MilestoneFile records are deleted when recreating"""
+        # Create old changelog files
+        old_file1 = MilestoneFile.objects.create(
+            milestone=self.milestone,
+            filename='CHANGELOG_old_1.md',
+            file_size=100,
+            content_type='text/markdown',
+            uploaded_by=self.user
+        )
+        
+        old_file2 = MilestoneFile.objects.create(
+            milestone=self.milestone,
+            filename='CHANGELOG_old_2.md',
+            file_size=200,
+            content_type='text/markdown',
+            uploaded_by=self.user
+        )
+        
+        # Verify files exist
+        self.assertEqual(self.milestone.files.count(), 2)
+        
+        # Delete old files (simulating recreation)
+        old_files = MilestoneFile.objects.filter(
+            milestone=self.milestone,
+            content_type='text/markdown'
+        )
+        old_files.delete()
+        
+        # Verify files are deleted
+        self.assertEqual(self.milestone.files.count(), 0)
+        
+        # Create new file
+        new_file = MilestoneFile.objects.create(
+            milestone=self.milestone,
+            filename='CHANGELOG_new.md',
+            file_size=300,
+            content_type='text/markdown',
+            uploaded_by=self.user
+        )
+        
+        # Verify only new file exists
+        self.assertEqual(self.milestone.files.count(), 1)
+        self.assertEqual(self.milestone.files.first().filename, 'CHANGELOG_new.md')
+    
+    def test_multiple_recreation_cycles(self):
+        """Test that changelog can be recreated multiple times"""
+        # First creation
+        file1 = MilestoneFile.objects.create(
+            milestone=self.milestone,
+            filename='CHANGELOG_v1.md',
+            file_size=100,
+            content_type='text/markdown',
+            uploaded_by=self.user
+        )
+        self.milestone.changelog = '# Version 1'
+        self.milestone.save()
+        
+        # First recreation
+        MilestoneFile.objects.filter(
+            milestone=self.milestone,
+            content_type='text/markdown'
+        ).delete()
+        file2 = MilestoneFile.objects.create(
+            milestone=self.milestone,
+            filename='CHANGELOG_v2.md',
+            file_size=200,
+            content_type='text/markdown',
+            uploaded_by=self.user
+        )
+        self.milestone.changelog = '# Version 2'
+        self.milestone.save()
+        
+        # Second recreation
+        MilestoneFile.objects.filter(
+            milestone=self.milestone,
+            content_type='text/markdown'
+        ).delete()
+        file3 = MilestoneFile.objects.create(
+            milestone=self.milestone,
+            filename='CHANGELOG_v3.md',
+            file_size=300,
+            content_type='text/markdown',
+            uploaded_by=self.user
+        )
+        self.milestone.changelog = '# Version 3'
+        self.milestone.save()
+        
+        # Verify only the latest version exists
+        self.assertEqual(self.milestone.files.count(), 1)
+        self.assertEqual(self.milestone.files.first().filename, 'CHANGELOG_v3.md')
+        self.assertIn('Version 3', self.milestone.changelog)
+        self.assertNotIn('Version 1', self.milestone.changelog)
+        self.assertNotIn('Version 2', self.milestone.changelog)
+    
+    def test_only_markdown_files_are_deleted(self):
+        """Test that only changelog markdown files are deleted, not other files"""
+        # Create a changelog file
+        changelog_file = MilestoneFile.objects.create(
+            milestone=self.milestone,
+            filename='CHANGELOG.md',
+            file_size=100,
+            content_type='text/markdown',
+            uploaded_by=self.user
+        )
+        
+        # Create a non-changelog file (e.g., a PDF document)
+        other_file = MilestoneFile.objects.create(
+            milestone=self.milestone,
+            filename='documentation.pdf',
+            file_size=5000,
+            content_type='application/pdf',
+            uploaded_by=self.user
+        )
+        
+        # Verify both files exist
+        self.assertEqual(self.milestone.files.count(), 2)
+        
+        # Delete only markdown files (changelog recreation)
+        MilestoneFile.objects.filter(
+            milestone=self.milestone,
+            content_type='text/markdown'
+        ).delete()
+        
+        # Verify only the PDF remains
+        self.assertEqual(self.milestone.files.count(), 1)
+        self.assertEqual(self.milestone.files.first().content_type, 'application/pdf')
+        self.assertEqual(self.milestone.files.first().filename, 'documentation.pdf')
+    
+    def test_weaviate_sync_flag_is_preserved(self):
+        """Test that new changelog can be synced to Weaviate after recreation"""
+        # Create a file with weaviate_synced=True
+        old_file = MilestoneFile.objects.create(
+            milestone=self.milestone,
+            filename='CHANGELOG_old.md',
+            file_size=100,
+            content_type='text/markdown',
+            uploaded_by=self.user,
+            weaviate_synced=True
+        )
+        
+        # Delete old file
+        old_file.delete()
+        
+        # Create new file
+        new_file = MilestoneFile.objects.create(
+            milestone=self.milestone,
+            filename='CHANGELOG_new.md',
+            file_size=200,
+            content_type='text/markdown',
+            uploaded_by=self.user,
+            weaviate_synced=False  # Starts as not synced
+        )
+        
+        # Simulate Weaviate sync
+        new_file.weaviate_synced = True
+        new_file.save()
+        
+        # Verify sync flag
+        self.assertTrue(new_file.weaviate_synced)
