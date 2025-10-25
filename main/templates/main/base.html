@@ -231,6 +231,56 @@
         .toast.text-bg-info {
             background-color: rgba(42, 179, 209, 0.95) !important;
         }
+        
+        /* Mail Inbox Badge Styling */
+        .mail-inbox-badge {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            background: linear-gradient(135deg, var(--primary-amber), #f59e0b);
+            border-radius: 10px;
+            color: white;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(228, 154, 40, 0.3);
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+        
+        .mail-inbox-badge:hover {
+            background: linear-gradient(135deg, #f59e0b, var(--secondary-cyan));
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(75, 208, 199, 0.4);
+            color: white;
+            text-decoration: none;
+        }
+        
+        .mail-inbox-badge i {
+            margin-right: 0.5rem;
+            font-size: 1.2rem;
+        }
+        
+        .mail-inbox-badge .badge-count {
+            background: white;
+            color: var(--primary-amber);
+            font-weight: 700;
+            padding: 0.25rem 0.6rem;
+            border-radius: 20px;
+            margin-left: 0.5rem;
+            font-size: 0.9rem;
+            min-width: 28px;
+            text-align: center;
+        }
+        
+        @keyframes pulse-glow {
+            0%, 100% {
+                box-shadow: 0 4px 15px rgba(228, 154, 40, 0.3);
+            }
+            50% {
+                box-shadow: 0 6px 25px rgba(228, 154, 40, 0.6);
+            }
+        }
     </style>
     
     {% block extra_css %}{% endblock %}
@@ -277,6 +327,17 @@
                             <i class="bi bi-gear-fill"></i> Settings
                         </a>
                     </li>
+                    
+                    <!-- Mail-Eingang Badge - Only show if there are new tasks -->
+                    {% if mail_inbox_new_tasks > 0 and mail_inbox_id %}
+                    <li class="nav-item">
+                        <a class="mail-inbox-badge" href="{% url 'main:item_detail' item_id=mail_inbox_id %}" title="New Tasks in Mail-Eingang">
+                            <i class="bi bi-envelope-fill"></i>
+                            <span>New Tasks</span>
+                            <span class="badge-count">{{ mail_inbox_new_tasks }}</span>
+                        </a>
+                    </li>
+                    {% endif %}
                     
                     {% if request.session.user_id %}
                         <!-- Admin Dropdown - Only for Admin Role -->
