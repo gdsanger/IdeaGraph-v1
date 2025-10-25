@@ -1,5 +1,8 @@
 """
-Integration test to verify GitHub issue sync creates comments
+Tests for GitHub Issue Sync Comment Integration
+
+This module tests that the GitHub issue synchronization service properly
+creates task comments when issues are closed or completed.
 """
 from unittest.mock import patch, MagicMock
 from django.test import TestCase
