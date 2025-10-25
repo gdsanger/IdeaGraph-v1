@@ -1792,7 +1792,7 @@ document.getElementById('semantic-network-tab')?.addEventListener('shown.bs.tab'
 document.addEventListener('DOMContentLoaded', function() {
     const changelogMarkdownElement = document.querySelector('#changelogMarkdown');
     if (changelogMarkdownElement) {
-        const viewer = new toastui.Editor.Viewer({
+        const viewer = toastui.Editor.factory({
             el: document.querySelector('#changelogViewer'),
             initialValue: changelogMarkdownElement.value
         });
