@@ -182,190 +182,196 @@
 </style>
 
 <script>
-// Constants
-const MAX_LINES_COLLAPSED = 5;
-const HEIGHT_TOLERANCE = 5; // pixels
+// Wrap in IIFE to avoid variable redeclaration on htmx reloads
+(function() {
+    // Constants
+    const MAX_LINES_COLLAPSED = 5;
+    const HEIGHT_TOLERANCE = 5; // pixels
 
-// Helper function to check if comment needs expand button
-function shouldShowExpandButton(commentText) {
-    const lineHeight = parseFloat(window.getComputedStyle(commentText).lineHeight);
-    const maxHeight = lineHeight * MAX_LINES_COLLAPSED;
-    const actualHeight = commentText.scrollHeight;
-    return actualHeight > maxHeight + HEIGHT_TOLERANCE;
-}
-
-// Helper function to update expand button visibility
-function updateExpandButton(commentCard) {
-    const commentText = commentCard.querySelector('.comment-text');
-    const expandBtn = commentCard.querySelector('.comment-expand-btn');
-    
-    if (!commentText || !expandBtn) return;
-    
-    if (shouldShowExpandButton(commentText)) {
-        expandBtn.style.display = 'block';
-    } else {
-        commentText.classList.remove('collapsed');
-        expandBtn.style.display = 'none';
+    // Helper function to check if comment needs expand button
+    function shouldShowExpandButton(commentText) {
+        const lineHeight = parseFloat(window.getComputedStyle(commentText).lineHeight);
+        const maxHeight = lineHeight * MAX_LINES_COLLAPSED;
+        const actualHeight = commentText.scrollHeight;
+        return actualHeight > maxHeight + HEIGHT_TOLERANCE;
     }
-}
 
-// Initialize expand/collapse functionality for comments
-function initializeCommentExpandCollapse() {
-    document.querySelectorAll('.comment-card').forEach(card => {
-        const commentText = card.querySelector('.comment-text');
-        const expandBtn = card.querySelector('.comment-expand-btn');
+    // Helper function to update expand button visibility
+    function updateExpandButton(commentCard) {
+        const commentText = commentCard.querySelector('.comment-text');
+        const expandBtn = commentCard.querySelector('.comment-expand-btn');
         
         if (!commentText || !expandBtn) return;
         
-        // Check if text exceeds MAX_LINES_COLLAPSED
-        updateExpandButton(card);
-        
-        // Add click handler
-        expandBtn.addEventListener('click', function() {
-            const isCollapsed = commentText.classList.contains('collapsed');
-            const expandText = this.querySelector('.expand-text');
-            const collapseText = this.querySelector('.collapse-text');
+        if (shouldShowExpandButton(commentText)) {
+            expandBtn.style.display = 'block';
+        } else {
+            commentText.classList.remove('collapsed');
+            expandBtn.style.display = 'none';
+        }
+    }
+
+    // Initialize expand/collapse functionality for comments
+    function initializeCommentExpandCollapse() {
+        document.querySelectorAll('.comment-card').forEach(card => {
+            const commentText = card.querySelector('.comment-text');
+            const expandBtn = card.querySelector('.comment-expand-btn');
             
-            if (isCollapsed) {
-                commentText.classList.remove('collapsed');
-                expandText.style.display = 'none';
-                collapseText.style.display = 'inline';
-            } else {
-                commentText.classList.add('collapsed');
-                expandText.style.display = 'inline';
-                collapseText.style.display = 'none';
-            }
+            if (!commentText || !expandBtn) return;
+            
+            // Check if text exceeds MAX_LINES_COLLAPSED
+            updateExpandButton(card);
+            
+            // Add click handler (remove any existing listeners first)
+            const newExpandBtn = expandBtn.cloneNode(true);
+            expandBtn.parentNode.replaceChild(newExpandBtn, expandBtn);
+            
+            newExpandBtn.addEventListener('click', function() {
+                const isCollapsed = commentText.classList.contains('collapsed');
+                const expandText = this.querySelector('.expand-text');
+                const collapseText = this.querySelector('.collapse-text');
+                
+                if (isCollapsed) {
+                    commentText.classList.remove('collapsed');
+                    expandText.style.display = 'none';
+                    collapseText.style.display = 'inline';
+                } else {
+                    commentText.classList.add('collapsed');
+                    expandText.style.display = 'inline';
+                    collapseText.style.display = 'none';
+                }
+            });
+        });
+    }
+
+    // Initialize on load
+    initializeCommentExpandCollapse();
+
+    // Handle edit button click
+    document.querySelectorAll('.edit-comment-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const commentCard = this.closest('.comment-card');
+            const textDiv = commentCard.querySelector('.comment-text');
+            const expandBtn = commentCard.querySelector('.comment-expand-btn');
+            const editForm = commentCard.querySelector('.comment-edit-form');
+            
+            textDiv.style.display = 'none';
+            if (expandBtn) expandBtn.style.display = 'none';
+            editForm.style.display = 'block';
         });
     });
-}
 
-// Initialize on load
-initializeCommentExpandCollapse();
-
-// Handle edit button click
-document.querySelectorAll('.edit-comment-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const commentCard = this.closest('.comment-card');
-        const textDiv = commentCard.querySelector('.comment-text');
-        const expandBtn = commentCard.querySelector('.comment-expand-btn');
-        const editForm = commentCard.querySelector('.comment-edit-form');
-        
-        textDiv.style.display = 'none';
-        if (expandBtn) expandBtn.style.display = 'none';
-        editForm.style.display = 'block';
-    });
-});
-
-// Handle cancel edit button click
-document.querySelectorAll('.cancel-edit-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const commentCard = this.closest('.comment-card');
-        const textDiv = commentCard.querySelector('.comment-text');
-        const editForm = commentCard.querySelector('.comment-edit-form');
-        const textarea = editForm.querySelector('textarea');
-        
-        // Reset textarea to original value
-        textarea.value = commentCard.querySelector('.comment-body').dataset.commentText;
-        
-        textDiv.style.display = '-webkit-box';
-        updateExpandButton(commentCard);
-        editForm.style.display = 'none';
-    });
-});
-
-// Handle save comment button click
-document.querySelectorAll('.save-comment-btn').forEach(btn => {
-    btn.addEventListener('click', async function() {
-        const commentCard = this.closest('.comment-card');
-        const commentId = commentCard.dataset.commentId;
-        const textarea = commentCard.querySelector('.comment-edit-form textarea');
-        const newText = textarea.value.trim();
-        
-        if (!newText) {
-            alert('Kommentartext darf nicht leer sein');
-            return;
-        }
-        
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-        
-        try {
-            const response = await fetch(`/api/comments/${commentId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrfToken()
-                },
-                body: JSON.stringify({ text: newText })
-            });
+    // Handle cancel edit button click
+    document.querySelectorAll('.cancel-edit-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const commentCard = this.closest('.comment-card');
+            const textDiv = commentCard.querySelector('.comment-text');
+            const editForm = commentCard.querySelector('.comment-edit-form');
+            const textarea = editForm.querySelector('textarea');
             
-            const data = await response.json();
+            // Reset textarea to original value
+            textarea.value = commentCard.querySelector('.comment-body').dataset.commentText;
             
-            if (response.ok && data.success) {
-                // Reload comments list
-                // Extract task ID from URL like /tasks/{uuid}/
-                const taskId = window.location.pathname.split('/')[2];
-                htmx.ajax('GET', `/api/tasks/${taskId}/comments`, {
-                    target: '#taskCommentsListContainer',
-                    swap: 'innerHTML'
+            textDiv.style.display = '-webkit-box';
+            updateExpandButton(commentCard);
+            editForm.style.display = 'none';
+        });
+    });
+
+    // Handle save comment button click
+    document.querySelectorAll('.save-comment-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const commentCard = this.closest('.comment-card');
+            const commentId = commentCard.dataset.commentId;
+            const textarea = commentCard.querySelector('.comment-edit-form textarea');
+            const newText = textarea.value.trim();
+            
+            if (!newText) {
+                alert('Kommentartext darf nicht leer sein');
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            
+            try {
+                const response = await fetch(`/api/comments/${commentId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify({ text: newText })
                 });
-            } else {
-                alert('Fehler beim Speichern: ' + (data.error || 'Unbekannter Fehler'));
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    // Reload comments list
+                    // Extract task ID from URL like /tasks/{uuid}/
+                    const taskId = window.location.pathname.split('/')[2];
+                    htmx.ajax('GET', `/api/tasks/${taskId}/comments`, {
+                        target: '#taskCommentsListContainer',
+                        swap: 'innerHTML'
+                    });
+                } else {
+                    alert('Fehler beim Speichern: ' + (data.error || 'Unbekannter Fehler'));
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-check-lg"></i> Speichern';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Fehler beim Speichern: ' + error.message);
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-check-lg"></i> Speichern';
             }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Fehler beim Speichern: ' + error.message);
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-check-lg"></i> Speichern';
-        }
+        });
     });
-});
 
-// Handle delete button click
-document.querySelectorAll('.delete-comment-btn').forEach(btn => {
-    btn.addEventListener('click', async function() {
-        if (!confirm('Möchten Sie diesen Kommentar wirklich löschen?')) {
-            return;
-        }
-        
-        const commentCard = this.closest('.comment-card');
-        const commentId = commentCard.dataset.commentId;
-        
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-        
-        try {
-            const response = await fetch(`/api/comments/${commentId}/delete`, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrfToken()
-                }
-            });
+    // Handle delete button click
+    document.querySelectorAll('.delete-comment-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            if (!confirm('Möchten Sie diesen Kommentar wirklich löschen?')) {
+                return;
+            }
             
-            const data = await response.json();
+            const commentCard = this.closest('.comment-card');
+            const commentId = commentCard.dataset.commentId;
             
-            if (response.ok && data.success) {
-                // Reload comments list
-                // Extract task ID from URL like /tasks/{uuid}/
-                const taskId = window.location.pathname.split('/')[2];
-                htmx.ajax('GET', `/api/tasks/${taskId}/comments`, {
-                    target: '#taskCommentsListContainer',
-                    swap: 'innerHTML'
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            
+            try {
+                const response = await fetch(`/api/comments/${commentId}/delete`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    }
                 });
-            } else {
-                alert('Fehler beim Löschen: ' + (data.error || 'Unbekannter Fehler'));
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    // Reload comments list
+                    // Extract task ID from URL like /tasks/{uuid}/
+                    const taskId = window.location.pathname.split('/')[2];
+                    htmx.ajax('GET', `/api/tasks/${taskId}/comments`, {
+                        target: '#taskCommentsListContainer',
+                        swap: 'innerHTML'
+                    });
+                } else {
+                    alert('Fehler beim Löschen: ' + (data.error || 'Unbekannter Fehler'));
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-trash"></i>';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Fehler beim Löschen: ' + error.message);
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-trash"></i>';
             }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Fehler beim Löschen: ' + error.message);
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-trash"></i>';
-        }
+        });
     });
-});
+})();
 </script>
