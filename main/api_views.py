@@ -6039,10 +6039,13 @@ def api_task_comment_create(request, task_id):
         
         # Sync task to Weaviate with updated comments
         try:
-            weaviate_service = WeaviateTaskSyncService()
-            weaviate_service.sync_update(task)
-            weaviate_service.close()
-            logger.info(f'Task {task_id} synced to Weaviate with new comment')
+            from .models import Settings
+            settings = Settings.objects.first()
+            if settings:
+                weaviate_service = WeaviateTaskSyncService(settings)
+                weaviate_service.sync_update(task)
+                weaviate_service.close()
+                logger.info(f'Task {task_id} synced to Weaviate with new comment')
         except WeaviateTaskSyncServiceError as e:
             logger.warning(f'Failed to sync task to Weaviate: {str(e)}')
             # Continue even if Weaviate sync fails
@@ -6134,10 +6137,13 @@ def api_task_comment_update(request, comment_id):
         
         # Sync task to Weaviate with updated comments
         try:
-            weaviate_service = WeaviateTaskSyncService()
-            weaviate_service.sync_update(comment.task)
-            weaviate_service.close()
-            logger.info(f'Task {comment.task.id} synced to Weaviate after comment update')
+            from .models import Settings
+            settings = Settings.objects.first()
+            if settings:
+                weaviate_service = WeaviateTaskSyncService(settings)
+                weaviate_service.sync_update(comment.task)
+                weaviate_service.close()
+                logger.info(f'Task {comment.task.id} synced to Weaviate after comment update')
         except WeaviateTaskSyncServiceError as e:
             logger.warning(f'Failed to sync task to Weaviate: {str(e)}')
             # Continue even if Weaviate sync fails
@@ -6215,10 +6221,13 @@ def api_task_comment_delete(request, comment_id):
         
         # Sync task to Weaviate with updated comments
         try:
-            weaviate_service = WeaviateTaskSyncService()
-            weaviate_service.sync_update(task)
-            weaviate_service.close()
-            logger.info(f'Task {task.id} synced to Weaviate after comment deletion')
+            from .models import Settings
+            settings = Settings.objects.first()
+            if settings:
+                weaviate_service = WeaviateTaskSyncService(settings)
+                weaviate_service.sync_update(task)
+                weaviate_service.close()
+                logger.info(f'Task {task.id} synced to Weaviate after comment deletion')
         except WeaviateTaskSyncServiceError as e:
             logger.warning(f'Failed to sync task to Weaviate: {str(e)}')
             # Continue even if Weaviate sync fails

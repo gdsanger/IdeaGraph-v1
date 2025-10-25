@@ -443,7 +443,7 @@
                             <!-- Comments list - loaded via htmx -->
                             <div id="taskCommentsListContainer"
                                  hx-get="/api/tasks/{{ task.id }}/comments"
-                                 hx-trigger="load"
+                                 hx-trigger="load, click from:#comments-tab"
                                  hx-indicator="#commentLoadProgress">
                                 <div class="text-center text-muted py-5">
                                     <i class="bi bi-chat-left-text" style="font-size: 3rem;"></i>

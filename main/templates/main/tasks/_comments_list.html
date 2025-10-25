@@ -153,11 +153,6 @@
 </style>
 
 <script>
-// Helper function to get CSRF token
-function getCsrfToken() {
-    return document.querySelector('[name=csrfmiddlewaretoken]').value;
-}
-
 // Handle edit button click
 document.querySelectorAll('.edit-comment-btn').forEach(btn => {
     btn.addEventListener('click', function() {
@@ -216,7 +211,9 @@ document.querySelectorAll('.save-comment-btn').forEach(btn => {
             
             if (response.ok && data.success) {
                 // Reload comments list
-                htmx.ajax('GET', window.location.pathname.replace(/\/$/, '') + '/comments', {
+                // Extract task ID from URL like /tasks/{uuid}/
+                const taskId = window.location.pathname.split('/')[2];
+                htmx.ajax('GET', `/api/tasks/${taskId}/comments`, {
                     target: '#taskCommentsListContainer',
                     swap: 'innerHTML'
                 });
@@ -260,7 +257,9 @@ document.querySelectorAll('.delete-comment-btn').forEach(btn => {
             
             if (response.ok && data.success) {
                 // Reload comments list
-                htmx.ajax('GET', window.location.pathname.replace(/\/$/, '') + '/comments', {
+                // Extract task ID from URL like /tasks/{uuid}/
+                const taskId = window.location.pathname.split('/')[2];
+                htmx.ajax('GET', `/api/tasks/${taskId}/comments`, {
                     target: '#taskCommentsListContainer',
                     swap: 'innerHTML'
                 });
