@@ -168,6 +168,8 @@
                         <span class="badge status-badge-large bg-warning">🟡 {{ task.get_status_display }}</span>
                         {% elif task.status == 'working' %}
                         <span class="badge status-badge-large bg-primary">🔵 {{ task.get_status_display }}</span>
+                        {% elif task.status == 'test' %}
+                        <span class="badge status-badge-large bg-info">🧪 {{ task.get_status_display }}</span>
                         {% elif task.status == 'done' %}
                         <span class="badge status-badge-large bg-secondary">✅ {{ task.get_status_display }}</span>
                         {% else %}
@@ -256,7 +258,27 @@
                                             {% elif value == 'working' %}🔵
                                             {% elif value == 'review' %}🟡
                                             {% elif value == 'ready' %}🟢
+                                            {% elif value == 'test' %}🧪
                                             {% elif value == 'done' %}✅
+                                            {% endif %}
+                                            {{ label }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <!-- Type -->
+                                <div class="mb-3">
+                                    <label for="type" class="form-label">Type</label>
+                                    <select class="form-select" id="type" name="type">
+                                        {% for value, label in type_choices %}
+                                        <option value="{{ value }}" {% if task.type == value %}selected{% endif %}>
+                                            {% if value == 'bug' %}🐛
+                                            {% elif value == 'feature' %}✨
+                                            {% elif value == 'frage' %}❓
+                                            {% elif value == 'support' %}🆘
+                                            {% elif value == 'idee' %}💡
+                                            {% elif value == 'sonstige' %}📋
                                             {% endif %}
                                             {{ label }}
                                         </option>

@@ -1439,6 +1439,7 @@ def task_detail(request, task_id):
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '').strip()
         status = request.POST.get('status', task.status)
+        type_value = request.POST.get('type', task.type)
         milestone_id = request.POST.get('milestone', '').strip()
         tag_values = request.POST.getlist('tags')
         requester_id = request.POST.get('requester', None)
@@ -1460,6 +1461,7 @@ def task_detail(request, task_id):
                 task.title = title
                 task.description = description
                 task.status = status
+                task.type = type_value
                 task.requester = requester
                 
                 # Set milestone
@@ -1508,6 +1510,7 @@ def task_detail(request, task_id):
     # Get all tags and status choices
     all_tags = list(Tag.objects.values('id', 'name', 'color'))
     status_choices = Task.STATUS_CHOICES
+    type_choices = Task.TYPE_CHOICES
     
     # Get all milestones for the task's item
     milestones = task.item.milestones.all() if task.item else []
@@ -1523,6 +1526,7 @@ def task_detail(request, task_id):
         'all_tags': all_tags,
         'selected_tags': selected_tags_payload,
         'status_choices': status_choices,
+        'type_choices': type_choices,
         'milestones': milestones,
         'all_users': all_users,
         'settings': settings,

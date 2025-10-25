@@ -94,6 +94,10 @@
                             <span class="badge bg-success status-badge badge-clickable" style="font-size: 1rem; padding: 0.5rem 1rem;">
                                 🟢 {{ status_label }} ({{ status_counts.ready|default:0 }})
                             </span>
+                            {% elif status_key == 'test' %}
+                            <span class="badge bg-info status-badge badge-clickable" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                                🧪 {{ status_label }} ({{ status_counts.test|default:0 }})
+                            </span>
                             {% elif status_key == 'done' %}
                             <span class="badge bg-secondary status-badge badge-clickable" style="font-size: 1rem; padding: 0.5rem 1rem;">
                                 ✅ {{ status_label }} ({{ status_counts.done|default:0 }})
@@ -341,6 +345,80 @@ function createGitHubIssue(taskId) {
         loadingModal.hide();
         alert('GitHub issue creation feature is not yet fully implemented. Please use the task detail page.');
     }, 2000);
+}
+
+// Update Task Type
+function updateTaskType(taskId, newType) {
+    // Get CSRF token
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                     document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+    
+    // Send update request
+    fetch(`/api/tasks/${taskId}/quick-type-update`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            type: newType
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success feedback
+            const select = document.querySelector(`.task-type-select[data-task-id="${taskId}"]`);
+            if (select) {
+                // Flash success animation
+                select.style.backgroundColor = '#d4edda';
+                setTimeout(() => {
+                    select.style.backgroundColor = '';
+                }, 500);
+            }
+        } else {
+            alert('Error updating task type: ' + (data.error || 'Unknown error'));
+            // Reload to reset the select
+            window.location.reload();
+        }
+    })
+    .catch(error => {
+        alert('Error updating task type: ' + error.message);
+        // Reload to reset the select
+        window.location.reload();
+    });
+}
+
+// Mark Task as Done
+function markTaskAsDone(taskId) {
+    if (!confirm('Mark this task as done?')) {
+        return;
+    }
+    
+    // Get CSRF token
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                     document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+    
+    // Send mark done request
+    fetch(`/api/tasks/${taskId}/mark-done`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Reload page to show updated task list with new status
+            window.location.reload();
+        } else {
+            alert('Error marking task as done: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        alert('Error marking task as done: ' + error.message);
+    });
 }
 </script>
 {% endblock %}
