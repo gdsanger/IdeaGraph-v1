@@ -28,6 +28,7 @@
                         <option value="working" {% if task.status == 'working' %}selected{% endif %}>🔵 Working</option>
                         <option value="review" {% if task.status == 'review' %}selected{% endif %}>🟡 Review</option>
                         <option value="ready" {% if task.status == 'ready' %}selected{% endif %}>🟢 Ready</option>
+                        <option value="test" {% if task.status == 'test' %}selected{% endif %}>🧪 Test</option>
                         <option value="done" {% if task.status == 'done' %}selected{% endif %}>✅ Erledigt</option>
                     </select>
                 </td>

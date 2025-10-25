@@ -4235,7 +4235,7 @@ def api_task_quick_status_update(request, task_id):
         new_status = data.get('status', '').strip()
         
         # Validate status
-        valid_statuses = ['new', 'working', 'review', 'ready', 'done']
+        valid_statuses = ['new', 'working', 'review', 'ready', 'test', 'done']
         if new_status not in valid_statuses:
             return JsonResponse({'error': 'Invalid status value'}, status=400)
         
@@ -4274,6 +4274,112 @@ def api_task_quick_status_update(request, task_id):
     except Exception as e:
         logger.error(f'Task status update error: {str(e)}')
         return JsonResponse({'error': 'Failed to update task status'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_task_quick_type_update(request, task_id):
+    """
+    API endpoint for quick task type update.
+    POST /api/tasks/{task_id}/quick-type-update
+    Body: {"type": "bug|feature|frage|support|idee|sonstige"}
+    
+    Used by the task list view for inline type changes.
+    Updates the database and syncs with Weaviate.
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Task
+    
+    try:
+        task = Task.objects.get(id=task_id)
+        
+        # Parse request body
+        data = json.loads(request.body)
+        new_type = data.get('type', '').strip()
+        
+        # Validate type
+        valid_types = ['bug', 'feature', 'frage', 'support', 'idee', 'sonstige']
+        if new_type not in valid_types:
+            return JsonResponse({'error': 'Invalid type value'}, status=400)
+        
+        task.type = new_type
+        task.save()
+        
+        # Sync with Weaviate
+        try:
+            from main.models import Settings
+            settings = Settings.objects.first()
+            if settings:
+                sync_service = WeaviateTaskSyncService(settings)
+                sync_service.sync_update(task)
+        except WeaviateTaskSyncServiceError as e:
+            logger.warning(f'Weaviate sync failed for task {task.id}: {e.message}')
+        except Exception as e:
+            logger.warning(f'Weaviate sync error for task {task.id}: {str(e)}')
+        
+        return JsonResponse({
+            'success': True,
+            'type': task.type,
+            'type_display': task.get_type_display()
+        })
+    
+    except Task.DoesNotExist:
+        return JsonResponse({'error': 'Task not found'}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f'Task type update error: {str(e)}')
+        return JsonResponse({'error': 'Failed to update task type'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_task_mark_done(request, task_id):
+    """
+    API endpoint to mark a task as done.
+    POST /api/tasks/{task_id}/mark-done
+    
+    Sets the task status to 'done' and updates completed_at timestamp.
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Task
+    
+    try:
+        task = Task.objects.get(id=task_id)
+        
+        # Mark as done
+        task.mark_as_done()
+        
+        # Sync with Weaviate
+        try:
+            from main.models import Settings
+            settings = Settings.objects.first()
+            if settings:
+                sync_service = WeaviateTaskSyncService(settings)
+                sync_service.sync_update(task)
+        except WeaviateTaskSyncServiceError as e:
+            logger.warning(f'Weaviate sync failed for task {task.id}: {e.message}')
+        except Exception as e:
+            logger.warning(f'Weaviate sync error for task {task.id}: {str(e)}')
+        
+        return JsonResponse({
+            'success': True,
+            'status': task.status,
+            'status_display': task.get_status_display(),
+            'completed_at': task.completed_at.isoformat() if task.completed_at else None
+        })
+    
+    except Task.DoesNotExist:
+        return JsonResponse({'error': 'Task not found'}, status=404)
+    except Exception as e:
+        logger.error(f'Task mark done error: {str(e)}')
+        return JsonResponse({'error': 'Failed to mark task as done'}, status=500)
 
 
 # ===== Milestone Knowledge Hub API Endpoints =====

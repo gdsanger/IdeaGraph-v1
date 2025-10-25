@@ -523,22 +523,24 @@ class Task(models.Model):
         ('working', 'Working'),
         ('review', 'Review'),
         ('ready', 'Ready'),
+        ('test', 'Test'),
         ('done', 'Erledigt'),
     ]
     
     TYPE_CHOICES = [
-        ('task', 'Task'),
-        ('feature', 'Feature'),
         ('bug', 'Bug'),
-        ('ticket', 'Ticket'),
-        ('maintenance', 'Maintenance'),
+        ('feature', 'Feature'),
+        ('frage', 'Frage'),
+        ('support', 'Support'),
+        ('idee', 'Idee'),
+        ('sonstige', 'Sonstige'),
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default='')  # Markdown content
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='new')
-    type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='task', help_text='Task type classification')
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='sonstige', help_text='Task type classification')
     
     # Relations
     item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
