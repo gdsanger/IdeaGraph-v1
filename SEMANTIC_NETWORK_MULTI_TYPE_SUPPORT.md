@@ -208,21 +208,25 @@ Comprehensive tests verify the implementation:
 
 Potential future improvements:
 
-1. **User Preferences**
+1. **User Preferences** (Priority: P2, Effort: Medium)
    - Allow users to configure which types to include
    - Save preferences per user or per object type
+   - Estimated: 3-5 days
 
-2. **Dynamic Type Selection**
+2. **Dynamic Type Selection** (Priority: P1, Effort: Low)
    - UI controls to filter by object type
    - Toggle visibility of specific types
+   - Estimated: 1-2 days
 
-3. **Type-Specific Thresholds**
+3. **Type-Specific Thresholds** (Priority: P3, Effort: Medium)
    - Different similarity thresholds per object type
    - Fine-tune relevance by type
+   - Estimated: 2-3 days
 
-4. **Extended Type Support**
+4. **Extended Type Support** (Priority: P2, Effort: Low-Medium)
    - Include more object types (GitHub Issues, Files, etc.)
    - Configurable type combinations
+   - Estimated: 2-4 days
 
 ## Migration Notes
 
