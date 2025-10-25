@@ -5910,3 +5910,335 @@ def teams_integration_status(request):
         }, status=500)
 
 
+# ========================================
+# Task Comments API
+# ========================================
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_task_comments(request, task_id):
+    """
+    Get all comments for a task
+    
+    Returns:
+        JSON response with list of comments or HTML partial for htmx
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from .models import Task, TaskComment
+        from django.shortcuts import render
+        
+        # Get task
+        task = Task.objects.get(id=task_id)
+        
+        # Get all comments for the task
+        comments = TaskComment.objects.filter(task=task).order_by('created_at')
+        
+        # Prepare comment data
+        comment_list = []
+        for comment in comments:
+            comment_data = {
+                'id': str(comment.id),
+                'author': comment.get_author_display(),
+                'author_id': str(comment.author.id) if comment.author else None,
+                'text': comment.text,
+                'source': comment.source,
+                'created_at': comment.created_at.isoformat(),
+                'updated_at': comment.updated_at.isoformat(),
+                'can_edit': comment.author == user if comment.author else False,
+                'can_delete': comment.author == user or user.role == 'admin' if comment.author else user.role == 'admin',
+            }
+            comment_list.append(comment_data)
+        
+        # For htmx requests, return HTML partial
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/tasks/_comments_list.html', {
+                'comments': comment_list,
+                'task': task,
+                'current_user': user
+            })
+        
+        # For regular API requests, return JSON
+        return JsonResponse({
+            'success': True,
+            'comments': comment_list
+        })
+    
+    except Task.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Task not found'
+        }, status=404)
+    
+    except Exception as e:
+        logger.error(f'Error getting task comments: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to get comments'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_task_comment_create(request, task_id):
+    """
+    Create a new comment on a task
+    
+    Body:
+        {
+            "text": "Comment text",
+            "source": "user" or "agent" (optional, defaults to "user"),
+            "author_name": "Name" (optional, for agent comments)
+        }
+    
+    Returns:
+        JSON response with created comment
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from .models import Task, TaskComment
+        
+        # Parse request body
+        data = json.loads(request.body)
+        text = data.get('text', '').strip()
+        source = data.get('source', 'user')
+        author_name = data.get('author_name', '')
+        
+        # Validate input
+        if not text:
+            return JsonResponse({
+                'success': False,
+                'error': 'Comment text is required'
+            }, status=400)
+        
+        # Get task
+        task = Task.objects.get(id=task_id)
+        
+        # Create comment
+        comment = TaskComment.objects.create(
+            task=task,
+            author=user if source == 'user' else None,
+            author_name=author_name if source == 'agent' else '',
+            text=text,
+            source=source
+        )
+        
+        # Sync task to Weaviate with updated comments
+        try:
+            weaviate_service = WeaviateTaskSyncService()
+            weaviate_service.sync_update(task)
+            weaviate_service.close()
+            logger.info(f'Task {task_id} synced to Weaviate with new comment')
+        except WeaviateTaskSyncServiceError as e:
+            logger.warning(f'Failed to sync task to Weaviate: {str(e)}')
+            # Continue even if Weaviate sync fails
+        
+        return JsonResponse({
+            'success': True,
+            'comment': {
+                'id': str(comment.id),
+                'author': comment.get_author_display(),
+                'author_id': str(comment.author.id) if comment.author else None,
+                'text': comment.text,
+                'source': comment.source,
+                'created_at': comment.created_at.isoformat(),
+                'updated_at': comment.updated_at.isoformat(),
+                'can_edit': comment.author == user if comment.author else False,
+                'can_delete': comment.author == user or user.role == 'admin' if comment.author else user.role == 'admin',
+            }
+        })
+    
+    except Task.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Task not found'
+        }, status=404)
+    
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error creating comment: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to create comment'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def api_task_comment_update(request, comment_id):
+    """
+    Update a comment
+    
+    Body:
+        {
+            "text": "Updated comment text"
+        }
+    
+    Returns:
+        JSON response with updated comment
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from .models import TaskComment
+        
+        # Parse request body
+        data = json.loads(request.body)
+        text = data.get('text', '').strip()
+        
+        # Validate input
+        if not text:
+            return JsonResponse({
+                'success': False,
+                'error': 'Comment text is required'
+            }, status=400)
+        
+        # Get comment
+        comment = TaskComment.objects.get(id=comment_id)
+        
+        # Check permission (only author can edit)
+        if comment.author != user:
+            return JsonResponse({
+                'success': False,
+                'error': 'You can only edit your own comments'
+            }, status=403)
+        
+        # Update comment
+        comment.text = text
+        comment.save()
+        
+        # Sync task to Weaviate with updated comments
+        try:
+            weaviate_service = WeaviateTaskSyncService()
+            weaviate_service.sync_update(comment.task)
+            weaviate_service.close()
+            logger.info(f'Task {comment.task.id} synced to Weaviate after comment update')
+        except WeaviateTaskSyncServiceError as e:
+            logger.warning(f'Failed to sync task to Weaviate: {str(e)}')
+            # Continue even if Weaviate sync fails
+        
+        return JsonResponse({
+            'success': True,
+            'comment': {
+                'id': str(comment.id),
+                'author': comment.get_author_display(),
+                'author_id': str(comment.author.id) if comment.author else None,
+                'text': comment.text,
+                'source': comment.source,
+                'created_at': comment.created_at.isoformat(),
+                'updated_at': comment.updated_at.isoformat(),
+                'can_edit': comment.author == user if comment.author else False,
+                'can_delete': comment.author == user or user.role == 'admin' if comment.author else user.role == 'admin',
+            }
+        })
+    
+    except TaskComment.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Comment not found'
+        }, status=404)
+    
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error updating comment: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to update comment'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def api_task_comment_delete(request, comment_id):
+    """
+    Delete a comment
+    
+    Returns:
+        JSON response with success status
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from .models import TaskComment
+        
+        # Get comment
+        comment = TaskComment.objects.get(id=comment_id)
+        
+        # Check permission (only author or admin can delete)
+        if comment.author != user and user.role != 'admin':
+            return JsonResponse({
+                'success': False,
+                'error': 'You can only delete your own comments or you must be an admin'
+            }, status=403)
+        
+        # Store task reference before deletion
+        task = comment.task
+        
+        # Delete comment
+        comment.delete()
+        
+        # Sync task to Weaviate with updated comments
+        try:
+            weaviate_service = WeaviateTaskSyncService()
+            weaviate_service.sync_update(task)
+            weaviate_service.close()
+            logger.info(f'Task {task.id} synced to Weaviate after comment deletion')
+        except WeaviateTaskSyncServiceError as e:
+            logger.warning(f'Failed to sync task to Weaviate: {str(e)}')
+            # Continue even if Weaviate sync fails
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Comment deleted successfully'
+        })
+    
+    except TaskComment.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Comment not found'
+        }, status=404)
+    
+    except Exception as e:
+        logger.error(f'Error deleting comment: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to delete comment'
+        }, status=500)
+
+

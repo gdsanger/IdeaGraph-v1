@@ -160,6 +160,12 @@ urlpatterns = [
     path('api/task-files/<uuid:file_id>', api_views.api_task_file_download, name='api_task_file_download'),
     path('api/task-files/<uuid:file_id>/delete', api_views.api_task_file_delete, name='api_task_file_delete'),
     
+    # Task Comments API Endpoints
+    path('api/tasks/<uuid:task_id>/comments', api_views.api_task_comments, name='api_task_comments'),
+    path('api/tasks/<uuid:task_id>/comments/create', api_views.api_task_comment_create, name='api_task_comment_create'),
+    path('api/comments/<uuid:comment_id>', api_views.api_task_comment_update, name='api_task_comment_update'),
+    path('api/comments/<uuid:comment_id>/delete', api_views.api_task_comment_delete, name='api_task_comment_delete'),
+    
     # Zammad Integration API Endpoints
     path('api/zammad/test-connection', api_views.api_zammad_test_connection, name='api_zammad_test_connection'),
     path('api/zammad/sync', api_views.api_zammad_sync, name='api_zammad_sync'),
