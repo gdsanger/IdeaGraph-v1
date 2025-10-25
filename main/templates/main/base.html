@@ -329,6 +329,13 @@
                         </a>
                     </li>
                     
+                    <!-- Global Search -->
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'global_search' %}active{% endif %}" href="{% url 'main:global_search' %}" title="Global Semantic Search">
+                            <i class="bi bi-search"></i> Search
+                        </a>
+                    </li>
+                    
                     <!-- Mail-Eingang Badge - Only show if there are new tasks -->
                     {% if mail_inbox_new_tasks > 0 and mail_inbox_id %}
                     <li class="nav-item">

@@ -1,0 +1,424 @@
+{% extends "main/base.html" %}
+{% load static %}
+
+{% block title %}{% if query %}Search Results - {{ query }}{% else %}Global Search{% endif %} - IdeaGraph{% endblock %}
+
+{% block extra_css %}
+<style>
+    .search-container {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    
+    .search-input-wrapper {
+        position: relative;
+        margin-bottom: 2rem;
+    }
+    
+    .search-input {
+        width: 100%;
+        padding: 1rem 3rem 1rem 1rem;
+        font-size: 1.1rem;
+        border: 2px solid var(--primary-amber);
+        border-radius: 12px;
+        background: rgba(26, 26, 26, 0.8);
+        color: var(--soft-white);
+        transition: all 0.3s ease;
+    }
+    
+    .search-input:focus {
+        outline: none;
+        border-color: var(--secondary-cyan);
+        box-shadow: 0 0 20px rgba(75, 208, 199, 0.3);
+    }
+    
+    .search-button {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: linear-gradient(135deg, var(--primary-amber), var(--secondary-amber));
+        border: none;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        color: white;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .search-button:hover {
+        background: linear-gradient(135deg, var(--secondary-cyan), var(--tech-blue));
+        transform: translateY(-50%) scale(1.05);
+    }
+    
+    .search-result-item {
+        background: rgba(26, 26, 26, 0.6);
+        border: 1px solid #374151;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+    }
+    
+    .search-result-item:hover {
+        border-color: var(--primary-amber);
+        box-shadow: 0 4px 20px rgba(228, 154, 40, 0.2);
+        transform: translateY(-2px);
+    }
+    
+    .result-type-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+    }
+    
+    .result-type-item {
+        background: linear-gradient(135deg, #8b5cf6, #6366f1);
+    }
+    
+    .result-type-task {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+    }
+    
+    .result-type-file {
+        background: linear-gradient(135deg, #10b981, #059669);
+    }
+    
+    .result-type-conversation {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+    }
+    
+    .result-type-issue {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+    }
+    
+    .result-type-default {
+        background: linear-gradient(135deg, #6b7280, #4b5563);
+    }
+    
+    .relevance-score {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--secondary-cyan);
+        font-weight: 600;
+    }
+    
+    .relevance-bar {
+        width: 100px;
+        height: 6px;
+        background: #374151;
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    
+    .relevance-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--primary-amber), var(--secondary-cyan));
+        transition: width 0.5s ease;
+    }
+    
+    .result-title {
+        color: var(--primary-amber);
+        font-size: 1.3rem;
+        font-weight: 600;
+        margin: 0.5rem 0;
+    }
+    
+    .result-title:hover {
+        color: var(--secondary-cyan);
+        text-decoration: none;
+    }
+    
+    .result-description {
+        color: #d1d5db;
+        margin: 0.75rem 0;
+        line-height: 1.6;
+    }
+    
+    .result-metadata {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-top: 0.75rem;
+        font-size: 0.9rem;
+        color: #9ca3af;
+    }
+    
+    .metadata-item {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    
+    .loading-spinner {
+        display: none;
+        text-align: center;
+        padding: 2rem;
+    }
+    
+    .loading-spinner.active {
+        display: block;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #9ca3af;
+    }
+    
+    .empty-state i {
+        font-size: 4rem;
+        color: var(--primary-amber);
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container search-container mt-4">
+    <!-- Search Header -->
+    <div class="text-center mb-4">
+        <h1 class="display-5 fw-bold" style="color: var(--primary-amber);">
+            <i class="bi bi-search"></i> Global Search
+        </h1>
+        <p class="text-muted">AI-powered semantic search across all IdeaGraph objects</p>
+    </div>
+    
+    <!-- Search Input -->
+    <div class="search-input-wrapper">
+        <input 
+            type="text" 
+            class="search-input" 
+            id="searchInput" 
+            placeholder="Search for anything... (e.g., 'How does token authentication work?')"
+            value="{{ query }}"
+            autofocus
+        >
+        <button class="search-button" id="searchButton">
+            <i class="bi bi-search"></i> Search
+        </button>
+    </div>
+    
+    <!-- Loading Spinner -->
+    <div class="loading-spinner" id="loadingSpinner">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Searching...</span>
+        </div>
+        <p class="mt-2 text-muted">Searching through knowledge base...</p>
+    </div>
+    
+    <!-- Search Results -->
+    <div id="searchResults">
+        {% if show_results %}
+        <!-- Results will be loaded via JavaScript -->
+        {% else %}
+        <div class="empty-state">
+            <i class="bi bi-search"></i>
+            <h3>Start Your Search</h3>
+            <p>Enter a query above to search across all items, tasks, files, and more</p>
+            <p class="small">Examples: "authentication implementation", "API documentation", "user management"</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    const searchButton = document.getElementById('searchButton');
+    const resultsContainer = document.getElementById('searchResults');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    
+    // Get JWT token from session
+    function getAuthToken() {
+        // Try to get token from sessionStorage
+        const token = sessionStorage.getItem('auth_token');
+        if (token) {
+            return token;
+        }
+        
+        // If no token, user needs to login
+        console.warn('No authentication token found');
+        return null;
+    }
+    
+    // Perform search
+    async function performSearch(query) {
+        if (!query || query.trim() === '') {
+            resultsContainer.innerHTML = `
+                <div class="empty-state">
+                    <i class="bi bi-search"></i>
+                    <h3>Start Your Search</h3>
+                    <p>Enter a query above to search across all items, tasks, files, and more</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Show loading
+        loadingSpinner.classList.add('active');
+        resultsContainer.innerHTML = '';
+        
+        try {
+            const token = getAuthToken();
+            if (!token) {
+                throw new Error('Please login to use search');
+            }
+            
+            // Call search API
+            const response = await fetch(`/api/search?query=${encodeURIComponent(query)}&limit=10`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const data = await response.json();
+            
+            // Hide loading
+            loadingSpinner.classList.remove('active');
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Search failed');
+            }
+            
+            // Display results
+            displayResults(data.results, query);
+            
+        } catch (error) {
+            console.error('Search error:', error);
+            loadingSpinner.classList.remove('active');
+            
+            resultsContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Error:</strong> ${error.message}
+                </div>
+            `;
+        }
+    }
+    
+    // Display search results
+    function displayResults(results, query) {
+        if (!results || results.length === 0) {
+            resultsContainer.innerHTML = `
+                <div class="empty-state">
+                    <i class="bi bi-inbox"></i>
+                    <h3>No Results Found</h3>
+                    <p>No matches found for "${query}"</p>
+                    <p class="small">Try different keywords or a broader search term</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = `<div class="mb-3 text-muted">Found ${results.length} results</div>`;
+        
+        results.forEach(result => {
+            const typeClass = getTypeClass(result.type);
+            const relevancePercent = Math.round(result.relevance * 100);
+            
+            html += `
+                <div class="search-result-item">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <span class="result-type-badge ${typeClass}">${result.type}</span>
+                        </div>
+                        <div class="relevance-score">
+                            <span>${relevancePercent}%</span>
+                            <div class="relevance-bar">
+                                <div class="relevance-fill" style="width: ${relevancePercent}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <a href="${result.url}" class="result-title">${escapeHtml(result.title)}</a>
+                    
+                    <p class="result-description">${escapeHtml(result.description)}</p>
+                    
+                    <div class="result-metadata">
+                        ${result.metadata.owner ? `
+                            <div class="metadata-item">
+                                <i class="bi bi-person"></i>
+                                <span>${escapeHtml(result.metadata.owner)}</span>
+                            </div>
+                        ` : ''}
+                        ${result.metadata.section ? `
+                            <div class="metadata-item">
+                                <i class="bi bi-folder"></i>
+                                <span>${escapeHtml(result.metadata.section)}</span>
+                            </div>
+                        ` : ''}
+                        ${result.metadata.status ? `
+                            <div class="metadata-item">
+                                <i class="bi bi-flag"></i>
+                                <span>${escapeHtml(result.metadata.status)}</span>
+                            </div>
+                        ` : ''}
+                        ${result.metadata.tags && result.metadata.tags.length > 0 ? `
+                            <div class="metadata-item">
+                                <i class="bi bi-tags"></i>
+                                <span>${result.metadata.tags.slice(0, 3).map(t => escapeHtml(t)).join(', ')}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        });
+        
+        resultsContainer.innerHTML = html;
+    }
+    
+    // Get CSS class for type badge
+    function getTypeClass(type) {
+        const typeMap = {
+            'Item': 'result-type-item',
+            'Task': 'result-type-task',
+            'File': 'result-type-file',
+            'Conversation': 'result-type-conversation',
+            'Issue': 'result-type-issue'
+        };
+        return typeMap[type] || 'result-type-default';
+    }
+    
+    // Escape HTML to prevent XSS
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Search button click
+    searchButton.addEventListener('click', function() {
+        const query = searchInput.value.trim();
+        if (query) {
+            // Update URL
+            const url = new URL(window.location);
+            url.searchParams.set('q', query);
+            window.history.pushState({}, '', url);
+            
+            performSearch(query);
+        }
+    });
+    
+    // Enter key in search input
+    searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            searchButton.click();
+        }
+    });
+    
+    // Perform initial search if query exists
+    const initialQuery = searchInput.value.trim();
+    if (initialQuery) {
+        performSearch(initialQuery);
+    }
+});
+</script>
+{% endblock %}

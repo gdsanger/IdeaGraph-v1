@@ -233,6 +233,18 @@ def settings_view(request):
     return render(request, 'main/settings.html')
 
 
+def global_search_view(request):
+    """Global semantic search view"""
+    query = request.GET.get('q', '').strip()
+    
+    context = {
+        'query': query,
+        'show_results': bool(query)
+    }
+    
+    return render(request, 'main/search/results.html', context)
+
+
 def tag_list(request):
     """List all tags with pagination and search"""
     search_query = request.GET.get('search', '').strip()
