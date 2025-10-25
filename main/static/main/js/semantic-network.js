@@ -433,16 +433,12 @@ class SemanticNetworkViewer {
         // The graphology-layout-forceatlas2 build exposes GraphologyLayoutForceAtlas2
         if (typeof GraphologyLayoutForceAtlas2 !== 'undefined') {
             forceAtlas2 = GraphologyLayoutForceAtlas2;
-            console.log('[SemanticNetwork] Using GraphologyLayoutForceAtlas2');
         } else if (typeof window.GraphologyLayoutForceAtlas2 !== 'undefined') {
             forceAtlas2 = window.GraphologyLayoutForceAtlas2;
-            console.log('[SemanticNetwork] Using window.GraphologyLayoutForceAtlas2');
         } else if (typeof graphologyLayoutForceAtlas2 !== 'undefined') {
             forceAtlas2 = graphologyLayoutForceAtlas2;
-            console.log('[SemanticNetwork] Using graphologyLayoutForceAtlas2');
         } else if (typeof graphologyLibrary !== 'undefined' && graphologyLibrary.layoutForceAtlas2) {
             forceAtlas2 = graphologyLibrary.layoutForceAtlas2;
-            console.log('[SemanticNetwork] Using graphologyLibrary.layoutForceAtlas2');
         } else {
             console.warn('[SemanticNetwork] ForceAtlas2 layout library not found. Skipping layout optimization.');
             console.warn('[SemanticNetwork] The network will still be displayed, but without force-directed layout.');
