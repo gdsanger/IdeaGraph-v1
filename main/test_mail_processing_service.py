@@ -503,7 +503,9 @@ class MailProcessingServiceTestCase(TestCase):
             item_title=self.item.title
         )
         
-        self.assertTrue(result)
+        self.assertTrue(result['success'])
+        self.assertIn('email_body_markdown', result)
+        self.assertIn('email_body_html', result)
         mock_send.assert_called_once()
     
     @patch('core.services.graph_service.GraphService.send_mail')
@@ -519,7 +521,7 @@ class MailProcessingServiceTestCase(TestCase):
             item_title=self.item.title
         )
         
-        self.assertFalse(result)
+        self.assertFalse(result['success'])
     
     @patch('core.services.kigate_service.KiGateService.execute_agent')
     @patch('core.services.weaviate_sync_service.WeaviateItemSyncService.search_similar')
@@ -843,3 +845,162 @@ class MailProcessingServiceTestCase(TestCase):
         self.assertTrue(result['success'])
         self.assertEqual(result['total_messages'], 0)
         self.assertEqual(result['processed'], 0)
+    
+    def test_add_comment_to_task_with_user(self, mock_weaviate_init):
+        """Test adding a comment to a task with a user as author"""
+        # Create a task first
+        task = Task.objects.create(
+            title='Test Task',
+            description='Test Description',
+            item=self.item,
+            created_by=self.user,
+            status='new'
+        )
+        
+        service = MailProcessingService(self.settings)
+        success = service.add_comment_to_task(
+            task_id=str(task.id),
+            comment_text='This is a test comment',
+            author_user=self.user,
+            author_name='',
+            source='user'
+        )
+        
+        self.assertTrue(success)
+        
+        # Verify comment was created
+        from main.models import TaskComment
+        comments = TaskComment.objects.filter(task=task)
+        self.assertEqual(comments.count(), 1)
+        comment = comments.first()
+        self.assertEqual(comment.text, 'This is a test comment')
+        self.assertEqual(comment.author, self.user)
+        self.assertEqual(comment.source, 'user')
+    
+    def test_add_comment_to_task_with_agent(self, mock_weaviate_init):
+        """Test adding a comment to a task with agent as author"""
+        # Create a task first
+        task = Task.objects.create(
+            title='Test Task',
+            description='Test Description',
+            item=self.item,
+            created_by=self.user,
+            status='new'
+        )
+        
+        service = MailProcessingService(self.settings)
+        success = service.add_comment_to_task(
+            task_id=str(task.id),
+            comment_text='This is an agent comment',
+            author_user=None,
+            author_name='AI Agent Bot',
+            source='agent'
+        )
+        
+        self.assertTrue(success)
+        
+        # Verify comment was created
+        from main.models import TaskComment
+        comments = TaskComment.objects.filter(task=task)
+        self.assertEqual(comments.count(), 1)
+        comment = comments.first()
+        self.assertEqual(comment.text, 'This is an agent comment')
+        self.assertIsNone(comment.author)
+        self.assertEqual(comment.author_name, 'AI Agent Bot')
+        self.assertEqual(comment.source, 'agent')
+    
+    def test_add_comment_to_nonexistent_task(self, mock_weaviate_init):
+        """Test adding a comment to a non-existent task fails gracefully"""
+        service = MailProcessingService(self.settings)
+        success = service.add_comment_to_task(
+            task_id='00000000-0000-0000-0000-000000000000',
+            comment_text='This should fail',
+            author_user=self.user,
+            author_name='',
+            source='user'
+        )
+        
+        self.assertFalse(success)
+    
+    @patch('core.services.kigate_service.KiGateService.execute_agent')
+    @patch('core.services.weaviate_sync_service.WeaviateItemSyncService.search_similar')
+    @patch('core.services.graph_service.GraphService.send_mail')
+    @patch('core.services.graph_service.GraphService.mark_message_as_read')
+    @patch('core.services.graph_service.GraphService.move_message')
+    def test_process_mail_creates_comments(self, mock_move, mock_mark_read, mock_send, mock_search, mock_execute, mock_weaviate_init):
+        """Test that processing mail creates both incoming and outgoing comments"""
+        # Setup mocks
+        def execute_agent_side_effect(*args, **kwargs):
+            agent_name = kwargs.get('agent_name', '')
+            if agent_name == 'html-to-markdown-converter':
+                return {'success': True, 'result': 'Converted mail content'}
+            elif agent_name == 'teams-support-analysis-agent':
+                return {'success': True, 'result': 'Normalized description'}
+            elif agent_name == 'markdown-to-html-converter':
+                return {'success': True, 'result': '<p>HTML content</p>'}
+            return {'success': False}
+        
+        mock_execute.side_effect = execute_agent_side_effect
+        
+        mock_search.return_value = {
+            'success': True,
+            'results': [
+                {
+                    'id': str(self.item.id),
+                    'metadata': {
+                        'title': self.item.title,
+                        'description': self.item.description,
+                        'section': self.section.name,
+                        'status': self.item.status
+                    },
+                    'distance': 0.1
+                }
+            ]
+        }
+        mock_send.return_value = {'success': True}
+        mock_mark_read.return_value = {'success': True}
+        mock_move.return_value = {'success': True}
+        
+        # Create test message
+        message = {
+            'id': 'msg-123',
+            'subject': 'Test Mail Subject',
+            'body': {
+                'content': '<p>Test mail body</p>'
+            },
+            'from': {
+                'emailAddress': {
+                    'address': self.user.email,
+                    'name': 'Test User'
+                }
+            }
+        }
+        
+        service = MailProcessingService(self.settings)
+        result = service.process_mail(message)
+        
+        self.assertTrue(result['success'])
+        self.assertIn('task_id', result)
+        
+        # Verify task was created
+        task = Task.objects.get(id=result['task_id'])
+        self.assertEqual(task.title, 'Test Mail Subject')
+        
+        # Verify comments were created
+        from main.models import TaskComment
+        comments = TaskComment.objects.filter(task=task).order_by('created_at')
+        self.assertEqual(comments.count(), 2)
+        
+        # First comment should be the original mail (from user)
+        original_comment = comments[0]
+        self.assertEqual(original_comment.source, 'user')
+        self.assertEqual(original_comment.author, self.user)
+        self.assertIn('Test Mail Subject', original_comment.text)
+        self.assertIn('Converted mail content', original_comment.text)
+        
+        # Second comment should be the confirmation email (from agent)
+        confirmation_comment = comments[1]
+        self.assertEqual(confirmation_comment.source, 'agent')
+        self.assertIsNone(confirmation_comment.author)
+        self.assertEqual(confirmation_comment.author_name, 'AI Agent Bot')
+        self.assertIn('Ihr Anliegen wurde erfolgreich erfasst', confirmation_comment.text)

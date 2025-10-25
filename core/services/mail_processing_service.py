@@ -762,13 +762,57 @@ Analyze this email and create a normalized task description in Markdown format:
             logger.error(f"Failed to create task: {str(e)}")
             return None
     
+    def add_comment_to_task(
+        self,
+        task_id: str,
+        comment_text: str,
+        author_user=None,
+        author_name: str = '',
+        source: str = 'user'
+    ) -> bool:
+        """
+        Add a comment to a task
+        
+        Args:
+            task_id: UUID of the task
+            comment_text: Text content of the comment (Markdown supported)
+            author_user: User object for the author (optional)
+            author_name: Name to display if author_user is None
+            source: 'user' or 'agent'
+            
+        Returns:
+            True if comment added successfully, False otherwise
+        """
+        from main.models import Task, TaskComment
+        
+        try:
+            task = Task.objects.get(id=task_id)
+            
+            TaskComment.objects.create(
+                task=task,
+                author=author_user,
+                author_name=author_name,
+                text=comment_text,
+                source=source
+            )
+            
+            logger.info(f"Added {source} comment to task {task_id}")
+            return True
+            
+        except Task.DoesNotExist:
+            logger.error(f"Task {task_id} not found when adding comment")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to add comment to task {task_id}: {str(e)}")
+            return False
+    
     def send_confirmation_email(
         self,
         recipient_email: str,
         mail_subject: str,
         normalized_description: str,
         item_title: str
-    ) -> bool:
+    ) -> Dict[str, Any]:
         """
         Send confirmation email to the sender
         
@@ -779,14 +823,14 @@ Analyze this email and create a normalized task description in Markdown format:
             item_title: Title of the Item the task was assigned to
             
         Returns:
-            True if email sent successfully, False otherwise
+            Dictionary with 'success' (bool), 'email_body_html' (str), and 'email_body_markdown' (str)
         """
         try:
             # Convert markdown description to HTML
             description_html = self.convert_markdown_to_html(normalized_description)
             
             # Build email body
-            email_body = f"""
+            email_body_html = f"""
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -833,26 +877,55 @@ Analyze this email and create a normalized task description in Markdown format:
 </html>
 """
             
+            # Build markdown version for comment
+            email_body_markdown = f"""# ✅ Ihr Anliegen wurde erfolgreich erfasst
+
+Guten Tag,
+
+vielen Dank für Ihre E-Mail mit dem Betreff "**{mail_subject}**". 
+Ihr Anliegen wurde erfolgreich in unserem System erfasst und verarbeitet.
+
+## 📋 Zugeordnet zu Item:
+**{item_title}**
+
+## 📝 Aufbereitete Beschreibung:
+{normalized_description}
+
+Ihr Anliegen wurde als neue Aufgabe angelegt und wird entsprechend bearbeitet.
+
+---
+Diese E-Mail wurde automatisch von IdeaGraph generiert.
+© IdeaGraph v1.0 | idea@angermeier.net
+"""
+            
             # Send email
             result = self.graph_service.send_mail(
                 to=[recipient_email],
                 subject=f"Re: {mail_subject}",
-                body=email_body
+                body=email_body_html
             )
             
             if result.get('success'):
                 logger.info(f"Confirmation email sent to {recipient_email}")
-                return True
+                return {
+                    'success': True,
+                    'email_body_html': email_body_html,
+                    'email_body_markdown': email_body_markdown
+                }
             else:
                 logger.error(f"Failed to send confirmation email to {recipient_email}")
-                return False
+                return {
+                    'success': False,
+                    'email_body_html': email_body_html,
+                    'email_body_markdown': email_body_markdown
+                }
                 
         except GraphServiceError as e:
             logger.error(f"Graph service error sending confirmation: {e.message}")
-            return False
+            return {'success': False, 'email_body_html': '', 'email_body_markdown': ''}
         except Exception as e:
             logger.error(f"Unexpected error sending confirmation: {str(e)}")
-            return False
+            return {'success': False, 'email_body_html': '', 'email_body_markdown': ''}
     
     def process_mail(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -920,6 +993,33 @@ Analyze this email and create a normalized task description in Markdown format:
                     'mail_subject': subject
                 }
             
+            # Step 4a: Add comment with original mail content
+            # Get the requester user for the comment
+            from main.models import User
+            try:
+                requester = User.objects.get(email=sender_email)
+                
+                # Create original mail comment with sender as author
+                original_mail_comment = f"""**Originale E-Mail von {sender_name}:**
+
+**Betreff:** {subject}
+
+{body_markdown}
+"""
+                self.add_comment_to_task(
+                    task_id=task_info['id'],
+                    comment_text=original_mail_comment,
+                    author_user=requester,
+                    author_name='',
+                    source='user'
+                )
+                logger.info(f"Added original mail comment to task {task_info['id']}")
+                
+            except User.DoesNotExist:
+                logger.warning(f"User {sender_email} not found when adding original mail comment")
+            except Exception as e:
+                logger.error(f"Error adding original mail comment: {str(e)}")
+            
             # Step 5: Process attachments if present
             has_attachments = message.get('hasAttachments', False)
             attachments_result = {'processed': 0, 'failed': 0}
@@ -954,12 +1054,28 @@ Analyze this email and create a normalized task description in Markdown format:
                     logger.error(f"Error during attachment processing: {str(e)}")
             
             # Step 6: Send confirmation email
-            confirmation_sent = self.send_confirmation_email(
+            confirmation_result = self.send_confirmation_email(
                 recipient_email=sender_email,
                 mail_subject=subject,
                 normalized_description=normalized_description,
                 item_title=item_title
             )
+            
+            confirmation_sent = confirmation_result.get('success', False)
+            
+            # Step 6a: Add comment with confirmation email content (if sent)
+            if confirmation_sent and confirmation_result.get('email_body_markdown'):
+                try:
+                    self.add_comment_to_task(
+                        task_id=task_info['id'],
+                        comment_text=confirmation_result['email_body_markdown'],
+                        author_user=None,
+                        author_name='AI Agent Bot',
+                        source='agent'
+                    )
+                    logger.info(f"Added confirmation email comment to task {task_info['id']}")
+                except Exception as e:
+                    logger.error(f"Error adding confirmation email comment: {str(e)}")
             
             # Step 7: Mark message as read
             try:
