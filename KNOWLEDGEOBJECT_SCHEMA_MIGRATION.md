@@ -2,13 +2,13 @@
 
 ## Overview
 
-This document summarizes the implementation of the unified "KnowledgeObject" schema in Weaviate, replacing the separate Item, Task, and GitHubIssue collections.
+This document summarizes the implementation of the unified "KnowledgeObject" schema in Weaviate, replacing the separate Item, Task, and GitHubIssue collections. This schema also includes Milestones and context objects (Mails, Notes, Files, Transcripts) to ensure complete and accurate semantic similarity matching.
 
 ## Changes Made
 
 ### 1. Service Updates
 
-All three Weaviate synchronization services now use the unified `KnowledgeObject` collection:
+All Weaviate synchronization services now use the unified `KnowledgeObject` collection:
 
 #### WeaviateItemSyncService (`core/services/weaviate_sync_service.py`)
 - **Collection Name**: Changed from `'Item'` to `'KnowledgeObject'`
@@ -49,10 +49,26 @@ All three Weaviate synchronization services now use the unified `KnowledgeObject
   - Field `createdAt` mapped directly
 - **Search**: Updated to filter by `type='GitHubIssue'` when searching for GitHub issues
 
+#### MilestoneKnowledgeService (`core/services/milestone_knowledge_service.py`)
+- **Collection Name**: Uses `'KnowledgeObject'` for both Milestones and context objects
+- **Milestone Properties Mapping**:
+  - Added `type: 'Milestone'` field to identify object type
+  - Added `url: '/milestones/{milestone.id}/'` for direct link to milestone
+  - Added `owner` extracted from milestone's item creator
+  - Added `tags` extracted from milestone's item tags
+  - All other fields: `title`, `description`, `status`, `createdAt`, `itemId`, `dueDate`
+- **Context Object Properties Mapping** (Mails, Notes, Files, Transcripts):
+  - Added `type` field: `'Email'`, `'Note'`, `'File'`, or `'Transcript'`
+  - Added `owner` extracted from context object uploader or milestone's item creator
+  - Added `tags` extracted from context object tags or milestone's item tags
+  - Added `url` for context object URL
+  - All other fields: `title`, `description`, `status` (empty string), `createdAt`, `milestoneId`, `sourceId`
+
 ### 2. Key Schema Changes
 
 **Before (Old Schema - Separate Collections)**:
-- Three separate collections: `Item`, `Task`, `GitHubIssue`
+- Separate collections: `Item`, `Task`, `GitHubIssue`
+- Milestones and context objects (Mails, Notes, Files, Transcripts) may not have been consistently stored or were missing standard properties
 - Tags stored as references (`tagRefs` property pointing to Tag UUIDs)
 - Items and Tasks linked through references
 - GitHub Issues linked to Tasks/Items through references
@@ -60,30 +76,37 @@ All three Weaviate synchronization services now use the unified `KnowledgeObject
 
 **After (New Schema - Unified KnowledgeObject)**:
 - Single unified collection: `KnowledgeObject`
-- Type discrimination through `type` property: `'Item'`, `'Task'`, or `'GitHubIssue'`
+- Type discrimination through `type` property: `'Item'`, `'Task'`, `'GitHubIssue'`, `'Milestone'`, `'Email'`, `'Note'`, `'File'`, `'Transcript'`
 - Tags stored as text array (list of tag names)
 - Items linked to Tasks through `itemId` string property
 - Tasks linked to GitHub Issues through `githubIssueId` integer property
 - GitHub Issues linked to Tasks through `taskId` string property
+- Milestones linked to Items through `itemId` string property
+- Context objects linked to Milestones through `milestoneId` string property
 - Consistent property names across all object types
+- All objects now have standard properties: `type`, `title`, `description`, `owner`, `tags`, `status`, `createdAt`, `url`
 
 ### 3. Property Mapping Rules
 
 According to the requirements, properties are filled conditionally based on object type:
 
-| Property | Item | Task | GitHubIssue | Type |
-|----------|------|------|-------------|------|
-| `type` | ✓ ('Item') | ✓ ('Task') | ✓ ('GitHubIssue') | text |
-| `title` | ✓ | ✓ | ✓ | text |
-| `description` | ✓ | ✓ | ✓ | text |
-| `section` | ✓ | - | - | text |
-| `owner` | ✓ | ✓ | - | text |
-| `tags` | ✓ (tag names) | ✓ (tag names) | ✓ (empty array) | text[] |
-| `status` | ✓ | ✓ | ✓ (issue state) | text |
-| `createdAt` | ✓ | ✓ | ✓ | date |
-| `githubIssueId` | - | ✓ (if linked) | ✓ (issue number) | int |
-| `url` | ✓ | ✓ | ✓ | string |
-| `itemId` | - | ✓ (if has item) | ✓ (if linked) | string |
+| Property | Item | Task | GitHubIssue | Milestone | Email/Note/File/Transcript | Type |
+|----------|------|------|-------------|-----------|---------------------------|------|
+| `type` | ✓ ('Item') | ✓ ('Task') | ✓ ('GitHubIssue') | ✓ ('Milestone') | ✓ ('Email'/'Note'/'File'/'Transcript') | text |
+| `title` | ✓ | ✓ | ✓ | ✓ | ✓ | text |
+| `description` | ✓ | ✓ | ✓ | ✓ | ✓ | text |
+| `section` | ✓ | - | - | - | - | text |
+| `owner` | ✓ | ✓ | - | ✓ (from item) | ✓ (from uploader or item) | text |
+| `tags` | ✓ (tag names) | ✓ (tag names) | ✓ (empty array) | ✓ (from item) | ✓ (from object or item) | text[] |
+| `status` | ✓ | ✓ | ✓ (issue state) | ✓ | ✓ (empty string) | text |
+| `createdAt` | ✓ | ✓ | ✓ | ✓ | ✓ | date |
+| `githubIssueId` | - | ✓ (if linked) | ✓ (issue number) | - | - | int |
+| `url` | ✓ | ✓ | ✓ | ✓ | ✓ | string |
+| `itemId` | - | ✓ (if has item) | ✓ (if linked) | ✓ (if has item) | - | string |
+| `taskId` | - | - | ✓ (if linked) | - | - | string |
+| `milestoneId` | - | - | - | - | ✓ (if has milestone) | string |
+| `dueDate` | - | - | - | ✓ | - | date |
+| `sourceId` | - | - | - | - | ✓ (optional) | string |
 | `taskId` | - | - | ✓ (if linked) | string |
 
 ### 4. Breaking Changes
@@ -141,14 +164,18 @@ All code changes pass syntax validation. Full integration testing requires:
 1. `core/services/weaviate_sync_service.py` - Item sync service
 2. `core/services/weaviate_task_sync_service.py` - Task sync service
 3. `core/services/weaviate_github_issue_sync_service.py` - GitHub Issue sync service
-4. `main/test_weaviate_github_issue_sync_upsert.py` - Updated tests
+4. `core/services/milestone_knowledge_service.py` - Milestone and context object sync service (updated to include standard properties)
+5. `main/test_weaviate_github_issue_sync_upsert.py` - Updated tests
+6. `KNOWLEDGEOBJECT_SCHEMA_MIGRATION.md` - This documentation file
 
 ## Summary
 
 The implementation successfully migrates all Weaviate operations from separate collection schemas to a unified KnowledgeObject schema. The changes follow the requirements exactly:
-- ✅ Type field identifies object type
+- ✅ Type field identifies object type (Item, Task, GitHubIssue, Milestone, Email, Note, File, Transcript)
 - ✅ GitHubIssueID only for Tasks and GitHub Issues
 - ✅ TaskID only for GitHub Issues
-- ✅ ItemID only for Tasks and Items (via GitHub Issues)
+- ✅ ItemID for Tasks, GitHub Issues, and Milestones
+- ✅ MilestoneID for context objects (Emails, Notes, Files, Transcripts)
+- ✅ All objects include standard properties: type, title, description, owner, tags, status, createdAt, url
 - ✅ All operations (POST/PATCH) updated to use new schema
-- ✅ Tags excluded from modification (as per requirements)
+- ✅ Consistent property mapping ensures proper semantic similarity matching across all object types

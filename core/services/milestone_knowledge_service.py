@@ -669,13 +669,26 @@ class MilestoneKnowledgeService:
                 # Get the collection
                 collection = weaviate_service._client.collections.get('KnowledgeObject')
                 
+                # Get owner information
+                owner = ''
+                if milestone.item and milestone.item.created_by:
+                    owner = milestone.item.created_by.username
+                
+                # Get tags from milestone's item
+                tags = []
+                if milestone.item:
+                    tags = [tag.name for tag in milestone.item.tags.all()]
+                
                 # Create or update the milestone in Weaviate
                 milestone_data = {
                     'type': 'Milestone',  # Capitalized to match TYPE_MAPPING in SemanticNetworkService
                     'title': milestone.name,
                     'description': combined_description,
                     'status': milestone.status,
+                    'owner': owner,
+                    'tags': tags,
                     'createdAt': milestone.created_at.isoformat() if milestone.created_at else None,
+                    'url': f'/milestones/{milestone.id}/',
                     'itemId': str(milestone.item.id) if milestone.item else None,
                     'dueDate': milestone.due_date.isoformat() if milestone.due_date else None,
                 }
@@ -760,15 +773,31 @@ class MilestoneKnowledgeService:
                 
                 combined_description = "\n\n".join(description_parts)
                 
+                # Get owner information
+                owner = ''
+                if context_obj.uploaded_by:
+                    owner = context_obj.uploaded_by.username
+                elif context_obj.milestone and context_obj.milestone.item and context_obj.milestone.item.created_by:
+                    owner = context_obj.milestone.item.created_by.username
+                
+                # Get tags from context object or milestone's item
+                tags = []
+                if context_obj.tags:
+                    tags = context_obj.tags if isinstance(context_obj.tags, list) else []
+                elif context_obj.milestone and context_obj.milestone.item:
+                    tags = [tag.name for tag in context_obj.milestone.item.tags.all()]
+                
                 context_data = {
                     'type': type_mapping.get(context_obj.type, 'File'),  # Capitalized for consistency
                     'title': context_obj.title,
                     'description': combined_description,
-                    'status': None,  # Context objects don't have status
+                    'owner': owner,
+                    'tags': tags,
+                    'status': '',  # Context objects don't have status, use empty string
                     'createdAt': context_obj.created_at.isoformat() if context_obj.created_at else None,
+                    'url': context_obj.url if context_obj.url else '',
                     'milestoneId': str(context_obj.milestone.id) if context_obj.milestone else None,
                     'sourceId': context_obj.source_id if context_obj.source_id else None,
-                    'url': context_obj.url if context_obj.url else None,
                 }
                 
                 # Use upsert to create or update
