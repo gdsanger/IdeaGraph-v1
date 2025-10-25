@@ -79,15 +79,27 @@ class SemanticNetworkViewer {
                     </div>
                     <div class="legend-item">
                         <span class="legend-dot" style="background: #f59e0b;"></span>
-                        <span>Ebene 1 (>80%)</span>
+                        <span>Item Ebene 1</span>
                     </div>
                     <div class="legend-item" id="level2Legend">
                         <span class="legend-dot" style="background: #3b82f6;"></span>
-                        <span>Ebene 2 (>70%)</span>
+                        <span>Item Ebene 2</span>
                     </div>
                     <div class="legend-item" id="level3Legend">
                         <span class="legend-dot" style="background: #8b5cf6;"></span>
-                        <span>Ebene 3 (>60%)</span>
+                        <span>Item Ebene 3</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dot" style="background: #ec4899;"></span>
+                        <span>Task Ebene 1</span>
+                    </div>
+                    <div class="legend-item" id="taskLevel2Legend">
+                        <span class="legend-dot" style="background: #a855f7;"></span>
+                        <span>Task Ebene 2</span>
+                    </div>
+                    <div class="legend-item" id="taskLevel3Legend">
+                        <span class="legend-dot" style="background: #6366f1;"></span>
+                        <span>Task Ebene 3</span>
                     </div>
                     <div class="legend-item" id="hierarchyLegend" style="display: none;">
                         <span class="legend-line" style="border-top: 2px dashed #6366f1;"></span>
@@ -522,13 +534,24 @@ class SemanticNetworkViewer {
             return '#f97316'; // Orange for child
         }
         
-        const levelColors = {
-            1: '#f59e0b', // Amber for level 1
-            2: '#3b82f6', // Blue for level 2
-            3: '#8b5cf6'  // Violet for level 3
+        // Different colors for different object types
+        const typeColors = {
+            'item': {
+                1: '#f59e0b', // Amber for level 1 Items
+                2: '#3b82f6', // Blue for level 2 Items
+                3: '#8b5cf6'  // Violet for level 3 Items
+            },
+            'task': {
+                1: '#ec4899', // Pink for level 1 Tasks
+                2: '#a855f7', // Purple for level 2 Tasks
+                3: '#6366f1'  // Indigo for level 3 Tasks
+            }
         };
         
-        return levelColors[node.level] || '#6b7280'; // Gray fallback
+        const objectType = node.type || 'item';
+        const colors = typeColors[objectType] || typeColors['item'];
+        
+        return colors[node.level] || '#6b7280'; // Gray fallback
     }
     
     getNodeSize(node) {

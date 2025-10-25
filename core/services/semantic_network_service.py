@@ -228,17 +228,17 @@ class SemanticNetworkService:
     
     def _find_similar_objects(
         self,
-        object_type: str,
+        object_types: List[str],
         source_uuid: str,
         similarity_threshold: float,
         limit: int = 10,
         exclude_ids: Optional[Set[str]] = None
     ) -> List[Dict[str, Any]]:
         """
-        Find similar objects using nearObject query, filtered by type
+        Find similar objects using nearObject query, filtered by type(s)
         
         Args:
-            object_type: Type value to filter by (e.g., 'Item', 'Task')
+            object_types: List of type values to filter by (e.g., ['Item', 'Task'])
             source_uuid: UUID of the source object
             similarity_threshold: Minimum similarity (1 - distance)
             limit: Maximum number of results
@@ -250,12 +250,23 @@ class SemanticNetworkService:
         try:
             collection = self._client.collections.get(self.COLLECTION_NAME)
             
-            # Use nearObject to find similar items, filtered by type
+            # Build filter for multiple types
+            if len(object_types) == 1:
+                # Single type filter
+                type_filter = Filter.by_property("type").equal(object_types[0])
+            else:
+                # Multiple types - use OR filter
+                type_filter = Filter.any_of([
+                    Filter.by_property("type").equal(obj_type)
+                    for obj_type in object_types
+                ])
+            
+            # Use nearObject to find similar items, filtered by type(s)
             response = collection.query.near_object(
                 near_object=source_uuid,
                 limit=limit + 20,  # Get extra to account for filtering
                 return_metadata=MetadataQuery(distance=True),
-                filters=Filter.by_property("type").equal(object_type)
+                filters=type_filter
             )
             
             similar_objects = []
@@ -274,9 +285,11 @@ class SemanticNetworkService:
                 
                 # Filter by similarity threshold
                 if similarity >= similarity_threshold:
+                    # Get the actual type from the object properties
+                    obj_type = obj.properties.get('type', 'unknown')
                     similar_objects.append({
                         'id': obj_id,
-                        'type': object_type.lower(),
+                        'type': obj_type.lower(),
                         'properties': obj.properties,
                         'similarity': similarity,
                         'distance': distance
@@ -286,13 +299,15 @@ class SemanticNetworkService:
                 if len(similar_objects) >= limit:
                     break
             
-            logger.info(f"Found {len(similar_objects)} similar objects of type {object_type} "
+            types_str = ', '.join(object_types)
+            logger.info(f"Found {len(similar_objects)} similar objects of type(s) {types_str} "
                        f"(threshold: {similarity_threshold})")
             
             return similar_objects
             
         except Exception as e:
-            logger.error(f"Error finding similar objects of type {object_type}: {str(e)}")
+            types_str = ', '.join(object_types)
+            logger.error(f"Error finding similar objects of type(s) {types_str}: {str(e)}")
             return []
     
     def _generate_level_summary(self, level: int, objects: List[Dict[str, Any]], user_id: str) -> str:
@@ -360,7 +375,8 @@ Bitte antworte in 2-3 kurzen Sätzen auf Deutsch."""
         user_id: str = 'system',
         thresholds: Optional[Dict[int, float]] = None,
         generate_summaries: bool = True,
-        include_hierarchy: bool = False
+        include_hierarchy: bool = False,
+        include_types: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Generate semantic network from a source object
@@ -373,6 +389,8 @@ Bitte antworte in 2-3 kurzen Sätzen auf Deutsch."""
             thresholds: Custom similarity thresholds per level
             generate_summaries: Whether to generate AI summaries
             include_hierarchy: Whether to include parent-child relationships
+            include_types: List of object types to include in search (default: only source type)
+                          For Items, defaults to ['item', 'task'] to include related tasks
         
         Returns:
             Dictionary containing:
@@ -394,7 +412,19 @@ Bitte antworte in 2-3 kurzen Sätzen auf Deutsch."""
             thresholds = thresholds or self.DEFAULT_THRESHOLDS
             depth = min(max(depth, 1), 3)  # Clamp to 1-3
             
-            logger.info(f"Generating semantic network for {object_type}/{object_id}, depth={depth}, include_hierarchy={include_hierarchy}")
+            # Determine which types to include in the search
+            # For Items, default to including both Items and Tasks
+            if include_types is None:
+                if object_type == 'item':
+                    search_types = ['Item', 'Task']
+                else:
+                    search_types = [type_value]
+            else:
+                # Convert provided types to type values
+                search_types = [self.TYPE_MAPPING.get(t, t) for t in include_types]
+            
+            logger.info(f"Generating semantic network for {object_type}/{object_id}, depth={depth}, "
+                       f"include_hierarchy={include_hierarchy}, search_types={search_types}")
             
             # Get source object
             source_obj = self._get_object_by_id(type_value, object_id)
@@ -489,7 +519,7 @@ Bitte antworte in 2-3 kurzen Sätzen auf Deutsch."""
                 # Find similar objects for each node in current level
                 for node_id in current_level_ids:
                     similar = self._find_similar_objects(
-                        type_value,
+                        search_types,
                         node_id,
                         threshold,
                         limit=self.MAX_RESULTS_PER_LEVEL,
@@ -553,7 +583,8 @@ Bitte antworte in 2-3 kurzen Sätzen auf Deutsch."""
                 'levels': levels,
                 'total_nodes': len(nodes),
                 'total_edges': len(edges),
-                'include_hierarchy': include_hierarchy
+                'include_hierarchy': include_hierarchy,
+                'search_types': [t.lower() for t in search_types]
             }
             
             # Add hierarchy information if requested
