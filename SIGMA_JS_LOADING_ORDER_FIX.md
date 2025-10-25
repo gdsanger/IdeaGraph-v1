@@ -52,14 +52,15 @@ According to Django's template inheritance and the base template structure:
 {% block extra_js %}{% endblock %}         <!-- Line 411 in base.html -->
 ```
 
-The `extra_js` block is **after** the content block, which means:
-1. Content block renders first (including inline scripts)
-2. extra_js block renders second (library scripts load)
-3. But library scripts are available to inline scripts because of how HTML script loading works
+**The Issue:**
+The library scripts were at the END of the content block, appearing AFTER the inline scripts in the same block. Within a single block, scripts execute sequentially in document order. This meant the inline code tried to instantiate `SemanticNetworkViewer` before the Sigma.js libraries were loaded.
 
-**Actually, the real issue was different:**
-
-The library scripts were at the END of the content block, so they loaded AFTER the inline scripts in the same content block. By moving them to `extra_js`, they load in the correct order.
+**The Fix:**
+By moving the library scripts to the `extra_js` block, they are placed in the final rendered HTML after the content block closes. This ensures proper loading order because:
+1. The `extra_js` block renders in the HTML after the content block
+2. External library scripts in `extra_js` are fetched and executed
+3. The inline code's event handler (`shown.bs.tab`) only executes when the user clicks the tab
+4. By the time the user clicks the tab, all libraries are loaded and available
 
 ### Change Applied
 
@@ -149,7 +150,7 @@ This means:
 
 ## Consistency with Other Templates
 
-This fix aligns milestone detail page with items and tasks detail pages:
+This fix aligns milestone detail page with items and tasks detail pages in structure, though there is a version difference to note.
 
 **Items Detail** (`main/templates/main/items/detail.html`):
 ```html
@@ -181,6 +182,14 @@ This fix aligns milestone detail page with items and tasks detail pages:
 <script src="{% static 'main/js/weaviate-indicator.js' %}"></script>
 {% endblock %}
 ```
+
+### Version Differences
+
+**Note:** The milestone template uses newer library versions:
+- Graphology: `0.25.4` vs `0.25.1` (items/tasks)
+- Sigma.js: `3.0.0-beta.20` vs `3.0.0-alpha3` (items/tasks)
+
+This version inconsistency was pre-existing and is outside the scope of this fix. The milestone template was already using these newer versions; this fix only moved their location in the template. Future work should consider standardizing versions across all templates for better maintainability and compatibility.
 
 ## Testing
 
