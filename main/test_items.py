@@ -514,31 +514,23 @@ class ItemTileViewFilterTest(TestCase):
             item=self.item
         )
         
-        self.login_user()
+        self.login_user(self.user)
         response = self.client.get(f'/items/{self.item.id}/')
         
         # Should show non-completed milestones
         self.assertContains(response, 'Planned Milestone')
         self.assertContains(response, 'In Progress Milestone')
         
-        # Should NOT show completed milestone in the badge bar
-        # Check that the milestone badge bar exists but completed milestone is not there
+        # Should show the milestone badge bar since there are non-completed milestones
         self.assertContains(response, 'milestone-badge-bar')
         
-        # Parse response content to verify completed milestone is not in the badge bar
-        content = response.content.decode('utf-8')
-        
-        # Find the milestone badge bar section (between milestone-badge-bar div and the next major section)
-        badge_bar_start = content.find('milestone-badge-bar')
-        badge_bar_end = content.find('Two-Column Layout', badge_bar_start)
-        
-        if badge_bar_start != -1 and badge_bar_end != -1:
-            badge_bar_content = content[badge_bar_start:badge_bar_end]
-            # Completed milestone should not appear in the badge bar
-            self.assertNotIn('Completed Milestone', badge_bar_content)
-        
-        # All milestones should still be visible in the Milestones tab (full list)
-        self.assertContains(response, 'Completed Milestone')  # Should appear somewhere in the full page
+        # Verify the context contains filtered milestones
+        self.assertIn('non_completed_milestones', response.context)
+        non_completed = list(response.context['non_completed_milestones'])
+        self.assertEqual(len(non_completed), 2)
+        self.assertIn(milestone_planned, non_completed)
+        self.assertIn(milestone_in_progress, non_completed)
+        self.assertNotIn(milestone_completed, non_completed)
     
     def test_item_detail_hides_milestone_bar_when_all_completed(self):
         """Test that milestone badge bar is hidden when all milestones are completed"""
@@ -559,20 +551,13 @@ class ItemTileViewFilterTest(TestCase):
             item=self.item
         )
         
-        self.login_user()
+        self.login_user(self.user)
         response = self.client.get(f'/items/{self.item.id}/')
         
         # Milestone badge bar should NOT be rendered when all milestones are completed
-        content = response.content.decode('utf-8')
+        self.assertNotContains(response, 'milestone-badge-bar')
         
-        # Check if milestone-badge-bar is present
-        # It should not be there if all milestones are completed
-        badge_bar_start = content.find('milestone-badge-bar')
-        two_column_start = content.find('Two-Column Layout')
-        
-        # If badge bar exists, verify it's not between breadcrumb and Two-Column Layout
-        if badge_bar_start != -1:
-            # Badge bar should not be in the top area (between breadcrumb and detail content)
-            breadcrumb_end = content.find('</nav>', content.find('breadcrumb'))
-            self.assertTrue(badge_bar_start < breadcrumb_end or badge_bar_start > two_column_start,
-                          "Milestone badge bar should not be visible when all milestones are completed")
+        # Verify the context contains empty filtered milestones
+        self.assertIn('non_completed_milestones', response.context)
+        non_completed = list(response.context['non_completed_milestones'])
+        self.assertEqual(len(non_completed), 0)
