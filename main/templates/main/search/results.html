@@ -234,19 +234,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const resultsContainer = document.getElementById('searchResults');
     const loadingSpinner = document.getElementById('loadingSpinner');
     
-    // Get JWT token from session
-    function getAuthToken() {
-        // Try to get token from sessionStorage
-        const token = sessionStorage.getItem('auth_token');
-        if (token) {
-            return token;
-        }
-        
-        // If no token, user needs to login
-        console.warn('No authentication token found');
-        return null;
-    }
-    
     // Perform search
     async function performSearch(query) {
         if (!query || query.trim() === '') {
@@ -265,24 +252,28 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsContainer.innerHTML = '';
         
         try {
-            const token = getAuthToken();
-            if (!token) {
-                throw new Error('Please login to use search');
-            }
-            
-            // Call search API
+            // Call search API using session authentication (cookies)
             const response = await fetch(`/api/search?query=${encodeURIComponent(query)}&limit=10`, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
-                }
+                },
+                credentials: 'same-origin'  // Include cookies for session auth
             });
-            
-            const data = await response.json();
             
             // Hide loading
             loadingSpinner.classList.remove('active');
+            
+            // Check if response is ok
+            if (!response.ok) {
+                if (response.status === 401) {
+                    throw new Error('Please login to use search. <a href="{% url "main:login" %}?next={{ request.path }}">Click here to login</a>');
+                }
+                const data = await response.json();
+                throw new Error(data.error || 'Search failed');
+            }
+            
+            const data = await response.json();
             
             if (!data.success) {
                 throw new Error(data.error || 'Search failed');

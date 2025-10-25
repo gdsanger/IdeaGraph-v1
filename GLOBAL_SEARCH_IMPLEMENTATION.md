@@ -26,7 +26,14 @@ Implemented a global semantic search feature for IdeaGraph that allows users to 
 - `limit` (optional) - Maximum results to return (1-50, default: 10)
 - `types` (optional) - Comma-separated object types to filter (e.g., "Item,Task")
 
-**Authentication:** Requires JWT Bearer token
+**Authentication:** Supports both JWT Bearer token and Django session authentication
+
+For API clients using JWT:
+- Include `Authorization: Bearer YOUR_TOKEN` header
+
+For web browsers using sessions:
+- Session cookies are automatically included
+- No additional authentication headers needed
 
 **Response Format:**
 ```json
@@ -77,15 +84,19 @@ Implemented a global semantic search feature for IdeaGraph that allows users to 
 **File:** `main/test_global_search.py`
 
 **Test Coverage:**
-- Authentication requirement
+- Authentication requirement (JWT and session-based)
 - Query parameter validation
 - Search with results
 - Search with type filters
 - Search with custom limits
 - Empty result handling
 - View URL and context
+- Session authentication (verifies fix for "Please login" error)
+- Search with custom limits
+- Empty result handling
+- View URL and context
 
-**Test Results:** ✅ All 6 API tests passing
+**Test Results:** ✅ All 7 API tests passing (including session auth test)
 
 ## Technical Details
 
@@ -103,7 +114,9 @@ Implemented a global semantic search feature for IdeaGraph that allows users to 
 - Automatic client connection management (open/close)
 
 ### Security
-- JWT authentication required for API
+- **Dual Authentication Support**: API accepts both JWT tokens and Django session cookies
+  - JWT tokens for programmatic API access
+  - Session cookies for web browser access
 - User must be logged in to access search page
 - Input validation on query parameters
 - XSS protection via HTML escaping
@@ -112,11 +125,18 @@ Implemented a global semantic search feature for IdeaGraph that allows users to 
 
 ### Via API
 ```bash
-# Search for authentication-related content
+# Search using JWT authentication (for programmatic API access)
 curl -H "Authorization: Bearer YOUR_TOKEN" \
   "http://localhost:8000/api/search?query=authentication&limit=5"
 
-# Search only in Items and Tasks
+# Search using session authentication
+# When accessing from a web browser, session cookies are automatically included
+# No additional authentication is needed - just make the fetch() call:
+fetch('/api/search?query=authentication&limit=5', {
+    credentials: 'same-origin'  // Include session cookies
+})
+
+# Search only in Items and Tasks (with JWT)
 curl -H "Authorization: Bearer YOUR_TOKEN" \
   "http://localhost:8000/api/search?query=token&types=Item,Task"
 ```
@@ -189,3 +209,22 @@ python manage.py test main.test_global_search.GlobalSearchAPITest.test_search_re
 ✅ Comprehensive API
 ✅ Well tested
 ✅ Production-ready
+
+## Bug Fixes
+
+### Authentication Error Fix (2025-10-25)
+**Issue:** Users encountered "Please login" and "No authentication token found" errors when using Global Search, even when logged in via the web interface.
+
+**Root Cause:** The search page JavaScript incorrectly required JWT tokens from sessionStorage, but web users authenticate via Django session cookies, not JWT tokens.
+
+**Solution:**
+- Updated `main/templates/main/search/results.html` to use session-based authentication
+- Removed JWT token requirement from JavaScript
+- Added `credentials: 'same-origin'` to fetch requests to include session cookies
+- Improved error handling for 401 responses with login redirect link
+- Added test case `test_search_with_session_authentication` to verify fix
+
+**Files Modified:**
+- `main/templates/main/search/results.html` - Fixed authentication method
+- `main/test_global_search.py` - Added session auth test
+- `GLOBAL_SEARCH_IMPLEMENTATION.md` - Updated documentation
