@@ -180,7 +180,7 @@
                                 <select class="form-select" id="requester" name="requester">
                                     <option value="">-- No Requester --</option>
                                     {% for user in all_users %}
-                                    <option value="{{ user.id }}" {% if task and task.requester.id == user.id %}selected{% elif not task and current_user and user.id == current_user.id %}selected{% endif %}>
+                                    <option value="{{ user.id }}" {% if task and task.requester and task.requester.id == user.id %}selected{% elif not task and current_user.id == user.id %}selected{% endif %}>
                                         {{ user.username }}
                                     </option>
                                     {% endfor %}
