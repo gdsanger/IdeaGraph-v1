@@ -523,6 +523,19 @@ class WeaviateGitHubIssueSyncService:
                             logger.info(
                                 f"Task {task.id} marked as done (GitHub issue #{task.github_issue_id} closed)"
                             )
+                            
+                            # Create a comment about the GitHub issue completion
+                            try:
+                                from core.services.task_comment_service import TaskCommentService
+                                TaskCommentService.create_github_issue_completed_comment(
+                                    task=task,
+                                    issue_number=task.github_issue_id
+                                )
+                            except Exception as comment_error:
+                                # Log error but don't fail the sync
+                                logger.warning(
+                                    f"Failed to create GitHub issue completed comment for task {task.id}: {str(comment_error)}"
+                                )
                 
                 except Exception as e:
                     error_msg = f"Error syncing task {task.id}: {str(e)}"

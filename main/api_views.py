@@ -2444,6 +2444,18 @@ def api_task_create_github_issue(request, task_id):
             task.github_synced_at = timezone.now()
             task.save()
             
+            # Create a comment about the GitHub issue creation
+            try:
+                from core.services.task_comment_service import TaskCommentService
+                TaskCommentService.create_github_issue_created_comment(
+                    task=task,
+                    issue_number=issue_number,
+                    issue_url=result.get('url')
+                )
+            except Exception as e:
+                # Log error but don't fail the whole operation
+                logger.warning(f'Failed to create GitHub issue comment: {str(e)}')
+            
             return JsonResponse({
                 'success': True,
                 'issue_number': task.github_issue_id,
