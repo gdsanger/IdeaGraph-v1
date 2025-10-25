@@ -541,6 +541,145 @@ Analyze this email and create a normalized task description in Markdown format:
             logger.error(f"KiGate service error: {e.message}")
             return f"{mail_body}\n\n---\n**Originale E-Mail:**\n\nBetreff: {mail_subject}\n\n{mail_body}"
     
+    def process_attachments(
+        self,
+        message_id: str,
+        task,
+        user
+    ) -> Dict[str, Any]:
+        """
+        Process attachments from an email message
+        
+        Downloads attachments, saves them to SharePoint in the task folder,
+        and syncs readable files to Weaviate.
+        
+        Args:
+            message_id: ID of the email message
+            task: Task object to attach files to
+            user: User who will be listed as uploader
+            
+        Returns:
+            Dictionary with:
+                - success: bool
+                - processed: int (number of attachments processed)
+                - failed: int (number of failed attachments)
+                - details: list of attachment processing results
+        """
+        try:
+            # Import TaskFileService here to avoid circular imports
+            from core.services.task_file_service import TaskFileService
+            
+            # Get attachments list
+            attachments_result = self.graph_service.get_message_attachments(message_id)
+            
+            if not attachments_result.get('success'):
+                logger.warning("Failed to retrieve attachments")
+                return {
+                    'success': False,
+                    'processed': 0,
+                    'failed': 0,
+                    'details': []
+                }
+            
+            attachments = attachments_result.get('attachments', [])
+            
+            if not attachments:
+                logger.info("No attachments found in message")
+                return {
+                    'success': True,
+                    'processed': 0,
+                    'failed': 0,
+                    'details': []
+                }
+            
+            logger.info(f"Processing {len(attachments)} attachment(s)")
+            
+            # Initialize file service
+            file_service = TaskFileService(self.settings)
+            
+            processed = 0
+            failed = 0
+            details = []
+            
+            for attachment in attachments:
+                attachment_id = attachment.get('id')
+                attachment_name = attachment.get('name', 'unknown')
+                attachment_size = attachment.get('size', 0)
+                
+                try:
+                    logger.info(f"Processing attachment: {attachment_name} ({attachment_size} bytes)")
+                    
+                    # Download attachment
+                    download_result = self.graph_service.download_attachment(
+                        message_id=message_id,
+                        attachment_id=attachment_id
+                    )
+                    
+                    if not download_result.get('success'):
+                        logger.error(f"Failed to download attachment {attachment_name}")
+                        failed += 1
+                        details.append({
+                            'filename': attachment_name,
+                            'success': False,
+                            'error': 'Download failed'
+                        })
+                        continue
+                    
+                    # Upload to SharePoint and sync to Weaviate
+                    upload_result = file_service.upload_file(
+                        task=task,
+                        file_content=download_result['content'],
+                        filename=download_result['filename'],
+                        content_type=download_result['content_type'],
+                        user=user
+                    )
+                    
+                    if upload_result.get('success'):
+                        processed += 1
+                        details.append({
+                            'filename': attachment_name,
+                            'success': True,
+                            'weaviate_synced': upload_result.get('weaviate_synced', False),
+                            'sharepoint_url': upload_result.get('sharepoint_url', '')
+                        })
+                        logger.info(f"Successfully processed attachment: {attachment_name}")
+                    else:
+                        failed += 1
+                        details.append({
+                            'filename': attachment_name,
+                            'success': False,
+                            'error': upload_result.get('error', 'Upload failed')
+                        })
+                        logger.error(f"Failed to upload attachment {attachment_name}")
+                        
+                except Exception as e:
+                    logger.error(f"Error processing attachment {attachment_name}: {str(e)}")
+                    failed += 1
+                    details.append({
+                        'filename': attachment_name,
+                        'success': False,
+                        'error': str(e)
+                    })
+            
+            logger.info(f"Attachment processing complete: {processed} processed, {failed} failed")
+            
+            return {
+                'success': True,
+                'processed': processed,
+                'failed': failed,
+                'details': details
+            }
+            
+        except Exception as e:
+            logger.error(f"Error processing attachments: {str(e)}")
+            return {
+                'success': False,
+                'processed': 0,
+                'failed': 0,
+                'details': [],
+                'error': str(e)
+            }
+    
     def create_task_from_mail(
         self,
         mail_subject: str,
@@ -781,7 +920,40 @@ Analyze this email and create a normalized task description in Markdown format:
                     'mail_subject': subject
                 }
             
-            # Step 5: Send confirmation email
+            # Step 5: Process attachments if present
+            has_attachments = message.get('hasAttachments', False)
+            attachments_result = {'processed': 0, 'failed': 0}
+            
+            if has_attachments:
+                logger.info(f"Message has attachments, processing...")
+                
+                # Get the created task object
+                from main.models import Task
+                try:
+                    task = Task.objects.get(id=task_info['id'])
+                    
+                    # Get requester user for file uploads
+                    from main.models import User
+                    requester = User.objects.get(email=sender_email)
+                    
+                    # Process attachments
+                    attachments_result = self.process_attachments(
+                        message_id=message_id,
+                        task=task,
+                        user=requester
+                    )
+                    
+                    logger.info(f"Processed {attachments_result.get('processed', 0)} attachments, "
+                              f"{attachments_result.get('failed', 0)} failed")
+                    
+                except Task.DoesNotExist:
+                    logger.error(f"Task {task_info['id']} not found for attachment processing")
+                except User.DoesNotExist:
+                    logger.error(f"User {sender_email} not found for attachment processing")
+                except Exception as e:
+                    logger.error(f"Error during attachment processing: {str(e)}")
+            
+            # Step 6: Send confirmation email
             confirmation_sent = self.send_confirmation_email(
                 recipient_email=sender_email,
                 mail_subject=subject,
@@ -789,13 +961,13 @@ Analyze this email and create a normalized task description in Markdown format:
                 item_title=item_title
             )
             
-            # Step 6: Mark message as read
+            # Step 7: Mark message as read
             try:
                 self.graph_service.mark_message_as_read(message_id)
             except GraphServiceError as e:
                 logger.warning(f"Failed to mark message as read: {e.message}")
             
-            # Step 7: Archive the message
+            # Step 8: Archive the message
             archived = False
             try:
                 self.graph_service.move_message(message_id, destination_folder='archive')
@@ -812,7 +984,9 @@ Analyze this email and create a normalized task description in Markdown format:
                 'item_id': item_id,
                 'item_title': item_title,
                 'confirmation_sent': confirmation_sent,
-                'archived': archived
+                'archived': archived,
+                'attachments_processed': attachments_result.get('processed', 0),
+                'attachments_failed': attachments_result.get('failed', 0)
             }
             
         except Exception as e:
