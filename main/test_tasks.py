@@ -1146,3 +1146,177 @@ class TaskBulkDeleteTest(TestCase):
         self.assertContains(response, 'function toggleSelectAll')
         self.assertContains(response, 'function updateSelectedCount')
         self.assertContains(response, 'function deleteSelectedTasks')
+
+
+class TaskTypeAndStatusTest(TestCase):
+    """Test new type field and test status functionality"""
+    
+    def setUp(self):
+        """Set up test data"""
+        # Create test user
+        self.user = User.objects.create(
+            username='testuser',
+            email='test@example.com',
+            role='developer',
+            is_active=True
+        )
+        self.user.set_password('testpass123')
+        self.user.save()
+        
+        # Create test section
+        self.section = Section.objects.create(name='Test Section')
+        
+        # Create test item
+        self.item = Item.objects.create(
+            title='Test Item',
+            description='Test item description',
+            status='new',
+            section=self.section,
+            created_by=self.user
+        )
+        
+        # Create test task
+        self.task = Task.objects.create(
+            title='Test Task',
+            description='Task description',
+            status='new',
+            type='sonstige',
+            item=self.item,
+            created_by=self.user
+        )
+        
+        # Create client
+        self.client = Client()
+    
+    def login_user(self):
+        """Helper to log in the test user"""
+        session = self.client.session
+        session['user_id'] = str(self.user.id)
+        session.save()
+    
+    def test_task_type_choices(self):
+        """Test that task type choices are correct"""
+        expected_types = ['bug', 'feature', 'frage', 'support', 'idee', 'sonstige']
+        type_choices = [choice[0] for choice in Task.TYPE_CHOICES]
+        
+        self.assertEqual(type_choices, expected_types)
+    
+    def test_task_status_includes_test(self):
+        """Test that status choices include 'test'"""
+        status_choices = [choice[0] for choice in Task.STATUS_CHOICES]
+        
+        self.assertIn('test', status_choices)
+        self.assertEqual(len(status_choices), 6)  # new, working, review, ready, test, done
+    
+    def test_task_default_type(self):
+        """Test that default task type is 'sonstige'"""
+        task = Task.objects.create(
+            title='New Task',
+            description='Description',
+            item=self.item,
+            created_by=self.user
+        )
+        
+        self.assertEqual(task.type, 'sonstige')
+    
+    def test_api_quick_type_update(self):
+        """Test quick type update API endpoint"""
+        self.login_user()
+        url = reverse('main:api_task_quick_type_update', args=[self.task.id])
+        
+        # Update type to 'bug'
+        response = self.client.post(
+            url,
+            data=json.dumps({'type': 'bug'}),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['type'], 'bug')
+        
+        # Verify database update
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.type, 'bug')
+    
+    def test_api_quick_type_update_invalid_type(self):
+        """Test quick type update with invalid type"""
+        self.login_user()
+        url = reverse('main:api_task_quick_type_update', args=[self.task.id])
+        
+        response = self.client.post(
+            url,
+            data=json.dumps({'type': 'invalid_type'}),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertIn('error', data)
+    
+    def test_api_mark_done(self):
+        """Test mark task as done API endpoint"""
+        self.login_user()
+        url = reverse('main:api_task_mark_done', args=[self.task.id])
+        
+        response = self.client.post(url, content_type='application/json')
+        
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['status'], 'done')
+        
+        # Verify database update
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, 'done')
+        self.assertIsNotNone(self.task.completed_at)
+    
+    def test_task_detail_view_shows_type(self):
+        """Test that task detail view shows type field"""
+        self.login_user()
+        url = reverse('main:task_detail', args=[self.task.id])
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="type"')
+        self.assertIn('type_choices', response.context)
+    
+    def test_task_overview_shows_type_column(self):
+        """Test that task overview shows type column"""
+        self.login_user()
+        url = reverse('main:task_overview')
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'updateTaskType')
+        self.assertContains(response, 'task-type-select')
+    
+    def test_task_overview_shows_mark_done_button(self):
+        """Test that task overview shows mark as done button"""
+        self.login_user()
+        url = reverse('main:task_overview')
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'markTaskAsDone')
+        self.assertContains(response, 'Mark as Done')
+    
+    def test_test_status_in_overview(self):
+        """Test that test status appears in overview"""
+        self.login_user()
+        
+        # Create a task with test status
+        test_task = Task.objects.create(
+            title='Test Status Task',
+            description='Task with test status',
+            status='test',
+            item=self.item,
+            created_by=self.user
+        )
+        
+        url = reverse('main:task_overview')
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '🧪')  # Test status emoji
