@@ -6059,7 +6059,31 @@ def api_task_comments(request, task_id):
         # Get all comments for the task
         comments = TaskComment.objects.filter(task=task).order_by('created_at')
         
-        # Prepare comment data
+        # For htmx requests, return HTML partial with model objects
+        if request.headers.get('HX-Request'):
+            # Prepare comment data for template (keep datetime objects for Django template filters)
+            comment_list = []
+            for comment in comments:
+                comment_data = {
+                    'id': str(comment.id),
+                    'author': comment.get_author_display(),
+                    'author_id': str(comment.author.id) if comment.author else None,
+                    'text': comment.text,
+                    'source': comment.source,
+                    'created_at': comment.created_at,  # Keep as datetime object
+                    'updated_at': comment.updated_at,  # Keep as datetime object
+                    'can_edit': comment.author == user if comment.author else False,
+                    'can_delete': comment.author == user or user.role == 'admin' if comment.author else user.role == 'admin',
+                }
+                comment_list.append(comment_data)
+            
+            return render(request, 'main/tasks/_comments_list.html', {
+                'comments': comment_list,
+                'task': task,
+                'current_user': user
+            })
+        
+        # For regular API requests, return JSON with ISO strings
         comment_list = []
         for comment in comments:
             comment_data = {
@@ -6075,15 +6099,6 @@ def api_task_comments(request, task_id):
             }
             comment_list.append(comment_data)
         
-        # For htmx requests, return HTML partial
-        if request.headers.get('HX-Request'):
-            return render(request, 'main/tasks/_comments_list.html', {
-                'comments': comment_list,
-                'task': task,
-                'current_user': user
-            })
-        
-        # For regular API requests, return JSON
         return JsonResponse({
             'success': True,
             'comments': comment_list
