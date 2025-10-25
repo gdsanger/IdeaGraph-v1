@@ -274,6 +274,87 @@ class MilestoneKnowledgeServiceTest(TestCase):
         tasks = Task.objects.filter(milestone=self.milestone)
         self.assertEqual(tasks.count(), 2)
         self.assertTrue(tasks.first().ai_generated)
+    
+    @patch('core.services.weaviate_sync_service.WeaviateItemSyncService')
+    def test_sync_context_object_upsert_behavior(self, mock_weaviate_service):
+        """Test that context object sync handles both insert and update correctly"""
+        # Create context object
+        context = MilestoneContextObject.objects.create(
+            milestone=self.milestone,
+            type='file',
+            title='Test Document',
+            content='Test content',
+            uploaded_by=self.user
+        )
+        
+        # Mock Weaviate service
+        mock_service_instance = MagicMock()
+        mock_weaviate_service.return_value = mock_service_instance
+        
+        # Mock collection
+        mock_collection = MagicMock()
+        mock_service_instance._client.collections.get.return_value = mock_collection
+        
+        # First sync: object doesn't exist, should insert
+        mock_collection.data.exists.return_value = False
+        
+        service = MilestoneKnowledgeService()
+        result = service.sync_context_object_to_weaviate(context)
+        
+        self.assertTrue(result['success'])
+        # Verify insert was called
+        mock_collection.data.insert.assert_called_once()
+        mock_collection.data.update.assert_not_called()
+        
+        # Reset mocks
+        mock_collection.data.insert.reset_mock()
+        mock_collection.data.update.reset_mock()
+        
+        # Second sync: object exists, should update
+        mock_collection.data.exists.return_value = True
+        
+        result = service.sync_context_object_to_weaviate(context)
+        
+        self.assertTrue(result['success'])
+        # Verify update was called instead of insert
+        mock_collection.data.update.assert_called_once()
+        mock_collection.data.insert.assert_not_called()
+    
+    @patch('core.services.weaviate_sync_service.WeaviateItemSyncService')
+    def test_sync_milestone_upsert_behavior(self, mock_weaviate_service):
+        """Test that milestone sync handles both insert and update correctly"""
+        # Mock Weaviate service
+        mock_service_instance = MagicMock()
+        mock_weaviate_service.return_value = mock_service_instance
+        
+        # Mock collection
+        mock_collection = MagicMock()
+        mock_service_instance._client.collections.get.return_value = mock_collection
+        
+        # First sync: milestone doesn't exist, should insert
+        mock_collection.data.exists.return_value = False
+        
+        service = MilestoneKnowledgeService()
+        result = service.sync_to_weaviate(self.milestone)
+        
+        self.assertTrue(result['success'])
+        # Verify insert was called
+        mock_collection.data.insert.assert_called_once()
+        mock_collection.data.update.assert_not_called()
+        
+        # Reset mocks
+        mock_collection.data.insert.reset_mock()
+        mock_collection.data.update.reset_mock()
+        
+        # Second sync: milestone exists, should update
+        mock_collection.data.exists.return_value = True
+        
+        result = service.sync_to_weaviate(self.milestone)
+        
+        self.assertTrue(result['success'])
+        # Verify update was called instead of insert
+        mock_collection.data.update.assert_called_once()
+        mock_collection.data.insert.assert_not_called()
 
 
 class MilestoneKnowledgeAPITest(TestCase):
