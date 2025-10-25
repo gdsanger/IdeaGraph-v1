@@ -125,16 +125,18 @@ For web browsers using sessions:
 
 ### Via API
 ```bash
-# Search using JWT authentication
+# Search using JWT authentication (for programmatic API access)
 curl -H "Authorization: Bearer YOUR_TOKEN" \
   "http://localhost:8000/api/search?query=authentication&limit=5"
 
-# Search using session authentication (from browser)
-# Session cookies are automatically included by the browser
-curl -b cookies.txt \
-  "http://localhost:8000/api/search?query=authentication&limit=5"
+# Search using session authentication
+# When accessing from a web browser, session cookies are automatically included
+# No additional authentication is needed - just make the fetch() call:
+fetch('/api/search?query=authentication&limit=5', {
+    credentials: 'same-origin'  // Include session cookies
+})
 
-# Search only in Items and Tasks
+# Search only in Items and Tasks (with JWT)
 curl -H "Authorization: Bearer YOUR_TOKEN" \
   "http://localhost:8000/api/search?query=token&types=Item,Task"
 ```
