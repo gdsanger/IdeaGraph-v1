@@ -189,6 +189,60 @@ class GlobalSearchAPITest(TestCase):
         self.assertTrue(data['success'])
         self.assertEqual(data['total'], 0)
         self.assertEqual(len(data['results']), 0)
+    
+    @patch('core.services.weaviate_search_service.weaviate.connect_to_local')
+    def test_search_with_session_authentication(self, mock_weaviate_connect):
+        """Test that search works with session-based authentication (not just JWT)"""
+        # Mock Weaviate client
+        mock_client = MagicMock()
+        mock_collection = MagicMock()
+        
+        # Mock search response
+        mock_obj = MagicMock()
+        mock_obj.uuid = 'session-test-uuid'
+        mock_obj.properties = {
+            'type': 'Task',
+            'title': 'Session Auth Test',
+            'description': 'Testing session authentication',
+            'url': '/tasks/session-test-uuid/',
+            'owner': 'testuser',
+            'status': 'new',
+            'tags': []
+        }
+        mock_obj.metadata = MagicMock()
+        mock_obj.metadata.distance = 0.3
+        mock_obj.metadata.certainty = 0.85
+        
+        mock_response = MagicMock()
+        mock_response.objects = [mock_obj]
+        
+        mock_collection.query.near_text.return_value = mock_response
+        mock_client.collections.get.return_value = mock_collection
+        mock_weaviate_connect.return_value = mock_client
+        
+        # Create a new client with session authentication (no JWT token)
+        session_client = Client()
+        session = session_client.session
+        session['user_id'] = str(self.user.id)
+        session['username'] = self.user.username
+        session['user_role'] = self.user.role
+        session.save()
+        
+        # Perform search using session auth (no Authorization header)
+        response = session_client.get('/api/search?query=test')
+        
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        
+        self.assertTrue(data['success'])
+        self.assertEqual(data['query'], 'test')
+        self.assertEqual(data['total'], 1)
+        self.assertEqual(len(data['results']), 1)
+        
+        result = data['results'][0]
+        self.assertEqual(result['id'], 'session-test-uuid')
+        self.assertEqual(result['type'], 'Task')
+        self.assertEqual(result['title'], 'Session Auth Test')
 
 
 class GlobalSearchViewTest(TestCase):
