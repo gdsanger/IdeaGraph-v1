@@ -127,6 +127,42 @@ class TaskFileService:
         
         return name
     
+    def _sanitize_filename(self, filename: str) -> str:
+        """
+        Sanitize filename to prevent path traversal attacks
+        
+        Removes directory separators and other dangerous characters.
+        
+        Args:
+            filename: Original filename
+            
+        Returns:
+            str: Sanitized filename safe for filesystem
+        """
+        # Remove path separators and parent directory references
+        filename = os.path.basename(filename)
+        
+        # Remove any remaining path separators (Windows and Unix)
+        filename = filename.replace('/', '_').replace('\\', '_')
+        
+        # Remove any null bytes
+        filename = filename.replace('\0', '')
+        
+        # If filename is empty or starts with dot, make it safe
+        if not filename or filename.startswith('.'):
+            filename = 'file_' + filename.lstrip('.')
+        
+        # Limit length to prevent filesystem issues (most filesystems have 255 char limit)
+        if len(filename) > 255:
+            # Keep the file extension
+            name, ext = os.path.splitext(filename)
+            if len(ext) > 10:  # Sanity check on extension length
+                ext = ext[:10]
+            max_name_length = 255 - len(ext)
+            filename = name[:max_name_length] + ext
+        
+        return filename
+    
     def _get_base_dir(self) -> str:
         """
         Get the base directory for the project
@@ -171,6 +207,9 @@ class TaskFileService:
         Returns:
             str: Local file path
         """
+        # Sanitize filename to prevent path traversal attacks
+        safe_filename = self._sanitize_filename(filename)
+        
         # Determine local folder path
         if task.item:
             # Task belongs to an item: media/task_files/{item_title}/{task_uuid}/
@@ -185,10 +224,21 @@ class TaskFileService:
         os.makedirs(full_folder_path, exist_ok=True)
         
         # Save the file
-        file_path = os.path.join(folder_path, filename)
+        file_path = os.path.join(folder_path, safe_filename)
         full_file_path = self._get_full_path(file_path)
         
-        with open(full_file_path, 'wb') as f:
+        # Security check: Ensure the resolved path is within our media directory
+        base_media_path = self._get_full_path(os.path.join('media', 'task_files'))
+        full_file_path_resolved = os.path.abspath(full_file_path)
+        base_media_path_resolved = os.path.abspath(base_media_path)
+        
+        if not full_file_path_resolved.startswith(base_media_path_resolved):
+            raise TaskFileServiceError(
+                "Invalid file path detected",
+                details="File path must be within task_files directory"
+            )
+        
+        with open(full_file_path_resolved, 'wb') as f:
             f.write(file_content)
         
         logger.info(f"Saved file locally to: {file_path}")
@@ -314,9 +364,13 @@ class TaskFileService:
             # Try to clean up local file if database save fails
             try:
                 full_file_path = self._get_full_path(local_file_path)
-                if os.path.exists(full_file_path):
-                    os.remove(full_file_path)
-                    logger.info(f"Cleaned up local file after database error: {full_file_path}")
+                full_file_path_resolved = os.path.abspath(full_file_path)
+                
+                # Security check: Ensure path is within media directory
+                base_media_path_resolved = os.path.abspath(self._get_full_path(os.path.join('media', 'task_files')))
+                if full_file_path_resolved.startswith(base_media_path_resolved) and os.path.exists(full_file_path_resolved):
+                    os.remove(full_file_path_resolved)
+                    logger.info(f"Cleaned up local file after database error: {full_file_path_resolved}")
             except Exception as cleanup_error:
                 logger.error(f"Failed to clean up local file: {str(cleanup_error)}")
             raise TaskFileServiceError("File upload failed", details=str(e))
@@ -461,9 +515,15 @@ class TaskFileService:
             if task_file.file_path:
                 try:
                     full_file_path = self._get_full_path(task_file.file_path)
-                    if os.path.exists(full_file_path):
-                        os.remove(full_file_path)
-                        logger.info(f"Deleted local file: {full_file_path}")
+                    full_file_path_resolved = os.path.abspath(full_file_path)
+                    
+                    # Security check: Ensure path is within media directory
+                    base_media_path_resolved = os.path.abspath(self._get_full_path(os.path.join('media', 'task_files')))
+                    if full_file_path_resolved.startswith(base_media_path_resolved) and os.path.exists(full_file_path_resolved):
+                        os.remove(full_file_path_resolved)
+                        logger.info(f"Deleted local file: {full_file_path_resolved}")
+                    else:
+                        logger.warning(f"File path validation failed or file does not exist: {full_file_path_resolved}")
                 except Exception as e:
                     logger.warning(f"Failed to delete local file: {str(e)}")
             

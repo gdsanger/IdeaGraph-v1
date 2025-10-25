@@ -256,3 +256,29 @@ class TaskFileStorageTest(TestCase):
         self.assertEqual(path_parts[3], str(self.task.id))
         # Fifth part should be the filename
         self.assertEqual(path_parts[4], filename)
+    
+    def test_filename_sanitization(self):
+        """Test that malicious filenames are sanitized"""
+        service = TaskFileService(self.settings)
+        
+        # Test path traversal attack
+        malicious_filename = "../../../etc/passwd"
+        result = service.upload_file(
+            task=self.task,
+            file_content=b"test content",
+            filename=malicious_filename,
+            content_type='text/plain',
+            user=self.user
+        )
+        
+        task_file = TaskFile.objects.get(id=result['file_id'])
+        
+        # Verify the file path doesn't contain parent directory references
+        self.assertNotIn('..', task_file.file_path)
+        self.assertIn('media/task_files', task_file.file_path)
+        self.assertIn(str(self.task.id), task_file.file_path)
+        
+        # Verify file was saved safely
+        full_path = os.path.join(settings.BASE_DIR, task_file.file_path)
+        self.assertTrue(os.path.exists(full_path))
+        self.assertIn('task_files', full_path)  # Must be in task_files directory
