@@ -8,6 +8,8 @@
 <link rel="stylesheet" href="{% static 'main/css/semantic-network.css' %}" />
 <!-- Weaviate Indicator CSS -->
 <link rel="stylesheet" href="{% static 'main/css/weaviate-indicator.css' %}" />
+<!-- Toast UI Editor/Viewer CSS -->
+<link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor-viewer.min.css" />
 
 <style>
     .milestone-detail-card {
@@ -137,6 +139,44 @@
     
     .file-progress-item.error i {
         color: #ef4444;
+    }
+    
+    /* Changelog viewer styling */
+    #changelogViewer {
+        background-color: #1f2937;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        color: #e5e7eb;
+    }
+    
+    #changelogViewer h1,
+    #changelogViewer h2,
+    #changelogViewer h3,
+    #changelogViewer h4,
+    #changelogViewer h5,
+    #changelogViewer h6 {
+        color: var(--autumn-accent);
+        margin-top: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    #changelogViewer ul,
+    #changelogViewer ol {
+        padding-left: 2rem;
+    }
+    
+    #changelogViewer code {
+        background-color: rgba(15, 23, 42, 0.8);
+        padding: 0.2rem 0.4rem;
+        border-radius: 0.25rem;
+        color: #fbbf24;
+    }
+    
+    #changelogViewer pre {
+        background-color: rgba(15, 23, 42, 0.8);
+        padding: 1rem;
+        border-radius: 0.5rem;
+        overflow-x: auto;
     }
 </style>
 {% endblock %}
@@ -333,9 +373,8 @@
                         {% if milestone.changelog %}
                         <div class="card bg-dark">
                             <div class="card-body">
-                                <div class="markdown-content">
-                                    {{ milestone.changelog|safe }}
-                                </div>
+                                <div id="changelogViewer"></div>
+                                <textarea id="changelogMarkdown" style="display: none;">{{ milestone.changelog }}</textarea>
                             </div>
                         </div>
                         {% else %}
@@ -1717,7 +1756,24 @@ document.getElementById('semantic-network-tab')?.addEventListener('shown.bs.tab'
         milestoneSemanticNetworkViewer.load('milestone', '{{ milestone.id }}');
     }
 });
+
+// Initialize ToastUI Viewer for changelog markdown
+{% if milestone.changelog %}
+document.addEventListener('DOMContentLoaded', function() {
+    const changelogMarkdownElement = document.querySelector('#changelogMarkdown');
+    if (changelogMarkdownElement) {
+        const viewer = new toastui.Editor.factory({
+            el: document.querySelector('#changelogViewer'),
+            viewer: true,
+            initialValue: changelogMarkdownElement.value
+        });
+    }
+});
+{% endif %}
 </script>
+
+<!-- Toast UI Viewer JS -->
+<script src="https://uicdn.toast.com/editor/latest/toastui-editor-viewer.min.js"></script>
 
 <!-- Sigma.js and dependencies for semantic network -->
 <script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
