@@ -5132,19 +5132,25 @@ def api_milestone_summary_history(request, milestone_id):
 @require_http_methods(["POST"])
 def api_milestone_generate_changelog(request, milestone_id):
     """
-    Generate AI-powered ChangeLog for a milestone using KiGate
+    Generate or Recreate AI-powered ChangeLog for a milestone using KiGate
     
     POST /api/milestones/<milestone_id>/generate-changelog
+    
+    When called, this function will:
+    1. Clean up any existing changelogs (files, Weaviate entries, and database field)
+    2. Generate a new changelog based on completed tasks
     
     Generates a changelog based on:
     - Item name
     - Milestone name
     - List of completed tasks in the milestone
     
-    Stores the changelog in:
+    Stores the new changelog in:
     1. Milestone.changelog field
     2. MilestoneFile as a markdown file
     3. Weaviate as a KnowledgeObject
+    
+    This allows users to recreate the changelog at any time, replacing old versions.
     """
     from main.models import Milestone, MilestoneFile
     from core.services.kigate_service import KiGateService, KiGateServiceError
@@ -5168,6 +5174,51 @@ def api_milestone_generate_changelog(request, milestone_id):
                 'success': False,
                 'error': 'Permission denied'
             }, status=403)
+        
+        # Clean up old changelogs (for recreation)
+        # This allows users to regenerate changelogs without accumulating old versions
+        old_changelog_files = MilestoneFile.objects.filter(
+            milestone=milestone,
+            content_type='text/markdown'
+        )
+        
+        if old_changelog_files.exists():
+            logger.info(f'Cleaning up {old_changelog_files.count()} old changelog file(s) for milestone {milestone_id}')
+            
+            # Delete from Weaviate first
+            weaviate_service = None
+            try:
+                weaviate_service = WeaviateItemSyncService()
+                for old_file in old_changelog_files:
+                    if old_file.weaviate_synced:
+                        try:
+                            weaviate_service.sync_delete(str(old_file.id))
+                            logger.info(f'Deleted old changelog from Weaviate: {old_file.id}')
+                        except WeaviateItemSyncServiceError as e:
+                            logger.warning(f'Failed to delete old changelog from Weaviate: {str(e)}')
+            except WeaviateItemSyncServiceError as e:
+                logger.warning(f'Failed to initialize Weaviate service for cleanup: {str(e)}')
+            except Exception as e:
+                logger.warning(f'Unexpected error during Weaviate cleanup: {str(e)}')
+            
+            # Delete physical files from filesystem
+            for old_file in old_changelog_files:
+                if old_file.file_path and os.path.exists(old_file.file_path):
+                    try:
+                        os.remove(old_file.file_path)
+                        logger.info(f'Deleted old changelog file: {old_file.file_path}')
+                    except OSError as e:
+                        logger.warning(f'Failed to delete old changelog file {old_file.file_path}: {str(e)}')
+            
+            # Delete MilestoneFile records from database
+            old_changelog_files.delete()
+            logger.info('Deleted old MilestoneFile records')
+        
+        # Clear the changelog field in the milestone (will be replaced with new content)
+        if milestone.changelog:
+            logger.info(f'Clearing old changelog content from milestone {milestone_id}')
+            milestone.changelog = ''
+            milestone.save()
         
         # Gather information for changelog generation
         item_name = milestone.item.title

@@ -363,7 +363,11 @@
                         <h4><i class="bi bi-journal-text"></i> ChangeLog</h4>
                         <button class="btn btn-primary ai-button" id="generateChangelogBtn">
                             <span class="button-text">
+                                {% if milestone.changelog %}
+                                <i class="bi bi-arrow-clockwise"></i> Recreate ChangeLog
+                                {% else %}
                                 <i class="bi bi-robot"></i> Generate ChangeLog
+                                {% endif %}
                             </span>
                             <span class="spinner-border" role="status" aria-hidden="true"></span>
                         </button>
@@ -380,7 +384,8 @@
                         {% else %}
                         <div class="alert alert-secondary">
                             <i class="bi bi-info-circle"></i>
-                            No changelog generated yet. Click "Generate ChangeLog" to create one using AI.
+                            No changelog generated yet. Click "Generate ChangeLog" to create one using AI. 
+                            You can recreate it at any time to update the changelog based on current completed tasks.
                         </div>
                         {% endif %}
                     </div>
@@ -1313,6 +1318,18 @@ function deleteContext(contextId, btn) {
 
 // Generate ChangeLog with AI
 document.getElementById('generateChangelogBtn')?.addEventListener('click', function() {
+    // Check if there's an existing changelog
+    const hasExistingChangelog = {{ milestone.changelog|yesno:'true,false' }};
+    
+    if (hasExistingChangelog) {
+        // Show confirmation dialog for recreation
+        const confirmMessage = 'This will replace the existing ChangeLog and all associated files. ' +
+                              'The old ChangeLog will be permanently deleted. Do you want to continue?';
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+    }
+    
     generateChangelog(this);
 });
 
