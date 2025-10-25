@@ -290,14 +290,14 @@
         </ol>
     </nav>
 
-    <!-- Milestone Badge Bar -->
-    {% if item.milestones.all %}
+    <!-- Milestone Badge Bar - Only show non-completed milestones -->
+    {% if non_completed_milestones %}
     <div class="milestone-badge-bar">
         <div class="d-flex align-items-center me-2">
             <i class="bi bi-flag-fill text-warning me-2"></i>
             <strong style="font-size: 0.875rem;">Milestones:</strong>
         </div>
-        {% for milestone in item.milestones.all %}
+        {% for milestone in non_completed_milestones %}
             {% if milestone.due_date < today %}
                 <a href="{% url 'main:milestone_detail' milestone.id %}" class="milestone-badge badge-error">
                     {{ milestone.name }}
