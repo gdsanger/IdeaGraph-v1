@@ -221,7 +221,19 @@ class TaskFileService:
         
         # Create the directory structure
         full_folder_path = self._get_full_path(folder_path)
-        os.makedirs(full_folder_path, exist_ok=True)
+        
+        # Security check: Ensure the folder path is within our media directory
+        base_media_path = self._get_full_path(os.path.join('media', 'task_files'))
+        full_folder_path_resolved = os.path.abspath(full_folder_path)
+        base_media_path_resolved = os.path.abspath(base_media_path)
+        
+        if not full_folder_path_resolved.startswith(base_media_path_resolved):
+            raise TaskFileServiceError(
+                "Invalid folder path detected",
+                details="Folder path must be within task_files directory"
+            )
+        
+        os.makedirs(full_folder_path_resolved, exist_ok=True)
         
         # Save the file
         file_path = os.path.join(folder_path, safe_filename)
