@@ -384,7 +384,8 @@
                         {% else %}
                         <div class="alert alert-secondary">
                             <i class="bi bi-info-circle"></i>
-                            No changelog generated yet. Click "Generate ChangeLog" to create one using AI. You can recreate it at any time to update the changelog based on current completed tasks.
+                            No changelog generated yet. Click "Generate ChangeLog" to create one using AI. 
+                            You can recreate it at any time to update the changelog based on current completed tasks.
                         </div>
                         {% endif %}
                     </div>
@@ -1318,11 +1319,13 @@ function deleteContext(contextId, btn) {
 // Generate ChangeLog with AI
 document.getElementById('generateChangelogBtn')?.addEventListener('click', function() {
     // Check if there's an existing changelog
-    const hasExistingChangelog = {% if milestone.changelog %}true{% else %}false{% endif %};
+    const hasExistingChangelog = {{ milestone.changelog|yesno:'true,false' }};
     
     if (hasExistingChangelog) {
         // Show confirmation dialog for recreation
-        if (!confirm('This will replace the existing ChangeLog and all associated files. The old ChangeLog will be permanently deleted. Do you want to continue?')) {
+        const confirmMessage = 'This will replace the existing ChangeLog and all associated files. ' +
+                              'The old ChangeLog will be permanently deleted. Do you want to continue?';
+        if (!confirm(confirmMessage)) {
             return;
         }
     }
