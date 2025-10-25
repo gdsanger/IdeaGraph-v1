@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from .auth_utils import validate_password
 from .models import Tag, Settings, Section, User, Item, Task, Client, Milestone
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -1827,11 +1828,22 @@ def milestone_create(request, item_id):
             messages.error(request, 'Due date is required.')
         else:
             try:
+                # Parse due_date string to date object
+                try:
+                    due_date_obj = datetime.strptime(due_date, '%Y-%m-%d').date()
+                except ValueError:
+                    messages.error(request, 'Invalid date format. Please use YYYY-MM-DD format.')
+                    context = {
+                        'item': item,
+                        'status_choices': Milestone.STATUS_CHOICES,
+                    }
+                    return render(request, 'main/milestones/form.html', context)
+                
                 # Create milestone
                 milestone = Milestone(
                     name=name,
                     description=description,
-                    due_date=due_date,
+                    due_date=due_date_obj,
                     status=status,
                     item=item,
                     summary=summary,
@@ -1891,9 +1903,21 @@ def milestone_edit(request, milestone_id):
             messages.error(request, 'Due date is required.')
         else:
             try:
+                # Parse due_date string to date object
+                try:
+                    due_date_obj = datetime.strptime(due_date, '%Y-%m-%d').date()
+                except ValueError:
+                    messages.error(request, 'Invalid date format. Please use YYYY-MM-DD format.')
+                    context = {
+                        'milestone': milestone,
+                        'item': item,
+                        'status_choices': Milestone.STATUS_CHOICES,
+                    }
+                    return render(request, 'main/milestones/form.html', context)
+                
                 milestone.name = name
                 milestone.description = description
-                milestone.due_date = due_date
+                milestone.due_date = due_date_obj
                 milestone.status = status
                 milestone.changelog = changelog
                 
