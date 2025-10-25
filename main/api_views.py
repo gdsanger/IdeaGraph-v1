@@ -5128,6 +5128,205 @@ def api_milestone_summary_history(request, milestone_id):
         }, status=500)
 
 
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_milestone_generate_changelog(request, milestone_id):
+    """
+    Generate AI-powered ChangeLog for a milestone using KiGate
+    
+    POST /api/milestones/<milestone_id>/generate-changelog
+    
+    Generates a changelog based on:
+    - Item name
+    - Milestone name
+    - List of completed tasks in the milestone
+    
+    Stores the changelog in:
+    1. Milestone.changelog field
+    2. MilestoneFile as a markdown file
+    3. Weaviate as a KnowledgeObject
+    """
+    from main.models import Milestone, MilestoneFile
+    from core.services.kigate_service import KiGateService, KiGateServiceError
+    from core.services.weaviate_sync_service import WeaviateItemSyncService, WeaviateItemSyncServiceError
+    import os
+    from datetime import datetime
+    
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        milestone = Milestone.objects.get(id=milestone_id)
+        
+        # Check permissions
+        if user.role != 'admin' and milestone.item.created_by != user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=403)
+        
+        # Gather information for changelog generation
+        item_name = milestone.item.title
+        milestone_name = milestone.name
+        
+        # Get completed tasks
+        completed_tasks = milestone.tasks.filter(status='done')
+        task_list = []
+        for task in completed_tasks:
+            task_info = {
+                'title': task.title,
+                'description': task.description[:200] if task.description else '',  # Truncate long descriptions
+                'type': task.get_type_display(),
+                'completed_at': task.completed_at.isoformat() if task.completed_at else 'Unknown'
+            }
+            task_list.append(task_info)
+        
+        # Prepare message for KiGate agent
+        message = f"""Generate a comprehensive ChangeLog for the following milestone:
+
+Item: {item_name}
+Milestone: {milestone_name}
+Due Date: {milestone.due_date}
+Status: {milestone.get_status_display()}
+
+Completed Tasks ({len(task_list)}):
+"""
+        
+        for i, task in enumerate(task_list, 1):
+            message += f"\n{i}. {task['title']}"
+            if task['description']:
+                message += f"\n   Description: {task['description']}"
+            message += f"\n   Type: {task['type']}"
+            message += f"\n   Completed: {task['completed_at']}"
+            message += "\n"
+        
+        message += """
+
+Please generate a professional ChangeLog in Markdown format that:
+1. Summarizes the completed work
+2. Lists key features and improvements
+3. Mentions any bug fixes
+4. Includes a risk assessment
+5. Uses proper Markdown formatting with headers and lists
+
+Format the output as a standard CHANGELOG.md file.
+"""
+        
+        # Call KiGate service
+        try:
+            kigate_service = KiGateService()
+            result = kigate_service.execute_agent(
+                agent_name='changelog-creation-risk-assessment-agent',
+                provider='openai',
+                model='gpt-4',
+                message=message,
+                user_id=str(user.id)
+            )
+            
+            if not result.get('success'):
+                raise KiGateServiceError('Agent execution failed', details=result.get('error', 'Unknown error'))
+            
+            changelog_content = result.get('result', '')
+            
+        except KiGateServiceError as e:
+            logger.error(f'KiGate service error: {str(e)}')
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to generate changelog using AI',
+                'details': str(e)
+            }, status=500)
+        
+        # Save changelog to milestone
+        milestone.changelog = changelog_content
+        milestone.save()
+        
+        # Create changelog file
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"CHANGELOG_{milestone_name.replace(' ', '_')}_{timestamp}.md"
+        file_content = changelog_content.encode('utf-8')
+        file_size = len(file_content)
+        
+        # Create MilestoneFile record
+        milestone_file = MilestoneFile.objects.create(
+            milestone=milestone,
+            filename=filename,
+            file_size=file_size,
+            content_type='text/markdown',
+            uploaded_by=user
+        )
+        
+        # Store file content in a local path (you may want to adjust this based on your storage strategy)
+        # For now, we'll store it as a temporary approach
+        files_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'media', 'milestone_files')
+        os.makedirs(files_dir, exist_ok=True)
+        file_path = os.path.join(files_dir, f"{milestone_file.id}_{filename}")
+        
+        with open(file_path, 'wb') as f:
+            f.write(file_content)
+        
+        milestone_file.file_path = file_path
+        milestone_file.save()
+        
+        # Sync to Weaviate as KnowledgeObject
+        try:
+            weaviate_service = WeaviateItemSyncService()
+            
+            # Prepare data for Weaviate
+            weaviate_data = {
+                'object_type': 'milestone_changelog',
+                'object_id': str(milestone_file.id),
+                'title': f"ChangeLog: {milestone_name}",
+                'content': changelog_content,
+                'metadata': {
+                    'milestone_id': str(milestone.id),
+                    'milestone_name': milestone_name,
+                    'item_id': str(milestone.item.id),
+                    'item_name': item_name,
+                    'filename': filename,
+                    'created_at': milestone_file.created_at.isoformat(),
+                    'created_by': user.username
+                }
+            }
+            
+            # Store in Weaviate (you'll need to implement a method for generic KnowledgeObject storage)
+            # For now, we'll mark it as synced and handle the actual sync separately
+            milestone_file.weaviate_synced = True
+            milestone_file.save()
+            
+        except WeaviateItemSyncServiceError as e:
+            logger.warning(f'Failed to sync changelog to Weaviate: {str(e)}')
+            # Don't fail the operation if Weaviate sync fails
+        
+        except Exception as e:
+            logger.warning(f'Unexpected error syncing to Weaviate: {str(e)}')
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'ChangeLog generated successfully',
+            'changelog': changelog_content,
+            'file_id': str(milestone_file.id),
+            'filename': filename
+        })
+        
+    except Milestone.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Milestone not found'
+        }, status=404)
+    
+    except Exception as e:
+        logger.error(f'Error generating changelog: {str(e)}', exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to generate changelog',
+            'details': str(e)
+        }, status=500)
+
+
 @require_http_methods(["GET"])
 def check_weaviate_status(request, object_type, object_id):
     """

@@ -220,6 +220,12 @@
             </button>
         </li>
         <li class="nav-item" role="presentation">
+            <button class="nav-link" id="changelog-tab" data-bs-toggle="tab" data-bs-target="#changelog" 
+                    type="button" role="tab" aria-controls="changelog" aria-selected="false">
+                <i class="bi bi-journal-text"></i> ChangeLog
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
             <button class="nav-link" id="tasks-tab" data-bs-toggle="tab" data-bs-target="#tasks" 
                     type="button" role="tab" aria-controls="tasks" aria-selected="false">
                 <i class="bi bi-list-task"></i> Tasks ({{ milestone.tasks.count }})
@@ -305,6 +311,69 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ChangeLog Tab -->
+        <div class="tab-pane fade" id="changelog" role="tabpanel" aria-labelledby="changelog-tab">
+            <div class="card milestone-detail-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4><i class="bi bi-journal-text"></i> ChangeLog</h4>
+                        <button class="btn btn-primary ai-button" id="generateChangelogBtn">
+                            <span class="button-text">
+                                <i class="bi bi-robot"></i> Generate ChangeLog
+                            </span>
+                            <span class="spinner-border" role="status" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    
+                    <div id="changelogContent">
+                        {% if milestone.changelog %}
+                        <div class="card bg-dark">
+                            <div class="card-body">
+                                <div class="markdown-content">
+                                    {{ milestone.changelog|safe }}
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-secondary">
+                            <i class="bi bi-info-circle"></i>
+                            No changelog generated yet. Click "Generate ChangeLog" to create one using AI.
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Files Section -->
+                    {% if milestone.files.all %}
+                    <div class="mt-4">
+                        <h5><i class="bi bi-file-earmark-text"></i> Changelog Files</h5>
+                        <div class="list-group">
+                            {% for file in milestone.files.all %}
+                            <div class="list-group-item list-group-item-dark d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="bi bi-file-earmark-text"></i>
+                                    {{ file.filename }}
+                                    <small class="text-muted">({{ file.file_size|filesizeformat }})</small>
+                                </div>
+                                <div>
+                                    {% if file.weaviate_synced %}
+                                    <span class="badge bg-success" title="Synced to Weaviate">
+                                        <i class="bi bi-check-circle"></i> Synced
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-warning" title="Not synced to Weaviate">
+                                        <i class="bi bi-exclamation-circle"></i> Not Synced
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -1172,6 +1241,38 @@ function deleteContext(contextId, btn) {
     })
     .catch(error => {
         showToast('Error deleting context: ' + error, 'error');
+    })
+    .finally(() => {
+        setLoading(btn, false);
+    });
+}
+
+// Generate ChangeLog with AI
+document.getElementById('generateChangelogBtn')?.addEventListener('click', function() {
+    generateChangelog(this);
+});
+
+function generateChangelog(btn) {
+    setLoading(btn, true);
+    
+    fetch(`/api/milestones/${milestoneId}/generate-changelog`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('ChangeLog generated successfully!', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast('Error: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        showToast('Error generating changelog: ' + error, 'error');
     })
     .finally(() => {
         setLoading(btn, false);

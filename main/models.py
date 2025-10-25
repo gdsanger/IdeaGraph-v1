@@ -354,6 +354,31 @@ class TaskFile(models.Model):
         return f"{self.filename} ({self.task.title})"
 
 
+class MilestoneFile(models.Model):
+    """MilestoneFile model for managing file uploads associated with milestones (e.g., generated changelogs)"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    milestone = models.ForeignKey('Milestone', on_delete=models.CASCADE, related_name='files')
+    filename = models.CharField(max_length=255)
+    file_size = models.BigIntegerField()  # Size in bytes
+    file_path = models.CharField(max_length=500, blank=True, default='', help_text='Local file path')
+    sharepoint_file_id = models.CharField(max_length=255, blank=True, default='')
+    sharepoint_url = models.URLField(max_length=1000, blank=True, default='')
+    content_type = models.CharField(max_length=100, blank=True, default='')
+    weaviate_synced = models.BooleanField(default=False)
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='uploaded_milestone_files')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Milestone File'
+        verbose_name_plural = 'Milestone Files'
+    
+    def __str__(self):
+        return f"{self.filename} ({self.milestone.name})"
+
+
 class Relation(models.Model):
     """Relation model for managing relationships between items"""
     
@@ -401,6 +426,9 @@ class Milestone(models.Model):
     
     # AI-generated summary from all context objects
     summary = models.TextField(blank=True, default='', help_text='KI-Zusammenfassung über alle Kontextobjekte')
+    
+    # ChangeLog field with markdown content
+    changelog = models.TextField(blank=True, default='', help_text='Markdown ChangeLog für den Milestone')
     
     # Weaviate integration
     weaviate_id = models.UUIDField(null=True, blank=True, help_text='Verweis auf das Embedding im Vektorspeicher')
