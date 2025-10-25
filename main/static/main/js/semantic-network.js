@@ -430,8 +430,10 @@ class SemanticNetworkViewer {
         
         // Create Sigma instance
         // Handle different possible Sigma namespaces
-        const SigmaConstructor = typeof Sigma !== 'undefined' ? Sigma : 
-                                 (typeof window.Sigma !== 'undefined' ? window.Sigma : null);
+        const SigmaConstructor = typeof Sigma !== 'undefined' ? Sigma :
+                                 (typeof window.Sigma !== 'undefined' ? window.Sigma :
+                                 (typeof sigma !== 'undefined' ? sigma :
+                                 (typeof window.sigma !== 'undefined' ? window.sigma : null)));
         
         if (!SigmaConstructor) {
             console.error('[SemanticNetwork] Sigma.js library not found. Cannot render graph.');
