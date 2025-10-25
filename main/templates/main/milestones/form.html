@@ -3,6 +3,28 @@
 
 {% block title %}{% if milestone %}Edit Milestone{% else %}Create Milestone{% endif %}{% endblock %}
 
+{% block extra_css %}
+<!-- Toast UI Editor CSS -->
+<link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
+
+<style>
+    /* Fix Toast UI Editor markdown panel background to match the application theme */
+    .toastui-editor-defaultUI .toastui-editor-main-container .toastui-editor-md-container,
+    .toastui-editor-defaultUI .toastui-editor-main-container .toastui-editor-md-container .toastui-editor-md-splitter,
+    .toastui-editor-defaultUI .toastui-editor-main-container .toastui-editor-md-vertical-style .toastui-editor-md-splitter {
+        background-color: #fff;
+    }
+    
+    .toastui-editor-defaultUI .toastui-editor-md-vertical-style .toastui-editor-md-preview {
+        background-color: #fff;
+    }
+    
+    .toastui-editor-defaultUI .ProseMirror {
+        background-color: #fff;       
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container">
     <!-- Breadcrumb -->
@@ -77,6 +99,14 @@
                             <small class="text-muted">Optional: Zusammenfassung des Meilensteins. Beim Speichern wird automatisch eine Liste der Aufgaben hinzugefügt.</small>
                         </div>
 
+                        <!-- ChangeLog with Toast UI Editor -->
+                        <div class="mb-3">
+                            <label for="changelog" class="form-label">ChangeLog (Markdown)</label>
+                            <div id="changelogEditor"></div>
+                            <textarea name="changelog" id="changelog" style="display: none;">{% if milestone %}{{ milestone.changelog }}{% endif %}</textarea>
+                            <small class="text-muted">Optional: ChangeLog für den Milestone. Kann auch per KI generiert werden.</small>
+                        </div>
+
                         <!-- Action Buttons -->
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-primary">
@@ -93,3 +123,25 @@
     </div>
 </div>
 {% endblock %}
+
+{% block extra_js %}
+<!-- Toast UI Editor JS -->
+<script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
+
+<script>
+// Initialize Toast UI Editor for ChangeLog
+const changelogEditor = new toastui.Editor({
+    el: document.querySelector('#changelogEditor'),
+    height: '400px',
+    initialEditType: 'markdown',
+    previewStyle: 'vertical',
+    initialValue: document.querySelector('#changelog').value
+});
+
+// Sync editor content to textarea before form submit
+document.querySelector('form').addEventListener('submit', function() {
+    document.querySelector('#changelog').value = changelogEditor.getMarkdown();
+});
+</script>
+{% endblock %}
+

@@ -180,6 +180,7 @@ urlpatterns = [
     path('api/milestones/<uuid:milestone_id>/optimize-summary', api_views.api_milestone_optimize_summary, name='api_milestone_optimize_summary'),
     path('api/milestones/<uuid:milestone_id>/save-optimized-summary', api_views.api_milestone_save_optimized_summary, name='api_milestone_save_optimized_summary'),
     path('api/milestones/<uuid:milestone_id>/summary-history', api_views.api_milestone_summary_history, name='api_milestone_summary_history'),
+    path('api/milestones/<uuid:milestone_id>/generate-changelog', api_views.api_milestone_generate_changelog, name='api_milestone_generate_changelog'),
     
     # Weaviate Status API Endpoints
     path('api/weaviate/<str:object_type>/<uuid:object_id>/status', api_views.check_weaviate_status, name='api_weaviate_status'),

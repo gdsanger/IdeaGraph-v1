@@ -8,6 +8,8 @@
 <link rel="stylesheet" href="{% static 'main/css/semantic-network.css' %}" />
 <!-- Weaviate Indicator CSS -->
 <link rel="stylesheet" href="{% static 'main/css/weaviate-indicator.css' %}" />
+<!-- Toast UI Editor/Viewer CSS -->
+<link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor-viewer.min.css" />
 
 <style>
     .milestone-detail-card {
@@ -138,6 +140,44 @@
     .file-progress-item.error i {
         color: #ef4444;
     }
+    
+    /* Changelog viewer styling */
+    #changelogViewer {
+        background-color: #1f2937;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        color: #e5e7eb;
+    }
+    
+    #changelogViewer h1,
+    #changelogViewer h2,
+    #changelogViewer h3,
+    #changelogViewer h4,
+    #changelogViewer h5,
+    #changelogViewer h6 {
+        color: var(--autumn-accent);
+        margin-top: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    #changelogViewer ul,
+    #changelogViewer ol {
+        padding-left: 2rem;
+    }
+    
+    #changelogViewer code {
+        background-color: rgba(15, 23, 42, 0.8);
+        padding: 0.2rem 0.4rem;
+        border-radius: 0.25rem;
+        color: #fbbf24;
+    }
+    
+    #changelogViewer pre {
+        background-color: rgba(15, 23, 42, 0.8);
+        padding: 1rem;
+        border-radius: 0.5rem;
+        overflow-x: auto;
+    }
 </style>
 {% endblock %}
 
@@ -217,6 +257,12 @@
             <button class="nav-link active" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary" 
                     type="button" role="tab" aria-controls="summary" aria-selected="true">
                 <i class="bi bi-file-text"></i> Summary
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="changelog-tab" data-bs-toggle="tab" data-bs-target="#changelog" 
+                    type="button" role="tab" aria-controls="changelog" aria-selected="false">
+                <i class="bi bi-journal-text"></i> ChangeLog
             </button>
         </li>
         <li class="nav-item" role="presentation">
@@ -305,6 +351,68 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ChangeLog Tab -->
+        <div class="tab-pane fade" id="changelog" role="tabpanel" aria-labelledby="changelog-tab">
+            <div class="card milestone-detail-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4><i class="bi bi-journal-text"></i> ChangeLog</h4>
+                        <button class="btn btn-primary ai-button" id="generateChangelogBtn">
+                            <span class="button-text">
+                                <i class="bi bi-robot"></i> Generate ChangeLog
+                            </span>
+                            <span class="spinner-border" role="status" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    
+                    <div id="changelogContent">
+                        {% if milestone.changelog %}
+                        <div class="card bg-dark">
+                            <div class="card-body">
+                                <div id="changelogViewer"></div>
+                                <textarea id="changelogMarkdown" style="display: none;">{{ milestone.changelog }}</textarea>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-secondary">
+                            <i class="bi bi-info-circle"></i>
+                            No changelog generated yet. Click "Generate ChangeLog" to create one using AI.
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Files Section -->
+                    {% if milestone.files.all %}
+                    <div class="mt-4">
+                        <h5><i class="bi bi-file-earmark-text"></i> Changelog Files</h5>
+                        <div class="list-group">
+                            {% for file in milestone.files.all %}
+                            <div class="list-group-item list-group-item-dark d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="bi bi-file-earmark-text"></i>
+                                    {{ file.filename }}
+                                    <small class="text-muted">({{ file.file_size|filesizeformat }})</small>
+                                </div>
+                                <div>
+                                    {% if file.weaviate_synced %}
+                                    <span class="badge bg-success" title="Synced to Weaviate">
+                                        <i class="bi bi-check-circle"></i> Synced
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-warning" title="Not synced to Weaviate">
+                                        <i class="bi bi-exclamation-circle"></i> Not Synced
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -1178,6 +1286,38 @@ function deleteContext(contextId, btn) {
     });
 }
 
+// Generate ChangeLog with AI
+document.getElementById('generateChangelogBtn')?.addEventListener('click', function() {
+    generateChangelog(this);
+});
+
+function generateChangelog(btn) {
+    setLoading(btn, true);
+    
+    fetch(`/api/milestones/${milestoneId}/generate-changelog`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('ChangeLog generated successfully!', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast('Error: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        showToast('Error generating changelog: ' + error, 'error');
+    })
+    .finally(() => {
+        setLoading(btn, false);
+    });
+}
+
 // Regenerate milestone summary
 document.getElementById('regenerateSummaryBtn')?.addEventListener('click', function() {
     regenerateSummary(this);
@@ -1616,8 +1756,25 @@ document.getElementById('semantic-network-tab')?.addEventListener('shown.bs.tab'
         milestoneSemanticNetworkViewer.load('milestone', '{{ milestone.id }}');
     }
 });
+
+// Initialize ToastUI Viewer for changelog markdown
+{% if milestone.changelog %}
+document.addEventListener('DOMContentLoaded', function() {
+    const changelogMarkdownElement = document.querySelector('#changelogMarkdown');
+    if (changelogMarkdownElement) {
+        const viewer = new toastui.Editor.factory({
+            el: document.querySelector('#changelogViewer'),
+            viewer: true,
+            initialValue: changelogMarkdownElement.value
+        });
+    }
+});
+{% endif %}
 </script>
 {% endblock %}
+
+<!-- Toast UI Viewer JS -->
+<script src="https://uicdn.toast.com/editor/latest/toastui-editor-viewer.min.js"></script>
 
 {% block extra_js %}
 <!-- Sigma.js and dependencies for semantic network -->

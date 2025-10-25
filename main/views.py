@@ -1819,6 +1819,7 @@ def milestone_create(request, item_id):
         due_date = request.POST.get('due_date', '').strip()
         status = request.POST.get('status', 'planned').strip()
         summary = request.POST.get('summary', '').strip()
+        changelog = request.POST.get('changelog', '').strip()
         
         if not name:
             messages.error(request, 'Name is required.')
@@ -1833,7 +1834,8 @@ def milestone_create(request, item_id):
                     due_date=due_date,
                     status=status,
                     item=item,
-                    summary=summary
+                    summary=summary,
+                    changelog=changelog
                 )
                 milestone.save()
                 
@@ -1881,6 +1883,7 @@ def milestone_edit(request, milestone_id):
         due_date = request.POST.get('due_date', '').strip()
         status = request.POST.get('status', 'planned').strip()
         summary = request.POST.get('summary', '').strip()
+        changelog = request.POST.get('changelog', '').strip()
         
         if not name:
             messages.error(request, 'Name is required.')
@@ -1892,6 +1895,7 @@ def milestone_edit(request, milestone_id):
                 milestone.description = description
                 milestone.due_date = due_date
                 milestone.status = status
+                milestone.changelog = changelog
                 
                 # Build summary with task list
                 summary_parts = []
