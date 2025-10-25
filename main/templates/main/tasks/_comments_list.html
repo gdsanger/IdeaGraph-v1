@@ -3,7 +3,7 @@
 {% if comments %}
 <div class="comments-container">
     {% for comment in comments %}
-    <div class="comment-card mb-3 {% if comment.source == 'agent' %}comment-agent{% else %}comment-user{% endif %}" data-comment-id="{{ comment.id }}">
+    <div class="comment-card mb-2 {% if comment.source == 'agent' %}comment-agent{% else %}comment-user{% endif %}" data-comment-id="{{ comment.id }}">
         <div class="comment-header">
             <div class="comment-author">
                 {% if comment.source == 'agent' %}
@@ -14,14 +14,18 @@
                 <strong>{{ comment.author }}</strong>
             </div>
             <div class="comment-meta">
-                <small class="text-muted">{{ comment.created_at|date:"d.m.Y H:i" }}</small>
+                <small class="text-muted" style="font-size: 0.75rem;">{{ comment.created_at|date:"d.m.Y H:i" }}</small>
                 {% if comment.updated_at != comment.created_at %}
-                <small class="text-muted">(bearbeitet)</small>
+                <small class="text-muted" style="font-size: 0.75rem;">(bearbeitet)</small>
                 {% endif %}
             </div>
         </div>
         <div class="comment-body" data-comment-text="{{ comment.text|escapejs }}">
-            <div class="comment-text markdown-content">{{ comment.text|linebreaks }}</div>
+            <div class="comment-text markdown-content collapsed" data-full-text="{{ comment.text|escapejs }}">{{ comment.text }}</div>
+            <button class="comment-expand-btn" style="display: none;">
+                <span class="expand-text">Mehr anzeigen</span>
+                <span class="collapse-text" style="display: none;">Weniger anzeigen</span>
+            </button>
             <div class="comment-edit-form" style="display: none;">
                 <textarea class="form-control mb-2" rows="4">{{ comment.text }}</textarea>
                 <div class="d-flex gap-2">
@@ -67,8 +71,8 @@
 
 .comment-card {
     background: rgba(31, 41, 55, 0.6);
-    border-radius: 0.5rem;
-    padding: 1rem;
+    border-radius: 0.375rem;
+    padding: 0.625rem 0.75rem;
     position: relative;
     border-left: 3px solid transparent;
     transition: all 0.2s ease;
@@ -91,33 +95,58 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.4rem;
 }
 
 .comment-author {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 0.95rem;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
 }
 
 .comment-author i {
-    font-size: 1.2rem;
+    font-size: 1rem;
 }
 
 .comment-body {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
 }
 
 .comment-text {
     white-space: pre-wrap;
     word-wrap: break-word;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.comment-text.collapsed {
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.comment-expand-btn {
+    background: none;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 0.25rem 0;
+    margin-top: 0.25rem;
+    text-decoration: underline;
+    transition: color 0.2s ease;
+}
+
+.comment-expand-btn:hover {
+    color: #9ca3af;
 }
 
 .comment-actions {
     position: absolute;
-    top: 0.75rem;
-    right: 0.75rem;
+    top: 0.5rem;
+    right: 0.5rem;
     opacity: 0;
     transition: opacity 0.2s ease;
     display: flex;
@@ -129,7 +158,7 @@
 }
 
 .markdown-content {
-    line-height: 1.6;
+    line-height: 1.4;
 }
 
 /* Custom scrollbar */
@@ -153,14 +182,61 @@
 </style>
 
 <script>
+// Initialize expand/collapse functionality for comments
+function initializeCommentExpandCollapse() {
+    document.querySelectorAll('.comment-card').forEach(card => {
+        const commentText = card.querySelector('.comment-text');
+        const expandBtn = card.querySelector('.comment-expand-btn');
+        
+        if (!commentText || !expandBtn) return;
+        
+        // Check if text exceeds 5 lines
+        const lineHeight = parseFloat(window.getComputedStyle(commentText).lineHeight);
+        const maxHeight = lineHeight * 5;
+        
+        // Force a reflow to get accurate measurements
+        commentText.style.display = '-webkit-box';
+        const actualHeight = commentText.scrollHeight;
+        
+        if (actualHeight > maxHeight + 5) { // +5 for tolerance
+            // Text is long enough to need collapse
+            expandBtn.style.display = 'block';
+            
+            expandBtn.addEventListener('click', function() {
+                const isCollapsed = commentText.classList.contains('collapsed');
+                const expandText = this.querySelector('.expand-text');
+                const collapseText = this.querySelector('.collapse-text');
+                
+                if (isCollapsed) {
+                    commentText.classList.remove('collapsed');
+                    expandText.style.display = 'none';
+                    collapseText.style.display = 'inline';
+                } else {
+                    commentText.classList.add('collapsed');
+                    expandText.style.display = 'inline';
+                    collapseText.style.display = 'none';
+                }
+            });
+        } else {
+            // Text is short, remove collapsed class
+            commentText.classList.remove('collapsed');
+        }
+    });
+}
+
+// Initialize on load
+initializeCommentExpandCollapse();
+
 // Handle edit button click
 document.querySelectorAll('.edit-comment-btn').forEach(btn => {
     btn.addEventListener('click', function() {
         const commentCard = this.closest('.comment-card');
         const textDiv = commentCard.querySelector('.comment-text');
+        const expandBtn = commentCard.querySelector('.comment-expand-btn');
         const editForm = commentCard.querySelector('.comment-edit-form');
         
         textDiv.style.display = 'none';
+        if (expandBtn) expandBtn.style.display = 'none';
         editForm.style.display = 'block';
     });
 });
@@ -170,13 +246,20 @@ document.querySelectorAll('.cancel-edit-btn').forEach(btn => {
     btn.addEventListener('click', function() {
         const commentCard = this.closest('.comment-card');
         const textDiv = commentCard.querySelector('.comment-text');
+        const expandBtn = commentCard.querySelector('.comment-expand-btn');
         const editForm = commentCard.querySelector('.comment-edit-form');
         const textarea = editForm.querySelector('textarea');
         
         // Reset textarea to original value
         textarea.value = commentCard.querySelector('.comment-body').dataset.commentText;
         
-        textDiv.style.display = 'block';
+        textDiv.style.display = '-webkit-box';
+        // Check if expand button should be shown
+        const lineHeight = parseFloat(window.getComputedStyle(textDiv).lineHeight);
+        const maxHeight = lineHeight * 5;
+        if (textDiv.scrollHeight > maxHeight + 5) {
+            expandBtn.style.display = 'block';
+        }
         editForm.style.display = 'none';
     });
 });
