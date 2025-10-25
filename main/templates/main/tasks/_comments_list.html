@@ -21,7 +21,7 @@
             </div>
         </div>
         <div class="comment-body" data-comment-text="{{ comment.text|escapejs }}">
-            <div class="comment-text markdown-content collapsed" data-full-text="{{ comment.text|escapejs }}">{{ comment.text }}</div>
+            <div class="comment-text markdown-content collapsed">{{ comment.text }}</div>
             <button class="comment-expand-btn" style="display: none;">
                 <span class="expand-text">Mehr anzeigen</span>
                 <span class="collapse-text" style="display: none;">Weniger anzeigen</span>
@@ -182,6 +182,33 @@
 </style>
 
 <script>
+// Constants
+const MAX_LINES_COLLAPSED = 5;
+const HEIGHT_TOLERANCE = 5; // pixels
+
+// Helper function to check if comment needs expand button
+function shouldShowExpandButton(commentText) {
+    const lineHeight = parseFloat(window.getComputedStyle(commentText).lineHeight);
+    const maxHeight = lineHeight * MAX_LINES_COLLAPSED;
+    const actualHeight = commentText.scrollHeight;
+    return actualHeight > maxHeight + HEIGHT_TOLERANCE;
+}
+
+// Helper function to update expand button visibility
+function updateExpandButton(commentCard) {
+    const commentText = commentCard.querySelector('.comment-text');
+    const expandBtn = commentCard.querySelector('.comment-expand-btn');
+    
+    if (!commentText || !expandBtn) return;
+    
+    if (shouldShowExpandButton(commentText)) {
+        expandBtn.style.display = 'block';
+    } else {
+        commentText.classList.remove('collapsed');
+        expandBtn.style.display = 'none';
+    }
+}
+
 // Initialize expand/collapse functionality for comments
 function initializeCommentExpandCollapse() {
     document.querySelectorAll('.comment-card').forEach(card => {
@@ -190,37 +217,25 @@ function initializeCommentExpandCollapse() {
         
         if (!commentText || !expandBtn) return;
         
-        // Check if text exceeds 5 lines
-        const lineHeight = parseFloat(window.getComputedStyle(commentText).lineHeight);
-        const maxHeight = lineHeight * 5;
+        // Check if text exceeds MAX_LINES_COLLAPSED
+        updateExpandButton(card);
         
-        // Force a reflow to get accurate measurements
-        commentText.style.display = '-webkit-box';
-        const actualHeight = commentText.scrollHeight;
-        
-        if (actualHeight > maxHeight + 5) { // +5 for tolerance
-            // Text is long enough to need collapse
-            expandBtn.style.display = 'block';
+        // Add click handler
+        expandBtn.addEventListener('click', function() {
+            const isCollapsed = commentText.classList.contains('collapsed');
+            const expandText = this.querySelector('.expand-text');
+            const collapseText = this.querySelector('.collapse-text');
             
-            expandBtn.addEventListener('click', function() {
-                const isCollapsed = commentText.classList.contains('collapsed');
-                const expandText = this.querySelector('.expand-text');
-                const collapseText = this.querySelector('.collapse-text');
-                
-                if (isCollapsed) {
-                    commentText.classList.remove('collapsed');
-                    expandText.style.display = 'none';
-                    collapseText.style.display = 'inline';
-                } else {
-                    commentText.classList.add('collapsed');
-                    expandText.style.display = 'inline';
-                    collapseText.style.display = 'none';
-                }
-            });
-        } else {
-            // Text is short, remove collapsed class
-            commentText.classList.remove('collapsed');
-        }
+            if (isCollapsed) {
+                commentText.classList.remove('collapsed');
+                expandText.style.display = 'none';
+                collapseText.style.display = 'inline';
+            } else {
+                commentText.classList.add('collapsed');
+                expandText.style.display = 'inline';
+                collapseText.style.display = 'none';
+            }
+        });
     });
 }
 
@@ -246,7 +261,6 @@ document.querySelectorAll('.cancel-edit-btn').forEach(btn => {
     btn.addEventListener('click', function() {
         const commentCard = this.closest('.comment-card');
         const textDiv = commentCard.querySelector('.comment-text');
-        const expandBtn = commentCard.querySelector('.comment-expand-btn');
         const editForm = commentCard.querySelector('.comment-edit-form');
         const textarea = editForm.querySelector('textarea');
         
@@ -254,12 +268,7 @@ document.querySelectorAll('.cancel-edit-btn').forEach(btn => {
         textarea.value = commentCard.querySelector('.comment-body').dataset.commentText;
         
         textDiv.style.display = '-webkit-box';
-        // Check if expand button should be shown
-        const lineHeight = parseFloat(window.getComputedStyle(textDiv).lineHeight);
-        const maxHeight = lineHeight * 5;
-        if (textDiv.scrollHeight > maxHeight + 5) {
-            expandBtn.style.display = 'block';
-        }
+        updateExpandButton(commentCard);
         editForm.style.display = 'none';
     });
 });
