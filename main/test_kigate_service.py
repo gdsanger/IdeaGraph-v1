@@ -59,6 +59,29 @@ class KiGateServiceTestCase(TestCase):
         service = KiGateService(self.settings)
         self.assertEqual(service.base_url, 'http://localhost:8000')
     
+    def test_timeout_respects_configured_value(self):
+        """Test that timeout uses the configured value from settings"""
+        # Test with custom timeout of 600 seconds
+        self.settings.kigate_api_timeout = 600
+        self.settings.save()
+        
+        service = KiGateService(self.settings)
+        self.assertEqual(service.timeout, 600)
+        
+        # Test with default timeout of 30 seconds
+        self.settings.kigate_api_timeout = 30
+        self.settings.save()
+        
+        service = KiGateService(self.settings)
+        self.assertEqual(service.timeout, 30)
+        
+        # Test with a different custom value
+        self.settings.kigate_api_timeout = 120
+        self.settings.save()
+        
+        service = KiGateService(self.settings)
+        self.assertEqual(service.timeout, 120)
+    
     @patch('core.services.kigate_service.requests.request')
     def test_get_agents_success(self, mock_request):
         """Test getting list of agents successfully"""
@@ -209,6 +232,26 @@ class KiGateServiceTestCase(TestCase):
         
         self.assertEqual(context.exception.status_code, 408)
         self.assertIn("timed out", str(context.exception))
+        self.assertIn("30 seconds", str(context.exception))
+    
+    @patch('core.services.kigate_service.requests.request')
+    def test_custom_timeout_passed_to_request(self, mock_request):
+        """Test that custom timeout value is passed to requests library"""
+        # Set custom timeout of 600 seconds
+        self.settings.kigate_api_timeout = 600
+        self.settings.save()
+        
+        mock_request.return_value = Mock(
+            status_code=200,
+            json=lambda: {'agents': []}
+        )
+        
+        service = KiGateService(self.settings)
+        service.get_agents()
+        
+        # Verify that the request was called with the correct timeout
+        call_args = mock_request.call_args
+        self.assertEqual(call_args[1]['timeout'], 600)
     
     @patch('core.services.kigate_service.requests.request')
     def test_execute_agent_connection_error(self, mock_request):
