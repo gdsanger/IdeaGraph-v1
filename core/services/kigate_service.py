@@ -73,7 +73,7 @@ class KiGateService:
         
         self.token = self.settings.kigate_api_token
         self.base_url = self.settings.kigate_api_base_url or 'http://localhost:8000'
-        self.timeout = self.settings.kigate_api_timeout or 30
+        self.timeout = self.settings.kigate_api_timeout
         
         # Remove trailing slash from base_url if present
         if self.base_url.endswith('/'):
