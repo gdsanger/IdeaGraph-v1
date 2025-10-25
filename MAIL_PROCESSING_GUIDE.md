@@ -192,11 +192,23 @@ sudo systemctl start ideagraph-mail-processing.timer
      - Item: Matched Item
      - Requester: Sender (if user exists in system)
 
+6a. **Original Mail Comment**:
+   - Comment added to task with original email content
+   - Includes sender's name, subject, and email body in Markdown
+   - Author: User who sent the email (identified by email address)
+   - Source: 'user'
+
 7. **Confirmation Email**:
    - Professional HTML email sent to sender
    - Confirms receipt of their request
    - Shows which Item it was assigned to
    - Displays the normalized description
+
+7a. **Confirmation Email Comment**:
+   - Comment added to task with confirmation email content
+   - Includes German greeting, Item assignment, and normalized description
+   - Author: "AI Agent Bot"
+   - Source: 'agent'
 
 8. **Email Archiving**:
    - After successful processing, email is moved to Archive folder
