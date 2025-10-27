@@ -699,8 +699,15 @@ class GitHubDocSyncService:
                     synced_count += 1
                     logger.info(f"Successfully synced: {md_file['name']}")
                     
+                except GitHubDocSyncServiceError as e:
+                    # Include details for GitHubDocSyncServiceError
+                    error_msg = f"Error processing {md_file['name']}: {e.message}"
+                    if e.details:
+                        error_msg += f" - Details: {e.details}"
+                    logger.error(error_msg)
+                    errors.append(error_msg)
                 except Exception as e:
-                    error_msg = f"Error processing {md_file['path']}: {str(e)}"
+                    error_msg = f"Error processing {md_file['name']}: {str(e)}"
                     logger.error(error_msg)
                     errors.append(error_msg)
             
@@ -716,6 +723,9 @@ class GitHubDocSyncService:
             
         except Item.DoesNotExist:
             raise GitHubDocSyncServiceError(f"Item not found: {item_id}")
+        except GitHubDocSyncServiceError:
+            # Re-raise GitHubDocSyncServiceError as-is to preserve message and details
+            raise
         except Exception as e:
             logger.error(f"Error syncing item {item_id}: {str(e)}")
             raise GitHubDocSyncServiceError(
@@ -777,6 +787,13 @@ class GitHubDocSyncService:
                         error_msg = f"Item {item.title}: {result.get('error', 'Unknown error')}"
                         errors.append(error_msg)
                         
+                except GitHubDocSyncServiceError as e:
+                    # Include details for GitHubDocSyncServiceError
+                    error_msg = f"Error syncing item {item.title} ({item.id}): {e.message}"
+                    if e.details:
+                        error_msg += f" - Details: {e.details}"
+                    logger.error(error_msg)
+                    errors.append(error_msg)
                 except Exception as e:
                     error_msg = f"Error syncing item {item.title} ({item.id}): {str(e)}"
                     logger.error(error_msg)
@@ -792,6 +809,9 @@ class GitHubDocSyncService:
                 'errors': errors
             }
             
+        except GitHubDocSyncServiceError:
+            # Re-raise GitHubDocSyncServiceError as-is to preserve message and details
+            raise
         except Exception as e:
             logger.error(f"Error syncing all items: {str(e)}")
             raise GitHubDocSyncServiceError(
