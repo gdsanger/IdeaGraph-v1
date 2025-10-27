@@ -288,3 +288,6 @@ LOGGING = {
         'level': os.getenv('LOG_LEVEL', 'INFO'),
     },
 }
+
+# GitHub Documentation Sync Configuration
+GITHUB_DOC_SYNC_INTERVAL = int(os.getenv('GITHUB_DOC_SYNC_INTERVAL', 180))  # Minutes (default: 3 hours)

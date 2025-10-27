@@ -540,3 +540,150 @@ class GitHubService:
         except Exception as e:
             logger.error(f"Error listing pull requests: {str(e)}")
             raise GitHubServiceError("Error listing pull requests", details=str(e))
+    
+    # Repository Content Methods
+    
+    def get_repository_contents(
+        self,
+        path: str = '',
+        repo: Optional[str] = None,
+        owner: Optional[str] = None,
+        ref: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Get contents of a repository directory or file
+        
+        Args:
+            path: Path to directory or file (empty string for root)
+            repo: Repository name (uses default if not provided)
+            owner: Repository owner (uses default if not provided)
+            ref: Git reference (branch, tag, or commit SHA). Defaults to default branch
+            
+        Returns:
+            Dict with success status and contents list or file data
+        """
+        owner = owner or self.default_owner
+        repo = repo or self.default_repo
+        
+        if not owner or not repo:
+            raise GitHubServiceError(
+                "Repository information required",
+                details="owner and repo must be provided or configured as defaults"
+            )
+        
+        endpoint = f"repos/{owner}/{repo}/contents/{path}"
+        
+        params = {}
+        if ref:
+            params['ref'] = ref
+        
+        try:
+            response = self._make_request('GET', endpoint, params=params)
+            contents = self._handle_response(response)
+            
+            return {
+                'success': True,
+                'contents': contents
+            }
+            
+        except GitHubServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting repository contents: {str(e)}")
+            raise GitHubServiceError("Error getting repository contents", details=str(e))
+    
+    def get_file_content(
+        self,
+        path: str,
+        repo: Optional[str] = None,
+        owner: Optional[str] = None,
+        ref: Optional[str] = None,
+        decode: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Get content of a specific file from repository
+        
+        Args:
+            path: Path to file
+            repo: Repository name (uses default if not provided)
+            owner: Repository owner (uses default if not provided)
+            ref: Git reference (branch, tag, or commit SHA). Defaults to default branch
+            decode: Whether to decode base64 content (default: True)
+            
+        Returns:
+            Dict with success status and file data (content, encoding, size, etc.)
+        """
+        import base64
+        
+        owner = owner or self.default_owner
+        repo = repo or self.default_repo
+        
+        if not owner or not repo:
+            raise GitHubServiceError(
+                "Repository information required",
+                details="owner and repo must be provided or configured as defaults"
+            )
+        
+        endpoint = f"repos/{owner}/{repo}/contents/{path}"
+        
+        params = {}
+        if ref:
+            params['ref'] = ref
+        
+        try:
+            response = self._make_request('GET', endpoint, params=params)
+            file_data = self._handle_response(response)
+            
+            # Decode base64 content if requested
+            if decode and file_data.get('encoding') == 'base64' and file_data.get('content'):
+                try:
+                    decoded_content = base64.b64decode(file_data['content']).decode('utf-8')
+                    file_data['decoded_content'] = decoded_content
+                except Exception as e:
+                    logger.warning(f"Failed to decode file content: {str(e)}")
+            
+            return {
+                'success': True,
+                'file': file_data
+            }
+            
+        except GitHubServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting file content: {str(e)}")
+            raise GitHubServiceError("Error getting file content", details=str(e))
+    
+    def get_file_raw(
+        self,
+        download_url: str
+    ) -> Dict[str, Any]:
+        """
+        Download raw file content from GitHub using download_url
+        
+        Args:
+            download_url: Direct download URL from GitHub API
+            
+        Returns:
+            Dict with success status and raw content as text
+        """
+        try:
+            response = requests.get(download_url, timeout=self.REQUEST_TIMEOUT)
+            
+            if response.status_code == 200:
+                return {
+                    'success': True,
+                    'content': response.text,
+                    'size': len(response.content)
+                }
+            else:
+                raise GitHubServiceError(
+                    f"Failed to download file",
+                    status_code=response.status_code,
+                    details=f"HTTP {response.status_code}"
+                )
+                
+        except GitHubServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error downloading raw file: {str(e)}")
+            raise GitHubServiceError("Error downloading raw file", details=str(e))
