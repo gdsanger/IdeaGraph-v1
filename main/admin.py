@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Tag, User, Settings, Section, Item, Task, Relation, Milestone, MilestoneContextObject, MilestoneSummaryVersion
+from .models import Tag, User, Settings, Section, Item, Task, Relation, Milestone, MilestoneContextObject, MilestoneSummaryVersion, ItemQuestionAnswer
 
 
 @admin.register(Tag)
@@ -179,3 +179,36 @@ class RelationAdmin(admin.ModelAdmin):
             'fields': ('created_at', 'updated_at')
         }),
     )
+
+
+@admin.register(ItemQuestionAnswer)
+class ItemQuestionAnswerAdmin(admin.ModelAdmin):
+    list_display = ['get_short_question', 'item', 'asked_by', 'relevance_score', 'saved_as_knowledge_object', 'created_at']
+    list_filter = ['saved_as_knowledge_object', 'created_at']
+    search_fields = ['question', 'answer', 'item__title']
+    readonly_fields = ['id', 'sources', 'weaviate_uuid', 'created_at', 'updated_at']
+    fieldsets = (
+        ('Question & Answer', {
+            'fields': ('id', 'item', 'question', 'answer')
+        }),
+        ('Sources & Relevance', {
+            'fields': ('sources', 'relevance_score')
+        }),
+        ('Weaviate Sync', {
+            'fields': ('saved_as_knowledge_object', 'weaviate_uuid')
+        }),
+        ('User Information', {
+            'fields': ('asked_by', 'created_at', 'updated_at')
+        }),
+    )
+    
+    # Display configuration constants
+    MAX_QUESTION_DISPLAY_LENGTH = 100
+    
+    def get_short_question(self, obj):
+        """Return shortened question for list display"""
+        if len(obj.question) > self.MAX_QUESTION_DISPLAY_LENGTH:
+            return obj.question[:self.MAX_QUESTION_DISPLAY_LENGTH] + '...'
+        return obj.question
+    get_short_question.short_description = 'Question'
+

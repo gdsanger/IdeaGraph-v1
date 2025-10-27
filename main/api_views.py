@@ -6956,3 +6956,320 @@ Content:
         }, status=500)
 
 
+# ===== Item Question Answering API Endpoints =====
+
+def require_auth(view_func):
+    """Decorator to require authentication for API endpoints (supports both JWT and session)"""
+    def wrapper(request, *args, **kwargs):
+        user = get_user_from_request(request)  # Supports both JWT token and session
+        if not user:
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+        request.user_obj = user
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
+@require_http_methods(["POST"])
+@require_auth
+def api_item_ask_question(request, item_id):
+    """
+    API endpoint to ask a question about an item
+    
+    Performs semantic search across KnowledgeObjects related to the item
+    and generates an AI answer using KIGate.
+    
+    POST /api/items/<item_id>/ask
+    Body: {
+        "question": "User's question text"
+    }
+    
+    Returns: {
+        "success": true,
+        "qa_id": "uuid",
+        "question": "question text",
+        "answer": "AI-generated answer in markdown",
+        "sources": [list of source objects],
+        "relevance_score": float
+    }
+    """
+    try:
+        from main.models import Item, ItemQuestionAnswer
+        from core.services.item_question_answering_service import (
+            ItemQuestionAnsweringService,
+            ItemQuestionAnsweringServiceError
+        )
+        
+        # Get the item
+        try:
+            item = Item.objects.get(id=item_id)
+        except Item.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Item not found'
+            }, status=404)
+        
+        # Parse request body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid JSON'
+            }, status=400)
+        
+        question = data.get('question', '').strip()
+        
+        if not question:
+            return JsonResponse({
+                'success': False,
+                'error': 'Question is required'
+            }, status=400)
+        
+        logger.info(f"Processing question for item {item_id}: {question[:100]}")
+        
+        # Initialize service
+        service = ItemQuestionAnsweringService()
+        
+        # Step 1: Search for related knowledge
+        search_results = service.search_related_knowledge(
+            item_id=str(item_id),
+            question=question,
+            limit=3
+        )
+        
+        if not search_results.get('success'):
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to search related knowledge'
+            }, status=500)
+        
+        results = search_results.get('results', [])
+        
+        # Step 2: Generate answer using KIGate
+        answer_result = service.generate_answer_with_kigate(
+            question=question,
+            search_results=results,
+            item_title=item.title,
+            user_id=str(request.user.id)
+        )
+        
+        if not answer_result.get('success'):
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to generate answer'
+            }, status=500)
+        
+        answer = answer_result.get('answer', '')
+        sources = answer_result.get('sources_used', [])
+        
+        # Calculate average relevance score
+        avg_relevance = sum(s.get('relevance', 0) for s in sources) / len(sources) if sources else 0
+        
+        # Step 3: Save Q&A to database
+        qa = ItemQuestionAnswer.objects.create(
+            item=item,
+            question=question,
+            answer=answer,
+            sources=sources,
+            asked_by=request.user_obj,
+            relevance_score=round(avg_relevance, 2)
+        )
+        
+        logger.info(f"Successfully created Q&A {qa.id} for item {item_id}")
+        
+        # Close service connection
+        service.close()
+        
+        return JsonResponse({
+            'success': True,
+            'qa_id': str(qa.id),
+            'question': qa.question,
+            'answer': qa.answer,
+            'sources': qa.sources,
+            'relevance_score': qa.relevance_score,
+            'created_at': qa.created_at.isoformat()
+        })
+    
+    except ItemQuestionAnsweringServiceError as e:
+        logger.error(f"Q&A service error: {e.message}")
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=500)
+    
+    except Exception as e:
+        logger.error(f"Error processing question: {str(e)}")
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to process question'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+@require_auth
+def api_item_questions_history(request, item_id):
+    """
+    API endpoint to get Q&A history for an item
+    
+    GET /api/items/<item_id>/questions/history
+    Query params: page (optional, default=1)
+    
+    Returns: {
+        "success": true,
+        "questions": [
+            {
+                "id": "uuid",
+                "question": "text",
+                "answer": "text",
+                "sources": [...],
+                "relevance_score": float,
+                "asked_by": "username",
+                "created_at": "iso8601",
+                "saved_as_knowledge_object": bool
+            }
+        ],
+        "total": int,
+        "page": int,
+        "per_page": int,
+        "has_next": bool
+    }
+    """
+    try:
+        from main.models import Item, ItemQuestionAnswer
+        
+        # Get the item
+        try:
+            item = Item.objects.get(id=item_id)
+        except Item.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Item not found'
+            }, status=404)
+        
+        # Get pagination parameters
+        page = int(request.GET.get('page', 1))
+        per_page = int(request.GET.get('per_page', 10))
+        
+        # Get Q&A history
+        qa_queryset = ItemQuestionAnswer.objects.filter(item=item).select_related('asked_by')
+        
+        # Paginate
+        paginator = Paginator(qa_queryset, per_page)
+        page_obj = paginator.get_page(page)
+        
+        # Format results
+        questions = []
+        for qa in page_obj:
+            questions.append({
+                'id': str(qa.id),
+                'question': qa.question,
+                'answer': qa.answer,
+                'sources': qa.sources,
+                'relevance_score': qa.relevance_score,
+                'asked_by': qa.asked_by.username if qa.asked_by else 'Unknown',
+                'created_at': qa.created_at.isoformat(),
+                'saved_as_knowledge_object': qa.saved_as_knowledge_object
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'questions': questions,
+            'total': paginator.count,
+            'page': page,
+            'per_page': per_page,
+            'has_next': page_obj.has_next()
+        })
+    
+    except Exception as e:
+        logger.error(f"Error getting Q&A history: {str(e)}")
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to get Q&A history'
+        }, status=500)
+
+
+@require_http_methods(["POST"])
+@require_auth
+def api_item_save_qa_as_knowledge(request, qa_id):
+    """
+    API endpoint to save a Q&A pair as a KnowledgeObject in Weaviate
+    
+    POST /api/items/questions/<qa_id>/save
+    
+    Returns: {
+        "success": true,
+        "weaviate_uuid": "uuid",
+        "message": "Q&A saved as KnowledgeObject"
+    }
+    """
+    try:
+        from main.models import ItemQuestionAnswer
+        from core.services.item_question_answering_service import (
+            ItemQuestionAnsweringService,
+            ItemQuestionAnsweringServiceError
+        )
+        
+        # Get the Q&A
+        try:
+            qa = ItemQuestionAnswer.objects.get(id=qa_id)
+        except ItemQuestionAnswer.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Q&A not found'
+            }, status=404)
+        
+        # Check if already saved
+        if qa.saved_as_knowledge_object:
+            return JsonResponse({
+                'success': True,
+                'weaviate_uuid': qa.weaviate_uuid,
+                'message': 'Q&A already saved as KnowledgeObject'
+            })
+        
+        # Initialize service
+        service = ItemQuestionAnsweringService()
+        
+        # Save to Weaviate
+        result = service.save_as_knowledge_object(
+            item_id=str(qa.item.id),
+            question=qa.question,
+            answer=qa.answer,
+            qa_id=str(qa.id)
+        )
+        
+        if result.get('success'):
+            # Update Q&A record
+            qa.saved_as_knowledge_object = True
+            qa.weaviate_uuid = result.get('weaviate_uuid')
+            qa.save()
+            
+            logger.info(f"Saved Q&A {qa_id} as KnowledgeObject: {qa.weaviate_uuid}")
+        
+        # Close service connection
+        service.close()
+        
+        return JsonResponse({
+            'success': True,
+            'weaviate_uuid': qa.weaviate_uuid,
+            'message': 'Q&A saved as KnowledgeObject'
+        })
+    
+    except ItemQuestionAnsweringServiceError as e:
+        logger.error(f"Q&A save error: {e.message}")
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=500)
+    
+    except Exception as e:
+        logger.error(f"Error saving Q&A as KnowledgeObject: {str(e)}")
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to save Q&A as KnowledgeObject'
+        }, status=500)
+

@@ -74,6 +74,11 @@ urlpatterns = [
     path('api/items/<uuid:item_id>/send-email', api_views.api_send_item_email, name='api_send_item_email'),
     path('api/items/<uuid:item_id>/create-teams-channel', api_views.create_teams_channel, name='api_create_teams_channel'),
     
+    # Item Question Answering API Endpoints
+    path('api/items/<uuid:item_id>/ask', api_views.api_item_ask_question, name='api_item_ask_question'),
+    path('api/items/<uuid:item_id>/questions/history', api_views.api_item_questions_history, name='api_item_questions_history'),
+    path('api/items/questions/<uuid:qa_id>/save', api_views.api_item_save_qa_as_knowledge, name='api_item_save_qa_as_knowledge'),
+    
     # Teams Integration URLs
     path('api/teams/poll', api_views.poll_teams_messages, name='api_poll_teams_messages'),
     path('api/teams/status', api_views.teams_integration_status, name='api_teams_integration_status'),
