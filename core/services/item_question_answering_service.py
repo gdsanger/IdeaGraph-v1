@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 import weaviate
 from weaviate.classes.init import Auth
-from weaviate.classes.query import MetadataQuery, Filter
+from weaviate.classes.query import MetadataQuery, Filter, HybridFusion
 
 logger = logging.getLogger('item_question_answering_service')
 
@@ -162,12 +162,13 @@ class ItemQuestionAnsweringService:
             # Combine with OR
             combined_filter = related_filter | item_filter
             
-            # Perform semantic search
-            response = collection.query.near_text(
+            # Perform hybrid search
+            response = collection.query.hybrid(
                 query=question,
                 limit=limit,
                 filters=combined_filter,
-                return_metadata=MetadataQuery(distance=True, certainty=True)
+                return_metadata=MetadataQuery(distance=True, certainty=True, score=True),
+                fusion_type=HybridFusion.RANKED
             )
             
             # Format results

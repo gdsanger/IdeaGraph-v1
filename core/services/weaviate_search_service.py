@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 import weaviate
 from weaviate.classes.init import Auth
-from weaviate.classes.query import MetadataQuery, Filter
+from weaviate.classes.query import MetadataQuery, Filter, HybridFusion
 
 logger = logging.getLogger('weaviate_search_service')
 
@@ -158,7 +158,8 @@ class WeaviateSearchService:
             query_kwargs = {
                 'query': query,
                 'limit': limit,
-                'return_metadata': MetadataQuery(distance=True, certainty=True)
+                'return_metadata': MetadataQuery(distance=True, certainty=True, score=True),
+                'fusion_type': HybridFusion.RANKED
             }
             
             # Add type filter if specified
@@ -175,8 +176,8 @@ class WeaviateSearchService:
                 
                 query_kwargs['filters'] = type_filter
             
-            # Perform semantic search using near_text
-            response = collection.query.near_text(**query_kwargs)
+            # Perform hybrid search combining semantic and keyword search
+            response = collection.query.hybrid(**query_kwargs)
             
             # Format results
             search_results = []
