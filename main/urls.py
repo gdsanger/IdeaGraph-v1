@@ -165,6 +165,7 @@ urlpatterns = [
     path('api/tasks/<uuid:task_id>/files', api_views.api_task_file_list, name='api_task_file_list'),
     path('api/tasks/<uuid:task_id>/process-link', api_views.api_task_process_link, name='api_task_process_link'),
     path('api/task-files/<uuid:file_id>', api_views.api_task_file_download, name='api_task_file_download'),
+    path('api/task-files/<uuid:file_id>/markdown', api_views.api_task_file_markdown_content, name='api_task_file_markdown_content'),
     path('api/task-files/<uuid:file_id>/delete', api_views.api_task_file_delete, name='api_task_file_delete'),
     
     # Task Comments API Endpoints
