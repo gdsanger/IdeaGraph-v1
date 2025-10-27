@@ -318,6 +318,79 @@ class ZammadSyncService:
         
         return section
     
+    def _find_or_create_item(self):
+        """
+        Find or create the Item for Zammad support requests
+        
+        Returns:
+            Item object with name "Supportanfragen Zammad"
+        """
+        from main.models import Item
+        
+        item_name = "Supportanfragen Zammad"
+        item, created = Item.objects.get_or_create(
+            title=item_name,
+            defaults={
+                'description': 'Automatisch erstelltes Item für Zammad Support-Tickets',
+                'status': 'working'
+            }
+        )
+        
+        if created:
+            logger.info(f"Created new item: {item_name}")
+        
+        return item
+    
+    def _add_comment_to_ticket(self, ticket_id: str, task_id: str):
+        """
+        Add a comment to the Zammad ticket with the IdeaGraph task link
+        
+        Args:
+            ticket_id: Ticket ID in Zammad
+            task_id: Task ID in IdeaGraph
+        """
+        try:
+            # Build task URL - use first allowed host or default
+            from django.conf import settings
+            allowed_hosts = settings.ALLOWED_HOSTS
+            
+            # Find the first production host (not localhost or IP)
+            base_url = None
+            for host in allowed_hosts:
+                if host not in ['localhost', '127.0.0.1'] and not host.startswith('172.'):
+                    base_url = f"https://{host}"
+                    break
+            
+            # Fallback to localhost if no production host found
+            if not base_url:
+                base_url = "http://localhost:8000"
+            
+            task_url = f"{base_url}/tasks/{task_id}"
+            
+            # Create article (comment) in Zammad
+            comment_body = f"Dieses Ticket wurde in IdeaGraph abgelegt.\n\nLink zum Task: {task_url}"
+            
+            article_data = {
+                'ticket_id': int(ticket_id),
+                'type': 'note',
+                'internal': False,
+                'body': comment_body,
+                'content_type': 'text/plain'
+            }
+            
+            self._make_request(
+                'POST',
+                '/ticket_articles',
+                json_data=article_data
+            )
+            logger.info(f"Added comment to ticket {ticket_id} with task link {task_url}")
+        except ZammadSyncServiceError as e:
+            logger.error(f"Failed to add comment to ticket: {e.message}")
+            # Don't raise - comment failure shouldn't fail the entire sync
+        except Exception as e:
+            logger.error(f"Unexpected error adding comment to ticket: {str(e)}")
+            # Don't raise - comment failure shouldn't fail the entire sync
+    
     @transaction.atomic
     def sync_ticket_to_task(self, ticket: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -351,6 +424,9 @@ class ZammadSyncService:
         # Find or create section
         section = self._find_or_create_section(group_name)
         
+        # Find or create the Zammad support item
+        item = self._find_or_create_item()
+        
         # Build ticket URL
         ticket_url = f"{self.api_url}/#ticket/zoom/{ticket_id}"
         
@@ -371,17 +447,18 @@ class ZammadSyncService:
                 # Classify task type
                 task_type = self._classify_task_type(title, description)
                 
-                # Create new task
+                # Create new task and assign to Item
                 task = Task.objects.create(
                     title=title,
                     description=description,
                     type=task_type,
+                    item=item,
                     section=section,
                     external_id=ticket_id,
                     external_url=ticket_url,
                     status='new'
                 )
-                logger.info(f"Created new task {task.id} for ticket {ticket_id}")
+                logger.info(f"Created new task {task.id} for ticket {ticket_id} and assigned to item {item.id}")
                 action = 'created'
             
             # Process tags
@@ -433,11 +510,18 @@ class ZammadSyncService:
             
             logger.info(f"Processed {attachment_count} attachments for task {task.id}")
             
-            # Update ticket status in Zammad to "pending reminder" to exclude it from future syncs
+            # Update ticket status in Zammad to "open" (working status)
+            # Note: Changed from "pending reminder" to "open" to avoid HTTP 422 errors
             try:
-                self._update_ticket_status(ticket_id, 'pending reminder')
+                self._update_ticket_status(ticket_id, 'open')
             except Exception as e:
                 logger.warning(f"Failed to update ticket status in Zammad: {str(e)}")
+            
+            # Add comment to Zammad ticket with link to IdeaGraph task
+            try:
+                self._add_comment_to_ticket(ticket_id, str(task.id))
+            except Exception as e:
+                logger.warning(f"Failed to add comment to Zammad ticket: {str(e)}")
             
             return {
                 'success': True,
