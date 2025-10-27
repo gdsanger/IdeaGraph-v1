@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Widget Test</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    
+    <!-- Chat Widget CSS -->
+    <link rel="stylesheet" href="../../main/static/main/css/chat-widget.css" />
+    
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <style>
+        body {
+            padding: 2rem;
+            background: #0f172a;
+            color: #fff;
+        }
+        .container {
+            max-width: 1200px;
+        }
+        .alert-info {
+            background-color: rgba(75, 208, 199, 0.2);
+            border-color: rgba(75, 208, 199, 0.5);
+            color: #4BD0C7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4">
+            <i class="bi bi-chat-dots"></i> Chat Widget Test
+        </h1>
+        <p class="text-muted mb-4">
+            Dies ist eine eigenständige Testseite für das IdeaGraph Chat Widget.
+        </p>
+        
+        <div class="alert alert-info mb-4">
+            <strong>Hinweis:</strong> Dies ist ein Offline-Test. API-Aufrufe werden fehlschlagen, 
+            aber die UI-Komponenten sollten korrekt geladen und angezeigt werden.
+        </div>
+        
+        <div id="test-chat-widget"></div>
+        
+        <div class="mt-5">
+            <h3 class="mb-3">✅ Test-Checkliste:</h3>
+            <ul class="list-group">
+                <li class="list-group-item bg-dark border-secondary">
+                    <input type="checkbox" class="form-check-input me-2" id="test1">
+                    <label for="test1">Chat Widget lädt und wird angezeigt</label>
+                </li>
+                <li class="list-group-item bg-dark border-secondary">
+                    <input type="checkbox" class="form-check-input me-2" id="test2">
+                    <label for="test2">Willkommensnachricht ist sichtbar</label>
+                </li>
+                <li class="list-group-item bg-dark border-secondary">
+                    <input type="checkbox" class="form-check-input me-2" id="test3">
+                    <label for="test3">Eingabefeld ist funktional</label>
+                </li>
+                <li class="list-group-item bg-dark border-secondary">
+                    <input type="checkbox" class="form-check-input me-2" id="test4">
+                    <label for="test4">Character Counter aktualisiert sich beim Tippen</label>
+                </li>
+                <li class="list-group-item bg-dark border-secondary">
+                    <input type="checkbox" class="form-check-input me-2" id="test5">
+                    <label for="test5">Send-Button ist vorhanden und klickbar</label>
+                </li>
+                <li class="list-group-item bg-dark border-secondary">
+                    <input type="checkbox" class="form-check-input me-2" id="test6">
+                    <label for="test6">Styling entspricht IdeaGraph Corporate Identity (Amber/Violet)</label>
+                </li>
+            </ul>
+        </div>
+        
+        <div class="mt-4">
+            <h3 class="mb-3">📝 Erwartete Fehler:</h3>
+            <p class="text-muted">
+                Bei dieser Offline-Demo sind folgende Fehler <strong>normal</strong> und <strong>erwartet</strong>:
+            </p>
+            <ul class="text-muted">
+                <li>Netzwerkfehler beim Laden der History (da kein Backend läuft)</li>
+                <li>API-Fehler beim Senden einer Nachricht</li>
+            </ul>
+        </div>
+    </div>
+    
+    <!-- Chat Widget Components -->
+    <script src="../../main/static/main/js/chat-widget/ChatSources.js"></script>
+    <script src="../../main/static/main/js/chat-widget/ChatMessage.js"></script>
+    <script src="../../main/static/main/js/chat-widget/ChatWidget.js"></script>
+    
+    <script>
+        // Initialize chat widget with a test item ID
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                const chatWidget = new ChatWidget({
+                    containerId: 'test-chat-widget',
+                    itemId: '12345678-1234-1234-1234-123456789abc',
+                    apiBaseUrl: '/api/items',
+                    theme: 'dark',
+                    height: '600px',
+                    showHistory: false // Disable history for offline test
+                });
+                console.log('✅ Chat widget initialized successfully');
+                console.log('Chat widget instance:', chatWidget);
+            } catch (error) {
+                console.error('❌ Error initializing chat widget:', error);
+                document.getElementById('test-chat-widget').innerHTML = 
+                    '<div class="alert alert-danger">' +
+                    '<strong>Fehler beim Initialisieren:</strong> ' + error.message + 
+                    '</div>';
+            }
+        });
+    </script>
+</body>
+</html>

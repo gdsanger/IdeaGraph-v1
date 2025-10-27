@@ -4,7 +4,8 @@
 {% block title %}{{ item.title }} - Item Details{% endblock %}
 
 {% block extra_css %}
-
+<!-- Chat Widget CSS -->
+<link rel="stylesheet" href="{% static 'main/css/chat-widget.css' %}" />
 
 <style>
     /* Compact layout adjustments */
@@ -809,59 +810,14 @@
                         <div class="tab-pane fade" id="qa" role="tabpanel">
                             <div class="card-body">
                                 <h5 class="mb-3">
-                                    <i class="bi bi-question-circle"></i> Frage stellen
+                                    <i class="bi bi-chat-dots"></i> IdeaGraph Q&A Assistant
                                 </h5>
-                                    <p class="text-muted" style="font-size: 0.9rem;">
-                                        Stelle eine Frage zu diesem Item. Die KI durchsucht automatisch alle zugehörigen Tasks, Files, Kommentare und Dokumentationen und generiert eine fundierte Antwort.
-                                    </p>
+                                <p class="text-muted" style="font-size: 0.9rem;">
+                                    Stelle Fragen zu diesem Item. Der IdeaGraph Assistant durchsucht automatisch alle zugehörigen Tasks, Files, Kommentare und Dokumentationen und generiert eine fundierte Antwort mit Quellenangaben.
+                                </p>
                                 
-                                 
-                                    <!-- Question Form -->
-                                    <div class="mb-4">
-                                        <div class="mb-3">
-                                            <label for="questionInput" class="form-label">Deine Frage:</label>
-                                            <textarea class="form-control" id="questionInput" rows="3" 
-                                                    placeholder="z.B. Wie funktioniert der Authentifizierungsprozess?"></textarea>
-                                        </div>
-                                        <button type="button" class="btn btn-primary" id="askQuestionBtn" onclick="askQuestion()">
-                                            <span class="button-text"><i class="bi bi-send"></i> Antwort generieren</span>
-                                            <span class="spinner-border spinner-border-sm ms-2" role="status" style="display: none;"></span>
-                                        </button>
-                                    </div>
-                                    
-                                    <!-- Answer Display -->
-                                    <div id="answerContainer" style="display: none;">
-                                        <div class="card bg-dark border-secondary mb-3">
-                                            <div class="card-header d-flex justify-content-between align-items-center">
-                                                <h6 class="mb-0"><i class="bi bi-lightbulb"></i> Antwort</h6>
-                                                <button type="button" class="btn btn-sm btn-outline-success" id="saveAsKnowledgeBtn" onclick="saveAsKnowledgeObject()" style="display: none;">
-                                                    <i class="bi bi-bookmark"></i> Als Wissensobjekt speichern
-                                                </button>
-                                            </div>
-                                            <div class="card-body">
-                                                <div id="questionDisplay" class="mb-3">
-                                                    <strong>Frage:</strong>
-                                                    <p class="text-muted mb-0" id="questionText"></p>
-                                                </div>
-                                                <div id="answerDisplay"></div>
-                                                <div id="sourcesDisplay" class="mt-3"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                
-                                    <!-- Q&A History -->
-                                    <div class="mt-4">
-                                        <h6 class="mb-3">
-                                            <i class="bi bi-clock-history"></i> Verlauf der letzten Fragen
-                                            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" onclick="loadQAHistory()">
-                                                <i class="bi bi-arrow-clockwise"></i> Aktualisieren
-                                            </button>
-                                        </h6>
-                                        <div id="qaHistoryContainer">
-                                            <p class="text-muted">Lade Verlauf...</p>
-                                        </div>
-                                    </div>
-
+                                <!-- Chat Widget Container -->
+                                <div id="ideagraph-chat-widget" style="margin-top: 1.5rem;"></div>
                             </div>
                         </div>
                                
@@ -914,6 +870,11 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Chat Widget Components -->
+<script src="{% static 'main/js/chat-widget/ChatSources.js' %}"></script>
+<script src="{% static 'main/js/chat-widget/ChatMessage.js' %}"></script>
+<script src="{% static 'main/js/chat-widget/ChatWidget.js' %}"></script>
+
 <!-- Toast UI Editor JS -->
 
 {{ all_tags|json_script:"item-detail-all-tags" }}
@@ -1823,231 +1784,36 @@ document.addEventListener('DOMContentLoaded', function() {
         return cookieValue;
     }
     
-    // ===== Q&A Functionality =====
+    // ===== Chat Widget Initialization =====
     
-    let currentQAId = null;
+    // Initialize the chat widget when the Q&A tab is shown
+    let chatWidgetInitialized = false;
     
-    // Ask a question about the item
-    window.askQuestion = async function() {
-        const questionInput = document.getElementById('questionInput');
-        const askBtn = document.getElementById('askQuestionBtn');
-        const answerContainer = document.getElementById('answerContainer');
-        
-        const question = questionInput.value.trim();
-        
-        if (!question) {
-            showAlert('Bitte geben Sie eine Frage ein', 'warning');
-            return;
-        }
-        
-        // Show loading state
-        askBtn.disabled = true;
-        const btnText = askBtn.querySelector('.button-text');
-        const spinner = askBtn.querySelector('.spinner-border');
-        spinner.style.display = 'inline-block';
-        btnText.innerHTML = '<i class="bi bi-hourglass-split"></i> Suche in Projektwissen...';
-        
-        try {
-            const response = await fetch('/api/items/{{ item.id }}/ask', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrfToken()
-                },
-                body: JSON.stringify({ question: question })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                currentQAId = data.qa_id;
-                
-                // Display the question
-                document.getElementById('questionText').textContent = data.question;
-                
-                // Render the answer as markdown
-                const answerDisplay = document.getElementById('answerDisplay');
-                answerDisplay.innerHTML = marked.parse(data.answer);
-                
-                // Display sources
-                displaySources(data.sources, data.relevance_score);
-                
-                // Show the answer container
-                answerContainer.style.display = 'block';
-                
-                // Show save button if not already saved
-                const saveBtn = document.getElementById('saveAsKnowledgeBtn');
-                saveBtn.style.display = 'inline-block';
-                saveBtn.disabled = false;
-                
-                // Reload Q&A history
-                loadQAHistory();
-                
-                showAlert('Antwort erfolgreich generiert', 'success');
-            } else {
-                showAlert('Fehler: ' + (data.error || 'Unbekannter Fehler'), 'danger');
-            }
-        } catch (error) {
-            console.error('Error asking question:', error);
-            showAlert('Fehler beim Generieren der Antwort', 'danger');
-        } finally {
-            // Reset button state
-            askBtn.disabled = false;
-            spinner.style.display = 'none';
-            btnText.innerHTML = '<i class="bi bi-send"></i> Antwort generieren';
-        }
-    };
-    
-    // Display sources with relevance scores
-    function displaySources(sources, avgRelevance) {
-        const sourcesDisplay = document.getElementById('sourcesDisplay');
-        
-        if (!sources || sources.length === 0) {
-            sourcesDisplay.innerHTML = '<p class="text-muted small">Keine Quellen verfügbar</p>';
-            return;
-        }
-        
-        let html = '<div class="border-top pt-3">';
-        html += '<h6><i class="bi bi-link-45deg"></i> Quellen (Ø Relevanz: ' + (avgRelevance * 100).toFixed(0) + '%)</h6>';
-        html += '<ul class="list-unstyled">';
-        
-        sources.forEach((source, index) => {
-            const typeIcon = getTypeIcon(source.type);
-            const relevancePercent = (source.relevance * 100).toFixed(0);
-            const relevanceClass = source.relevance > 0.8 ? 'success' : (source.relevance > 0.7 ? 'warning' : 'secondary');
-            
-            html += '<li class="mb-2">';
-            html += '<span class="badge bg-' + relevanceClass + ' me-2">' + relevancePercent + '%</span>';
-            html += typeIcon + ' ';
-            html += '<a href="' + source.url + '" class="text-primary">' + escapeHtml(source.title) + '</a>';
-            html += '</li>';
-        });
-        
-        html += '</ul></div>';
-        sourcesDisplay.innerHTML = html;
-    }
-    
-    // Get icon for knowledge object type
-    function getTypeIcon(type) {
-        const icons = {
-            'Item': '<i class="bi bi-lightbulb"></i>',
-            'Task': '<i class="bi bi-list-task"></i>',
-            'File': '<i class="bi bi-file-earmark"></i>',
-            'conversation': '<i class="bi bi-chat-dots"></i>',
-            'Mail': '<i class="bi bi-envelope"></i>',
-            'comment': '<i class="bi bi-chat-left-text"></i>',
-            'qa-response': '<i class="bi bi-question-circle"></i>'
-        };
-        return icons[type] || '<i class="bi bi-file"></i>';
-    }
-    
-    // Save Q&A as KnowledgeObject in Weaviate
-    window.saveAsKnowledgeObject = async function() {
-        if (!currentQAId) {
-            showAlert('Keine Frage zum Speichern vorhanden', 'warning');
-            return;
-        }
-        
-        const saveBtn = document.getElementById('saveAsKnowledgeBtn');
-        saveBtn.disabled = true;
-        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Speichere...';
-        
-        try {
-            const response = await fetch('/api/items/questions/' + currentQAId + '/save', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrfToken()
-                }
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                saveBtn.innerHTML = '<i class="bi bi-check-circle"></i> Gespeichert';
-                saveBtn.classList.remove('btn-outline-success');
-                saveBtn.classList.add('btn-success');
-                showAlert('Q&A als Wissensobjekt gespeichert', 'success');
-                
-                // Reload history to show updated status
-                loadQAHistory();
-            } else {
-                saveBtn.disabled = false;
-                saveBtn.innerHTML = '<i class="bi bi-bookmark"></i> Als Wissensobjekt speichern';
-                showAlert('Fehler beim Speichern: ' + (data.error || 'Unbekannter Fehler'), 'danger');
-            }
-        } catch (error) {
-            console.error('Error saving Q&A:', error);
-            saveBtn.disabled = false;
-            saveBtn.innerHTML = '<i class="bi bi-bookmark"></i> Als Wissensobjekt speichern';
-            showAlert('Fehler beim Speichern', 'danger');
-        }
-    };
-    
-    // Load Q&A history
-    window.loadQAHistory = async function() {
-        const historyContainer = document.getElementById('qaHistoryContainer');
-        historyContainer.innerHTML = '<p class="text-muted">Lade Verlauf...</p>';
-        
-        try {
-            const response = await fetch('/api/items/{{ item.id }}/questions/history?per_page=5', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrfToken()
-                }
-            });
-            
-            const data = await response.json();
-            
-            if (data.success && data.questions.length > 0) {
-                let html = '<div class="list-group">';
-                
-                data.questions.forEach(qa => {
-                    const date = new Date(qa.created_at).toLocaleDateString('de-DE', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    });
-                    
-                    html += '<div class="list-group-item list-group-item-action bg-dark border-secondary mb-2">';
-                    html += '<div class="d-flex w-100 justify-content-between align-items-start">';
-                    html += '<h6 class="mb-1">' + escapeHtml(qa.question.substring(0, 100)) + (qa.question.length > 100 ? '...' : '') + '</h6>';
-                    if (qa.saved_as_knowledge_object) {
-                        html += '<span class="badge bg-success ms-2"><i class="bi bi-bookmark-check"></i> Gespeichert</span>';
-                    }
-                    html += '</div>';
-                    html += '<p class="mb-1 text-muted small">' + marked.parse(qa.answer.substring(0, 200)) + (qa.answer.length > 200 ? '...' : '') + '</p>';
-                    html += '<small class="text-muted">';
-                    html += '<i class="bi bi-person"></i> ' + escapeHtml(qa.asked_by) + ' · ';
-                    html += '<i class="bi bi-clock"></i> ' + date + ' · ';
-                    html += '<i class="bi bi-graph-up"></i> Relevanz: ' + (qa.relevance_score * 100).toFixed(0) + '%';
-                    html += '</small>';
-                    html += '</div>';
-                });
-                
-                html += '</div>';
-                historyContainer.innerHTML = html;
-            } else {
-                historyContainer.innerHTML = '<p class="text-muted">Noch keine Fragen gestellt</p>';
-            }
-        } catch (error) {
-            console.error('Error loading Q&A history:', error);
-            historyContainer.innerHTML = '<p class="text-danger">Fehler beim Laden des Verlaufs</p>';
-        }
-    };
-    
-    // Load Q&A history when tab is activated
     document.addEventListener('DOMContentLoaded', function() {
         const qaTab = document.getElementById('qa-tab');
         if (qaTab) {
             qaTab.addEventListener('shown.bs.tab', function() {
-                loadQAHistory();
+                // Initialize chat widget only once
+                if (!chatWidgetInitialized) {
+                    try {
+                        const chatWidget = new ChatWidget({
+                            containerId: 'ideagraph-chat-widget',
+                            itemId: '{{ item.id }}',
+                            apiBaseUrl: '/api/items',
+                            theme: 'dark',
+                            height: '600px',
+                            showHistory: true
+                        });
+                        chatWidgetInitialized = true;
+                        console.log('Chat widget initialized successfully');
+                    } catch (error) {
+                        console.error('Error initializing chat widget:', error);
+                    }
+                }
             });
         }
     });
 })();
+
 </script>
 {% endblock %}
