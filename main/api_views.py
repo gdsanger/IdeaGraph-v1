@@ -6956,3 +6956,204 @@ Content:
         }, status=500)
 
 
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_item_chat_ask(request, item_id):
+    """
+    API endpoint for chat-based Q&A about an item.
+    POST /api/items/{item_id}/chat/ask
+    Body: {"question": "..."}
+    
+    This endpoint:
+    1. Performs semantic search in Weaviate to find relevant context
+    2. Uses KiGate question-answering-agent to generate an answer
+    3. Returns the answer with source references
+    
+    Returns:
+        JSON response with answer and sources
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    from .models import Item, Settings
+    from core.services.weaviate_search_service import WeaviateSearchService, WeaviateSearchServiceError
+    
+    try:
+        # Get the item
+        item = Item.objects.get(id=item_id)
+        
+        # Parse request body
+        data = json.loads(request.body)
+        question = data.get('question', '').strip()
+        
+        if not question:
+            return JsonResponse({
+                'success': False,
+                'error': 'Question is required'
+            }, status=400)
+        
+        logger.info(f'Chat Q&A for item {item_id}: {question[:100]}...')
+        
+        # Get settings
+        settings = Settings.objects.first()
+        if not settings:
+            return JsonResponse({
+                'success': False,
+                'error': 'System settings not configured'
+            }, status=500)
+        
+        # Step 1: Search for relevant context in Weaviate
+        search_results = []
+        context_text = ""
+        
+        try:
+            weaviate_service = WeaviateSearchService(settings)
+            
+            # Search for context related to the item
+            # We'll search broadly first, then filter by relevance
+            search_response = weaviate_service.semantic_search(
+                query=question,
+                limit=10,
+                filters={
+                    'item_id': str(item_id)
+                }
+            )
+            
+            if search_response.get('success') and search_response.get('results'):
+                search_results = search_response['results'][:5]  # Top 5 results
+                
+                # Build context from search results
+                context_parts = []
+                for idx, result in enumerate(search_results, 1):
+                    title = result.get('title', 'Untitled')
+                    content = result.get('content', '')
+                    obj_type = result.get('object_type', 'Unknown')
+                    
+                    context_parts.append(f"[Source {idx} - {obj_type}: {title}]\n{content[:500]}")
+                
+                context_text = "\n\n".join(context_parts)
+            
+            # If no results found for this item specifically, try a broader search
+            if not search_results:
+                logger.info(f'No item-specific results, trying broader search')
+                search_response = weaviate_service.semantic_search(
+                    query=f"{item.title} {question}",
+                    limit=5
+                )
+                
+                if search_response.get('success') and search_response.get('results'):
+                    search_results = search_response['results']
+                    
+                    # Build context from broader search
+                    context_parts = []
+                    for idx, result in enumerate(search_results, 1):
+                        title = result.get('title', 'Untitled')
+                        content = result.get('content', '')
+                        obj_type = result.get('object_type', 'Unknown')
+                        
+                        context_parts.append(f"[Source {idx} - {obj_type}: {title}]\n{content[:500]}")
+                    
+                    context_text = "\n\n".join(context_parts)
+        
+        except WeaviateSearchServiceError as e:
+            logger.warning(f'Weaviate search error: {e.message}, proceeding without context')
+            context_text = ""
+        except Exception as e:
+            logger.warning(f'Unexpected search error: {str(e)}, proceeding without context')
+            context_text = ""
+        
+        # Step 2: Use KiGate question-answering agent
+        try:
+            kigate_service = KiGateService(settings)
+            
+            # Prepare the message for the agent
+            if context_text:
+                message = f"""Based on the following context, please answer the user's question.
+
+Context:
+{context_text[:8000]}
+
+Question: {question}
+
+Please provide a clear and concise answer based on the context provided. If the context doesn't contain enough information to answer the question, say so."""
+            else:
+                message = f"""The user is asking about an item titled "{item.title}".
+
+Item Description:
+{item.description[:1000] if item.description else 'No description available'}
+
+Question: {question}
+
+Please provide a helpful answer based on the item information. If you don't have enough information, provide general guidance or suggest what information would be needed."""
+            
+            # Execute the question-answering agent
+            agent_result = kigate_service.execute_agent(
+                agent_name='question-answering-agent',
+                provider='openai',
+                model='gpt-4',
+                message=message,
+                user_id=str(user.id)
+            )
+            
+            if not agent_result.get('success'):
+                raise KiGateServiceError(
+                    agent_result.get('error', 'Failed to generate answer'),
+                    details=agent_result.get('details', '')
+                )
+            
+            answer = agent_result.get('result', agent_result.get('response', '')).strip()
+            
+            if not answer:
+                answer = "I apologize, but I couldn't generate an answer to your question. Please try rephrasing it or contact support."
+            
+            # Format sources for response
+            sources = []
+            for result in search_results:
+                sources.append({
+                    'title': result.get('title', 'Untitled'),
+                    'type': result.get('object_type', 'Unknown'),
+                    'score': result.get('score', 0),
+                    'id': result.get('object_id', '')
+                })
+            
+            return JsonResponse({
+                'success': True,
+                'answer': answer,
+                'sources': sources,
+                'has_context': bool(context_text)
+            })
+        
+        except KiGateServiceError as e:
+            logger.error(f'KiGate service error: {e.message}')
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to generate answer',
+                'details': e.message
+            }, status=500)
+    
+    except Item.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Item not found'
+        }, status=404)
+    
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Chat Q&A error: {str(e)}')
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': 'An error occurred processing your question'
+        }, status=500)
+
+
