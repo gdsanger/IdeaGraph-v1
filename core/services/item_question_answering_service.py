@@ -154,7 +154,7 @@ class ItemQuestionAnsweringService:
             
             # Create filter for related_item OR the item itself
             # First, try to find objects where related_item equals our item_id
-            related_filter = Filter.by_property("related_item").equal(item_uuid_str)
+            related_filter = Filter.by_property("itemId").equal(item_uuid_str)
             
             # Also include objects where the uuid is the item itself
             item_filter = Filter.by_id().equal(item_uuid_str)
