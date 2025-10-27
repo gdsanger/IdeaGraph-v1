@@ -411,6 +411,7 @@
                         <!-- Files Tab -->
                         <div class="tab-pane fade show active" id="files-content" role="tabpanel" aria-labelledby="files-tab">
                             <div class="mb-3">
+                                <!-- File Upload Section -->
                                 <form id="taskFileUploadForm" 
                                       hx-post="/api/tasks/{{ task.id }}/files/upload" 
                                       hx-encoding="multipart/form-data"
@@ -429,7 +430,35 @@
                                 </form>
                             </div>
                             
-                            <!-- Upload progress -->
+                            <!-- Link Download Section -->
+                            <div class="mb-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h6 class="card-title">
+                                            <i class="bi bi-link-45deg"></i> Download von Link-Inhalten
+                                        </h6>
+                                        <p class="card-text text-muted small">
+                                            Geben Sie eine URL ein, um den Inhalt automatisch herunterzuladen, zu bereinigen und als Markdown-Datei zu speichern.
+                                        </p>
+                                        <div class="input-group">
+                                            <input type="url" 
+                                                   class="form-control" 
+                                                   id="linkUrlInput" 
+                                                   placeholder="https://example.com/article"
+                                                   aria-label="URL eingeben">
+                                            <button class="btn btn-success" 
+                                                    type="button" 
+                                                    id="processLinkBtn"
+                                                    onclick="processLinkContent()">
+                                                <i class="bi bi-download"></i> Link verarbeiten
+                                            </button>
+                                        </div>
+                                        <small class="text-muted">Der Inhalt wird durch KI verarbeitet und als MD-Datei gespeichert.</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Upload/Process progress -->
                             <div id="taskUploadProgress" style="display: none;" class="mb-3 htmx-indicator">
                                 <div class="progress">
                                     <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
@@ -1259,6 +1288,87 @@ document.getElementById('addCommentBtn').addEventListener('click', async functio
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-send"></i> Kommentar hinzufügen';
+    }
+});
+
+// Process Link Content functionality
+async function processLinkContent() {
+    const urlInput = document.getElementById('linkUrlInput');
+    const processBtn = document.getElementById('processLinkBtn');
+    const progressIndicator = document.getElementById('taskUploadProgress');
+    const progressText = progressIndicator.querySelector('small');
+    
+    const url = urlInput.value.trim();
+    
+    // Validate URL
+    if (!url) {
+        showAlert('Bitte geben Sie eine URL ein', 'warning');
+        return;
+    }
+    
+    // Basic URL validation
+    try {
+        new URL(url);
+    } catch (e) {
+        showAlert('Ungültige URL. Bitte geben Sie eine vollständige URL ein (z.B. https://example.com)', 'danger');
+        return;
+    }
+    
+    // Disable button and show progress
+    processBtn.disabled = true;
+    processBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Verarbeite...';
+    progressIndicator.style.display = 'block';
+    progressText.textContent = 'Lade und verarbeite Link-Inhalt... Dies kann einige Sekunden dauern.';
+    
+    try {
+        const response = await fetch('/api/tasks/{{ task.id }}/process-link', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({ url: url })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            // Clear input
+            urlInput.value = '';
+            
+            // Reload files list to show the new file
+            htmx.ajax('GET', '/api/tasks/{{ task.id }}/files', {
+                target: '#taskFilesListContainer',
+                swap: 'innerHTML'
+            });
+            
+            showAlert(data.message || 'Link-Inhalt erfolgreich verarbeitet und gespeichert!', 'success');
+        } else {
+            const errorMsg = data.error || 'Fehler beim Verarbeiten des Links';
+            const details = data.details ? `\n\nDetails: ${data.details}` : '';
+            showAlert(errorMsg + details, 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Netzwerkfehler: ' + error.message, 'danger');
+    } finally {
+        // Re-enable button and hide progress
+        processBtn.disabled = false;
+        processBtn.innerHTML = '<i class="bi bi-download"></i> Link verarbeiten';
+        progressIndicator.style.display = 'none';
+    }
+}
+
+// Allow Enter key to trigger link processing
+document.addEventListener('DOMContentLoaded', function() {
+    const urlInput = document.getElementById('linkUrlInput');
+    if (urlInput) {
+        urlInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                processLinkContent();
+            }
+        });
     }
 });
 </script>
