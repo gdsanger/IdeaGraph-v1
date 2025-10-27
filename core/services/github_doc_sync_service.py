@@ -149,22 +149,48 @@ class GitHubDocSyncService:
         
         # Handle full URLs like https://github.com/owner/repo
         if repo_url.startswith('http'):
-            # Extract owner/repo from URL - simplified regex to prevent ReDoS
-            # Pattern: github.com followed by optional colon or slash, then owner/repo
-            match = re.search(r'github\.com[:/]([^/\s]+)/([^/\s.]+?)(?:\.git)?$', repo_url)
-            if match:
-                return {
-                    'owner': match.group(1),
-                    'repo': match.group(2)
-                }
+            # Use string operations instead of regex to avoid ReDoS
+            # Remove protocol and common suffixes
+            url_part = repo_url
+            for prefix in ['https://', 'http://']:
+                if url_part.startswith(prefix):
+                    url_part = url_part[len(prefix):]
+                    break
+            
+            # Check if it's a github.com URL
+            if url_part.startswith('github.com/') or url_part.startswith('github.com:'):
+                # Extract the part after github.com/ or github.com:
+                path_part = url_part[11:]  # len('github.com/') = 11
+                
+                # Remove .git suffix if present
+                if path_part.endswith('.git'):
+                    path_part = path_part[:-4]
+                
+                # Split by slash
+                parts = path_part.split('/')
+                if len(parts) >= 2:
+                    owner = parts[0].strip()
+                    repo = parts[1].strip()
+                    
+                    # Validate owner and repo are not empty
+                    if owner and repo:
+                        return {
+                            'owner': owner,
+                            'repo': repo
+                        }
         else:
             # Handle short format like owner/repo
             parts = repo_url.split('/')
             if len(parts) == 2:
-                return {
-                    'owner': parts[0].strip(),
-                    'repo': parts[1].strip()
-                }
+                owner = parts[0].strip()
+                repo = parts[1].strip()
+                
+                # Validate owner and repo are not empty
+                if owner and repo:
+                    return {
+                        'owner': owner,
+                        'repo': repo
+                    }
         
         raise GitHubDocSyncServiceError(
             f"Invalid GitHub repository URL format: {repo_url}",
