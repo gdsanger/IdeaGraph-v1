@@ -7050,7 +7050,7 @@ def api_item_ask_question(request, item_id):
             question=question,
             search_results=results,
             item_title=item.title,
-            user_id=str(request.user.id)
+            user_id=str(request.user_obj.id)
         )
         
         if not answer_result.get('success'):
