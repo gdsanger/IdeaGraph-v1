@@ -4,6 +4,7 @@ API views for user management and authentication.
 import json
 import base64
 import logging
+import traceback
 from urllib.parse import urlparse
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -4349,15 +4350,17 @@ def api_task_process_link(request, task_id):
         }, status=400)
     
     except Exception as e:
-        logger.error(f'Error processing link: {str(e)}')
+        # Log the full exception with traceback for debugging
+        logger.error(f'Unexpected error processing link for task {task_id}: {str(e)}\n{traceback.format_exc()}')
         if request.headers.get('HX-Request'):
             return render(request, 'main/tasks/_files_list.html', {
                 'files': [],
-                'error': 'Failed to process link'
+                'error': 'Failed to process link. Please check the server logs for details.'
             })
         return JsonResponse({
             'success': False,
-            'error': 'Failed to process link'
+            'error': 'Failed to process link',
+            'details': 'An unexpected error occurred. Please check the server logs.'
         }, status=500)
 
 
@@ -4474,16 +4477,18 @@ def api_item_process_link(request, item_id):
         }, status=400)
     
     except Exception as e:
-        logger.error(f'Error processing link: {str(e)}')
+        # Log the full exception with traceback for debugging
+        logger.error(f'Unexpected error processing link for item {item_id}: {str(e)}\n{traceback.format_exc()}')
         if request.headers.get('HX-Request'):
             return render(request, 'main/items/_files_list.html', {
                 'files': [],
                 'item_id': item_id,
-                'error': 'Failed to process link'
+                'error': 'Failed to process link. Please check the server logs for details.'
             })
         return JsonResponse({
             'success': False,
-            'error': 'Failed to process link'
+            'error': 'Failed to process link',
+            'details': 'An unexpected error occurred. Please check the server logs.'
         }, status=500)
 
 

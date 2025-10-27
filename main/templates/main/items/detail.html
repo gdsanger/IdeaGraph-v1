@@ -1695,7 +1695,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({ url: url })
             });
             
-            const data = await response.json();
+            // Check if response is JSON or HTML
+            const contentType = response.headers.get('content-type');
+            let data;
+            
+            if (contentType && contentType.includes('application/json')) {
+                // Parse JSON response
+                data = await response.json();
+            } else {
+                // Response is likely HTML (error page)
+                console.error('Non-JSON response received from server');
+                throw new Error('Server returned an unexpected response. Please check the server logs for details.');
+            }
             
             if (response.ok && data.success) {
                 // Clear input
@@ -1710,12 +1721,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 showAlert(data.message || 'Link-Inhalt erfolgreich verarbeitet und gespeichert!', 'success');
             } else {
                 const errorMsg = data.error || 'Fehler beim Verarbeiten des Links';
-                const details = data.details ? `\n\nDetails: ${data.details}` : '';
+                const details = data.details ? `<br><br>Details: ${data.details}` : '';
                 showAlert(errorMsg + details, 'danger');
             }
         } catch (error) {
             console.error('Error:', error);
-            showAlert('Netzwerkfehler: ' + error.message, 'danger');
+            showAlert('Fehler beim Verarbeiten: ' + error.message, 'danger');
         } finally {
             // Re-enable button and hide progress
             processBtn.disabled = false;
