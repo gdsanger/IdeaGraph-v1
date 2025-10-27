@@ -117,7 +117,7 @@ new ChatWidget({
 ## 🧪 Testen
 
 ### Schnelltest
-1. Kopiere `/tmp/chat-widget-test.html` in einen Browser
+1. Öffne `docs/examples/chat-widget-test.html` in einem Browser
 2. Prüfe, ob das Widget geladen wird
 3. Tippe im Eingabefeld
 4. Character Counter sollte sich aktualisieren

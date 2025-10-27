@@ -271,7 +271,7 @@ Unterstützte Markdown-Features:
 
 ### Manuelle Tests
 
-1. **UI-Test**: Öffne `/tmp/chat-widget-test.html` im Browser
+1. **UI-Test**: Öffne `docs/examples/chat-widget-test.html` im Browser
 2. **Integration-Test**: Öffne ein Item in IdeaGraph und gehe zum Q&A-Tab
 3. **Funktions-Test**: Stelle eine Frage und prüfe die Antwort
 
