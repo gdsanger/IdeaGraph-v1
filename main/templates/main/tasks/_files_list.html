@@ -4,9 +4,6 @@
 <link rel="stylesheet" href="{% static 'main/css/weaviate-indicator.css' %}">
 <script src="{% static 'main/js/weaviate-indicator.js' %}"></script>
 
-<!-- Load Marked.js for Markdown rendering -->
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-
 {% if success_message %}
 <div class="alert alert-success alert-dismissible fade show" role="alert">
     <i class="bi bi-check-circle"></i> {{ success_message }}
