@@ -30,7 +30,16 @@
         <tbody>
             {% for file in files %}
             <tr>
-                <td><i class="bi bi-file-earmark"></i> {{ file.filename }}</td>
+                <td>
+                    <i class="bi bi-file-earmark"></i> 
+                    {% if file.filename|lower|slice:"-3:" == ".md" %}
+                        <a href="#" onclick="showMarkdownViewer('{{ file.id }}', '{{ file.filename|escapejs }}'); return false;">
+                            {{ file.filename }}
+                        </a>
+                    {% else %}
+                        {{ file.filename }}
+                    {% endif %}
+                </td>
                 <td>{{ file.file_size_mb }} MB</td>
                 <td>{{ file.uploaded_by }}</td>
                 <td>{{ file.created_at|date:"d.m.Y H:i" }}</td>
@@ -38,9 +47,15 @@
                     <div data-weaviate-indicator data-weaviate-type="item_file" data-weaviate-id="{{ file.id }}"></div>
                 </td>
                 <td>
-                    <a href="{{ file.sharepoint_url }}" target="_blank" class="btn btn-sm btn-outline-primary" title="Open in SharePoint">
-                        <i class="bi bi-download"></i>
-                    </a>
+                    {% if file.filename|lower|slice:"-3:" != ".md" %}
+                        <a href="{{ file.sharepoint_url }}" target="_blank" class="btn btn-sm btn-outline-primary" title="Open in SharePoint">
+                            <i class="bi bi-download"></i>
+                        </a>
+                    {% else %}
+                        <a href="{{ file.sharepoint_url }}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Download from SharePoint">
+                            <i class="bi bi-download"></i>
+                        </a>
+                    {% endif %}
                     <button class="btn btn-sm btn-outline-info" 
                             onclick="showFileSummary('{{ file.id }}', '{{ file.filename|escapejs }}')"
                             title="Show Summary">
@@ -244,6 +259,95 @@
                 `;
             });
     }
+    
+    /**
+     * Show markdown file viewer in modal
+     * Fetches markdown content and displays it inline
+     */
+    function showMarkdownViewer(fileId, filename) {
+        // Get or create modal
+        let modal = document.getElementById('markdownViewerModal');
+        if (!modal) {
+            // Create modal if it doesn't exist
+            const modalHtml = `
+                <div class="modal fade" id="markdownViewerModal" tabindex="-1" aria-labelledby="markdownViewerModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-xl">
+                        <div class="modal-content bg-dark">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="markdownViewerModalLabel">
+                                    <i class="bi bi-file-earmark-text"></i> Markdown Viewer
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div id="markdownViewerContent" class="markdown-viewer-content">
+                                    <div class="text-center py-4">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <p class="mt-3 text-muted">Loading markdown...</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <a id="markdownDownloadLink" href="#" target="_blank" class="btn btn-outline-primary me-auto">
+                                    <i class="bi bi-download"></i> Download
+                                </a>
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            modal = document.getElementById('markdownViewerModal');
+        }
+        
+        // Reset modal content
+        document.getElementById('markdownViewerContent').innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-3 text-muted">Loading markdown...</p>
+            </div>
+        `;
+        document.getElementById('markdownViewerModalLabel').innerHTML = `<i class="bi bi-file-earmark-text"></i> ${filename}`;
+        
+        // Show modal
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+        
+        // Fetch markdown content from API
+        fetch(`/api/files/${fileId}/markdown`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Render markdown content
+                    const markdownHtml = marked.parse(data.content);
+                    document.getElementById('markdownViewerContent').innerHTML = markdownHtml;
+                    
+                    // Set download link
+                    if (data.sharepoint_url) {
+                        document.getElementById('markdownDownloadLink').href = data.sharepoint_url;
+                    }
+                } else {
+                    document.getElementById('markdownViewerContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle"></i> ${data.error || 'Failed to load markdown'}
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching markdown content:', error);
+                document.getElementById('markdownViewerContent').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> Failed to load markdown content
+                    </div>
+                `;
+            });
+    }
 </script>
 
 <style>
@@ -286,5 +390,121 @@
     .markdown-content pre code {
         background-color: transparent;
         padding: 0;
+    }
+    
+    .markdown-viewer-content {
+        max-height: 70vh;
+        overflow-y: auto;
+        padding: 1.5rem;
+        background-color: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+    }
+    
+    .markdown-viewer-content h1,
+    .markdown-viewer-content h2,
+    .markdown-viewer-content h3,
+    .markdown-viewer-content h4,
+    .markdown-viewer-content h5,
+    .markdown-viewer-content h6 {
+        margin-top: 1.5rem;
+        margin-bottom: 1rem;
+        font-weight: 600;
+        color: #f5f5f5;
+    }
+    
+    .markdown-viewer-content h1 {
+        font-size: 2rem;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+        padding-bottom: 0.5rem;
+    }
+    
+    .markdown-viewer-content h2 {
+        font-size: 1.5rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding-bottom: 0.3rem;
+    }
+    
+    .markdown-viewer-content p {
+        margin-bottom: 1rem;
+        line-height: 1.6;
+    }
+    
+    .markdown-viewer-content ul,
+    .markdown-viewer-content ol {
+        margin-bottom: 1rem;
+        padding-left: 2rem;
+    }
+    
+    .markdown-viewer-content li {
+        margin-bottom: 0.5rem;
+    }
+    
+    .markdown-viewer-content code {
+        background-color: rgba(255, 255, 255, 0.1);
+        padding: 0.2rem 0.4rem;
+        border-radius: 3px;
+        font-size: 0.9em;
+        font-family: 'Courier New', monospace;
+    }
+    
+    .markdown-viewer-content pre {
+        background-color: rgba(0, 0, 0, 0.3);
+        padding: 1rem;
+        border-radius: 5px;
+        overflow-x: auto;
+        margin-bottom: 1rem;
+    }
+    
+    .markdown-viewer-content pre code {
+        background-color: transparent;
+        padding: 0;
+    }
+    
+    .markdown-viewer-content blockquote {
+        border-left: 4px solid rgba(245, 158, 11, 0.5);
+        padding-left: 1rem;
+        margin-left: 0;
+        margin-bottom: 1rem;
+        color: rgba(255, 255, 255, 0.8);
+    }
+    
+    .markdown-viewer-content a {
+        color: #60a5fa;
+        text-decoration: none;
+    }
+    
+    .markdown-viewer-content a:hover {
+        color: #93c5fd;
+        text-decoration: underline;
+    }
+    
+    .markdown-viewer-content table {
+        width: 100%;
+        margin-bottom: 1rem;
+        border-collapse: collapse;
+    }
+    
+    .markdown-viewer-content table th,
+    .markdown-viewer-content table td {
+        padding: 0.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .markdown-viewer-content table th {
+        background-color: rgba(255, 255, 255, 0.1);
+        font-weight: 600;
+    }
+    
+    .markdown-viewer-content img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 5px;
+        margin: 1rem 0;
+    }
+    
+    .markdown-viewer-content hr {
+        border: none;
+        border-top: 2px solid rgba(255, 255, 255, 0.2);
+        margin: 2rem 0;
     }
 </style>

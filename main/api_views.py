@@ -3749,6 +3749,47 @@ def api_item_file_download(request, file_id):
         }, status=500)
 
 
+@require_http_methods(["GET"])
+def api_item_file_markdown_content(request, file_id):
+    """
+    Get markdown content for inline viewing
+    
+    Returns:
+        JSON response with markdown content
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from core.services.item_file_service import ItemFileService, ItemFileServiceError
+        
+        # Get markdown content
+        service = ItemFileService()
+        result = service.get_markdown_content(file_id, user)
+        
+        return JsonResponse(result)
+    
+    except ItemFileServiceError as e:
+        logger.error(f'Markdown content error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error getting markdown content: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to get markdown content'
+        }, status=500)
+
+
 # ==================== Zammad Integration API ====================
 
 @csrf_exempt
@@ -4164,6 +4205,47 @@ def api_task_file_download(request, file_id):
         return JsonResponse({
             'success': False,
             'error': 'Failed to get download URL'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def api_task_file_markdown_content(request, file_id):
+    """
+    Get markdown content for inline viewing
+    
+    Returns:
+        JSON response with markdown content
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from core.services.task_file_service import TaskFileService, TaskFileServiceError
+        
+        # Get markdown content
+        service = TaskFileService()
+        result = service.get_markdown_content(file_id, user)
+        
+        return JsonResponse(result)
+    
+    except TaskFileServiceError as e:
+        logger.error(f'Markdown content error: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error getting markdown content: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to get markdown content'
         }, status=500)
 
 

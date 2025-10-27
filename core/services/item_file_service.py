@@ -468,6 +468,67 @@ class ItemFileService:
             logger.error(f"Error getting download URL: {str(e)}")
             raise ItemFileServiceError(f"Failed to get download URL: {str(e)}")
     
+    def get_markdown_content(self, file_id: str, user) -> Dict[str, Any]:
+        """
+        Get markdown file content for inline viewing
+        
+        Args:
+            file_id: ItemFile ID
+            user: User requesting the content
+            
+        Returns:
+            Dict with success status and markdown content
+        """
+        from main.models import ItemFile
+        
+        try:
+            item_file = ItemFile.objects.get(id=file_id)
+            
+            # Check permission
+            if user.role != 'admin' and item_file.item.created_by != user:
+                raise ItemFileServiceError("You do not have permission to access this file")
+            
+            # Check if file is markdown
+            if not item_file.filename.lower().endswith('.md'):
+                raise ItemFileServiceError("File is not a markdown file")
+            
+            # Get SharePoint file ID from the file
+            if not item_file.sharepoint_file_id:
+                raise ItemFileServiceError("SharePoint file ID not found")
+            
+            # Download file content from SharePoint
+            graph_service = self._get_graph_service()
+            result = graph_service.get_sharepoint_file(item_file.sharepoint_file_id)
+            
+            if not result.get('success'):
+                raise ItemFileServiceError("Failed to download file from SharePoint")
+            
+            # Decode content as UTF-8 text
+            content = result.get('content', b'')
+            try:
+                markdown_text = content.decode('utf-8')
+            except UnicodeDecodeError:
+                # Try with other encodings if UTF-8 fails
+                try:
+                    markdown_text = content.decode('latin-1')
+                except Exception:
+                    raise ItemFileServiceError("Failed to decode file content")
+            
+            return {
+                'success': True,
+                'filename': item_file.filename,
+                'content': markdown_text,
+                'sharepoint_url': item_file.sharepoint_url
+            }
+            
+        except ItemFile.DoesNotExist:
+            raise ItemFileServiceError("File not found")
+        except ItemFileServiceError:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting markdown content: {str(e)}")
+            raise ItemFileServiceError(f"Failed to get markdown content: {str(e)}")
+    
     def list_files(self, item_id: str, page: int = 1, per_page: int = 20) -> Dict[str, Any]:
         """
         List all files for an item with pagination
