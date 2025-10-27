@@ -7018,6 +7018,7 @@ def api_item_ask_question(request, item_id):
             }, status=400)
         
         question = data.get('question', '').strip()
+        conversation_history = data.get('conversation_history', [])
         
         if not question:
             return JsonResponse({
@@ -7034,7 +7035,7 @@ def api_item_ask_question(request, item_id):
         search_results = service.search_related_knowledge(
             item_id=str(item_id),
             question=question,
-            limit=3
+            limit=10
         )
         
         if not search_results.get('success'):
@@ -7050,7 +7051,8 @@ def api_item_ask_question(request, item_id):
             question=question,
             search_results=results,
             item_title=item.title,
-            user_id=str(request.user_obj.id)
+            user_id=str(request.user_obj.id),
+            conversation_history=conversation_history
         )
         
         if not answer_result.get('success'):
@@ -7107,11 +7109,11 @@ def api_item_ask_question(request, item_id):
         }, status=500)
 
 
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "DELETE"])
 @require_auth
 def api_item_questions_history(request, item_id):
     """
-    API endpoint to get Q&A history for an item
+    API endpoint to get or delete Q&A history for an item
     
     GET /api/items/<item_id>/questions/history
     Query params: page (optional, default=1)
@@ -7135,6 +7137,14 @@ def api_item_questions_history(request, item_id):
         "per_page": int,
         "has_next": bool
     }
+    
+    DELETE /api/items/<item_id>/questions/history
+    
+    Returns: {
+        "success": true,
+        "deleted_count": int,
+        "message": "Chat history deleted successfully"
+    }
     """
     try:
         from main.models import Item, ItemQuestionAnswer
@@ -7148,6 +7158,20 @@ def api_item_questions_history(request, item_id):
                 'error': 'Item not found'
             }, status=404)
         
+        # Handle DELETE request
+        if request.method == 'DELETE':
+            # Delete all Q&A history for this item
+            deleted_count, _ = ItemQuestionAnswer.objects.filter(item=item).delete()
+            
+            logger.info(f"Deleted {deleted_count} Q&A records for item {item_id}")
+            
+            return JsonResponse({
+                'success': True,
+                'deleted_count': deleted_count,
+                'message': 'Chat history deleted successfully'
+            })
+        
+        # Handle GET request
         # Get pagination parameters
         page = int(request.GET.get('page', 1))
         per_page = int(request.GET.get('per_page', 10))

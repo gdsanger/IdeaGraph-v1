@@ -44,7 +44,7 @@ class ItemQuestionAnsweringService:
     """
     
     COLLECTION_NAME = 'KnowledgeObject'
-    DEFAULT_SEARCH_LIMIT = 3
+    DEFAULT_SEARCH_LIMIT = 10
     MIN_RELEVANCE_CERTAINTY = 0.7
     
     def __init__(self, settings=None):
@@ -232,7 +232,8 @@ class ItemQuestionAnsweringService:
         question: str,
         search_results: List[Dict[str, Any]],
         item_title: str,
-        user_id: str
+        user_id: str,
+        conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """
         Generate an answer using KIGate's question-answering-agent
@@ -242,6 +243,7 @@ class ItemQuestionAnsweringService:
             search_results: List of relevant KnowledgeObjects from search
             item_title: Title of the item for context
             user_id: User ID for KIGate request
+            conversation_history: Optional list of previous messages (max last 5)
         
         Returns:
             Dictionary containing:
@@ -277,11 +279,28 @@ Inhalt: {result['description'][:500]}...
             
             context_text = "\n\n".join(context_parts)
             
+            # Prepare conversation history context if provided
+            history_text = ""
+            if conversation_history and len(conversation_history) > 0:
+                # Take only the last 5 messages
+                recent_history = conversation_history[-5:]
+                history_parts = []
+                for msg in recent_history:
+                    role = msg.get('type', 'user')
+                    content = msg.get('content', '')
+                    if role == 'user':
+                        history_parts.append(f"**Nutzer:** {content}")
+                    elif role == 'bot':
+                        history_parts.append(f"**Assistant:** {content}")
+                
+                if history_parts:
+                    history_text = "\n\n**Bisheriger Gesprächsverlauf:**\n\n" + "\n\n".join(history_parts) + "\n\n"
+            
             # Build the prompt for KIGate agent
             prompt = f"""Du bist der IdeaGraph Assistant. Beantworte die folgende Frage basierend auf den bereitgestellten Informationen aus dem Projektkontext.
 
 **Item:** {item_title}
-
+{history_text}
 **Frage:** {question}
 
 **Verfügbare Informationen aus dem Projektkontext:**
@@ -291,6 +310,7 @@ Inhalt: {result['description'][:500]}...
 **Anweisungen:**
 - Formuliere eine klare, präzise Antwort in Markdown-Format
 - Nutze die bereitgestellten Informationen als Basis
+- Berücksichtige den bisherigen Gesprächsverlauf für Kontext und Zusammenhang
 - Erstelle eine Liste der genutzten Quellen mit Titel und Link am Ende
 - Erfinde keine neuen Fakten - bleibe bei den bereitgestellten Informationen
 - Wenn die Informationen nicht ausreichen, sage das deutlich

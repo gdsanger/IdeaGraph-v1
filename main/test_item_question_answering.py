@@ -395,6 +395,118 @@ class ItemQuestionAnsweringTest(TestCase):
         # Verify sources is properly serialized as JSON
         self.assertEqual(len(qa.sources), 1)
         self.assertIsInstance(qa.sources[0].get('created_at'), str)
+    
+    @patch('core.services.item_question_answering_service.ItemQuestionAnsweringService.search_related_knowledge')
+    @patch('core.services.item_question_answering_service.ItemQuestionAnsweringService.generate_answer_with_kigate')
+    @patch('core.services.item_question_answering_service.ItemQuestionAnsweringService._initialize_client')
+    def test_ask_question_with_conversation_history(self, mock_init_client, mock_generate_answer, mock_search_knowledge):
+        """Test asking a question with conversation history"""
+        self.login_user()
+        
+        # Mock the search results
+        mock_search_knowledge.return_value = {
+            'success': True,
+            'results': [
+                {
+                    'uuid': 'test-uuid-1',
+                    'type': 'Task',
+                    'title': 'Test Task',
+                    'description': 'Task description',
+                    'url': '/tasks/test-uuid-1/',
+                    'relevance': 0.85,
+                    'source': 'IdeaGraph',
+                    'created_at': '2024-01-01T00:00:00'
+                }
+            ],
+            'total': 1
+        }
+        
+        # Mock the answer generation
+        mock_generate_answer.return_value = {
+            'success': True,
+            'answer': '## Antwort\n\nDas ist eine Testantwort mit Kontext.\n\n## Quellen\n1. Test Task',
+            'sources_used': [
+                {
+                    'uuid': 'test-uuid-1',
+                    'type': 'Task',
+                    'title': 'Test Task',
+                    'url': '/tasks/test-uuid-1/',
+                    'relevance': 0.85
+                }
+            ]
+        }
+        
+        # Prepare conversation history
+        conversation_history = [
+            {'type': 'user', 'content': 'What is this project about?'},
+            {'type': 'bot', 'content': 'This project is about testing.'},
+            {'type': 'user', 'content': 'Tell me more.'}
+        ]
+        
+        # Make the API request with conversation history
+        response = self.client.post(
+            f'/api/items/{self.item.id}/ask',
+            data=json.dumps({
+                'question': 'Can you elaborate?',
+                'conversation_history': conversation_history
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        
+        self.assertTrue(data['success'])
+        self.assertIn('qa_id', data)
+        self.assertEqual(data['question'], 'Can you elaborate?')
+        
+        # Verify that generate_answer_with_kigate was called with conversation_history
+        mock_generate_answer.assert_called_once()
+        call_kwargs = mock_generate_answer.call_args[1]
+        self.assertEqual(call_kwargs['conversation_history'], conversation_history)
+    
+    def test_delete_questions_history_api(self):
+        """Test deleting Q&A history via DELETE request"""
+        self.login_user()
+        
+        # Create some Q&A history
+        for i in range(5):
+            ItemQuestionAnswer.objects.create(
+                item=self.item,
+                question=f'Question {i}?',
+                answer=f'Answer {i}',
+                asked_by=self.user
+            )
+        
+        # Verify we have 5 Q&As
+        self.assertEqual(ItemQuestionAnswer.objects.filter(item=self.item).count(), 5)
+        
+        # Delete history
+        response = self.client.delete(f'/api/items/{self.item.id}/questions/history')
+        
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        
+        self.assertTrue(data['success'])
+        self.assertEqual(data['deleted_count'], 5)
+        self.assertIn('deleted successfully', data['message'])
+        
+        # Verify all Q&As are deleted
+        self.assertEqual(ItemQuestionAnswer.objects.filter(item=self.item).count(), 0)
+    
+    def test_delete_questions_history_api_requires_auth(self):
+        """Test that deleting history requires authentication"""
+        response = self.client.delete(f'/api/items/{self.item.id}/questions/history')
+        
+        self.assertEqual(response.status_code, 401)
+    
+    def test_delete_questions_history_api_invalid_item(self):
+        """Test deleting history for non-existent item"""
+        self.login_user()
+        
+        response = self.client.delete(f'/api/items/{NON_EXISTENT_UUID}/questions/history')
+        
+        self.assertEqual(response.status_code, 404)
 
 
 class ItemQuestionAnsweringServiceTest(TestCase):
