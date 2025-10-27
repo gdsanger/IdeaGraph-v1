@@ -5,7 +5,7 @@ This module tests the link content extraction and processing functionality.
 """
 
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from django.test import TestCase
 from core.services.link_content_service import (
     LinkContentService,
@@ -246,7 +246,11 @@ class LinkContentServiceTest(TestCase):
             
             # Verify the content was truncated
             call_args = mock_kigate.execute_agent.call_args
-            message = call_args[1]['message']
+            self.assertIsNotNone(call_args, "execute_agent should have been called")
+            
+            # Access message from kwargs
+            message = call_args.kwargs.get('message')
+            self.assertIsNotNone(message, "message parameter should be present")
             self.assertIn('[Content truncated due to size limit]', message)
 
 
