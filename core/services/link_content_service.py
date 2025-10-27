@@ -232,22 +232,51 @@ class LinkContentService:
         Returns:
             str: Page title or None
         """
+        # Limit search scope to first 10KB to prevent ReDoS
+        search_html = html[:10000].lower()
+        
+        # Simple find-based extraction to avoid regex ReDoS issues
         # Try to extract title tag
-        title_match = re.search(r'<title[^>]*>(.*?)</title>', html, re.IGNORECASE | re.DOTALL)
-        if title_match:
-            title = title_match.group(1).strip()
-            # Clean up whitespace
-            title = re.sub(r'\s+', ' ', title)
-            return title
+        title_start = search_html.find('<title')
+        if title_start != -1:
+            # Find the end of the opening tag
+            content_start = search_html.find('>', title_start)
+            if content_start != -1:
+                content_start += 1
+                # Find the closing tag
+                title_end = search_html.find('</title>', content_start)
+                if title_end != -1:
+                    # Extract title from original HTML (preserving case)
+                    title = html[content_start:title_end].strip()
+                    # Clean up whitespace
+                    title = re.sub(r'\s+', ' ', title)
+                    if title:
+                        return title
         
         # Try to extract h1 tag as fallback
-        h1_match = re.search(r'<h1[^>]*>(.*?)</h1>', html, re.IGNORECASE | re.DOTALL)
-        if h1_match:
-            # Remove HTML tags from h1 content
-            h1_text = re.sub(r'<[^>]+>', '', h1_match.group(1))
-            h1_text = h1_text.strip()
-            if h1_text:
-                return h1_text
+        h1_start = search_html.find('<h1')
+        if h1_start != -1:
+            # Find the end of the opening tag
+            content_start = search_html.find('>', h1_start)
+            if content_start != -1:
+                content_start += 1
+                # Find the closing tag
+                h1_end = search_html.find('</h1>', content_start)
+                if h1_end != -1:
+                    # Extract from original HTML
+                    h1_content = html[content_start:h1_end].strip()
+                    # Remove any remaining tags (simple approach)
+                    h1_text = h1_content
+                    while '<' in h1_text:
+                        tag_start = h1_text.find('<')
+                        tag_end = h1_text.find('>', tag_start)
+                        if tag_end != -1:
+                            h1_text = h1_text[:tag_start] + h1_text[tag_end+1:]
+                        else:
+                            break
+                    h1_text = h1_text.strip()
+                    if h1_text:
+                        return h1_text
         
         return None
     
@@ -267,13 +296,37 @@ class LinkContentService:
         try:
             logger.info(f"Cleaning HTML content ({len(html)} bytes)")
             
-            # Remove comments
-            html = re.sub(r'<!--.*?-->', '', html, flags=re.DOTALL)
+            # Limit total HTML size to prevent excessive processing
+            max_html_size = 1000000  # 1MB
+            if len(html) > max_html_size:
+                logger.warning(f"HTML content too large ({len(html)} bytes), truncating to {max_html_size}")
+                html = html[:max_html_size]
             
-            # Try to extract body content
-            body_match = re.search(r'<body[^>]*>(.*?)</body>', html, re.IGNORECASE | re.DOTALL)
-            if body_match:
-                html = body_match.group(1)
+            # Remove comments using simple string replacement to avoid ReDoS
+            # Find and remove all HTML comments
+            while '<!--' in html:
+                comment_start = html.find('<!--')
+                if comment_start == -1:
+                    break
+                comment_end = html.find('-->', comment_start)
+                if comment_end == -1:
+                    # Malformed comment, just remove from start
+                    html = html[:comment_start]
+                    break
+                html = html[:comment_start] + html[comment_end + 3:]
+            
+            # Try to extract body content using simple find
+            html_lower = html.lower()
+            body_start = html_lower.find('<body')
+            if body_start != -1:
+                # Find the end of the opening body tag
+                content_start = html_lower.find('>', body_start)
+                if content_start != -1:
+                    content_start += 1
+                    # Find the closing body tag
+                    body_end = html_lower.find('</body>', content_start)
+                    if body_end != -1:
+                        html = html[content_start:body_end]
             
             # Use HTML parser to extract clean text
             cleaner = HTMLCleaner()
