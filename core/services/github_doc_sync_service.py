@@ -701,13 +701,13 @@ class GitHubDocSyncService:
                     
                 except GitHubDocSyncServiceError as e:
                     # Include details for GitHubDocSyncServiceError
-                    error_msg = f"Error processing {md_file['name']}: {e.message}"
+                    error_msg = f"Error processing {md_file['path']}: {e.message}"
                     if e.details:
                         error_msg += f" - Details: {e.details}"
                     logger.error(error_msg)
                     errors.append(error_msg)
                 except Exception as e:
-                    error_msg = f"Error processing {md_file['name']}: {str(e)}"
+                    error_msg = f"Error processing {md_file['path']}: {str(e)}"
                     logger.error(error_msg)
                     errors.append(error_msg)
             
