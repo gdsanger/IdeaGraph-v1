@@ -22,6 +22,20 @@ class WeaviateSyncItemIdTestCase(TestCase):
             weaviate_cloud_enabled=False
         )
     
+    def _get_insert_properties(self, mock_data):
+        """
+        Helper method to extract properties from insert call
+        
+        Args:
+            mock_data: Mocked collection.data object
+            
+        Returns:
+            dict: Properties passed to insert()
+        """
+        call_args = mock_data.insert.call_args
+        call_kwargs = call_args.kwargs if hasattr(call_args, 'kwargs') else call_args[1]
+        return call_kwargs['properties']
+    
     @patch('core.services.weaviate_sync_service.weaviate.connect_to_local')
     def test_sync_knowledge_object_with_item_id_uses_itemId_field(self, mock_connect):
         """Test that sync_knowledge_object stores item_id as itemId property"""
@@ -61,12 +75,7 @@ class WeaviateSyncItemIdTestCase(TestCase):
         mock_data.insert.assert_called_once()
         
         # Get the properties passed to insert
-        call_args = mock_data.insert.call_args
-        call_kwargs = call_args.kwargs if hasattr(call_args, 'kwargs') else call_args[1]
-        
-        # Verify that itemId is used (not item_id)
-        self.assertIn('properties', call_kwargs)
-        properties = call_kwargs['properties']
+        properties = self._get_insert_properties(mock_data)
         
         # The key assertion: itemId should be present, not item_id
         self.assertIn('itemId', properties, 
@@ -113,11 +122,9 @@ class WeaviateSyncItemIdTestCase(TestCase):
         mock_data.insert.assert_called_once()
         
         # Get the properties passed to insert
-        call_args = mock_data.insert.call_args
-        call_kwargs = call_args.kwargs if hasattr(call_args, 'kwargs') else call_args[1]
+        properties = self._get_insert_properties(mock_data)
         
         # Verify that neither itemId nor item_id is present
-        properties = call_kwargs['properties']
         self.assertNotIn('itemId', properties,
                         "itemId should not be present when item_id not in metadata")
         self.assertNotIn('item_id', properties,
@@ -166,9 +173,7 @@ class WeaviateSyncItemIdTestCase(TestCase):
         mock_data.insert.assert_called_once()
         
         # Get the properties passed to insert
-        call_args = mock_data.insert.call_args
-        call_kwargs = call_args.kwargs if hasattr(call_args, 'kwargs') else call_args[1]
-        properties = call_kwargs['properties']
+        properties = self._get_insert_properties(mock_data)
         
         # Verify all expected fields are present
         self.assertEqual(properties['task_id'], 'task-123')
