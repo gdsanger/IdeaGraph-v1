@@ -4167,6 +4167,118 @@ def api_task_file_download(request, file_id):
         }, status=500)
 
 
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_task_process_link(request, task_id):
+    """
+    Process a link URL: download, clean, AI process, and save as task file
+    
+    POST /api/tasks/{task_id}/process-link
+    
+    Body (JSON):
+        {
+            "url": "https://example.com/article"
+        }
+    
+    Returns:
+        JSON response with success status or HTML partial for htmx
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from core.services.link_content_service import LinkContentService, LinkContentServiceError
+        from core.services.task_file_service import TaskFileService
+        from main.models import Task
+        from django.shortcuts import render
+        
+        # Get task
+        try:
+            task = Task.objects.get(id=task_id)
+        except Task.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Task not found'
+            }, status=404)
+        
+        # Parse request body
+        try:
+            data = json.loads(request.body)
+            url = data.get('url', '').strip()
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid JSON in request body'
+            }, status=400)
+        
+        # Validate URL
+        if not url:
+            return JsonResponse({
+                'success': False,
+                'error': 'URL is required'
+            }, status=400)
+        
+        # Process link
+        logger.info(f'Processing link for task {task_id}: {url}')
+        service = LinkContentService()
+        result = service.process_link(
+            task=task,
+            url=url,
+            user=user
+        )
+        
+        logger.info(f'Link processed successfully: {url}')
+        
+        # For htmx requests, return updated file list
+        if request.headers.get('HX-Request'):
+            # Fetch updated file list
+            file_service = TaskFileService()
+            list_result = file_service.list_files(task_id)
+            # Return HTML partial with updated file list
+            return render(request, 'main/tasks/_files_list.html', {
+                'files': list_result.get('files', []),
+                'success_message': result.get('message')
+            })
+        
+        # For regular API requests, return JSON
+        return JsonResponse({
+            'success': True,
+            'message': result.get('message'),
+            'title': result.get('title'),
+            'file_id': str(result.get('file').id) if result.get('file') else None
+        })
+    
+    except LinkContentServiceError as e:
+        logger.error(f'Link processing error: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/tasks/_files_list.html', {
+                'files': [],
+                'error': f"{e.message}: {e.details}" if e.details else e.message
+            })
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=400)
+    
+    except Exception as e:
+        logger.error(f'Error processing link: {str(e)}')
+        if request.headers.get('HX-Request'):
+            return render(request, 'main/tasks/_files_list.html', {
+                'files': [],
+                'error': 'Failed to process link'
+            })
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to process link'
+        }, status=500)
+
+
 # ===== Quick Task Management API Endpoints =====
 
 @csrf_exempt
