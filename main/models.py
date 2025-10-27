@@ -1119,3 +1119,42 @@ class ErrorAnalysis(models.Model):
         self.save()
         
         return None  # Task creation will be handled by the service
+
+
+class ItemQuestionAnswer(models.Model):
+    """
+    Model for storing question-answer pairs for items
+    
+    Enables context-based Q&A functionality where users can ask questions
+    about an item and receive AI-generated answers based on related knowledge.
+    """
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='question_answers')
+    question = models.TextField(help_text='User question about the item')
+    answer = models.TextField(blank=True, default='', help_text='AI-generated answer in markdown format')
+    
+    # Sources used for generating the answer
+    sources = models.JSONField(default=list, blank=True, help_text='List of source objects used for answer')
+    
+    # Metadata
+    asked_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='asked_questions')
+    relevance_score = models.FloatField(default=0.0, help_text='Average relevance score of sources')
+    
+    # Optional: Save as KnowledgeObject
+    saved_as_knowledge_object = models.BooleanField(default=False, help_text='Whether this Q&A was saved to Weaviate')
+    weaviate_uuid = models.CharField(max_length=100, blank=True, default='', help_text='UUID in Weaviate if saved')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Item Question Answer'
+        verbose_name_plural = 'Item Question Answers'
+        indexes = [
+            models.Index(fields=['item', '-created_at']),
+        ]
+    
+    def __str__(self):
+        return f"Q: {self.question[:50]}... (Item: {self.item.title})"
