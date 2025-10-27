@@ -202,8 +202,13 @@ class ItemQuestionAnswerAdmin(admin.ModelAdmin):
         }),
     )
     
+    # Display configuration constants
+    MAX_QUESTION_DISPLAY_LENGTH = 100
+    
     def get_short_question(self, obj):
         """Return shortened question for list display"""
-        return obj.question[:100] + '...' if len(obj.question) > 100 else obj.question
+        if len(obj.question) > self.MAX_QUESTION_DISPLAY_LENGTH:
+            return obj.question[:self.MAX_QUESTION_DISPLAY_LENGTH] + '...'
+        return obj.question
     get_short_question.short_description = 'Question'
 

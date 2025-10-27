@@ -7,6 +7,10 @@ from django.test import TestCase, Client
 from main.models import User, Item, Section, ItemQuestionAnswer, Settings
 
 
+# Test constants
+NON_EXISTENT_UUID = '00000000-0000-0000-0000-000000000000'
+
+
 class ItemQuestionAnsweringTest(TestCase):
     """Test Item Question Answering functionality"""
     
@@ -163,7 +167,7 @@ class ItemQuestionAnsweringTest(TestCase):
         self.login_user()
         
         response = self.client.post(
-            '/api/items/00000000-0000-0000-0000-000000000000/ask',
+            f'/api/items/{NON_EXISTENT_UUID}/ask',
             data=json.dumps({'question': 'Test question?'}),
             content_type='application/json'
         )
@@ -325,7 +329,7 @@ class ItemQuestionAnsweringTest(TestCase):
         self.login_user()
         
         response = self.client.post(
-            '/api/items/questions/00000000-0000-0000-0000-000000000000/save',
+            f'/api/items/questions/{NON_EXISTENT_UUID}/save',
             content_type='application/json'
         )
         
