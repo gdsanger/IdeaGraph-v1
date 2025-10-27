@@ -6708,8 +6708,8 @@ Content:
             # Execute the weaviate-data-summary-agent
             agent_result = kigate_service.execute_agent(
                 agent_name='weaviate-data-summary-agent',
-                provider=settings.kigate_default_provider or 'openai',
-                model=settings.kigate_default_model or 'gpt-4',
+                provider='openai',
+                model='gpt-4',
                 message=message,
                 user_id=str(user.id)
             )
