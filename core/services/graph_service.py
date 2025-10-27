@@ -497,6 +497,51 @@ class GraphService:
             logger.error(f"SharePoint site ID: {self.sharepoint_site_id}")
             raise GraphServiceError("Error uploading file", details=str(e))
     
+    def upload_file_to_sharepoint(
+        self,
+        file_content: bytes,
+        filename: str,
+        folder_path: str
+    ) -> Dict[str, Any]:
+        """
+        Upload a file to SharePoint (alias for upload_sharepoint_file with alternative parameter names)
+        
+        This is an alias method that provides backward compatibility for code using
+        different parameter names (file_content instead of content, filename instead of file_name).
+        
+        Args:
+            file_content: File content as bytes
+            filename: Name of the file
+            folder_path: Destination folder path
+            
+        Returns:
+            Dict with success status and file metadata including:
+            - success: bool
+            - file_id: str
+            - web_url: str (if available in metadata)
+        """
+        # Call the main upload method with correct parameter mapping
+        result = self.upload_sharepoint_file(
+            folder_path=folder_path,
+            file_name=filename,
+            content=file_content
+        )
+        
+        # Add web_url to result if available in metadata
+        if 'metadata' in result:
+            metadata = result['metadata']
+            if 'webUrl' in metadata:
+                result['web_url'] = metadata['webUrl']
+            elif '@microsoft.graph.downloadUrl' in metadata:
+                # Use download URL as fallback
+                result['web_url'] = metadata['@microsoft.graph.downloadUrl']
+            else:
+                result['web_url'] = ''
+        else:
+            result['web_url'] = ''
+        
+        return result
+    
     def delete_sharepoint_file(self, file_id: str) -> Dict[str, Any]:
         """
         Delete a file from SharePoint
