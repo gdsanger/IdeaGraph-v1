@@ -48,6 +48,10 @@ urlpatterns = [
     path('admin/settings/<uuid:pk>/update/', views.settings_update, name='settings_update'),
     path('admin/settings/<uuid:pk>/delete/', views.settings_delete, name='settings_delete'),
     
+    # Weaviate Admin URLs
+    path('admin/weaviate/status/', views.weaviate_status_view, name='weaviate_status'),
+    path('admin/weaviate/maintenance/', views.weaviate_maintenance_view, name='weaviate_maintenance'),
+    
     # User Management URLs
     path('admin/users/', views.user_list, name='user_list'),
     path('admin/users/create/', views.user_create, name='user_create'),

@@ -2102,3 +2102,47 @@ def milestone_detail(request, milestone_id):
     
     return render(request, 'main/milestones/detail.html', context)
 
+
+def weaviate_status_view(request):
+    """
+    Weaviate Status Dashboard View
+    
+    Display Weaviate system status, metadata, and collection statistics.
+    Admin only.
+    """
+    # Check if user is authenticated
+    if not request.user.is_authenticated:
+        messages.error(request, 'You must be logged in to access this page.')
+        return redirect('main:login')
+    
+    # Check if user is admin
+    if request.user.role != 'admin':
+        messages.error(request, 'Admin permission required to access Weaviate status.')
+        return redirect('main:home')
+    
+    return render(request, 'main/weaviate/status.html')
+
+
+def weaviate_maintenance_view(request):
+    """
+    Weaviate Maintenance Dashboard View
+    
+    Provide tools for Weaviate maintenance operations:
+    - Schema export/restore
+    - Index rebuild
+    - Object search
+    
+    Admin only.
+    """
+    # Check if user is authenticated
+    if not request.user.is_authenticated:
+        messages.error(request, 'You must be logged in to access this page.')
+        return redirect('main:login')
+    
+    # Check if user is admin
+    if request.user.role != 'admin':
+        messages.error(request, 'Admin permission required to access Weaviate maintenance.')
+        return redirect('main:home')
+    
+    return render(request, 'main/weaviate/maintenance.html')
+

@@ -79,6 +79,27 @@
                 </div>
             </div>
         </div>
+
+        <!-- Weaviate Maintenance (Admin Only) -->
+        {% if user.role == 'admin' %}
+        <div class="col-lg-4 col-md-6 fade-in-up" style="animation-delay: 0.5s;">
+            <div class="card h-100">
+                <div class="card-body text-center p-4">
+                    <i class="bi bi-database-fill-gear feature-icon"></i>
+                    <h3 class="h4 mb-3" style="color: var(--autumn-light);">Weaviate</h3>
+                    <p class="text-muted mb-4">
+                        Monitor and maintain the Weaviate vector database
+                    </p>
+                    <a href="{% url 'main:weaviate_status' %}" class="btn btn-primary mb-2">
+                        <i class="bi bi-activity"></i> Status Dashboard
+                    </a>
+                    <a href="{% url 'main:weaviate_maintenance' %}" class="btn btn-outline-primary">
+                        <i class="bi bi-tools"></i> Maintenance
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
