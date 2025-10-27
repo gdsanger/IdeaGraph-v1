@@ -150,34 +150,38 @@ class GitHubDocSyncService:
         # Handle full URLs like https://github.com/owner/repo
         if repo_url.startswith('http'):
             # Use string operations instead of regex to avoid ReDoS
-            # Remove protocol and common suffixes
-            url_part = repo_url
-            for prefix in ['https://', 'http://']:
-                if url_part.startswith(prefix):
-                    url_part = url_part[len(prefix):]
-                    break
+            # Parse URL to ensure it's actually a GitHub URL
+            url_lower = repo_url.lower()
             
-            # Check if it's a github.com URL
-            if url_part.startswith('github.com/') or url_part.startswith('github.com:'):
-                # Extract the part after github.com/ or github.com:
-                path_part = url_part[11:]  # len('github.com/') = 11
+            # Strict validation: must start with https://github.com/ or http://github.com/
+            if not (url_lower.startswith('https://github.com/') or url_lower.startswith('http://github.com/')):
+                raise GitHubDocSyncServiceError(
+                    f"URL must be a GitHub repository URL",
+                    details=f"URL: {repo_url}"
+                )
+            
+            # Extract path after github.com/
+            if url_lower.startswith('https://'):
+                path_part = repo_url[19:]  # len('https://github.com/') = 19
+            else:
+                path_part = repo_url[18:]  # len('http://github.com/') = 18
+            
+            # Remove .git suffix if present
+            if path_part.endswith('.git'):
+                path_part = path_part[:-4]
+            
+            # Split by slash to get owner/repo
+            parts = path_part.split('/')
+            if len(parts) >= 2:
+                owner = parts[0].strip()
+                repo = parts[1].strip()
                 
-                # Remove .git suffix if present
-                if path_part.endswith('.git'):
-                    path_part = path_part[:-4]
-                
-                # Split by slash
-                parts = path_part.split('/')
-                if len(parts) >= 2:
-                    owner = parts[0].strip()
-                    repo = parts[1].strip()
-                    
-                    # Validate owner and repo are not empty
-                    if owner and repo:
-                        return {
-                            'owner': owner,
-                            'repo': repo
-                        }
+                # Validate owner and repo are not empty and contain only valid characters
+                if owner and repo and self._is_valid_github_name(owner) and self._is_valid_github_name(repo):
+                    return {
+                        'owner': owner,
+                        'repo': repo
+                    }
         else:
             # Handle short format like owner/repo
             parts = repo_url.split('/')
@@ -185,8 +189,8 @@ class GitHubDocSyncService:
                 owner = parts[0].strip()
                 repo = parts[1].strip()
                 
-                # Validate owner and repo are not empty
-                if owner and repo:
+                # Validate owner and repo are not empty and contain only valid characters
+                if owner and repo and self._is_valid_github_name(owner) and self._is_valid_github_name(repo):
                     return {
                         'owner': owner,
                         'repo': repo
@@ -196,6 +200,33 @@ class GitHubDocSyncService:
             f"Invalid GitHub repository URL format: {repo_url}",
             details="Expected format: 'https://github.com/owner/repo' or 'owner/repo'"
         )
+    
+    def _is_valid_github_name(self, name: str) -> bool:
+        """
+        Validate GitHub owner/repo name
+        
+        GitHub names can contain alphanumeric characters, hyphens, and underscores.
+        They cannot start with a hyphen.
+        
+        Args:
+            name: Owner or repository name to validate
+            
+        Returns:
+            bool: True if valid, False otherwise
+        """
+        if not name or len(name) > 100:  # Reasonable length limit
+            return False
+        
+        # Check first character is alphanumeric
+        if not name[0].isalnum():
+            return False
+        
+        # Check all characters are alphanumeric, hyphen, underscore, or dot
+        for char in name:
+            if not (char.isalnum() or char in '-_.'):
+                return False
+        
+        return True
     
     def scan_repository(
         self,
