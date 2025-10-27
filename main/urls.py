@@ -156,6 +156,7 @@ urlpatterns = [
     # Item File Upload API Endpoints
     path('api/items/<uuid:item_id>/files/upload', api_views.api_item_file_upload, name='api_item_file_upload'),
     path('api/items/<uuid:item_id>/files', api_views.api_item_file_list, name='api_item_file_list'),
+    path('api/items/<uuid:item_id>/process-link', api_views.api_item_process_link, name='api_item_process_link'),
     path('api/files/<uuid:file_id>', api_views.api_item_file_download, name='api_item_file_download'),
     path('api/files/<uuid:file_id>/markdown', api_views.api_item_file_markdown_content, name='api_item_file_markdown_content'),
     path('api/files/<uuid:file_id>/delete', api_views.api_item_file_delete, name='api_item_file_delete'),

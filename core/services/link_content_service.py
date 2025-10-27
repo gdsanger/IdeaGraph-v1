@@ -531,6 +531,68 @@ Instructions:
             logger.error(f"{error_msg}: {str(e)}")
             raise LinkContentServiceError(error_msg, details=str(e))
     
+    def save_as_item_file(
+        self,
+        item,
+        markdown_content: str,
+        filename: str,
+        user
+    ) -> Dict[str, Any]:
+        """
+        Save markdown content as an item file
+        
+        Args:
+            item: Item object
+            markdown_content: Markdown formatted content
+            filename: Filename (without extension)
+            user: User object
+            
+        Returns:
+            Dict with:
+                - success: bool
+                - file: ItemFile object
+                - error: str (if failed)
+        """
+        try:
+            # Add .md extension
+            full_filename = f"{filename}.md"
+            
+            # Convert to bytes
+            content_bytes = markdown_content.encode('utf-8')
+            
+            logger.info(f"Saving markdown content as item file: {full_filename}")
+            
+            # Use item file service to upload
+            from core.services.item_file_service import ItemFileService, ItemFileServiceError
+            item_file_service = ItemFileService(self.settings)
+            result = item_file_service.upload_file(
+                item=item,
+                file_content=content_bytes,
+                filename=full_filename,
+                content_type='text/markdown',
+                user=user
+            )
+            
+            if not result.get('success'):
+                raise LinkContentServiceError(
+                    "Failed to save file",
+                    details=result.get('error', 'Unknown error')
+                )
+            
+            logger.info(f"Successfully saved item file: {full_filename}")
+            
+            return result
+        
+        except ItemFileServiceError as e:
+            error_msg = f"Failed to save item file: {e.message}"
+            logger.error(error_msg)
+            raise LinkContentServiceError(error_msg, details=e.details)
+        
+        except Exception as e:
+            error_msg = "Failed to save item file"
+            logger.error(f"{error_msg}: {str(e)}")
+            raise LinkContentServiceError(error_msg, details=str(e))
+    
     def process_link(
         self,
         task,
@@ -581,6 +643,78 @@ Instructions:
             # Step 5: Save as task file (this also syncs to Weaviate)
             file_result = self.save_as_task_file(
                 task=task,
+                markdown_content=markdown_content,
+                filename=filename,
+                user=user
+            )
+            
+            logger.info(f"Successfully processed link: {url}")
+            
+            return {
+                'success': True,
+                'file': file_result.get('file'),
+                'title': title,
+                'message': f"Successfully processed and saved content from: {title}"
+            }
+        
+        except LinkContentServiceError:
+            raise
+        
+        except Exception as e:
+            error_msg = "Failed to process link"
+            logger.error(f"{error_msg}: {str(e)}")
+            raise LinkContentServiceError(error_msg, details=str(e))
+    
+    def process_link_for_item(
+        self,
+        item,
+        url: str,
+        user
+    ) -> Dict[str, Any]:
+        """
+        Complete workflow: Download, clean, process, and save link content for an item
+        
+        Args:
+            item: Item object
+            url: URL to process
+            user: User object
+            
+        Returns:
+            Dict with:
+                - success: bool
+                - file: ItemFile object
+                - title: str (page title)
+                - message: str (success message)
+                - error: str (if failed)
+        """
+        try:
+            logger.info(f"Processing link: {url} for item {item.id}")
+            
+            # Step 1: Download content
+            download_result = self.download_url_content(url)
+            html_content = download_result['content']
+            title = download_result['title']
+            final_url = download_result['url']
+            
+            # Step 2: Clean HTML
+            clean_result = self.clean_html_content(html_content)
+            cleaned_text = clean_result['text']
+            
+            # Step 3: Process with AI
+            ai_result = self.process_with_ai(
+                content=cleaned_text,
+                title=title,
+                url=final_url,
+                user_id=str(user.id)
+            )
+            markdown_content = ai_result['markdown']
+            
+            # Step 4: Normalize filename
+            filename = self.normalize_filename(title)
+            
+            # Step 5: Save as item file (this also syncs to Weaviate)
+            file_result = self.save_as_item_file(
+                item=item,
                 markdown_content=markdown_content,
                 filename=filename,
                 user=user
