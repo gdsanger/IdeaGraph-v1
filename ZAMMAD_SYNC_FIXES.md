@@ -1,7 +1,25 @@
 # Zammad Sync Service - Fix Documentation
 
-## Date
-2025-10-27
+## Latest Update
+**Date**: 2025-10-27
+**Issue**: Edge case where existing tasks were not assigned to Item on update
+
+### Fix Applied
+**Problem**: The `sync_ticket_to_task()` method only assigned the `item` field when creating new tasks. When updating existing tasks (e.g., tasks created before the item assignment feature was added), the `item` field remained `None`.
+
+**Solution**: Modified the update path to also assign the `item` field, ensuring all Zammad tasks are assigned to "Supportanfragen Zammad" regardless of when they were created.
+
+**Code Change** (line 441):
+```python
+task.item = item  # Ensure item is assigned (important for old tasks)
+```
+
+**Testing**: Added comprehensive test `test_old_task_without_item_gets_item_on_update()` to verify backward compatibility.
+
+---
+
+## Original Implementation
+**Date**: 2025-10-27
 
 ## Issue Reference
 GitHub Issue: "Änderung und Fehler bei python manage.py sync_zammad_tickets"
