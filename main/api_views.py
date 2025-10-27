@@ -7016,7 +7016,7 @@ def api_item_chat_ask(request, item_id):
             
             # Search for context related to the item
             # We'll search broadly first, then filter by relevance
-            search_response = weaviate_service.semantic_search(
+            search_response = weaviate_service.search(
                 query=question,
                 limit=10,
                 filters={
@@ -7041,7 +7041,7 @@ def api_item_chat_ask(request, item_id):
             # If no results found for this item specifically, try a broader search
             if not search_results:
                 logger.info(f'No item-specific results, trying broader search')
-                search_response = weaviate_service.semantic_search(
+                search_response = weaviate_service.search(
                     query=f"{item.title} {question}",
                     limit=5
                 )
