@@ -1704,8 +1704,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 data = await response.json();
             } else {
                 // Response is likely HTML (error page)
-                const text = await response.text();
-                console.error('Non-JSON response received:', text.substring(0, 200));
+                console.error('Non-JSON response received from server');
                 throw new Error('Server returned an unexpected response. Please check the server logs for details.');
             }
             
