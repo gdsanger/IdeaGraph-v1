@@ -504,7 +504,7 @@ class GraphService:
         folder_path: str
     ) -> Dict[str, Any]:
         """
-        Upload a file to SharePoint (alias for upload_sharepoint_file with alternative parameter names)
+        Upload a file to SharePoint (alias method providing backward compatibility with alternative parameter names)
         
         This is an alias method that provides backward compatibility for code using
         different parameter names (file_content instead of content, filename instead of file_name).
