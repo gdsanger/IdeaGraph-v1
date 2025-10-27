@@ -455,7 +455,7 @@ class WeaviateItemSyncService:
             if 'task_title' in metadata:
                 properties['task_title'] = metadata['task_title']
             if 'item_id' in metadata:
-                properties['item_id'] = metadata['item_id']
+                properties['itemId'] = metadata['item_id']
             if 'item_title' in metadata:
                 properties['item_title'] = metadata['item_title']
             if 'filename' in metadata:
