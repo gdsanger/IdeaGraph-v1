@@ -203,6 +203,11 @@ class WeaviateSearchService:
                 # Truncate description for preview
                 description_preview = description[:200] + '...' if len(description) > 200 else description
                 
+                # Ensure created_at is always a string (convert datetime if necessary)
+                created_at = props.get('createdAt', '')
+                if isinstance(created_at, datetime):
+                    created_at = created_at.isoformat()
+                
                 result = {
                     'id': str(obj.uuid),
                     'type': obj_type,
@@ -214,7 +219,7 @@ class WeaviateSearchService:
                         'owner': props.get('owner', ''),
                         'section': props.get('section', ''),
                         'status': props.get('status', ''),
-                        'created_at': props.get('createdAt', ''),
+                        'created_at': created_at,
                         'tags': props.get('tags', []),
                     }
                 }
