@@ -327,6 +327,7 @@ class ItemFileService:
                     'status': item.status,
                     'tags': [tag.name for tag in item.tags.all()],
                     'createdAt': item_file.created_at.isoformat(),
+                    'itemId': str(item.id),
                 }
                 
                 # Generate UUID for this chunk (file ID + chunk index)

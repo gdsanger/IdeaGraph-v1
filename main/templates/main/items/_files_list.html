@@ -18,9 +18,7 @@
             <tr>
                 <th>Filename</th>
                 <th>Size</th>
-                <th>Uploaded By</th>
-                <th>Date</th>
-                <th>Weaviate Status</th>
+                <th><i class="bi bi-database" title="Weaviate Status"></i></th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -30,16 +28,17 @@
                 <td>
                     <i class="bi bi-file-earmark"></i> 
                     {% if file.filename|lower|slice:"-3:" == ".md" %}
-                        <a href="#" onclick="showMarkdownViewer('{{ file.id }}', '{{ file.filename|escapejs }}'); return false;">
+                        <a href="#" onclick="showMarkdownViewer('{{ file.id }}', '{{ file.filename|escapejs }}'); return false;"
+                           title="Uploaded by {{ file.uploaded_by }} on {{ file.created_at|date:'d.m.Y H:i' }}">
                             {{ file.filename }}
                         </a>
                     {% else %}
-                        {{ file.filename }}
+                        <span title="Uploaded by {{ file.uploaded_by }} on {{ file.created_at|date:'d.m.Y H:i' }}">
+                            {{ file.filename }}
+                        </span>
                     {% endif %}
                 </td>
                 <td>{{ file.file_size_mb }} MB</td>
-                <td>{{ file.uploaded_by }}</td>
-                <td>{{ file.created_at|date:"d.m.Y H:i" }}</td>
                 <td>
                     <div data-weaviate-indicator data-weaviate-type="item_file" data-weaviate-id="{{ file.id }}"></div>
                 </td>
