@@ -4377,12 +4377,20 @@ def api_item_process_link(request, item_id):
     Returns:
         JSON response with success status or HTML partial for htmx
     """
-    # Check authentication
-    user = get_user_from_request(request)
-    if not user:
+    # Wrap entire function in try-catch to ensure JSON is always returned
+    try:
+        # Check authentication
+        user = get_user_from_request(request)
+        if not user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Authentication required'
+            }, status=401)
+    except Exception as e:
+        logger.error(f'Authentication error in api_item_process_link: {str(e)}')
         return JsonResponse({
             'success': False,
-            'error': 'Authentication required'
+            'error': 'Authentication error'
         }, status=401)
     
     try:
@@ -4474,16 +4482,19 @@ def api_item_process_link(request, item_id):
         }, status=400)
     
     except Exception as e:
-        logger.error(f'Error processing link: {str(e)}')
+        # Log the full exception with traceback
+        import traceback
+        logger.error(f'Unexpected error processing link: {str(e)}\n{traceback.format_exc()}')
         if request.headers.get('HX-Request'):
             return render(request, 'main/items/_files_list.html', {
                 'files': [],
                 'item_id': item_id,
-                'error': 'Failed to process link'
+                'error': f'Failed to process link: {str(e)}'
             })
         return JsonResponse({
             'success': False,
-            'error': 'Failed to process link'
+            'error': 'Failed to process link',
+            'details': str(e)
         }, status=500)
 
 
