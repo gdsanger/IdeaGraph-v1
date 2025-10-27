@@ -194,6 +194,11 @@ class ItemQuestionAnsweringService:
                 description = props.get('description', '')
                 url = props.get('url', '')
                 
+                # Ensure created_at is always a string (convert datetime if necessary)
+                created_at = props.get('createdAt', '')
+                if isinstance(created_at, datetime):
+                    created_at = created_at.isoformat()
+                
                 result = {
                     'uuid': str(obj.uuid),
                     'type': obj_type,
@@ -202,7 +207,7 @@ class ItemQuestionAnsweringService:
                     'url': url,
                     'relevance': round(relevance, 2),
                     'source': props.get('source', ''),
-                    'created_at': props.get('createdAt', '')
+                    'created_at': created_at
                 }
                 
                 search_results.append(result)

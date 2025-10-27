@@ -334,6 +334,67 @@ class ItemQuestionAnsweringTest(TestCase):
         )
         
         self.assertEqual(response.status_code, 404)
+    
+    @patch('core.services.item_question_answering_service.ItemQuestionAnsweringService.search_related_knowledge')
+    @patch('core.services.item_question_answering_service.ItemQuestionAnsweringService.generate_answer_with_kigate')
+    @patch('core.services.item_question_answering_service.ItemQuestionAnsweringService._initialize_client')
+    def test_ask_question_with_datetime_in_sources(self, mock_init_client, mock_generate_answer, mock_search_knowledge):
+        """Test that datetime objects in sources are properly serialized"""
+        self.login_user()
+        
+        # Mock the search results with a datetime object (simulating Weaviate returning datetime)
+        mock_search_knowledge.return_value = {
+            'success': True,
+            'results': [
+                {
+                    'uuid': 'test-uuid-1',
+                    'type': 'Task',
+                    'title': 'Test Task',
+                    'description': 'Task description',
+                    'url': '/tasks/test-uuid-1/',
+                    'relevance': 0.85,
+                    'source': 'IdeaGraph',
+                    'created_at': '2024-01-01T00:00:00'  # This should be a string already after our fix
+                }
+            ],
+            'total': 1
+        }
+        
+        # Mock the answer generation - this should also have datetime properly handled
+        mock_generate_answer.return_value = {
+            'success': True,
+            'answer': '## Antwort\n\nDas ist eine Testantwort.\n\n## Quellen\n1. Test Task',
+            'sources_used': [
+                {
+                    'uuid': 'test-uuid-1',
+                    'type': 'Task',
+                    'title': 'Test Task',
+                    'url': '/tasks/test-uuid-1/',
+                    'relevance': 0.85,
+                    'created_at': '2024-01-01T00:00:00'  # String format
+                }
+            ]
+        }
+        
+        # Make the API request - this should not raise a JSON serialization error
+        response = self.client.post(
+            f'/api/items/{self.item.id}/ask',
+            data=json.dumps({'question': 'How does this work?'}),
+            content_type='application/json'
+        )
+        
+        # Should succeed without serialization errors
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        
+        # Verify Q&A was saved to database successfully
+        qa = ItemQuestionAnswer.objects.get(id=data['qa_id'])
+        self.assertEqual(qa.item, self.item)
+        self.assertIsInstance(qa.sources, list)
+        # Verify sources is properly serialized as JSON
+        self.assertEqual(len(qa.sources), 1)
+        self.assertIsInstance(qa.sources[0].get('created_at'), str)
 
 
 class ItemQuestionAnsweringServiceTest(TestCase):
