@@ -15,11 +15,6 @@ class WeaviateMaintenanceServiceTest(TestCase):
         """Set up test data"""
         # Create settings
         self.settings = Settings.objects.create(
-            smtp_server='smtp.test.com',
-            smtp_port=587,
-            smtp_username='test@test.com',
-            smtp_password='testpass',
-            smtp_from_email='test@test.com',
             weaviate_cloud_enabled=False
         )
     
@@ -245,11 +240,6 @@ class WeaviateMaintenanceAPITest(TestCase):
         
         # Create settings
         self.settings = Settings.objects.create(
-            smtp_server='smtp.test.com',
-            smtp_port=587,
-            smtp_username='test@test.com',
-            smtp_password='testpass',
-            smtp_from_email='test@test.com',
             weaviate_cloud_enabled=False
         )
         
@@ -269,7 +259,7 @@ class WeaviateMaintenanceAPITest(TestCase):
             'password': 'Test@123'
         })
     
-    @patch('main.api_views.WeaviateMaintenanceService')
+    @patch('core.services.weaviate_maintenance_service.WeaviateMaintenanceService')
     def test_api_weaviate_status_success(self, mock_service_class):
         """Test getting Weaviate status as admin"""
         self.login_admin()
@@ -316,7 +306,7 @@ class WeaviateMaintenanceAPITest(TestCase):
         self.assertFalse(data['success'])
         self.assertIn('Admin', data['error'])
     
-    @patch('main.api_views.WeaviateMaintenanceService')
+    @patch('core.services.weaviate_maintenance_service.WeaviateMaintenanceService')
     def test_api_weaviate_rebuild_success(self, mock_service_class):
         """Test rebuilding index as admin"""
         self.login_admin()
@@ -343,7 +333,7 @@ class WeaviateMaintenanceAPITest(TestCase):
         data = response.json()
         self.assertFalse(data['success'])
     
-    @patch('main.api_views.WeaviateMaintenanceService')
+    @patch('core.services.weaviate_maintenance_service.WeaviateMaintenanceService')
     def test_api_weaviate_schema_export_success(self, mock_service_class):
         """Test exporting schema as admin"""
         self.login_admin()
@@ -364,7 +354,7 @@ class WeaviateMaintenanceAPITest(TestCase):
         self.assertIn('schema', data)
         self.assertIn('export_time', data)
     
-    @patch('main.api_views.WeaviateMaintenanceService')
+    @patch('core.services.weaviate_maintenance_service.WeaviateMaintenanceService')
     def test_api_weaviate_schema_restore_no_confirm(self, mock_service_class):
         """Test restoring schema without confirmation"""
         self.login_admin()
@@ -404,7 +394,7 @@ class WeaviateMaintenanceAPITest(TestCase):
         self.assertFalse(data['success'])
         self.assertIn('Schema data required', data['error'])
     
-    @patch('main.api_views.WeaviateMaintenanceService')
+    @patch('core.services.weaviate_maintenance_service.WeaviateMaintenanceService')
     def test_api_weaviate_search_object_found(self, mock_service_class):
         """Test searching for an object that exists"""
         self.login_admin()
@@ -430,7 +420,7 @@ class WeaviateMaintenanceAPITest(TestCase):
         self.assertTrue(data['found'])
         self.assertIsNotNone(data['object'])
     
-    @patch('main.api_views.WeaviateMaintenanceService')
+    @patch('core.services.weaviate_maintenance_service.WeaviateMaintenanceService')
     def test_api_weaviate_search_object_not_found(self, mock_service_class):
         """Test searching for an object that doesn't exist"""
         self.login_admin()
