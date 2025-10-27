@@ -5,6 +5,9 @@
 <link rel="stylesheet" href="{% static 'main/css/weaviate-indicator.css' %}">
 <script src="{% static 'main/js/weaviate-indicator.js' %}"></script>
 
+<!-- Load Marked.js for Markdown rendering -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
 {% if error %}
 <div class="alert alert-danger">
     <i class="bi bi-exclamation-triangle"></i> {{ error }}
@@ -38,6 +41,11 @@
                     <a href="{{ file.sharepoint_url }}" target="_blank" class="btn btn-sm btn-outline-primary" title="Open in SharePoint">
                         <i class="bi bi-download"></i>
                     </a>
+                    <button class="btn btn-sm btn-outline-info" 
+                            onclick="showFileSummary('{{ file.id }}', '{{ file.filename|escapejs }}')"
+                            title="Show Summary">
+                        <i class="bi bi-file-text"></i>
+                    </button>
                     <button class="btn btn-sm btn-outline-danger"
                             hx-delete="/api/files/{{ file.id }}/delete"
                             hx-target="#filesListContainer"
@@ -142,4 +150,141 @@
             initAllWeaviateIndicators();
         }
     });
+    
+    /**
+     * Show file summary in modal
+     * Fetches AI-generated summary from Weaviate via KIGate agent
+     */
+    function showFileSummary(fileId, filename) {
+        // Get or create modal
+        let modal = document.getElementById('fileSummaryModal');
+        if (!modal) {
+            // Create modal if it doesn't exist
+            const modalHtml = `
+                <div class="modal fade" id="fileSummaryModal" tabindex="-1" aria-labelledby="fileSummaryModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content bg-dark">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="fileSummaryModalLabel">
+                                    <i class="bi bi-file-text"></i> File Summary
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div id="fileSummaryContent" class="markdown-content">
+                                    <div class="text-center py-4">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <p class="mt-3 text-muted">Generating summary...</p>
+                                    </div>
+                                </div>
+                                <div id="fileLink" class="mt-3" style="display:none;">
+                                    <hr>
+                                    <a id="fileLinkUrl" href="#" target="_blank" class="btn btn-outline-primary">
+                                        <i class="bi bi-box-arrow-up-right"></i> Open File
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            modal = document.getElementById('fileSummaryModal');
+        }
+        
+        // Reset modal content
+        document.getElementById('fileSummaryContent').innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-3 text-muted">Generating summary...</p>
+            </div>
+        `;
+        document.getElementById('fileLink').style.display = 'none';
+        document.getElementById('fileSummaryModalLabel').innerHTML = `<i class="bi bi-file-text"></i> ${filename}`;
+        
+        // Show modal
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+        
+        // Fetch summary from API
+        fetch(`/api/files/${fileId}/summary`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Render markdown content
+                    const summaryHtml = marked.parse(data.summary);
+                    document.getElementById('fileSummaryContent').innerHTML = summaryHtml;
+                    
+                    // Show file link
+                    if (data.file_url) {
+                        document.getElementById('fileLinkUrl').href = data.file_url;
+                        document.getElementById('fileLink').style.display = 'block';
+                    }
+                } else {
+                    document.getElementById('fileSummaryContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle"></i> ${data.error || 'Failed to generate summary'}
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching file summary:', error);
+                document.getElementById('fileSummaryContent').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> Failed to load summary
+                    </div>
+                `;
+            });
+    }
 </script>
+
+<style>
+    .markdown-content {
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+    
+    .markdown-content h1,
+    .markdown-content h2,
+    .markdown-content h3 {
+        margin-top: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .markdown-content p {
+        margin-bottom: 0.75rem;
+    }
+    
+    .markdown-content ul,
+    .markdown-content ol {
+        margin-bottom: 0.75rem;
+        padding-left: 2rem;
+    }
+    
+    .markdown-content code {
+        background-color: rgba(255, 255, 255, 0.1);
+        padding: 0.2rem 0.4rem;
+        border-radius: 3px;
+        font-size: 0.9em;
+    }
+    
+    .markdown-content pre {
+        background-color: rgba(255, 255, 255, 0.05);
+        padding: 1rem;
+        border-radius: 5px;
+        overflow-x: auto;
+    }
+    
+    .markdown-content pre code {
+        background-color: transparent;
+        padding: 0;
+    }
+</style>

@@ -6591,3 +6591,155 @@ def api_global_search(request):
         }, status=500)
 
 
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_file_summary(request, file_id):
+    """
+    Get AI-generated summary of file content from Weaviate
+    
+    This endpoint:
+    1. Fetches file content from Weaviate database
+    2. Sends content to KIGate agent 'weaviate-data-summary-agent'
+    3. Returns markdown-formatted summary
+    
+    Args:
+        file_id: UUID of the file (ItemFile or TaskFile)
+        
+    Returns:
+        JSON response with:
+        - success: boolean
+        - summary: markdown-formatted summary text
+        - filename: name of the file
+        - file_url: SharePoint URL to open the file
+        - error: error message (if failed)
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    try:
+        from main.models import ItemFile, TaskFile, Settings
+        from core.services.weaviate_sync_service import WeaviateItemSyncService
+        
+        # Try to find the file in ItemFile or TaskFile
+        file_obj = None
+        file_type = None
+        
+        try:
+            file_obj = ItemFile.objects.get(id=file_id)
+            file_type = 'item_file'
+        except ItemFile.DoesNotExist:
+            try:
+                file_obj = TaskFile.objects.get(id=file_id)
+                file_type = 'task_file'
+            except TaskFile.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'File not found'
+                }, status=404)
+        
+        # Check if file is synced to Weaviate
+        if not file_obj.weaviate_synced:
+            return JsonResponse({
+                'success': False,
+                'error': 'File content not available in Weaviate'
+            }, status=404)
+        
+        # Fetch file content from Weaviate
+        settings = Settings.objects.first()
+        if not settings:
+            return JsonResponse({
+                'success': False,
+                'error': 'Settings not configured'
+            }, status=500)
+        
+        weaviate_service = WeaviateItemSyncService(settings)
+        collection = weaviate_service._client.collections.get(weaviate_service.COLLECTION_NAME)
+        
+        # Query Weaviate for this file's content
+        # Files can be stored in chunks, so we need to get all chunks
+        file_content_parts = []
+        
+        try:
+            # Try to get the single file object
+            result = collection.query.fetch_object_by_id(str(file_id))
+            if result and result.properties:
+                file_content_parts.append(result.properties.get('description', ''))
+        except Exception:
+            # If single object not found, try to get chunks (file_id_0, file_id_1, etc.)
+            for i in range(10):  # Max 10 chunks
+                chunk_id = f"{file_id}_{i}" if i > 0 else str(file_id)
+                try:
+                    result = collection.query.fetch_object_by_id(chunk_id)
+                    if result and result.properties:
+                        file_content_parts.append(result.properties.get('description', ''))
+                    else:
+                        break  # No more chunks
+                except Exception:
+                    break  # No more chunks
+        
+        weaviate_service.close()
+        
+        if not file_content_parts:
+            return JsonResponse({
+                'success': False,
+                'error': 'File content not found in Weaviate'
+            }, status=404)
+        
+        # Combine all content parts
+        full_content = '\n\n'.join(file_content_parts)
+        
+        # Use KIGate agent to generate summary
+        try:
+            kigate_service = KiGateService(settings)
+            
+            # Prepare message for the agent
+            message = f"""Please provide a concise summary of the following file content.
+
+Filename: {file_obj.filename}
+
+Content:
+{full_content[:10000]}"""  # Limit to first 10000 chars to avoid token limits
+            
+            # Execute the weaviate-data-summary-agent
+            agent_result = kigate_service.execute_agent(
+                agent_name='weaviate-data-summary-agent',
+                provider='openai',
+                model='gpt-4',
+                message=message,
+                user_id=str(user.id)
+            )
+            
+            if agent_result.get('success') and agent_result.get('result'):
+                summary = agent_result.get('result')
+            else:
+                # Fallback: use a simple excerpt if agent fails
+                summary = f"# {file_obj.filename}\n\n{full_content[:500]}...\n\n*Full AI summary not available*"
+                logger.warning(f"KIGate agent failed, using fallback summary for file {file_id}")
+        
+        except KiGateServiceError as e:
+            # Fallback: provide excerpt if KIGate is not available
+            logger.warning(f"KIGate service error: {e.message}, using fallback summary")
+            summary = f"# {file_obj.filename}\n\n{full_content[:500]}...\n\n*AI summary service not available*"
+        
+        return JsonResponse({
+            'success': True,
+            'summary': summary,
+            'filename': file_obj.filename,
+            'file_url': file_obj.sharepoint_url
+        })
+    
+    except Exception as e:
+        logger.error(f'Error generating file summary: {str(e)}')
+        import traceback
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to generate summary'
+        }, status=500)
+
+
