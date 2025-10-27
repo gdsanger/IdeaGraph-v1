@@ -323,7 +323,7 @@ class ZammadSyncService:
         Find or create the Item for Zammad support requests
         
         Returns:
-            Item object with name "Supportanfragen Zammad"
+            Item object with title "Supportanfragen Zammad"
         """
         from main.models import Item
         
