@@ -14,7 +14,8 @@ Example:
     # Sync documentation for all items with GitHub repositories
     python manage.py sync_github_docs --all
     
-    # Cron job example (sync all items every 3 hours):
+    # Cron job example (sync all items every 3 hours, adjust path as needed):
+    0 */3 * * * cd /path/to/your/ideagraph/installation && python manage.py sync_github_docs --all >> logs/sync_github_docs.log 2>&1
     0 */3 * * * cd /path/to/IdeaGraph-v1 && python manage.py sync_github_docs --all >> logs/sync_github_docs.log 2>&1
 """
 

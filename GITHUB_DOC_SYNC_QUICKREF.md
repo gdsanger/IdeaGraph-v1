@@ -53,7 +53,7 @@ python test_github_doc_sync.py
 
 ### Cron-Job (alle 3 Stunden)
 ```bash
-0 */3 * * * cd /path/to/IdeaGraph-v1 && python manage.py sync_github_docs --all >> logs/sync_github_docs.log 2>&1
+0 */3 * * * cd /path/to/your/ideagraph/installation && python manage.py sync_github_docs --all >> logs/sync_github_docs.log 2>&1
 ```
 
 ### Systemd Timer
@@ -77,7 +77,7 @@ Description=IdeaGraph GitHub Documentation Sync
 
 [Service]
 Type=oneshot
-WorkingDirectory=/path/to/IdeaGraph-v1
+WorkingDirectory=/path/to/your/ideagraph/installation
 ExecStart=/usr/bin/python manage.py sync_github_docs --all
 User=ideagraph
 ```
@@ -125,6 +125,7 @@ python manage.py sync_github_docs --all
 ### Workflow 3: Nach Git Push automatisch syncen
 ```yaml
 # .github/workflows/sync-to-ideagraph.yml
+# Sicherheitshinweis: Verwende GitHub Secrets für sensible Daten
 name: Sync to IdeaGraph
 on:
   push:
@@ -136,7 +137,9 @@ jobs:
     steps:
       - name: Trigger IdeaGraph Sync
         run: |
-          ssh user@server "cd /path/to/IdeaGraph-v1 && python manage.py sync_github_docs --all"
+          curl -X POST https://your-ideagraph.com/api/sync-docs \
+            -H "Authorization: Bearer ${{ secrets.IDEAGRAPH_TOKEN }}" \
+            -d '{"repo": "${{ github.repository }}"}'
 ```
 
 ## 📊 Weaviate Schema
@@ -182,9 +185,12 @@ jobs:
 
 ### Minimale GitHub Token Permissions
 ```
-✅ repo (für private repos)
-✅ public_repo (für public repos)
+✅ repo (für private repos - beinhaltet auch public_repo Zugriff)
+✅ public_repo (nur für öffentliche repos - eingeschränkterer Zugriff)
 ❌ Keine anderen Permissions nötig
+
+⚠️ Hinweis: 'repo' gewährt vollen Zugriff auf alle Repositories (privat & öffentlich).
+   Für öffentliche Repositories ist 'public_repo' ausreichend und sicherer.
 ```
 
 ### Rate Limits

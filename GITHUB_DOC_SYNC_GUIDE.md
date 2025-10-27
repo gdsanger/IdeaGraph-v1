@@ -84,20 +84,20 @@ Total files synced: 47
 # Crontab bearbeiten
 crontab -e
 
-# Folgende Zeile hinzufügen
-0 */3 * * * cd /path/to/IdeaGraph-v1 && python manage.py sync_github_docs --all >> logs/sync_github_docs.log 2>&1
+# Folgende Zeile hinzufügen (Pfad anpassen!)
+0 */3 * * * cd /path/to/your/ideagraph/installation && python manage.py sync_github_docs --all >> logs/sync_github_docs.log 2>&1
 ```
 
 #### Täglich um 3 Uhr nachts synchronisieren
 
 ```bash
-0 3 * * * cd /path/to/IdeaGraph-v1 && python manage.py sync_github_docs --all >> logs/sync_github_docs.log 2>&1
+0 3 * * * cd /path/to/your/ideagraph/installation && python manage.py sync_github_docs --all >> logs/sync_github_docs.log 2>&1
 ```
 
 #### Stündlich synchronisieren
 
 ```bash
-0 * * * * cd /path/to/IdeaGraph-v1 && python manage.py sync_github_docs --all >> logs/sync_github_docs.log 2>&1
+0 * * * * cd /path/to/your/ideagraph/installation && python manage.py sync_github_docs --all >> logs/sync_github_docs.log 2>&1
 ```
 
 ## ⚙️ Konfiguration
@@ -377,8 +377,13 @@ tenant_id = "..."
 ### GitHub Token Berechtigungen
 
 Minimale erforderliche Berechtigungen:
-- `repo` (für private Repositories)
-- `public_repo` (nur für öffentliche Repositories)
+- `repo` (für private Repositories - beinhaltet auch Zugriff auf öffentliche Repositories)
+- `public_repo` (nur für öffentliche Repositories - eingeschränkterer Zugriff)
+
+**Sicherheitshinweis**: 
+- Der `repo` Scope gewährt vollen Zugriff auf alle privaten und öffentlichen Repositories
+- Für reine öffentliche Repositories ist `public_repo` ausreichend und sicherer
+- Verwende immer das Prinzip der minimalen Berechtigung
 
 ### Rate Limiting
 
@@ -431,8 +436,12 @@ Bei einem typischen Repository mit 50 Markdown-Dateien:
 
 ### CI/CD Pipeline
 
+**Sicherheitshinweis**: Die folgenden Beispiele zeigen Integrationsmöglichkeiten. In Produktionsumgebungen sollten immer sichere Methoden wie Webhooks, API-Token oder SSH-Keys mit Secret-Management verwendet werden.
+
+#### GitHub Actions mit Webhook
+
 ```yaml
-# GitHub Actions Workflow
+# .github/workflows/sync-to-ideagraph.yml
 name: Sync Documentation to IdeaGraph
 
 on:
@@ -447,9 +456,47 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
+      - name: Trigger IdeaGraph Sync via Webhook
+        run: |
+          curl -X POST https://your-ideagraph-instance.com/api/sync-docs \
+            -H "Authorization: Bearer ${{ secrets.IDEAGRAPH_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"repository": "${{ github.repository }}"}'
+```
+
+#### GitHub Actions mit SSH (mit Secrets)
+
+```yaml
+# .github/workflows/sync-to-ideagraph.yml
+name: Sync Documentation to IdeaGraph
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**/*.md'
+      - '*.md'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      
+      - name: Add Server to Known Hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+      
       - name: Trigger IdeaGraph Sync
         run: |
-          ssh user@ideagraph-server "cd /path/to/IdeaGraph-v1 && python manage.py sync_github_docs --all"
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+            "cd /path/to/your/ideagraph/installation && \
+             python manage.py sync_github_docs --all"
 ```
 
 ## 📚 Weitere Ressourcen
