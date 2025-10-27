@@ -312,7 +312,7 @@ class ItemFileService:
             for i, chunk in enumerate(text_chunks):
                 # Create KnowledgeObject for each chunk
                 # Using the mapping from the requirements:
-                # title = filename, description = content, itemID = item.id, url = sharepoint_url, type = "File"
+                # title = filename, description = content, itemId = item.id, url = sharepoint_url, type = "File"
                 
                 chunk_title = filename if len(text_chunks) == 1 else f"{filename} (Part {i+1}/{len(text_chunks)})"
                 
@@ -327,6 +327,7 @@ class ItemFileService:
                     'status': item.status,
                     'tags': [tag.name for tag in item.tags.all()],
                     'createdAt': item_file.created_at.isoformat(),
+                    'itemId': str(item.id),
                 }
                 
                 # Generate UUID for this chunk (file ID + chunk index)
