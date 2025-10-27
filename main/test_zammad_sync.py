@@ -342,6 +342,10 @@ class ZammadSyncServiceTestCase(TestCase):
         updated_task = Task.objects.get(id=existing_task.id)
         self.assertEqual(updated_task.title, 'Updated Ticket Title')
         self.assertEqual(updated_task.description, 'Updated ticket description')
+        
+        # Verify task now has an item assigned (important for tasks created before item assignment was implemented)
+        self.assertIsNotNone(updated_task.item, "Updated task should have item assigned")
+        self.assertEqual(updated_task.item.title, 'Supportanfragen Zammad')
     
     @patch('core.services.zammad_sync_service.requests.request')
     def test_sync_all_tickets(self, mock_request):
@@ -559,6 +563,74 @@ class ZammadSyncServiceTestCase(TestCase):
                      f"Comment should contain task link {expected_link}")
         self.assertIn('IdeaGraph', comment_added['body'],
                      "Comment should mention IdeaGraph")
+
+    @patch('core.services.zammad_sync_service.requests.request')
+    def test_old_task_without_item_gets_item_on_update(self, mock_request):
+        """Test that old tasks without item assignment get item assigned when updated"""
+        # Mock responses
+        def mock_request_side_effect(*args, **kwargs):
+            url = kwargs.get('url', '')
+            method = kwargs.get('method', 'GET')
+            
+            if '/ticket_states' in url:
+                return Mock(
+                    status_code=200,
+                    json=lambda: [
+                        {'id': 1, 'name': 'new'},
+                        {'id': 2, 'name': 'open'},
+                    ]
+                )
+            elif '/tickets/' in url and method == 'PUT':
+                return Mock(status_code=200, json=lambda: {'id': 555, 'state_id': 2})
+            elif '/ticket_articles' in url and method == 'POST':
+                return Mock(status_code=201, json=lambda: {'id': 999, 'ticket_id': 555})
+            
+            return Mock(status_code=200, json=lambda: {})
+        
+        mock_request.side_effect = mock_request_side_effect
+        
+        # Create an old task WITHOUT item (simulating task created before item assignment feature)
+        section = Section.objects.create(name='Zammad - Support')
+        old_task = Task.objects.create(
+            title='Old Task Without Item',
+            description='This task was created before item assignment feature',
+            type='ticket',
+            section=section,
+            external_id='555',
+            external_url='https://zammad.example.com/#ticket/zoom/555',
+            item=None  # Explicitly no item - simulating old task
+        )
+        
+        # Verify task has no item initially
+        self.assertIsNone(old_task.item, "Old task should start without item")
+        
+        # Sync the ticket (which should trigger an update)
+        ticket = {
+            'id': 555,
+            'title': 'Old Task Without Item',  # Same title
+            'group': 'Support',
+            'state': {'name': 'open'},
+            'tags': [],
+            'articles': [
+                {
+                    'id': 1,
+                    'body': 'This task was created before item assignment feature',
+                    'attachments': []
+                }
+            ]
+        }
+        
+        service = ZammadSyncService(self.settings)
+        result = service.sync_ticket_to_task(ticket)
+        
+        self.assertTrue(result['success'])
+        self.assertEqual(result['action'], 'updated')
+        
+        # Verify task now has item assigned
+        updated_task = Task.objects.get(id=old_task.id)
+        self.assertIsNotNone(updated_task.item, "Old task should now have item assigned")
+        self.assertEqual(updated_task.item.title, 'Supportanfragen Zammad',
+                        "Old task should be assigned to 'Supportanfragen Zammad' item")
 
 
 class ZammadAPIEndpointsTestCase(TestCase):

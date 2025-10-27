@@ -439,6 +439,7 @@ class ZammadSyncService:
                 task.title = title
                 task.description = description
                 task.external_url = ticket_url
+                task.item = item  # Ensure item is assigned (important for old tasks)
                 task.updated_at = timezone.now()
                 task.save()
                 logger.info(f"Updated existing task {task.id} for ticket {ticket_id}")
