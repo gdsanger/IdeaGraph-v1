@@ -7273,3 +7273,377 @@ def api_item_save_qa_as_knowledge(request, qa_id):
             'error': 'Failed to save Q&A as KnowledgeObject'
         }, status=500)
 
+
+# =============================================================================
+# Weaviate Maintenance API Endpoints
+# =============================================================================
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_weaviate_status(request):
+    """
+    Get Weaviate system status and metadata
+    
+    Admin only endpoint
+    
+    GET /api/weaviate/status
+    
+    Returns: {
+        "success": true,
+        "meta": {...},
+        "version": "1.x.x",
+        "hostname": "...",
+        "stats": {...}
+    }
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Unauthorized'
+        }, status=401)
+    
+    # Check admin permission
+    if user.role != 'admin':
+        return JsonResponse({
+            'success': False,
+            'error': 'Admin permission required'
+        }, status=403)
+    
+    try:
+        from core.services.weaviate_maintenance_service import (
+            WeaviateMaintenanceService,
+            WeaviateMaintenanceServiceError
+        )
+        
+        service = WeaviateMaintenanceService()
+        
+        # Get system metadata
+        meta_result = service.get_meta()
+        
+        # Get collection statistics
+        stats_result = service.get_collection_stats()
+        
+        # Close service connection
+        service.close()
+        
+        return JsonResponse({
+            'success': True,
+            'meta': meta_result.get('meta', {}),
+            'version': meta_result.get('version', 'Unknown'),
+            'hostname': meta_result.get('hostname', 'Unknown'),
+            'stats': stats_result.get('stats', {})
+        })
+    
+    except WeaviateMaintenanceServiceError as e:
+        logger.error(f"Weaviate status error: {e.message}")
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=500)
+    
+    except Exception as e:
+        logger.error(f"Error getting Weaviate status: {str(e)}")
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to get Weaviate status'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_weaviate_rebuild(request):
+    """
+    Trigger Weaviate index rebuild
+    
+    Admin only endpoint
+    
+    POST /api/weaviate/rebuild
+    
+    Returns: {
+        "success": true,
+        "message": "..."
+    }
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Unauthorized'
+        }, status=401)
+    
+    # Check admin permission
+    if user.role != 'admin':
+        return JsonResponse({
+            'success': False,
+            'error': 'Admin permission required'
+        }, status=403)
+    
+    try:
+        from core.services.weaviate_maintenance_service import (
+            WeaviateMaintenanceService,
+            WeaviateMaintenanceServiceError
+        )
+        
+        service = WeaviateMaintenanceService()
+        
+        # Rebuild indices
+        result = service.rebuild_index()
+        
+        # Close service connection
+        service.close()
+        
+        logger.info(f"Index rebuild triggered by user {user.username}")
+        
+        return JsonResponse({
+            'success': result.get('success', False),
+            'message': result.get('message', ''),
+            'info': result.get('info', '')
+        })
+    
+    except WeaviateMaintenanceServiceError as e:
+        logger.error(f"Index rebuild error: {e.message}")
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=500)
+    
+    except Exception as e:
+        logger.error(f"Error rebuilding index: {str(e)}")
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to rebuild index'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_weaviate_schema_export(request):
+    """
+    Export Weaviate schema as JSON
+    
+    Admin only endpoint
+    
+    POST /api/weaviate/schema/export
+    
+    Returns: {
+        "success": true,
+        "schema": {...},
+        "export_time": "2024-01-01T00:00:00"
+    }
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Unauthorized'
+        }, status=401)
+    
+    # Check admin permission
+    if user.role != 'admin':
+        return JsonResponse({
+            'success': False,
+            'error': 'Admin permission required'
+        }, status=403)
+    
+    try:
+        from core.services.weaviate_maintenance_service import (
+            WeaviateMaintenanceService,
+            WeaviateMaintenanceServiceError
+        )
+        
+        service = WeaviateMaintenanceService()
+        
+        # Export schema
+        result = service.export_schema()
+        
+        # Close service connection
+        service.close()
+        
+        logger.info(f"Schema exported by user {user.username}")
+        
+        return JsonResponse({
+            'success': True,
+            'schema': result.get('schema', {}),
+            'export_time': result.get('export_time', '')
+        })
+    
+    except WeaviateMaintenanceServiceError as e:
+        logger.error(f"Schema export error: {e.message}")
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=500)
+    
+    except Exception as e:
+        logger.error(f"Error exporting schema: {str(e)}")
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to export schema'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_weaviate_schema_restore(request):
+    """
+    Restore Weaviate schema from backup
+    
+    Admin only endpoint - DESTRUCTIVE OPERATION
+    
+    POST /api/weaviate/schema/restore
+    Body: {
+        "schema": {...},
+        "confirm": true
+    }
+    
+    Returns: {
+        "success": true/false,
+        "message": "..."
+    }
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Unauthorized'
+        }, status=401)
+    
+    # Check admin permission
+    if user.role != 'admin':
+        return JsonResponse({
+            'success': False,
+            'error': 'Admin permission required'
+        }, status=403)
+    
+    try:
+        from core.services.weaviate_maintenance_service import (
+            WeaviateMaintenanceService,
+            WeaviateMaintenanceServiceError
+        )
+        
+        # Parse request body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid JSON in request body'
+            }, status=400)
+        
+        schema_data = data.get('schema')
+        confirm = data.get('confirm', False)
+        
+        if not schema_data:
+            return JsonResponse({
+                'success': False,
+                'error': 'Schema data required'
+            }, status=400)
+        
+        service = WeaviateMaintenanceService()
+        
+        # Restore schema
+        result = service.restore_schema(schema_data, confirm=confirm)
+        
+        # Close service connection
+        service.close()
+        
+        if result.get('success'):
+            logger.warning(f"Schema restore attempted by user {user.username}")
+        
+        return JsonResponse(result)
+    
+    except WeaviateMaintenanceServiceError as e:
+        logger.error(f"Schema restore error: {e.message}")
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=500)
+    
+    except Exception as e:
+        logger.error(f"Error restoring schema: {str(e)}")
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to restore schema'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_weaviate_search_object(request, object_uuid):
+    """
+    Search for a specific object by UUID in Weaviate
+    
+    Admin only endpoint
+    
+    GET /api/weaviate/object/<uuid>
+    
+    Returns: {
+        "success": true,
+        "found": true/false,
+        "object": {...}
+    }
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Unauthorized'
+        }, status=401)
+    
+    # Check admin permission
+    if user.role != 'admin':
+        return JsonResponse({
+            'success': False,
+            'error': 'Admin permission required'
+        }, status=403)
+    
+    try:
+        from core.services.weaviate_maintenance_service import (
+            WeaviateMaintenanceService,
+            WeaviateMaintenanceServiceError
+        )
+        
+        service = WeaviateMaintenanceService()
+        
+        # Search for object
+        result = service.search_object(str(object_uuid))
+        
+        # Close service connection
+        service.close()
+        
+        return JsonResponse({
+            'success': True,
+            'found': result.get('found', False),
+            'object': result.get('object')
+        })
+    
+    except WeaviateMaintenanceServiceError as e:
+        logger.error(f"Object search error: {e.message}")
+        return JsonResponse({
+            'success': False,
+            'error': e.message,
+            'details': e.details
+        }, status=500)
+    
+    except Exception as e:
+        logger.error(f"Error searching for object: {str(e)}")
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to search for object'
+        }, status=500)
+

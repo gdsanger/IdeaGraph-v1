@@ -208,6 +208,13 @@ urlpatterns = [
     path('api/weaviate/<str:object_type>/<uuid:object_id>/add', api_views.add_to_weaviate, name='api_weaviate_add'),
     path('api/weaviate/<str:object_type>/<uuid:object_id>/dump', api_views.get_weaviate_dump, name='api_weaviate_dump'),
     
+    # Weaviate Maintenance API Endpoints
+    path('api/weaviate/status', api_views.api_weaviate_status, name='api_weaviate_maintenance_status'),
+    path('api/weaviate/rebuild', api_views.api_weaviate_rebuild, name='api_weaviate_rebuild'),
+    path('api/weaviate/schema/export', api_views.api_weaviate_schema_export, name='api_weaviate_schema_export'),
+    path('api/weaviate/schema/restore', api_views.api_weaviate_schema_restore, name='api_weaviate_schema_restore'),
+    path('api/weaviate/object/<uuid:object_uuid>', api_views.api_weaviate_search_object, name='api_weaviate_search_object'),
+    
     # Global Search API Endpoint
     path('api/search', api_views.api_global_search, name='api_global_search'),
 ]
