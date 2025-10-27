@@ -215,3 +215,6 @@ marimo/_lsp/
 __marimo__/
 screenshots/
 .env
+
+# Test scripts (temporary)
+test_github_doc_sync.py
