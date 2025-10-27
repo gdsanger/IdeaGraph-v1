@@ -92,6 +92,15 @@ class ChatWidget {
                         <i class="bi bi-chat-dots"></i>
                         <span>IdeaGraph Q&A Assistant</span>
                     </div>
+                    <div class="chat-widget-actions">
+                        <button 
+                            id="chat-delete-button" 
+                            class="chat-action-button"
+                            title="Chat-Verlauf löschen"
+                        >
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
                     <div class="chat-widget-status" id="chat-status">
                         <span class="status-indicator"></span>
                         <span class="status-text">Bereit</span>
@@ -138,6 +147,7 @@ class ChatWidget {
     attachEventListeners() {
         const inputField = document.getElementById('chat-input-field');
         const sendButton = document.getElementById('chat-send-button');
+        const deleteButton = document.getElementById('chat-delete-button');
         
         if (!inputField || !sendButton) {
             console.error('ChatWidget: Input elements not found');
@@ -146,6 +156,11 @@ class ChatWidget {
         
         // Send button click
         sendButton.addEventListener('click', () => this.handleSendMessage());
+        
+        // Delete button click
+        if (deleteButton) {
+            deleteButton.addEventListener('click', () => this.handleDeleteChat());
+        }
         
         // Enter key to send (Shift+Enter for new line)
         inputField.addEventListener('keydown', (e) => {
@@ -192,8 +207,11 @@ class ChatWidget {
         this.setLoading(true);
         
         try {
-            // Call API
-            const response = await this.askQuestion(question);
+            // Prepare conversation history (last 5 messages, excluding the current question)
+            const conversationHistory = this.messages.slice(-10); // Take last 10 to get 5 Q&A pairs max
+            
+            // Call API with conversation history
+            const response = await this.askQuestion(question, conversationHistory);
             
             if (response.success) {
                 // Add bot response
@@ -286,7 +304,7 @@ class ChatWidget {
     /**
      * Call the API to ask a question
      */
-    async askQuestion(question) {
+    async askQuestion(question, conversationHistory = []) {
         const url = `${this.apiBaseUrl}/${this.itemId}/ask`;
         
         const response = await fetch(url, {
@@ -296,7 +314,10 @@ class ChatWidget {
                 'X-CSRFToken': this.csrfToken
             },
             credentials: 'include',
-            body: JSON.stringify({ question })
+            body: JSON.stringify({ 
+                question,
+                conversation_history: conversationHistory
+            })
         });
         
         if (!response.ok) {
@@ -345,6 +366,72 @@ class ChatWidget {
         } catch (error) {
             console.warn('Could not load history:', error);
             // Silently fail - history is optional
+        }
+    }
+    
+    /**
+     * Handle delete chat action
+     */
+    async handleDeleteChat() {
+        // Confirm before deleting
+        if (!confirm('Möchtest du wirklich den gesamten Chat-Verlauf löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+            return;
+        }
+        
+        try {
+            const url = `${this.apiBaseUrl}/${this.itemId}/questions/history`;
+            const response = await fetch(url, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': this.csrfToken
+                },
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    // Clear local messages
+                    this.messages = [];
+                    
+                    // Clear UI and show welcome message
+                    const messagesContainer = document.getElementById('chat-messages');
+                    if (messagesContainer) {
+                        messagesContainer.innerHTML = `
+                            <div class="chat-welcome-message">
+                                <i class="bi bi-robot"></i>
+                                <h4>Willkommen beim IdeaGraph Q&A Assistant!</h4>
+                                <p>Stelle mir Fragen zu diesem Item und ich werde dir mit relevanten Informationen aus dem Projektkontext antworten.</p>
+                            </div>
+                        `;
+                    }
+                    
+                    // Show success notification
+                    this.showNotification('Chat-Verlauf wurde erfolgreich gelöscht', 'success');
+                }
+            } else {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+        } catch (error) {
+            console.error('Error deleting chat history:', error);
+            this.showNotification('Fehler beim Löschen des Chat-Verlaufs', 'error');
+        }
+    }
+    
+    /**
+     * Show a temporary notification
+     */
+    showNotification(message, type = 'info') {
+        const statusText = document.querySelector('.status-text');
+        if (statusText) {
+            const originalText = statusText.textContent;
+            statusText.textContent = message;
+            statusText.style.color = type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#6b7280';
+            
+            setTimeout(() => {
+                statusText.textContent = originalText;
+                statusText.style.color = '';
+            }, 3000);
         }
     }
 }
