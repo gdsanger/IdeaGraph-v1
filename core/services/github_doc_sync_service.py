@@ -149,8 +149,9 @@ class GitHubDocSyncService:
         
         # Handle full URLs like https://github.com/owner/repo
         if repo_url.startswith('http'):
-            # Extract owner/repo from URL
-            match = re.search(r'github\.com[:/]([^/]+)/([^/\s]+?)(?:\.git)?$', repo_url)
+            # Extract owner/repo from URL - simplified regex to prevent ReDoS
+            # Pattern: github.com followed by optional colon or slash, then owner/repo
+            match = re.search(r'github\.com[:/]([^/\s]+)/([^/\s.]+?)(?:\.git)?$', repo_url)
             if match:
                 return {
                     'owner': match.group(1),
