@@ -340,7 +340,6 @@ class ItemQuestionAnsweringTest(TestCase):
     @patch('core.services.item_question_answering_service.ItemQuestionAnsweringService._initialize_client')
     def test_ask_question_with_datetime_in_sources(self, mock_init_client, mock_generate_answer, mock_search_knowledge):
         """Test that datetime objects in sources are properly serialized"""
-        from datetime import datetime as dt
         self.login_user()
         
         # Mock the search results with a datetime object (simulating Weaviate returning datetime)
