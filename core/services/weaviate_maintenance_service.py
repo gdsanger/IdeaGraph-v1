@@ -11,7 +11,7 @@ This module provides maintenance and diagnostic functionality for the Weaviate d
 import logging
 import json
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import weaviate
 from weaviate.classes.init import Auth
 
@@ -178,7 +178,7 @@ class WeaviateMaintenanceService:
             # Build schema representation
             schema = {
                 'collections': collections_list,
-                'timestamp': datetime.now().isoformat()
+                'timestamp': datetime.now(timezone.utc).isoformat()
             }
             
             logger.info(f"Retrieved schema with {len(collections_list)} collections")
@@ -272,7 +272,7 @@ class WeaviateMaintenanceService:
             
             export_data = {
                 'schema': schema_result['schema'],
-                'export_time': datetime.now().isoformat(),
+                'export_time': datetime.now(timezone.utc).isoformat(),
                 'weaviate_version': self.get_meta()['version']
             }
             
@@ -407,7 +407,7 @@ class WeaviateMaintenanceService:
                 'collection_name': self.COLLECTION_NAME,
                 'total_objects': total_count,
                 'objects_by_type': type_counts,
-                'timestamp': datetime.now().isoformat()
+                'timestamp': datetime.now(timezone.utc).isoformat()
             }
             
             logger.info(f"Retrieved collection stats: {total_count} objects")
