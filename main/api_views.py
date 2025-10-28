@@ -6905,6 +6905,8 @@ def api_global_search(request):
         limit (optional): Maximum number of results (default: 10, max: 50)
         types (optional): Comma-separated list of object types to filter by
                           (e.g., "Item,Task,File")
+        search_type (optional): Type of search ('hybrid', 'neartext', 'bm25')
+                               Default: 'hybrid'
     
     Returns:
         JSON response with:
@@ -6912,6 +6914,7 @@ def api_global_search(request):
             - results: list of search results with metadata
             - total: total number of results
             - query: original query text
+            - search_type: type of search performed
     """
     # Check authentication
     user = get_user_from_request(request)
@@ -6940,6 +6943,9 @@ def api_global_search(request):
         if types_param:
             object_types = [t.strip() for t in types_param.split(',') if t.strip()]
         
+        # Get search_type parameter
+        search_type = request.GET.get('search_type', 'hybrid').strip().lower()
+        
         # Perform search
         from core.services.weaviate_search_service import WeaviateSearchService, WeaviateSearchServiceError
         from .models import Settings
@@ -6957,10 +6963,11 @@ def api_global_search(request):
             result = search_service.search(
                 query=query,
                 limit=limit,
-                object_types=object_types
+                object_types=object_types,
+                search_type=search_type
             )
             
-            logger.info(f"Global search for '{query}' returned {result.get('total', 0)} results")
+            logger.info(f"Global {search_type} search for '{query}' returned {result.get('total', 0)} results")
             
             return JsonResponse(result)
             

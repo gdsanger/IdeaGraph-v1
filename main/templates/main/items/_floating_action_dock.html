@@ -130,9 +130,31 @@
             </div>
             <div class="modal-body" style="min-height: 400px;">
                 <p class="text-muted mb-3" style="font-size: 0.9rem;">
-                    Durchsuche alle Items, Tasks, Files und Knowledge Objects mit semantischer KI-Suche
+                    Durchsuche alle Items, Tasks, Files und Knowledge Objects mit KI-gestützter Suche
                 </p>
                 
+                <!-- Search Type Selector -->
+                <div class="mb-3">
+                    <label class="form-label text-muted" style="font-size: 0.85rem;">Suchmethode:</label>
+                    <div class="btn-group w-100" role="group" aria-label="Search type selector">
+                        <input type="radio" class="btn-check" name="searchTypeModal" id="searchTypeHybridModal" value="hybrid" checked autocomplete="off">
+                        <label class="btn btn-outline-primary" for="searchTypeHybridModal" title="Kombiniert semantische und Keyword-Suche für beste Ergebnisse">
+                            <i class="bi bi-stars"></i> Hybrid
+                        </label>
+                        
+                        <input type="radio" class="btn-check" name="searchTypeModal" id="searchTypeNeartextModal" value="neartext" autocomplete="off">
+                        <label class="btn btn-outline-primary" for="searchTypeNeartextModal" title="Rein semantische Vektorsuche basierend auf Bedeutung">
+                            <i class="bi bi-bezier2"></i> Semantic
+                        </label>
+                        
+                        <input type="radio" class="btn-check" name="searchTypeModal" id="searchTypeBm25Modal" value="bm25" autocomplete="off">
+                        <label class="btn btn-outline-primary" for="searchTypeBm25Modal" title="Klassische Keyword-Suche (BM25)">
+                            <i class="bi bi-search"></i> Keyword
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Search Input -->
                 <div class="mb-4">
                     <div class="input-group">
                         <input type="text" 
@@ -145,6 +167,7 @@
                     </div>
                 </div>
                 
+                <!-- Search Results -->
                 <div id="globalSearchResults">
                     <div class="text-muted text-center py-4">
                         <i class="bi bi-search" style="font-size: 3rem; opacity: 0.3;"></i>
@@ -758,55 +781,78 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        // Get selected search type
+        const searchTypeRadio = document.querySelector('input[name="searchTypeModal"]:checked');
+        const searchType = searchTypeRadio ? searchTypeRadio.value : 'hybrid';
+        
         // Show loading state
         globalSearchResults.innerHTML = `
             <div class="text-center py-4">
                 <div class="spinner-border text-primary" role="status">
                     <span class="visually-hidden">Suche läuft...</span>
                 </div>
+                <p class="mt-2 text-muted">Durchsuche mit ${searchType}...</p>
             </div>
         `;
         
-        fetch('/api/search', {
-            method: 'POST',
+        // Use GET request to match the API endpoint
+        fetch(`/api/search?query=${encodeURIComponent(query)}&search_type=${searchType}&limit=20`, {
+            method: 'GET',
             headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCsrfToken()
+                'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ query: query })
+            credentials: 'same-origin'
         })
         .then(response => response.json())
         .then(data => {
-            if (data.results && data.results.length > 0) {
-                let html = '<div class="search-results-list">';
+            if (data.success && data.results && data.results.length > 0) {
+                let html = `<div class="mb-3 text-muted small">
+                    ${data.total} Ergebnisse gefunden • ${searchType} Suche
+                </div>
+                <div class="search-results-list">`;
+                
                 data.results.forEach(result => {
-                    const score = result.score || result.relevance || 0;
-                    const scorePercent = (score * 100).toFixed(1);
+                    const relevance = result.relevance || 0;
+                    const relevancePercent = (relevance * 100).toFixed(1);
+                    
                     html += `
                         <div class="search-result-item">
                             <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h6 class="mb-0">
-                                    ${result.type ? `<span class="badge bg-secondary me-2">${result.type}</span>` : ''}
-                                    ${escapeHtml(result.title || 'Untitled')}
-                                </h6>
-                                <span class="relevance-score">${scorePercent}%</span>
+                                <div class="flex-grow-1">
+                                    ${result.type ? `<span class="badge bg-secondary me-2">${escapeHtml(result.type)}</span>` : ''}
+                                    <strong>${escapeHtml(result.title || 'Untitled')}</strong>
+                                </div>
+                                <span class="relevance-score">${relevancePercent}%</span>
                             </div>
-                            ${result.content ? `<p class="text-muted mb-2" style="font-size: 0.9rem;">${escapeHtml(truncateText(result.content, 200))}</p>` : ''}
-                            ${result.url ? `
-                                <a href="${result.url}" class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-box-arrow-up-right"></i> Öffnen
-                                </a>
-                            ` : ''}
+                            ${result.description ? `<p class="text-muted mb-2" style="font-size: 0.9rem;">${escapeHtml(result.description)}</p>` : ''}
+                            <div class="d-flex justify-content-between align-items-center">
+                                ${result.url ? `
+                                    <a href="${sanitizeUrl(result.url)}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                        <i class="bi bi-box-arrow-up-right"></i> Öffnen
+                                    </a>
+                                ` : '<div></div>'}
+                                ${result.metadata && result.metadata.section ? `
+                                    <small class="text-muted">
+                                        <i class="bi bi-folder"></i> ${escapeHtml(result.metadata.section)}
+                                    </small>
+                                ` : ''}
+                            </div>
                         </div>
                     `;
                 });
                 html += '</div>';
                 globalSearchResults.innerHTML = html;
-            } else {
+            } else if (data.success) {
                 globalSearchResults.innerHTML = `
                     <div class="text-muted text-center py-4">
-                        <i class="bi bi-search" style="font-size: 3rem; opacity: 0.3;"></i>
-                        <p class="mt-2">Keine Ergebnisse gefunden</p>
+                        <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
+                        <p class="mt-2">Keine Ergebnisse gefunden für "${escapeHtml(query)}"</p>
+                    </div>
+                `;
+            } else {
+                globalSearchResults.innerHTML = `
+                    <div class="alert alert-warning">
+                        ${escapeHtml(data.error || 'Suche fehlgeschlagen')}
                     </div>
                 `;
             }
@@ -827,6 +873,36 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function sanitizeUrl(url) {
+    // Prevent XSS attacks through javascript: and data: URLs
+    if (!url) return '';
+    
+    let urlString = String(url).trim();
+    
+    // Decode URL to catch encoded attacks (e.g., %6A%61%76%61 = java)
+    try {
+        urlString = decodeURIComponent(urlString);
+    } catch (e) {
+        // If decoding fails, treat as suspicious
+        console.warn('Failed to decode URL:', url);
+        return '#';
+    }
+    
+    const lowerUrl = urlString.toLowerCase();
+    
+    // Block dangerous URL schemes (including common variations)
+    const dangerousSchemes = ['javascript:', 'data:', 'vbscript:', 'file:', 'about:'];
+    for (const scheme of dangerousSchemes) {
+        if (lowerUrl.includes(scheme)) {
+            console.warn('Blocked potentially dangerous URL:', url);
+            return '#';
+        }
+    }
+    
+    // Allow relative URLs and http(s) URLs
+    return escapeHtml(url);
 }
 
 function formatFileSize(bytes) {

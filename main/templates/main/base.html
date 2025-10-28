@@ -432,6 +432,9 @@
         {% endif %}
     </div>
 
+    <!-- Include Floating Action Dock on all pages -->
+    {% include 'main/items/_floating_action_dock.html' with dock_context='global' %}
+
     <!-- Main Content -->
     <main>
         {% block content %}{% endblock %}
