@@ -8319,9 +8319,10 @@ def api_provider_fetch_models(request, provider_id):
     
     except requests.exceptions.RequestException as e:
         logger.error(f'API request error for provider {provider_id}: {str(e)}')
+        logger.error(traceback.format_exc())
         return JsonResponse({
             'success': False,
-            'error': f'API request failed: {str(e)}'
+            'error': 'Failed to connect to provider API. Please check your configuration.'
         }, status=500)
     
     except Exception as e:
@@ -8329,6 +8330,6 @@ def api_provider_fetch_models(request, provider_id):
         logger.error(traceback.format_exc())
         return JsonResponse({
             'success': False,
-            'error': f'Error fetching models: {str(e)}'
+            'error': 'An error occurred while fetching models. Please check the logs for details.'
         }, status=500)
 
