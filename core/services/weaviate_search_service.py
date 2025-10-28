@@ -239,10 +239,11 @@ class WeaviateSearchService:
                     raw_score = float(obj.metadata.score)
                     if raw_score > 0:
                         # Use sigmoid-like normalization: f(x) = x / (x + 1)
-                        # This maps [0, ∞) to [0, 1) where:
+                        # Mathematically maps [0, ∞) to [0, 1) where:
                         # - Small scores (0-1) map nearly linearly to 0-0.5
                         # - Larger scores (1+) asymptotically approach 1.0
-                        # - Avoids clamping while ensuring 0-1 range
+                        # The min() function serves as a safety guard for edge cases
+                        # (e.g., floating point precision) to ensure output stays in [0, 1]
                         relevance = min(1.0, raw_score / (raw_score + 1.0))
                 
                 # Method 2: Use certainty if score not available (for neartext)

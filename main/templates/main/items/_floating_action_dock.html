@@ -879,12 +879,23 @@ function sanitizeUrl(url) {
     // Prevent XSS attacks through javascript: and data: URLs
     if (!url) return '';
     
-    const urlString = String(url).trim().toLowerCase();
+    let urlString = String(url).trim();
     
-    // Block dangerous URL schemes
-    const dangerousSchemes = ['javascript:', 'data:', 'vbscript:', 'file:'];
+    // Decode URL to catch encoded attacks (e.g., %6A%61%76%61 = java)
+    try {
+        urlString = decodeURIComponent(urlString);
+    } catch (e) {
+        // If decoding fails, treat as suspicious
+        console.warn('Failed to decode URL:', url);
+        return '#';
+    }
+    
+    const lowerUrl = urlString.toLowerCase();
+    
+    // Block dangerous URL schemes (including common variations)
+    const dangerousSchemes = ['javascript:', 'data:', 'vbscript:', 'file:', 'about:'];
     for (const scheme of dangerousSchemes) {
-        if (urlString.startsWith(scheme)) {
+        if (lowerUrl.includes(scheme)) {
             console.warn('Blocked potentially dangerous URL:', url);
             return '#';
         }
