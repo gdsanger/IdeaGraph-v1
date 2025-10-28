@@ -101,6 +101,42 @@ class SemanticNetworkViewer {
                         <span class="legend-dot" style="background: #6366f1;"></span>
                         <span>Task Ebene 3</span>
                     </div>
+                    <div class="legend-item">
+                        <span class="legend-dot" style="background: #10b981;"></span>
+                        <span>File Ebene 1</span>
+                    </div>
+                    <div class="legend-item" id="fileLevel2Legend">
+                        <span class="legend-dot" style="background: #059669;"></span>
+                        <span>File Ebene 2</span>
+                    </div>
+                    <div class="legend-item" id="fileLevel3Legend">
+                        <span class="legend-dot" style="background: #047857;"></span>
+                        <span>File Ebene 3</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dot" style="background: #f97316;"></span>
+                        <span>GitHub Issue Ebene 1</span>
+                    </div>
+                    <div class="legend-item" id="githubIssueLevel2Legend">
+                        <span class="legend-dot" style="background: #ea580c;"></span>
+                        <span>GitHub Issue Ebene 2</span>
+                    </div>
+                    <div class="legend-item" id="githubIssueLevel3Legend">
+                        <span class="legend-dot" style="background: #c2410c;"></span>
+                        <span>GitHub Issue Ebene 3</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dot" style="background: #06b6d4;"></span>
+                        <span>Pull Request Ebene 1</span>
+                    </div>
+                    <div class="legend-item" id="pullRequestLevel2Legend">
+                        <span class="legend-dot" style="background: #0891b2;"></span>
+                        <span>Pull Request Ebene 2</span>
+                    </div>
+                    <div class="legend-item" id="pullRequestLevel3Legend">
+                        <span class="legend-dot" style="background: #0e7490;"></span>
+                        <span>Pull Request Ebene 3</span>
+                    </div>
                     <div class="legend-item" id="hierarchyLegend" style="display: none;">
                         <span class="legend-line" style="border-top: 2px dashed #6366f1;"></span>
                         <span>Hierarchie (Parent/Child)</span>
@@ -547,6 +583,21 @@ class SemanticNetworkViewer {
                 1: '#ec4899', // Pink for level 1 Tasks
                 2: '#a855f7', // Purple for level 2 Tasks
                 3: '#6366f1'  // Indigo for level 3 Tasks
+            },
+            'file': {
+                1: '#10b981', // Emerald for level 1 Files
+                2: '#059669', // Emerald-600 for level 2 Files
+                3: '#047857'  // Emerald-700 for level 3 Files
+            },
+            'github_issue': {
+                1: '#f97316', // Orange for level 1 GitHub Issues
+                2: '#ea580c', // Orange-600 for level 2 GitHub Issues
+                3: '#c2410c'  // Orange-700 for level 3 GitHub Issues
+            },
+            'pull_request': {
+                1: '#06b6d4', // Cyan for level 1 Pull Requests
+                2: '#0891b2', // Cyan-600 for level 2 Pull Requests
+                3: '#0e7490'  // Cyan-700 for level 3 Pull Requests
             }
         };
         
@@ -660,6 +711,7 @@ class SemanticNetworkViewer {
     navigateToObject(nodeData) {
         const type = nodeData.type;
         const id = nodeData.id;
+        const props = nodeData.properties || {};
         
         // Build URL based on object type
         let url = '';
@@ -671,14 +723,23 @@ class SemanticNetworkViewer {
                 url = `/tasks/${id}/`;
                 break;
             case 'github_issue':
-                // GitHub issues might have a URL in properties
-                const props = nodeData.properties || {};
+            case 'pull_request':
+                // GitHub issues and PRs have a URL in properties
                 url = props.url || props.html_url || '';
                 if (url) {
                     window.open(url, '_blank');
-                    return;
+                } else {
+                    console.warn(`No URL found for ${type}:`, nodeData);
                 }
-                break;
+                return;
+            case 'file':
+                // Files can be viewed via their download endpoint
+                if (id) {
+                    window.open(`/api/files/${id}`, '_blank');
+                } else {
+                    console.warn('No ID found for file:', nodeData);
+                }
+                return;
             default:
                 console.warn('Unknown object type:', type);
                 return;

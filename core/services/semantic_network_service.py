@@ -53,6 +53,7 @@ class SemanticNetworkService:
         'item': 'Item',
         'task': 'Task',
         'github_issue': 'GitHubIssue',
+        'pull_request': 'pull_request',
         'mail': 'Mail',
         'file': 'File',
         'milestone': 'Milestone',
@@ -413,10 +414,10 @@ Bitte antworte in 2-3 kurzen Sätzen auf Deutsch."""
             depth = min(max(depth, 1), 3)  # Clamp to 1-3
             
             # Determine which types to include in the search
-            # For Items, default to including both Items and Tasks
+            # For Items, default to including Items, Tasks, Files, GitHub Issues, and Pull Requests
             if include_types is None:
                 if object_type == 'item':
-                    search_types = ['Item', 'Task']
+                    search_types = ['Item', 'Task', 'File', 'GitHubIssue', 'pull_request']
                 else:
                     search_types = [type_value]
             else:
