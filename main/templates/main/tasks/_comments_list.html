@@ -3,14 +3,27 @@
 {% if comments %}
 <div class="comments-container">
     {% for comment in comments %}
-    <div class="comment-card mb-2 {% if comment.source == 'agent' %}comment-agent{% elif comment.source == 'email' %}comment-email{% else %}comment-user{% endif %}" data-comment-id="{{ comment.id }}">
+    <div class="comment-card mb-2 {% if comment.source == 'agent' %}comment-agent{% elif comment.source == 'email' %}comment-email {% if comment.email_direction == 'outbound' %}comment-email-outbound{% elif comment.email_direction == 'inbound' %}comment-email-inbound{% endif %}{% else %}comment-user{% endif %}" 
+         data-comment-id="{{ comment.id }}"
+         data-email-from="{{ comment.email_from|default:'' }}"
+         data-email-to="{{ comment.email_to|default:'' }}"
+         data-email-subject="{{ comment.email_subject|default:'' }}"
+         data-email-message-id="{{ comment.email_message_id|default:'' }}">
         <div class="comment-header">
             <div class="comment-author">
                 {% if comment.source == 'agent' %}
+                <span class="comment-type-icon" title="Notiz">📝</span>
                 <i class="bi bi-robot"></i>
                 {% elif comment.source == 'email' %}
+                <span class="comment-type-icon" title="E-Mail{% if comment.email_direction == 'outbound' %} von {{ comment.email_from }} an {{ comment.email_to }}{% elif comment.email_direction == 'inbound' %} von {{ comment.email_from }}{% endif %}">✉️</span>
+                {% if comment.email_direction == 'outbound' %}
+                <span class="email-direction-icon outbound" title="Ausgehende E-Mail">🔼</span>
+                {% elif comment.email_direction == 'inbound' %}
+                <span class="email-direction-icon inbound" title="Eingehende E-Mail">🔽</span>
+                {% endif %}
                 <i class="bi bi-envelope"></i>
                 {% else %}
+                <span class="comment-type-icon" title="Notiz">📝</span>
                 <i class="bi bi-person-circle"></i>
                 {% endif %}
                 <strong>{{ comment.author }}</strong>
@@ -28,6 +41,14 @@
         {% if comment.source == 'email' and comment.email_subject %}
         <div class="comment-email-subject">
             <strong>Betreff:</strong> {{ comment.email_subject }}
+        </div>
+        {% endif %}
+        {% if comment.source == 'email' and comment.email_to %}
+        <div class="comment-email-recipients">
+            <small class="text-muted"><strong>An:</strong> {{ comment.email_to }}</small>
+            {% if comment.email_cc %}
+            <small class="text-muted ms-2"><strong>Cc:</strong> {{ comment.email_cc }}</small>
+            {% endif %}
         </div>
         {% endif %}
         <div class="comment-body" data-comment-text="{{ comment.text|escapejs }}">
@@ -48,8 +69,15 @@
                 </div>
             </div>
         </div>
-        {% if comment.can_edit or comment.can_delete %}
         <div class="comment-actions">
+            {% if comment.source == 'email' %}
+            <button class="btn btn-sm btn-outline-info reply-email-btn" title="Antworten">
+                <i class="bi bi-reply"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary forward-email-btn" title="Weiterleiten">
+                <i class="bi bi-forward"></i>
+            </button>
+            {% endif %}
             {% if comment.can_edit %}
             <button class="btn btn-sm btn-outline-primary edit-comment-btn" title="Bearbeiten">
                 <i class="bi bi-pencil"></i>
@@ -61,7 +89,6 @@
             </button>
             {% endif %}
         </div>
-        {% endif %}
     </div>
     {% endfor %}
 </div>
@@ -106,8 +133,42 @@
     background: rgba(59, 130, 246, 0.1);
 }
 
+.comment-email-outbound {
+    border-left-color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.comment-email-inbound {
+    border-left-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.comment-type-icon {
+    font-size: 1rem;
+    margin-right: 0.25rem;
+}
+
+.email-direction-icon {
+    font-size: 0.875rem;
+    margin-right: 0.25rem;
+}
+
+.email-direction-icon.outbound {
+    color: #10b981;
+}
+
+.email-direction-icon.inbound {
+    color: #3b82f6;
+}
+
 .comment-email-subject {
     font-size: 0.8125rem;
+    margin-bottom: 0.4rem;
+    color: #9ca3af;
+}
+
+.comment-email-recipients {
+    font-size: 0.75rem;
     margin-bottom: 0.4rem;
     color: #9ca3af;
 }
@@ -350,6 +411,74 @@
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-check-lg"></i> Speichern';
             }
+        });
+    });
+
+    // Handle reply button click
+    document.querySelectorAll('.reply-email-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const commentCard = this.closest('.comment-card');
+            const emailFrom = commentCard.dataset.emailFrom;
+            const emailSubject = commentCard.dataset.emailSubject;
+            const messageId = commentCard.dataset.emailMessageId;
+            
+            // Show email form
+            const emailForm = document.getElementById('emailFormContainer');
+            const commentForm = document.getElementById('commentFormContainer');
+            
+            commentForm.style.display = 'none';
+            emailForm.style.display = 'block';
+            
+            // Pre-fill recipient with sender
+            document.getElementById('emailRecipient').value = emailFrom;
+            
+            // Pre-fill subject with Re:
+            const replySubject = emailSubject.startsWith('Re:') ? emailSubject : 'Re: ' + emailSubject;
+            document.getElementById('emailSubject').value = replySubject;
+            
+            // Store message ID for threading (if needed in future)
+            emailForm.dataset.inReplyTo = messageId;
+            
+            // Focus on body
+            document.getElementById('emailBody').focus();
+            
+            // Scroll to email form
+            emailForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+    });
+
+    // Handle forward button click
+    document.querySelectorAll('.forward-email-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const commentCard = this.closest('.comment-card');
+            const emailSubject = commentCard.dataset.emailSubject;
+            const commentText = commentCard.dataset.emailFrom ? 
+                `---------- Weitergeleitete Nachricht ----------\nVon: ${commentCard.dataset.emailFrom}\nBetreff: ${emailSubject}\n\n` + 
+                commentCard.querySelector('.comment-text').textContent.trim() : 
+                commentCard.querySelector('.comment-text').textContent.trim();
+            
+            // Show email form
+            const emailForm = document.getElementById('emailFormContainer');
+            const commentForm = document.getElementById('commentFormContainer');
+            
+            commentForm.style.display = 'none';
+            emailForm.style.display = 'block';
+            
+            // Clear recipient (user needs to specify)
+            document.getElementById('emailRecipient').value = '';
+            
+            // Pre-fill subject with Fwd:
+            const fwdSubject = emailSubject.startsWith('Fwd:') ? emailSubject : 'Fwd: ' + emailSubject;
+            document.getElementById('emailSubject').value = fwdSubject;
+            
+            // Pre-fill body with forwarded content
+            document.getElementById('emailBody').value = commentText;
+            
+            // Focus on recipient
+            document.getElementById('emailRecipient').focus();
+            
+            // Scroll to email form
+            emailForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
     });
 

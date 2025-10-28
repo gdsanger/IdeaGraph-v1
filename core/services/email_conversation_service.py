@@ -205,7 +205,8 @@ class EmailConversationService:
         body: str,
         author: Optional[User] = None,
         in_reply_to: Optional[str] = None,
-        references: Optional[str] = None
+        references: Optional[str] = None,
+        cc: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Send an email from a task context with proper threading
@@ -218,6 +219,7 @@ class EmailConversationService:
             author: User sending the email (optional)
             in_reply_to: Message-ID this email is replying to (optional, tracked in database)
             references: Space-separated Message-IDs for threading (optional, tracked in database)
+            cc: List of CC recipient email addresses (optional)
             
         Returns:
             Dictionary with success status and message details
@@ -241,12 +243,17 @@ class EmailConversationService:
             result = self.graph_service.send_mail(
                 to=to,
                 subject=formatted_subject,
-                body=body
+                body=body,
+                cc=cc
             )
             
             if result.get('success'):
                 # Create a comment in the task to track this sent email
-                comment_text = f"**E-Mail gesendet an {', '.join(to)}:**\n\n**Betreff:** {formatted_subject}\n\n{body}"
+                recipients_text = ', '.join(to)
+                comment_text = f"**E-Mail gesendet an {recipients_text}:**\n\n**Betreff:** {formatted_subject}\n\n{body}"
+                
+                if cc:
+                    comment_text = f"**E-Mail gesendet an {recipients_text}** (Cc: {', '.join(cc)}):\n\n**Betreff:** {formatted_subject}\n\n{body}"
                 
                 TaskComment.objects.create(
                     task=task,
@@ -258,7 +265,10 @@ class EmailConversationService:
                     email_in_reply_to=in_reply_to or '',
                     email_references=references or '',
                     email_from=self.settings.default_mail_sender or '',
-                    email_subject=formatted_subject
+                    email_to=', '.join(to),
+                    email_cc=', '.join(cc) if cc else '',
+                    email_subject=formatted_subject,
+                    email_direction='outbound'
                 )
                 
                 logger.info(f"Email sent successfully for task {task.id} with Short-ID {task.short_id}")
@@ -405,7 +415,9 @@ class EmailConversationService:
                 email_in_reply_to=in_reply_to,
                 email_references=references,
                 email_from=sender_email,
-                email_subject=subject
+                email_to=self.settings.default_mail_sender or '',
+                email_subject=subject,
+                email_direction='inbound'
             )
             
             logger.info(f"Created comment from email for task {task.id}")

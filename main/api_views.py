@@ -2674,9 +2674,10 @@ def api_send_task_email(request, task_id):
     API endpoint to send email from task context with conversation threading.
     POST /api/tasks/{task_id}/send-email
     Body: {
-        "email": "recipient@example.com",
+        "email": "recipient@example.com" or "recipient1@example.com,recipient2@example.com",
         "subject": "Email subject",
         "body": "<p>HTML email body</p>",
+        "cc": "cc@example.com" or "cc1@example.com,cc2@example.com" (optional),
         "in_reply_to": "<message-id@domain>" (optional)
     }
     """
@@ -2704,6 +2705,7 @@ def api_send_task_email(request, task_id):
         recipient_email = data.get('email', '').strip()
         subject = data.get('subject', '').strip()
         body = data.get('body', '').strip()
+        cc = data.get('cc', '').strip()
         in_reply_to = data.get('in_reply_to', '').strip()
         
         if not recipient_email:
@@ -2718,10 +2720,23 @@ def api_send_task_email(request, task_id):
         # Validate email format using Django's EmailValidator
         from django.core.validators import validate_email
         from django.core.exceptions import ValidationError
-        try:
-            validate_email(recipient_email)
-        except ValidationError:
-            return JsonResponse({'error': 'Invalid email address format'}, status=400)
+        
+        # Validate all recipient emails
+        recipient_emails = [email.strip() for email in recipient_email.split(',') if email.strip()]
+        for email in recipient_emails:
+            try:
+                validate_email(email)
+            except ValidationError:
+                return JsonResponse({'error': f'Invalid email address format: {email}'}, status=400)
+        
+        # Validate all CC emails if provided
+        if cc:
+            cc_emails = [email.strip() for email in cc.split(',') if email.strip()]
+            for email in cc_emails:
+                try:
+                    validate_email(email)
+                except ValidationError:
+                    return JsonResponse({'error': f'Invalid CC email address format: {email}'}, status=400)
         
         # Send the email
         success, result = send_task_email(
@@ -2730,7 +2745,8 @@ def api_send_task_email(request, task_id):
             subject=subject,
             body=body,
             user=user,
-            in_reply_to=in_reply_to if in_reply_to else None
+            in_reply_to=in_reply_to if in_reply_to else None,
+            cc=cc if cc else None
         )
         
         if success:
@@ -6556,7 +6572,11 @@ def api_task_comments(request, task_id):
                     'can_delete': comment.author == user or user.role == 'admin' if comment.author else user.role == 'admin',
                     # Email-specific fields
                     'email_from': comment.email_from if comment.source == 'email' else '',
+                    'email_to': comment.email_to if comment.source == 'email' else '',
+                    'email_cc': comment.email_cc if comment.source == 'email' else '',
                     'email_subject': comment.email_subject if comment.source == 'email' else '',
+                    'email_direction': comment.email_direction if comment.source == 'email' else '',
+                    'email_message_id': comment.email_message_id if comment.source == 'email' else '',
                 }
                 comment_list.append(comment_data)
             
@@ -6581,7 +6601,11 @@ def api_task_comments(request, task_id):
                 'can_delete': comment.author == user or user.role == 'admin' if comment.author else user.role == 'admin',
                 # Email-specific fields
                 'email_from': comment.email_from if comment.source == 'email' else '',
+                'email_to': comment.email_to if comment.source == 'email' else '',
+                'email_cc': comment.email_cc if comment.source == 'email' else '',
                 'email_subject': comment.email_subject if comment.source == 'email' else '',
+                'email_direction': comment.email_direction if comment.source == 'email' else '',
+                'email_message_id': comment.email_message_id if comment.source == 'email' else '',
             }
             comment_list.append(comment_data)
         

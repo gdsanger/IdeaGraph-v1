@@ -112,7 +112,7 @@ def send_item_email(item_id, recipient_email):
         return False, f"Unexpected error: {str(e)}"
 
 
-def send_task_email(task_id, recipient_email, subject, body, user=None, in_reply_to=None):
+def send_task_email(task_id, recipient_email, subject, body, user=None, in_reply_to=None, cc=None):
     """
     Send an email from a task context with conversation threading.
     
@@ -123,11 +123,12 @@ def send_task_email(task_id, recipient_email, subject, body, user=None, in_reply
     
     Args:
         task_id: UUID of the task
-        recipient_email: Email address of the recipient
+        recipient_email: Email address of the recipient (can be comma-separated list)
         subject: Email subject (Short-ID will be appended automatically)
         body: Email body in HTML format
         user: User sending the email (optional)
         in_reply_to: Message-ID this email is replying to (optional)
+        cc: CC email addresses (can be comma-separated list, optional)
         
     Returns:
         tuple: (success, message/details_dict)
@@ -147,6 +148,14 @@ def send_task_email(task_id, recipient_email, subject, body, user=None, in_reply
         # Initialize email conversation service
         email_service = EmailConversationService(settings)
         
+        # Parse recipient email(s)
+        to_list = [email.strip() for email in recipient_email.split(',') if email.strip()]
+        
+        # Parse CC email(s) if provided
+        cc_list = None
+        if cc:
+            cc_list = [email.strip() for email in cc.split(',') if email.strip()]
+        
         # Get references from previous comments if replying
         references = ''
         if in_reply_to:
@@ -161,12 +170,13 @@ def send_task_email(task_id, recipient_email, subject, body, user=None, in_reply
         # Send email with threading
         result = email_service.send_task_email(
             task=task,
-            to=[recipient_email],
+            to=to_list,
             subject=subject,
             body=body,
             author=user,
             in_reply_to=in_reply_to,
-            references=references
+            references=references,
+            cc=cc_list
         )
         
         if result.get('success'):
