@@ -635,6 +635,71 @@ class TaskComment(models.Model):
             return 'Unknown'
 
 
+class GitHubPullRequest(models.Model):
+    """
+    Model to store GitHub Pull Requests synchronized from GitHub repositories.
+    Pull Requests are stored locally for fast access and also synchronized to Weaviate
+    as KnowledgeObjects for semantic search.
+    """
+    
+    STATE_CHOICES = [
+        ('open', 'Open'),
+        ('closed', 'Closed'),
+        ('merged', 'Merged'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # GitHub PR information
+    pr_number = models.IntegerField(help_text='GitHub Pull Request number')
+    title = models.CharField(max_length=500, help_text='Pull Request title')
+    body = models.TextField(blank=True, default='', help_text='Pull Request description/body')
+    state = models.CharField(max_length=10, choices=STATE_CHOICES, help_text='Pull Request state')
+    
+    # Repository information
+    repo_owner = models.CharField(max_length=255, help_text='GitHub repository owner')
+    repo_name = models.CharField(max_length=255, help_text='GitHub repository name')
+    
+    # Author information
+    author_login = models.CharField(max_length=255, blank=True, default='', help_text='GitHub username of PR author')
+    author_avatar_url = models.URLField(max_length=500, blank=True, default='', help_text='URL to author avatar')
+    
+    # PR metadata
+    html_url = models.URLField(max_length=500, help_text='GitHub URL to the Pull Request')
+    draft = models.BooleanField(default=False, help_text='Whether the PR is a draft')
+    merged = models.BooleanField(default=False, help_text='Whether the PR has been merged')
+    merged_at = models.DateTimeField(null=True, blank=True, help_text='When the PR was merged')
+    
+    # Branch information
+    head_branch = models.CharField(max_length=255, blank=True, default='', help_text='Source branch name')
+    base_branch = models.CharField(max_length=255, blank=True, default='', help_text='Target branch name')
+    
+    # Relations
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='pull_requests', help_text='Associated IdeaGraph Item')
+    
+    # Timestamps
+    created_at_github = models.DateTimeField(help_text='When the PR was created on GitHub')
+    updated_at_github = models.DateTimeField(help_text='When the PR was last updated on GitHub')
+    closed_at_github = models.DateTimeField(null=True, blank=True, help_text='When the PR was closed on GitHub')
+    
+    # Sync metadata
+    synced_at = models.DateTimeField(auto_now=True, help_text='When this record was last synchronized')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at_github']
+        verbose_name = 'GitHub Pull Request'
+        verbose_name_plural = 'GitHub Pull Requests'
+        unique_together = ['item', 'pr_number', 'repo_owner', 'repo_name']
+        indexes = [
+            models.Index(fields=['repo_owner', 'repo_name', 'pr_number'], name='gh_pr_repo_idx'),
+            models.Index(fields=['item', 'state'], name='gh_pr_item_state_idx'),
+        ]
+    
+    def __str__(self):
+        return f"PR #{self.pr_number}: {self.title}"
+
+
 class Settings(models.Model):
     """
     Settings model to store system configuration and API keys.
