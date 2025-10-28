@@ -222,20 +222,20 @@ class GitHubPRSyncServiceTestCase(TestCase):
     
     @patch('core.services.github_service.GitHubService')
     def test_sync_pull_requests_success(self, mock_github_service_class):
-        """Test successful PR synchronization"""
+        """Test successful PR synchronization (only closed PRs)"""
         service = GitHubPRSyncService(self.settings)
         
         # Mock GitHub service
         mock_github_service = Mock()
         mock_github_service_class.return_value = mock_github_service
         
-        # Mock PR data from GitHub
+        # Mock PR data from GitHub - only closed PRs
         mock_prs = [
             {
                 'number': 1,
                 'title': 'PR 1',
                 'body': 'Body 1',
-                'state': 'open',
+                'state': 'closed',
                 'html_url': 'https://github.com/test-owner/test-repo/pull/1',
                 'draft': False,
                 'merged': False,
@@ -244,7 +244,7 @@ class GitHubPRSyncServiceTestCase(TestCase):
                 'base': {'ref': 'main'},
                 'created_at': '2023-01-15T10:30:00Z',
                 'updated_at': '2023-01-15T11:00:00Z',
-                'closed_at': None,
+                'closed_at': '2023-01-15T11:00:00Z',
                 'merged_at': None,
             },
             {
@@ -272,7 +272,7 @@ class GitHubPRSyncServiceTestCase(TestCase):
         }
         
         # Mock Weaviate sync
-        with patch.object(service, '_sync_pr_to_weaviate', return_value=True):
+        with patch.object(service, '_sync_pr_to_weaviate', return_value=(True, False)):
             result = service.sync_pull_requests(self.item, initial_load=True)
         
         self.assertTrue(result['success'])
@@ -284,10 +284,10 @@ class GitHubPRSyncServiceTestCase(TestCase):
         prs = GitHubPullRequest.objects.filter(item=self.item)
         self.assertEqual(prs.count(), 2)
         
-        # Verify PR 1
+        # Verify PR 1 (closed)
         pr1 = prs.get(pr_number=1)
         self.assertEqual(pr1.title, 'PR 1')
-        self.assertEqual(pr1.state, 'open')
+        self.assertEqual(pr1.state, 'closed')
         
         # Verify PR 2 (merged)
         pr2 = prs.get(pr_number=2)
@@ -297,14 +297,14 @@ class GitHubPRSyncServiceTestCase(TestCase):
     
     @patch('core.services.github_service.GitHubService')
     def test_sync_pull_requests_incremental(self, mock_github_service_class):
-        """Test incremental PR synchronization (last hour)"""
+        """Test incremental PR synchronization (last hour, closed PRs only)"""
         service = GitHubPRSyncService(self.settings)
         
         # Mock GitHub service
         mock_github_service = Mock()
         mock_github_service_class.return_value = mock_github_service
         
-        # Create PR data with different update times
+        # Create PR data with different update times - both closed
         now = timezone.now()
         recent_time = now - timedelta(minutes=30)
         old_time = now - timedelta(hours=2)
@@ -314,7 +314,7 @@ class GitHubPRSyncServiceTestCase(TestCase):
                 'number': 1,
                 'title': 'Recent PR',
                 'body': 'Recently updated',
-                'state': 'open',
+                'state': 'closed',
                 'html_url': 'https://github.com/test-owner/test-repo/pull/1',
                 'draft': False,
                 'merged': False,
@@ -323,14 +323,14 @@ class GitHubPRSyncServiceTestCase(TestCase):
                 'base': {'ref': 'main'},
                 'created_at': old_time.isoformat(),
                 'updated_at': recent_time.isoformat(),
-                'closed_at': None,
+                'closed_at': recent_time.isoformat(),
                 'merged_at': None,
             },
             {
                 'number': 2,
                 'title': 'Old PR',
                 'body': 'Old update',
-                'state': 'open',
+                'state': 'closed',
                 'html_url': 'https://github.com/test-owner/test-repo/pull/2',
                 'draft': False,
                 'merged': False,
@@ -339,7 +339,7 @@ class GitHubPRSyncServiceTestCase(TestCase):
                 'base': {'ref': 'main'},
                 'created_at': old_time.isoformat(),
                 'updated_at': old_time.isoformat(),
-                'closed_at': None,
+                'closed_at': old_time.isoformat(),
                 'merged_at': None,
             }
         ]
@@ -351,7 +351,7 @@ class GitHubPRSyncServiceTestCase(TestCase):
         }
         
         # Mock Weaviate sync
-        with patch.object(service, '_sync_pr_to_weaviate', return_value=True):
+        with patch.object(service, '_sync_pr_to_weaviate', return_value=(True, False)):
             result = service.sync_pull_requests(self.item, initial_load=False)
         
         self.assertTrue(result['success'])
@@ -430,3 +430,80 @@ class GitHubPRSyncServiceTestCase(TestCase):
                 created_at_github=timezone.now(),
                 updated_at_github=timezone.now()
             )
+    
+    @patch('core.services.github_service.GitHubService')
+    def test_sync_skip_existing_in_weaviate(self, mock_github_service_class):
+        """Test that PRs are skipped when they already exist in Weaviate"""
+        service = GitHubPRSyncService(self.settings)
+        
+        # Mock GitHub service
+        mock_github_service = Mock()
+        mock_github_service_class.return_value = mock_github_service
+        
+        # Mock closed PR data
+        mock_prs = [
+            {
+                'number': 1,
+                'title': 'Existing PR',
+                'body': 'Body 1',
+                'state': 'closed',
+                'html_url': 'https://github.com/test-owner/test-repo/pull/1',
+                'draft': False,
+                'merged': True,
+                'user': {'login': 'author1', 'avatar_url': ''},
+                'head': {'ref': 'feature1'},
+                'base': {'ref': 'main'},
+                'created_at': '2023-01-15T10:30:00Z',
+                'updated_at': '2023-01-15T11:00:00Z',
+                'closed_at': '2023-01-15T11:00:00Z',
+                'merged_at': '2023-01-15T11:00:00Z',
+            }
+        ]
+        
+        mock_github_service.list_pull_requests.return_value = {
+            'success': True,
+            'pull_requests': mock_prs,
+            'count': 1
+        }
+        
+        # Mock Weaviate sync to return skipped=True
+        with patch.object(service, '_sync_pr_to_weaviate', return_value=(True, True)):
+            result = service.sync_pull_requests(
+                self.item,
+                initial_load=True,
+                skip_existing_in_weaviate=True
+            )
+        
+        self.assertTrue(result['success'])
+        self.assertEqual(result['prs_checked'], 1)
+        self.assertEqual(result['prs_created'], 1)
+        self.assertEqual(result['prs_skipped_in_weaviate'], 1)
+        self.assertEqual(result['prs_synced_to_weaviate'], 0)
+    
+    @patch('core.services.github_service.GitHubService')
+    def test_sync_only_closed_prs(self, mock_github_service_class):
+        """Test that only closed PRs are fetched from GitHub"""
+        service = GitHubPRSyncService(self.settings)
+        
+        # Mock GitHub service
+        mock_github_service = Mock()
+        mock_github_service_class.return_value = mock_github_service
+        
+        mock_github_service.list_pull_requests.return_value = {
+            'success': True,
+            'pull_requests': [],
+            'count': 0
+        }
+        
+        # Mock Weaviate sync
+        with patch.object(service, '_sync_pr_to_weaviate', return_value=(True, False)):
+            service.sync_pull_requests(self.item, initial_load=True)
+        
+        # Verify that list_pull_requests was called with state='closed'
+        mock_github_service.list_pull_requests.assert_called_with(
+            owner='test-owner',
+            repo='test-repo',
+            state='closed',
+            per_page=100,
+            page=1
+        )
