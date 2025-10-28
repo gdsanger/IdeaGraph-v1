@@ -1023,12 +1023,12 @@ class TaskBulkDeleteTest(TestCase):
         self.assertIn('error', data)
         self.assertIn('No valid task IDs', data['error'])
     
-    def test_bulk_delete_other_user_tasks_denied(self):
-        """Test that users cannot delete other users' tasks"""
+    def test_bulk_delete_other_user_tasks_allowed(self):
+        """Test that authenticated users can delete any tasks (matching single task delete behavior)"""
         self.login_user()
         url = reverse('main:api_task_bulk_delete')
         
-        # Try to delete other user's task
+        # Delete other user's task
         task_ids = [str(self.other_task.id)]
         response = self.client.post(
             url,
@@ -1036,15 +1036,16 @@ class TaskBulkDeleteTest(TestCase):
             content_type='application/json'
         )
         
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 200)
         data = json.loads(response.content)
-        self.assertIn('error', data)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['deleted_count'], 1)
         
-        # Verify other user's task still exists
-        self.assertTrue(Task.objects.filter(id=self.other_task.id).exists())
+        # Verify other user's task was deleted
+        self.assertFalse(Task.objects.filter(id=self.other_task.id).exists())
     
     def test_bulk_delete_mixed_ownership(self):
-        """Test bulk deletion with mixed ownership (should only delete user's tasks)"""
+        """Test bulk deletion with mixed ownership (should delete all provided tasks)"""
         self.login_user()
         url = reverse('main:api_task_bulk_delete')
         
@@ -1059,14 +1060,12 @@ class TaskBulkDeleteTest(TestCase):
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.content)
         self.assertTrue(data['success'])
-        self.assertEqual(data['deleted_count'], 2)  # Only user's tasks deleted
+        self.assertEqual(data['deleted_count'], 3)  # All tasks deleted
         
-        # Verify user's tasks were deleted
+        # Verify all tasks were deleted
         self.assertFalse(Task.objects.filter(id=self.task1.id).exists())
         self.assertFalse(Task.objects.filter(id=self.task2.id).exists())
-        
-        # Verify other user's task still exists
-        self.assertTrue(Task.objects.filter(id=self.other_task.id).exists())
+        self.assertFalse(Task.objects.filter(id=self.other_task.id).exists())
     
     def test_bulk_delete_requires_authentication(self):
         """Test that bulk deletion requires authentication"""

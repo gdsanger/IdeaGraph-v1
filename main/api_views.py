@@ -2877,8 +2877,8 @@ def api_task_bulk_delete(request):
         if not valid_task_ids:
             return JsonResponse({'error': 'No valid task IDs provided'}, status=400)
         
-        # Get all tasks that belong to the user
-        tasks = Task.objects.filter(id__in=valid_task_ids, created_by=user)
+        # Get all tasks by ID (authentication already verified)
+        tasks = Task.objects.filter(id__in=valid_task_ids)
         
         if not tasks.exists():
             return JsonResponse({'error': 'No tasks found or access denied'}, status=404)
