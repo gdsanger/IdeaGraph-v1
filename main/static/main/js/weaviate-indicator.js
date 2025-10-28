@@ -4,6 +4,15 @@
  * Provides functionality for checking Weaviate status and interacting with indicators.
  */
 
+// Wrap in IIFE to prevent redeclaration errors
+(function(window) {
+    'use strict';
+    
+    // Check if already defined to prevent redeclaration
+    if (window.WeaviateIndicator) {
+        return;
+    }
+
 class WeaviateIndicator {
     constructor(objectType, objectId, containerElement) {
         this.objectType = objectType;
@@ -306,7 +315,14 @@ function initAllWeaviateIndicators() {
 // Auto-initialize on DOMContentLoaded
 document.addEventListener('DOMContentLoaded', initAllWeaviateIndicators);
 
-// Export for use in other scripts
+// Export to window for global access
+window.WeaviateIndicator = WeaviateIndicator;
+window.initWeaviateIndicator = initWeaviateIndicator;
+window.initAllWeaviateIndicators = initAllWeaviateIndicators;
+
+// Export for use in other scripts (CommonJS/Node.js)
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { WeaviateIndicator, initWeaviateIndicator, initAllWeaviateIndicators };
 }
+
+})(window);
