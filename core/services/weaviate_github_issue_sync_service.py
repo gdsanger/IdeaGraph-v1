@@ -133,6 +133,10 @@ class WeaviateGitHubIssueSyncService:
             issue_url = issue.get('html_url', '')
             created_at = issue.get('created_at', datetime.now().isoformat())
             
+            # Extract owner from GitHub user data
+            issue_user = issue.get('user', {})
+            issue_owner = issue_user.get('login', '') if issue_user else ''
+            
             logger.info(f"Syncing issue #{issue_number} to Weaviate KnowledgeObject: {issue_title}")
             
             # Prepare properties for KnowledgeObject schema
@@ -141,6 +145,7 @@ class WeaviateGitHubIssueSyncService:
                 'title': issue_title,
                 'description': issue_body or '',
                 'status': issue_state,
+                'owner': issue_owner,
                 'createdAt': created_at,
                 'githubIssueId': issue_number,
                 'url': issue_url,
@@ -221,6 +226,10 @@ class WeaviateGitHubIssueSyncService:
             pr_url = pr.get('html_url', '')
             created_at = pr.get('created_at', datetime.now().isoformat())
             
+            # Extract owner from GitHub user data
+            pr_user = pr.get('user', {})
+            pr_owner = pr_user.get('login', '') if pr_user else ''
+            
             logger.info(f"Syncing PR #{pr_number} to Weaviate KnowledgeObject: {pr_title}")
             
             # Prepare properties for KnowledgeObject schema (same as issue since PRs are issues in GitHub)
@@ -229,6 +238,7 @@ class WeaviateGitHubIssueSyncService:
                 'title': pr_title,
                 'description': pr_body or '',
                 'status': pr_state,
+                'owner': pr_owner,
                 'createdAt': created_at,
                 'githubIssueId': pr_number,
                 'url': pr_url,
