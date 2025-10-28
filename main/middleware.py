@@ -48,6 +48,7 @@ class AdminRequiredMiddleware:
     ADMIN_URLS = [
         '/admin/users/',
         '/admin/settings/',
+        '/admin/weaviate/',
     ]
     
     def __init__(self, get_response):

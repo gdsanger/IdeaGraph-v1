@@ -2111,12 +2111,12 @@ def weaviate_status_view(request):
     Admin only.
     """
     # Check if user is authenticated
-    if not request.user.is_authenticated:
+    if not request.session.get('user_id'):
         messages.error(request, 'You must be logged in to access this page.')
         return redirect('main:login')
     
     # Check if user is admin
-    if request.user.role != 'admin':
+    if request.session.get('user_role') != 'admin':
         messages.error(request, 'Admin permission required to access Weaviate status.')
         return redirect('main:home')
     
@@ -2135,12 +2135,12 @@ def weaviate_maintenance_view(request):
     Admin only.
     """
     # Check if user is authenticated
-    if not request.user.is_authenticated:
+    if not request.session.get('user_id'):
         messages.error(request, 'You must be logged in to access this page.')
         return redirect('main:login')
     
     # Check if user is admin
-    if request.user.role != 'admin':
+    if request.session.get('user_role') != 'admin':
         messages.error(request, 'Admin permission required to access Weaviate maintenance.')
         return redirect('main:home')
     
