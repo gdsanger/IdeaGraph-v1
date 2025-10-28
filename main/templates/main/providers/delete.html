@@ -1,0 +1,84 @@
+{% extends "main/base.html" %}
+
+{% block title %}Delete Provider - IdeaGraph v1.0{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header -->
+    <div class="row mb-4 fade-in-up">
+        <div class="col-lg-12">
+            <h1 class="display-4 fw-bold mb-2" style="color: var(--autumn-light);">
+                <i class="bi bi-exclamation-triangle-fill text-danger"></i> Delete Provider
+            </h1>
+            <p class="lead mb-0" style="color: #d1d5db;">
+                Confirm provider deletion
+            </p>
+        </div>
+    </div>
+
+    <!-- Confirmation Card -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card border-danger">
+                <div class="card-body">
+                    <h5 class="card-title text-danger">
+                        <i class="bi bi-exclamation-triangle-fill"></i> Warning
+                    </h5>
+                    <p class="card-text">
+                        Are you sure you want to delete the provider <strong>{{ provider.name }}</strong>?
+                    </p>
+                    
+                    <div class="alert alert-warning mt-3">
+                        <strong>This action will:</strong>
+                        <ul class="mb-0">
+                            <li>Permanently delete the provider configuration</li>
+                            <li>Delete all associated model configurations ({{ provider.models.count }} models)</li>
+                            <li>Cannot be undone</li>
+                        </ul>
+                    </div>
+
+                    <div class="mt-3">
+                        <p><strong>Provider Details:</strong></p>
+                        <ul>
+                            <li><strong>Name:</strong> {{ provider.name }}</li>
+                            <li><strong>Type:</strong> {{ provider.get_provider_type_display }}</li>
+                            <li><strong>Status:</strong> 
+                                {% if provider.is_active %}
+                                <span class="badge bg-success">Active</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                                {% endif %}
+                            </li>
+                            <li><strong>Models:</strong> {{ provider.models.count }}</li>
+                        </ul>
+                    </div>
+
+                    <hr>
+
+                    <!-- Form Actions -->
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-trash"></i> Yes, Delete Provider
+                            </button>
+                            <a href="{% url 'main:provider_list' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Back to List -->
+    <div class="row mt-4">
+        <div class="col-lg-12">
+            <a href="{% url 'main:provider_list' %}" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> Back to Providers
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

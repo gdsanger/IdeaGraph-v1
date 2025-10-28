@@ -42,6 +42,14 @@ urlpatterns = [
     path('settings/clients/<uuid:client_id>/edit/', views.client_edit, name='client_edit'),
     path('settings/clients/<uuid:client_id>/delete/', views.client_delete, name='client_delete'),
     
+    # Provider URLs
+    path('settings/providers/', views.provider_list, name='provider_list'),
+    path('settings/providers/create/', views.provider_create, name='provider_create'),
+    path('settings/providers/<uuid:provider_id>/edit/', views.provider_edit, name='provider_edit'),
+    path('settings/providers/<uuid:provider_id>/delete/', views.provider_delete, name='provider_delete'),
+    path('settings/providers/<uuid:provider_id>/models/', views.provider_models, name='provider_models'),
+    path('settings/providers/models/<uuid:model_id>/toggle/', views.provider_model_toggle, name='provider_model_toggle'),
+    
     # Settings URLs
     path('admin/settings/', views.settings_list, name='settings_list'),
     path('admin/settings/create/', views.settings_create, name='settings_create'),
@@ -86,6 +94,9 @@ urlpatterns = [
     # Teams Integration URLs
     path('api/teams/poll', api_views.poll_teams_messages, name='api_poll_teams_messages'),
     path('api/teams/status', api_views.teams_integration_status, name='api_teams_integration_status'),
+    
+    # Provider API URLs
+    path('api/providers/<uuid:provider_id>/fetch-models', api_views.api_provider_fetch_models, name='api_provider_fetch_models'),
     
     # Task Management URLs
     path('items/<uuid:item_id>/tasks/', views.task_list, name='task_list'),

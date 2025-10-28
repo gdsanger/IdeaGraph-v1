@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Tag, User, Settings, Section, Item, Task, Relation, Milestone, MilestoneContextObject, MilestoneSummaryVersion, ItemQuestionAnswer
+from .models import Tag, User, Settings, Section, Item, Task, Relation, Milestone, MilestoneContextObject, MilestoneSummaryVersion, ItemQuestionAnswer, Provider, ProviderModel
 
 
 @admin.register(Tag)
@@ -211,4 +211,53 @@ class ItemQuestionAnswerAdmin(admin.ModelAdmin):
             return obj.question[:self.MAX_QUESTION_DISPLAY_LENGTH] + '...'
         return obj.question
     get_short_question.short_description = 'Question'
+
+
+@admin.register(Provider)
+class ProviderAdmin(admin.ModelAdmin):
+    list_display = ['name', 'provider_type', 'is_active', 'created_at', 'updated_at']
+    list_filter = ['provider_type', 'is_active', 'created_at']
+    search_fields = ['name']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('id', 'name', 'provider_type', 'is_active')
+        }),
+        ('API Configuration', {
+            'fields': ('api_key', 'api_base_url', 'api_timeout')
+        }),
+        ('Provider-specific Settings', {
+            'fields': ('openai_org_id', 'extra_config')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+
+@admin.register(ProviderModel)
+class ProviderModelAdmin(admin.ModelAdmin):
+    list_display = ['get_display_name', 'model_id', 'provider', 'is_active', 'last_synced_at']
+    list_filter = ['provider', 'is_active', 'last_synced_at']
+    search_fields = ['model_id', 'display_name', 'description']
+    readonly_fields = ['id', 'created_at', 'updated_at', 'last_synced_at']
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('id', 'provider', 'model_id', 'display_name', 'is_active')
+        }),
+        ('Model Details', {
+            'fields': ('description', 'capabilities', 'context_length')
+        }),
+        ('Metadata', {
+            'fields': ('metadata',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at', 'last_synced_at')
+        }),
+    )
+    
+    def get_display_name(self, obj):
+        """Return display name or model_id"""
+        return obj.display_name or obj.model_id
+    get_display_name.short_description = 'Display Name'
 

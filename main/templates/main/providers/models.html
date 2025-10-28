@@ -1,0 +1,244 @@
+{% extends "main/base.html" %}
+
+{% block title %}{{ provider.name }} - Models - IdeaGraph v1.0{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header -->
+    <div class="row mb-4 fade-in-up">
+        <div class="col-lg-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-4 fw-bold mb-2" style="color: var(--autumn-light);">
+                        <i class="bi bi-server"></i> {{ provider.name }} Models
+                    </h1>
+                    <p class="lead mb-0" style="color: #d1d5db;">
+                        Manage AI models for {{ provider.get_provider_type_display }}
+                    </p>
+                </div>
+                <div>
+                    <button class="btn btn-primary btn-lg" onclick="fetchModels()">
+                        <i class="bi bi-arrow-clockwise"></i> Fetch Models from API
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Loading Indicator -->
+    <div id="loading-indicator" class="alert alert-info" style="display: none;">
+        <div class="d-flex align-items-center">
+            <div class="spinner-border spinner-border-sm me-2" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <span>Fetching models from provider API...</span>
+        </div>
+    </div>
+
+    <!-- Success/Error Messages Container -->
+    <div id="fetch-message-container"></div>
+
+    <!-- Provider Info Card -->
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <strong>Provider:</strong> {{ provider.name }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Type:</strong> <span class="badge bg-info">{{ provider.get_provider_type_display }}</span>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Status:</strong>
+                            {% if provider.is_active %}
+                            <span class="badge bg-success">Active</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Total Models:</strong> <span class="badge bg-primary">{{ models.count }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Models List -->
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card">
+                <div class="card-body">
+                    {% if models %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Model ID</th>
+                                    <th>Display Name</th>
+                                    <th>Status</th>
+                                    <th>Context Length</th>
+                                    <th>Last Synced</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for model in models %}
+                                <tr>
+                                    <td>
+                                        <code>{{ model.model_id }}</code>
+                                    </td>
+                                    <td>
+                                        {{ model.display_name|default:model.model_id }}
+                                        {% if model.description %}
+                                        <br>
+                                        <small class="text-muted">{{ model.description|truncatechars:60 }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if model.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if model.context_length %}
+                                        {{ model.context_length|intcomma }} tokens
+                                        {% else %}
+                                        <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if model.last_synced_at %}
+                                        <small class="text-muted">{{ model.last_synced_at|date:"Y-m-d H:i" }}</small>
+                                        {% else %}
+                                        <span class="text-muted">Never</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <form method="post" action="{% url 'main:provider_model_toggle' model.id %}" style="display: inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm {% if model.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}" 
+                                                    title="{% if model.is_active %}Deactivate{% else %}Activate{% endif %} Model">
+                                                <i class="bi {% if model.is_active %}bi-toggle-on{% else %}bi-toggle-off{% endif %}"></i>
+                                                {% if model.is_active %}Deactivate{% else %}Activate{% endif %}
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-server" style="font-size: 4rem; color: var(--autumn-light);"></i>
+                        <h3 class="mt-3">No Models Found</h3>
+                        <p class="text-muted">Fetch models from the provider API to get started.</p>
+                        <button class="btn btn-primary mt-2" onclick="fetchModels()">
+                            <i class="bi bi-arrow-clockwise"></i> Fetch Models from API
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Back to Providers -->
+    <div class="row mt-4">
+        <div class="col-lg-12">
+            <a href="{% url 'main:provider_list' %}" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> Back to Providers
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+function fetchModels() {
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const messageContainer = document.getElementById('fetch-message-container');
+    
+    // Show loading indicator
+    loadingIndicator.style.display = 'block';
+    messageContainer.innerHTML = '';
+    
+    // Fetch models from API
+    fetch("{% url 'main:api_provider_fetch_models' provider.id %}", {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        loadingIndicator.style.display = 'none';
+        
+        if (data.success) {
+            messageContainer.innerHTML = `
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <strong>Success!</strong> ${data.message}
+                    <ul class="mb-0 mt-2">
+                        <li>Created: ${data.created} models</li>
+                        <li>Updated: ${data.updated} models</li>
+                    </ul>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
+            
+            // Reload page after 2 seconds
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+        } else {
+            messageContainer.innerHTML = `
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <strong>Error!</strong> ${data.error}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        loadingIndicator.style.display = 'none';
+        messageContainer.innerHTML = `
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <strong>Error!</strong> Failed to fetch models: ${error.message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `;
+    });
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

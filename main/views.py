@@ -3,7 +3,7 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.core.exceptions import ValidationError
 from .auth_utils import validate_password
-from .models import Tag, Settings, Section, User, Item, Task, Client, Milestone
+from .models import Tag, Settings, Section, User, Item, Task, Client, Milestone, Provider, ProviderModel
 import logging
 from datetime import datetime, timedelta
 from django.utils import timezone
@@ -2155,4 +2155,168 @@ def weaviate_maintenance_view(request):
         return redirect('main:home')
     
     return render(request, 'main/weaviate/maintenance.html')
+
+
+# Provider Management Views
+
+def provider_list(request):
+    """List all AI providers"""
+    # Check authentication
+    if 'user_id' not in request.session:
+        messages.error(request, 'Please log in to access providers.')
+        return redirect('main:login')
+    
+    providers = Provider.objects.all()
+    
+    # Add model count for each provider
+    for provider in providers:
+        provider.model_count = provider.models.count()
+        provider.active_model_count = provider.models.filter(is_active=True).count()
+    
+    return render(request, 'main/providers/list.html', {'providers': providers})
+
+
+def provider_create(request):
+    """Create a new AI provider"""
+    # Check authentication
+    if 'user_id' not in request.session:
+        messages.error(request, 'Please log in to create providers.')
+        return redirect('main:login')
+    
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        provider_type = request.POST.get('provider_type')
+        is_active = request.POST.get('is_active') == 'on'
+        api_key = request.POST.get('api_key', '')
+        api_base_url = request.POST.get('api_base_url', '')
+        api_timeout = request.POST.get('api_timeout', 30)
+        openai_org_id = request.POST.get('openai_org_id', '')
+        
+        if name and provider_type:
+            try:
+                # Set default base URL if not provided
+                if not api_base_url:
+                    provider = Provider(provider_type=provider_type)
+                    api_base_url = provider.get_default_base_url()
+                
+                provider = Provider(
+                    name=name,
+                    provider_type=provider_type,
+                    is_active=is_active,
+                    api_key=api_key,
+                    api_base_url=api_base_url,
+                    api_timeout=int(api_timeout),
+                    openai_org_id=openai_org_id
+                )
+                provider.save()
+                messages.success(request, f'Provider "{name}" created successfully!')
+                return redirect('main:provider_list')
+            except Exception as e:
+                logger.error(f"Error creating provider: {str(e)}")
+                messages.error(request, f'Error creating provider: {str(e)}')
+        else:
+            messages.error(request, 'Name and provider type are required.')
+    
+    # Get provider type choices
+    provider_types = Provider.PROVIDER_TYPE_CHOICES
+    return render(request, 'main/providers/form.html', {'provider_types': provider_types})
+
+
+def provider_edit(request, provider_id):
+    """Edit an existing AI provider"""
+    # Check authentication
+    if 'user_id' not in request.session:
+        messages.error(request, 'Please log in to edit providers.')
+        return redirect('main:login')
+    
+    provider = get_object_or_404(Provider, id=provider_id)
+    
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        provider_type = request.POST.get('provider_type')
+        is_active = request.POST.get('is_active') == 'on'
+        api_key = request.POST.get('api_key', '')
+        api_base_url = request.POST.get('api_base_url', '')
+        api_timeout = request.POST.get('api_timeout', 30)
+        openai_org_id = request.POST.get('openai_org_id', '')
+        
+        if name and provider_type:
+            try:
+                provider.name = name
+                provider.provider_type = provider_type
+                provider.is_active = is_active
+                provider.api_key = api_key
+                provider.api_base_url = api_base_url
+                provider.api_timeout = int(api_timeout)
+                provider.openai_org_id = openai_org_id
+                provider.save()
+                messages.success(request, f'Provider "{name}" updated successfully!')
+                return redirect('main:provider_list')
+            except Exception as e:
+                logger.error(f"Error updating provider: {str(e)}")
+                messages.error(request, f'Error updating provider: {str(e)}')
+        else:
+            messages.error(request, 'Name and provider type are required.')
+    
+    # Get provider type choices
+    provider_types = Provider.PROVIDER_TYPE_CHOICES
+    return render(request, 'main/providers/form.html', {
+        'provider': provider,
+        'provider_types': provider_types
+    })
+
+
+def provider_delete(request, provider_id):
+    """Delete an AI provider"""
+    # Check authentication
+    if 'user_id' not in request.session:
+        messages.error(request, 'Please log in to delete providers.')
+        return redirect('main:login')
+    
+    provider = get_object_or_404(Provider, id=provider_id)
+    
+    if request.method == 'POST':
+        provider_name = provider.name
+        # Get count of models before deletion
+        model_count = provider.models.count()
+        provider.delete()
+        messages.success(request, f'Provider "{provider_name}" and {model_count} associated models deleted successfully!')
+        return redirect('main:provider_list')
+    
+    return render(request, 'main/providers/delete.html', {'provider': provider})
+
+
+def provider_models(request, provider_id):
+    """List models for a specific provider"""
+    # Check authentication
+    if 'user_id' not in request.session:
+        messages.error(request, 'Please log in to view provider models.')
+        return redirect('main:login')
+    
+    provider = get_object_or_404(Provider, id=provider_id)
+    models = provider.models.all().order_by('-is_active', 'model_id')
+    
+    return render(request, 'main/providers/models.html', {
+        'provider': provider,
+        'models': models
+    })
+
+
+def provider_model_toggle(request, model_id):
+    """Toggle activation status of a provider model"""
+    # Check authentication
+    if 'user_id' not in request.session:
+        messages.error(request, 'Please log in to toggle model status.')
+        return redirect('main:login')
+    
+    model = get_object_or_404(ProviderModel, id=model_id)
+    
+    if request.method == 'POST':
+        model.is_active = not model.is_active
+        model.save()
+        status = "activated" if model.is_active else "deactivated"
+        messages.success(request, f'Model "{model.display_name or model.model_id}" {status} successfully!')
+        return redirect('main:provider_models', provider_id=model.provider.id)
+    
+    return redirect('main:provider_models', provider_id=model.provider.id)
 

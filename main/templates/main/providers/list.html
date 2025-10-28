@@ -1,0 +1,120 @@
+{% extends "main/base.html" %}
+
+{% block title %}AI Providers - IdeaGraph v1.0{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header -->
+    <div class="row mb-4 fade-in-up">
+        <div class="col-lg-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-4 fw-bold mb-2" style="color: var(--autumn-light);">
+                        <i class="bi bi-robot"></i> AI Providers
+                    </h1>
+                    <p class="lead mb-0" style="color: #d1d5db;">
+                        Manage AI provider configurations and models
+                    </p>
+                </div>
+                <div>
+                    <a href="{% url 'main:provider_create' %}" class="btn btn-primary btn-lg">
+                        <i class="bi bi-plus-circle-fill"></i> Create Provider
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Providers List -->
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card">
+                <div class="card-body">
+                    {% if providers %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Models</th>
+                                    <th>Base URL</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for provider in providers %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ provider.name }}</strong>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">{{ provider.get_provider_type_display }}</span>
+                                    </td>
+                                    <td>
+                                        {% if provider.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ provider.active_model_count }}/{{ provider.model_count }}</span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ provider.api_base_url|truncatechars:40 }}</small>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <a href="{% url 'main:provider_models' provider.id %}" class="btn btn-outline-primary" title="Manage Models">
+                                                <i class="bi bi-server"></i> Models
+                                            </a>
+                                            <a href="{% url 'main:provider_edit' provider.id %}" class="btn btn-outline-secondary" title="Edit Provider">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <a href="{% url 'main:provider_delete' provider.id %}" class="btn btn-outline-danger" title="Delete Provider">
+                                                <i class="bi bi-trash"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-robot" style="font-size: 4rem; color: var(--autumn-light);"></i>
+                        <h3 class="mt-3">No Providers Configured</h3>
+                        <p class="text-muted">Get started by creating your first AI provider configuration.</p>
+                        <a href="{% url 'main:provider_create' %}" class="btn btn-primary mt-2">
+                            <i class="bi bi-plus-circle-fill"></i> Create Provider
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Back to Settings -->
+    <div class="row mt-4">
+        <div class="col-lg-12">
+            <a href="{% url 'main:settings' %}" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> Back to Settings
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

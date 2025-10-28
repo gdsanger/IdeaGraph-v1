@@ -1222,3 +1222,92 @@ class ItemQuestionAnswer(models.Model):
     
     def __str__(self):
         return f"Q: {self.question[:50]}... (Item: {self.item.title})"
+
+
+class Provider(models.Model):
+    """
+    Provider model for managing AI provider configurations.
+    
+    Supports multiple AI providers like OpenAI, Google Gemini, Claude, and Ollama.
+    Each provider has specific configuration parameters for API access.
+    """
+    
+    PROVIDER_TYPE_CHOICES = [
+        ('openai', 'OpenAI'),
+        ('gemini', 'Google Gemini'),
+        ('claude', 'Anthropic Claude'),
+        ('ollama', 'Ollama'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, help_text='Display name for this provider configuration')
+    provider_type = models.CharField(max_length=20, choices=PROVIDER_TYPE_CHOICES, help_text='Type of AI provider')
+    is_active = models.BooleanField(default=True, help_text='Whether this provider is active')
+    
+    # Common configuration fields
+    api_key = models.CharField(max_length=500, blank=True, default='', help_text='API key for authentication')
+    api_base_url = models.CharField(max_length=500, blank=True, default='', help_text='Base URL for API endpoint')
+    api_timeout = models.IntegerField(default=30, help_text='Timeout for API requests in seconds')
+    
+    # OpenAI specific fields
+    openai_org_id = models.CharField(max_length=255, blank=True, default='', help_text='OpenAI Organization ID (OpenAI only)')
+    
+    # Additional configuration (JSON for flexibility)
+    extra_config = models.JSONField(default=dict, blank=True, help_text='Additional provider-specific configuration')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Provider'
+        verbose_name_plural = 'Providers'
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_provider_type_display()})"
+    
+    def get_default_base_url(self):
+        """Get default base URL based on provider type"""
+        defaults = {
+            'openai': 'https://api.openai.com/v1',
+            'gemini': 'https://generativelanguage.googleapis.com/v1beta',
+            'claude': 'https://api.anthropic.com/v1',
+            'ollama': 'http://localhost:11434/api',
+        }
+        return defaults.get(self.provider_type, '')
+
+
+class ProviderModel(models.Model):
+    """
+    ProviderModel for managing AI models available from each provider.
+    
+    Models can be fetched from the provider API and individually activated/deactivated.
+    """
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name='models')
+    model_id = models.CharField(max_length=255, help_text='Model identifier from provider (e.g., gpt-4, claude-3-opus)')
+    display_name = models.CharField(max_length=255, blank=True, default='', help_text='Human-readable display name')
+    is_active = models.BooleanField(default=True, help_text='Whether this model is available for use')
+    
+    # Model metadata
+    description = models.TextField(blank=True, default='', help_text='Model description')
+    capabilities = models.JSONField(default=list, blank=True, help_text='Model capabilities (e.g., chat, completion)')
+    context_length = models.IntegerField(null=True, blank=True, help_text='Maximum context length in tokens')
+    
+    # Additional metadata from API
+    metadata = models.JSONField(default=dict, blank=True, help_text='Additional model metadata from provider')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    last_synced_at = models.DateTimeField(null=True, blank=True, help_text='Last time model was synced from provider API')
+    
+    class Meta:
+        ordering = ['provider', 'model_id']
+        verbose_name = 'Provider Model'
+        verbose_name_plural = 'Provider Models'
+        unique_together = ['provider', 'model_id']
+    
+    def __str__(self):
+        display = self.display_name or self.model_id
+        return f"{display} ({self.provider.name})"

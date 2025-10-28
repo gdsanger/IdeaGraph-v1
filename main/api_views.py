@@ -12,7 +12,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.core.paginator import Paginator
 from django.utils import timezone
-from .models import User
+from .models import User, Provider, ProviderModel
 from .auth_utils import generate_jwt_token, decode_jwt_token, validate_password
 from core.services.graph_service import GraphService, GraphServiceError
 from core.services.github_service import GitHubService, GitHubServiceError
@@ -8119,5 +8119,216 @@ def api_task_quick_create(request):
         return JsonResponse({
             'success': False,
             'error': 'Fehler beim Erstellen der Aufgabe'
+        }, status=500)
+
+
+# Provider API Endpoints
+
+@require_http_methods(["POST"])
+def api_provider_fetch_models(request, provider_id):
+    """
+    Fetch available models from a provider's API and create/update ProviderModel records.
+    
+    Supports fetching models from:
+    - OpenAI: /v1/models
+    - Google Gemini: /v1beta/models
+    - Anthropic Claude: /v1/models
+    - Ollama: /api/tags
+    """
+    try:
+        # Check authentication
+        if 'user_id' not in request.session:
+            return JsonResponse({
+                'success': False,
+                'error': 'Authentication required'
+            }, status=401)
+        
+        provider = get_object_or_404(Provider, id=provider_id)
+        
+        if not provider.api_key and provider.provider_type != 'ollama':
+            return JsonResponse({
+                'success': False,
+                'error': 'API key is required for this provider'
+            }, status=400)
+        
+        import requests
+        
+        headers = {}
+        url = provider.api_base_url
+        
+        # Configure request based on provider type
+        if provider.provider_type == 'openai':
+            url = f"{provider.api_base_url}/models"
+            headers = {
+                'Authorization': f'Bearer {provider.api_key}',
+            }
+            if provider.openai_org_id:
+                headers['OpenAI-Organization'] = provider.openai_org_id
+        
+        elif provider.provider_type == 'gemini':
+            url = f"{provider.api_base_url}/models"
+            # Gemini uses API key as query parameter
+            url = f"{url}?key={provider.api_key}"
+        
+        elif provider.provider_type == 'claude':
+            url = f"{provider.api_base_url}/models"
+            headers = {
+                'x-api-key': provider.api_key,
+                'anthropic-version': '2023-06-01'
+            }
+        
+        elif provider.provider_type == 'ollama':
+            url = f"{provider.api_base_url}/tags"
+        
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': f'Unsupported provider type: {provider.provider_type}'
+            }, status=400)
+        
+        # Make API request
+        response = requests.get(url, headers=headers, timeout=provider.api_timeout)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        # Parse models based on provider type
+        models_data = []
+        
+        if provider.provider_type == 'openai':
+            # OpenAI format: {"data": [{"id": "gpt-4", ...}, ...]}
+            models_data = data.get('data', [])
+            created_models = []
+            updated_models = []
+            
+            for model_data in models_data:
+                model_id = model_data.get('id')
+                if not model_id:
+                    continue
+                
+                # Update or create model
+                model, created = ProviderModel.objects.update_or_create(
+                    provider=provider,
+                    model_id=model_id,
+                    defaults={
+                        'display_name': model_id,
+                        'metadata': model_data,
+                        'last_synced_at': timezone.now()
+                    }
+                )
+                
+                if created:
+                    created_models.append(model_id)
+                else:
+                    updated_models.append(model_id)
+        
+        elif provider.provider_type == 'gemini':
+            # Gemini format: {"models": [{"name": "models/gemini-pro", ...}, ...]}
+            models_list = data.get('models', [])
+            created_models = []
+            updated_models = []
+            
+            for model_data in models_list:
+                model_name = model_data.get('name', '')
+                # Extract model ID from "models/gemini-pro" format
+                model_id = model_name.split('/')[-1] if '/' in model_name else model_name
+                if not model_id:
+                    continue
+                
+                display_name = model_data.get('displayName', model_id)
+                description = model_data.get('description', '')
+                
+                model, created = ProviderModel.objects.update_or_create(
+                    provider=provider,
+                    model_id=model_id,
+                    defaults={
+                        'display_name': display_name,
+                        'description': description,
+                        'metadata': model_data,
+                        'last_synced_at': timezone.now()
+                    }
+                )
+                
+                if created:
+                    created_models.append(model_id)
+                else:
+                    updated_models.append(model_id)
+        
+        elif provider.provider_type == 'claude':
+            # Claude format: {"data": [{"id": "claude-3-opus", ...}, ...]}
+            models_data = data.get('data', [])
+            created_models = []
+            updated_models = []
+            
+            for model_data in models_data:
+                model_id = model_data.get('id')
+                if not model_id:
+                    continue
+                
+                display_name = model_data.get('display_name', model_id)
+                
+                model, created = ProviderModel.objects.update_or_create(
+                    provider=provider,
+                    model_id=model_id,
+                    defaults={
+                        'display_name': display_name,
+                        'metadata': model_data,
+                        'last_synced_at': timezone.now()
+                    }
+                )
+                
+                if created:
+                    created_models.append(model_id)
+                else:
+                    updated_models.append(model_id)
+        
+        elif provider.provider_type == 'ollama':
+            # Ollama format: {"models": [{"name": "llama2", ...}, ...]}
+            models_list = data.get('models', [])
+            created_models = []
+            updated_models = []
+            
+            for model_data in models_list:
+                model_id = model_data.get('name')
+                if not model_id:
+                    continue
+                
+                model, created = ProviderModel.objects.update_or_create(
+                    provider=provider,
+                    model_id=model_id,
+                    defaults={
+                        'display_name': model_id,
+                        'metadata': model_data,
+                        'last_synced_at': timezone.now()
+                    }
+                )
+                
+                if created:
+                    created_models.append(model_id)
+                else:
+                    updated_models.append(model_id)
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Successfully fetched models from {provider.name}',
+            'created': len(created_models),
+            'updated': len(updated_models),
+            'created_models': created_models,
+            'updated_models': updated_models
+        })
+    
+    except requests.exceptions.RequestException as e:
+        logger.error(f'API request error for provider {provider_id}: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': f'API request failed: {str(e)}'
+        }, status=500)
+    
+    except Exception as e:
+        logger.error(f'Error fetching models for provider {provider_id}: {str(e)}')
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': f'Error fetching models: {str(e)}'
         }, status=500)
 
