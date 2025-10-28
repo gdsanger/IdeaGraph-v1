@@ -1,8 +1,5 @@
 {% load static %}
 
-<!-- Load Weaviate indicator JS -->
-<script src="{% static 'main/js/weaviate-indicator.js' %}"></script>
-
 {% if success_message %}
 <div class="alert alert-success alert-dismissible fade show" role="alert">
     <i class="bi bi-check-circle"></i> {{ success_message }}
