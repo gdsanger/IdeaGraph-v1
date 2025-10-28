@@ -283,6 +283,9 @@
 
 {% block content %}
 <div class="container-fluid">
+    <!-- Include Floating Action Dock -->
+    {% include 'main/items/_floating_action_dock.html' with item=item %}
+    
     <!-- Breadcrumb -->
     <nav aria-label="breadcrumb" class="mb-2">
         <ol class="breadcrumb">
@@ -558,11 +561,6 @@
                                 <i class="bi bi-flag"></i> Milestones
                             </button>
                         </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="qa-tab" data-bs-toggle="tab" data-bs-target="#qa" type="button" role="tab">
-                                <i class="bi bi-question-circle"></i> Frage stellen
-                            </button>
-                        </li>
                         {% if item.parent or item.children.all %}
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" id="hierarchy-tab" data-bs-toggle="tab" data-bs-target="#hierarchy" type="button" role="tab">
@@ -805,21 +803,6 @@
                             </div>
                         </div>
                         {% endif %}
-                        
-                        <!-- Q&A Tab -->
-                        <div class="tab-pane fade" id="qa" role="tabpanel">
-                            <div class="card-body">
-                                <h5 class="mb-3">
-                                    <i class="bi bi-chat-dots"></i> IdeaGraph Q&A Assistant
-                                </h5>
-                                <p class="text-muted" style="font-size: 0.9rem;">
-                                    Stelle Fragen zu diesem Item. Der IdeaGraph Assistant durchsucht automatisch alle zugehörigen Tasks, Files, Kommentare und Dokumentationen und generiert eine fundierte Antwort mit Quellenangaben.
-                                </p>
-                                
-                                <!-- Chat Widget Container -->
-                                <div id="ideagraph-chat-widget" style="margin-top: 1.5rem;"></div>
-                            </div>
-                        </div>
                                
                     </div>
                            
@@ -1783,36 +1766,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         return cookieValue;
     }
-    
-    // ===== Chat Widget Initialization =====
-    
-    // Initialize the chat widget when the Q&A tab is shown
-    let chatWidgetInitialized = false;
-    
-    document.addEventListener('DOMContentLoaded', function() {
-        const qaTab = document.getElementById('qa-tab');
-        if (qaTab) {
-            qaTab.addEventListener('shown.bs.tab', function() {
-                // Initialize chat widget only once
-                if (!chatWidgetInitialized) {
-                    try {
-                        const chatWidget = new ChatWidget({
-                            containerId: 'ideagraph-chat-widget',
-                            itemId: '{{ item.id }}',
-                            apiBaseUrl: '/api/items',
-                            theme: 'dark',
-                            height: '600px',
-                            showHistory: true
-                        });
-                        chatWidgetInitialized = true;
-                        console.log('Chat widget initialized successfully');
-                    } catch (error) {
-                        console.error('Error initializing chat widget:', error);
-                    }
-                }
-            });
-        }
-    });
 })();
 
 </script>

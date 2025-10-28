@@ -1,0 +1,194 @@
+{% load static %}
+<!-- Floating Action Dock -->
+<div class="floating-action-dock">
+    <!-- Chat Button -->
+    <button type="button" 
+            class="btn floating-action-btn" 
+            data-bs-toggle="modal" 
+            data-bs-target="#qaChatModal"
+            title="Q&A Chat">
+        <i class="bi bi-chat-dots"></i>
+    </button>
+    
+    <!-- Graph Button -->
+    <button type="button" 
+            class="btn floating-action-btn" 
+            data-bs-toggle="modal" 
+            data-bs-target="#graphModal"
+            title="Relationship Graph">
+        <i class="bi bi-diagram-3"></i>
+    </button>
+</div>
+
+<!-- Q&A Chat Modal -->
+<div class="modal fade" id="qaChatModal" tabindex="-1" aria-labelledby="qaChatModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content bg-dark">
+            <div class="modal-header">
+                <h5 class="modal-title" id="qaChatModalLabel">
+                    <i class="bi bi-chat-dots"></i> IdeaGraph Q&A Assistant
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="min-height: 600px;">
+                <p class="text-muted" style="font-size: 0.9rem;">
+                    Stelle Fragen zu diesem Item. Der IdeaGraph Assistant durchsucht automatisch alle zugehörigen Tasks, Files, Kommentare und Dokumentationen und generiert eine fundierte Antwort mit Quellenangaben.
+                </p>
+                
+                <!-- Chat Widget Container -->
+                <div id="ideagraph-chat-widget-modal"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Graph Modal -->
+<div class="modal fade" id="graphModal" tabindex="-1" aria-labelledby="graphModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content bg-dark">
+            <div class="modal-header">
+                <h5 class="modal-title" id="graphModalLabel">
+                    <i class="bi bi-diagram-3"></i> Semantic Relationship Graph
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="min-height: 600px;">
+                <div id="semanticNetworkModalContainer" style="width: 100%; height: 550px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Floating Action Dock Styles */
+    .floating-action-dock {
+        position: fixed;
+        top: 50%;
+        right: 20px;
+        transform: translateY(-50%);
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        z-index: 1050;
+    }
+    
+    .floating-action-btn {
+        border-radius: 50%;
+        width: 56px;
+        height: 56px;
+        background-color: var(--primary-amber);
+        color: var(--soft-white);
+        box-shadow: 0 4px 12px rgba(228, 154, 40, 0.4);
+        transition: all 0.2s ease-in-out;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        font-size: 1.5rem;
+    }
+    
+    .floating-action-btn:hover {
+        background-color: var(--secondary-cyan);
+        color: var(--graph-gray);
+        transform: scale(1.1);
+        box-shadow: 0 6px 16px rgba(75, 208, 199, 0.5);
+    }
+    
+    .floating-action-btn:active {
+        transform: scale(0.95);
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 1024px) {
+        .floating-action-dock {
+            right: 10px;
+        }
+        
+        .floating-action-btn {
+            width: 48px;
+            height: 48px;
+            font-size: 1.25rem;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .floating-action-dock {
+            bottom: 20px;
+            top: auto;
+            right: 20px;
+            transform: none;
+            flex-direction: row;
+            gap: 0.75rem;
+        }
+        
+        .floating-action-btn {
+            width: 52px;
+            height: 52px;
+        }
+    }
+</style>
+
+<script>
+// Initialize Chat Widget for Modal (lazy load when modal is shown)
+let chatWidgetModalInitialized = false;
+
+document.addEventListener('DOMContentLoaded', function() {
+    const qaChatModal = document.getElementById('qaChatModal');
+    if (qaChatModal) {
+        qaChatModal.addEventListener('shown.bs.modal', function() {
+            if (!chatWidgetModalInitialized) {
+                try {
+                    const chatWidget = new ChatWidget({
+                        containerId: 'ideagraph-chat-widget-modal',
+                        itemId: '{{ item.id }}',
+                        apiBaseUrl: '/api/items',
+                        theme: 'dark',
+                        height: '500px',
+                        showHistory: true
+                    });
+                    chatWidgetModalInitialized = true;
+                    console.log('Chat widget initialized in modal');
+                } catch (error) {
+                    console.error('Error initializing chat widget in modal:', error);
+                }
+            }
+        });
+    }
+});
+
+// Initialize Semantic Network for Modal (lazy load when modal is shown)
+let semanticNetworkModalInitialized = false;
+
+document.addEventListener('DOMContentLoaded', function() {
+    const graphModal = document.getElementById('graphModal');
+    if (graphModal) {
+        graphModal.addEventListener('shown.bs.modal', function() {
+            if (!semanticNetworkModalInitialized) {
+                try {
+                    const semanticNetworkModalViewer = new SemanticGraph('semanticNetworkModalContainer', {
+                        objectType: 'item',
+                        objectId: '{{ item.id }}',
+                        depth: 3,
+                        generateSummaries: true,
+                        includeHierarchy: true,
+                        onNodeClick: function(nodeData) {
+                            const type = nodeData.type;
+                            const id = nodeData.id;
+                            
+                            if (type === 'item') {
+                                window.location.href = `/items/${id}/`;
+                            } else if (type === 'task') {
+                                window.location.href = `/tasks/${id}/`;
+                            }
+                        }
+                    });
+                    semanticNetworkModalInitialized = true;
+                    console.log('Semantic network initialized in modal');
+                } catch (error) {
+                    console.error('Error initializing semantic network in modal:', error);
+                }
+            }
+        });
+    }
+});
+</script>
