@@ -220,22 +220,36 @@ class GitHubPRSyncService:
         
         return pr, created
     
-    def _sync_pr_to_weaviate(self, pr, item) -> bool:
+    def _sync_pr_to_weaviate(self, pr, item, skip_if_exists: bool = False) -> tuple[bool, bool]:
         """
         Synchronize a pull request to Weaviate as a KnowledgeObject
         
         Args:
             pr: GitHubPullRequest model instance
             item: Item model instance
+            skip_if_exists: If True, skip syncing if PR already exists in Weaviate
         
         Returns:
-            True if successful, False otherwise
+            Tuple of (success: bool, skipped: bool)
         """
         try:
             from core.services.weaviate_github_issue_sync_service import WeaviateGitHubIssueSyncService
+            import uuid as uuid_lib
             
             # Use the existing Weaviate service
             weaviate_service = WeaviateGitHubIssueSyncService(self.settings)
+            
+            # Generate UUID for this PR (same logic as in WeaviateGitHubIssueSyncService)
+            pr_uuid = str(uuid_lib.uuid5(uuid_lib.NAMESPACE_URL, pr.html_url))
+            
+            # Check if PR already exists in Weaviate
+            collection = weaviate_service._client.collections.get(weaviate_service.COLLECTION_NAME)
+            exists = collection.data.exists(pr_uuid)
+            
+            if exists and skip_if_exists:
+                logger.info(f"PR #{pr.pr_number} already exists in Weaviate, skipping...")
+                weaviate_service.close()
+                return True, True  # success=True, skipped=True
             
             # Convert PR to format expected by Weaviate service
             pr_data_for_weaviate = {
@@ -265,11 +279,11 @@ class GitHubPRSyncService:
             
             weaviate_service.close()
             logger.info(f"Synced PR #{pr.pr_number} to Weaviate")
-            return True
+            return True, False  # success=True, skipped=False
             
         except Exception as e:
             logger.warning(f"Failed to sync PR #{pr.pr_number} to Weaviate: {str(e)}")
-            return False
+            return False, False  # success=False, skipped=False
     
     def _export_pr_to_sharepoint(self, pr, item) -> bool:
         """
@@ -333,7 +347,8 @@ class GitHubPRSyncService:
         owner: Optional[str] = None,
         repo: Optional[str] = None,
         initial_load: bool = False,
-        export_to_sharepoint: bool = False
+        export_to_sharepoint: bool = False,
+        skip_existing_in_weaviate: bool = False
     ) -> Dict[str, Any]:
         """
         Synchronize GitHub pull requests for a specific item
@@ -344,6 +359,7 @@ class GitHubPRSyncService:
             repo: GitHub repository name (extracted from item.github_repo if not provided)
             initial_load: If True, fetch all PRs. If False, fetch only PRs updated in last hour
             export_to_sharepoint: If True, export PR data to SharePoint folder as JSON
+            skip_existing_in_weaviate: If True, skip PRs that already exist in Weaviate
         
         Returns:
             Dictionary with sync results:
@@ -352,6 +368,7 @@ class GitHubPRSyncService:
                 - prs_created: int
                 - prs_updated: int
                 - prs_synced_to_weaviate: int
+                - prs_skipped_in_weaviate: int
                 - prs_exported_to_sharepoint: int
                 - errors: list of error messages
         """
@@ -374,6 +391,7 @@ class GitHubPRSyncService:
             'prs_created': 0,
             'prs_updated': 0,
             'prs_synced_to_weaviate': 0,
+            'prs_skipped_in_weaviate': 0,
             'prs_exported_to_sharepoint': 0,
             'errors': []
         }
@@ -382,10 +400,9 @@ class GitHubPRSyncService:
             # Initialize GitHub service
             github_service = GitHubService(self.settings)
             
-            # Determine state filter
-            # For initial load, fetch all PRs (open, closed, merged)
-            # For incremental, fetch all but rely on updated_at filtering
-            state = 'all'
+            # Requirement 1: Only sync closed PRs
+            # Fetch only closed PRs (includes both closed-only and merged PRs)
+            state = 'closed'
             
             # Fetch all pull requests from GitHub (paginated)
             all_prs = []
@@ -395,9 +412,9 @@ class GitHubPRSyncService:
             # Calculate time threshold for incremental sync (last hour)
             if not initial_load:
                 time_threshold = timezone.now() - timedelta(hours=1)
-                logger.info(f"Incremental sync: fetching PRs updated since {time_threshold}")
+                logger.info(f"Incremental sync: fetching closed PRs updated since {time_threshold}")
             else:
-                logger.info(f"Initial load: fetching all PRs for {owner}/{repo}")
+                logger.info(f"Initial load: fetching all closed PRs for {owner}/{repo}")
             
             while True:
                 logger.info(f"Fetching GitHub PRs page {page} for {owner}/{repo}")
@@ -415,6 +432,8 @@ class GitHubPRSyncService:
                 
                 prs = result.get('pull_requests', [])
                 if not prs:
+                    # No more PRs to fetch, exit the loop
+                    logger.info(f"No more PRs returned from GitHub API on page {page}, ending pagination")
                     break
                 
                 # For incremental sync, filter by updated_at
@@ -435,12 +454,14 @@ class GitHubPRSyncService:
                 all_prs.extend(prs)
                 
                 # Check if there are more pages
+                # If we got fewer PRs than per_page, we've reached the end
                 if len(result.get('pull_requests', [])) < per_page:
+                    logger.info(f"Received {len(result.get('pull_requests', []))} PRs (less than {per_page}), ending pagination")
                     break
                 
                 page += 1
             
-            logger.info(f"Found {len(all_prs)} GitHub PRs for {owner}/{repo}")
+            logger.info(f"Found {len(all_prs)} closed GitHub PRs for {owner}/{repo}")
             
             # Process each PR
             for pr_data in all_prs:
@@ -461,9 +482,14 @@ class GitHubPRSyncService:
                     else:
                         results['prs_updated'] += 1
                     
+                    # Requirement 2: Skip PRs that already exist in Weaviate if requested
                     # Sync to Weaviate
-                    if self._sync_pr_to_weaviate(pr, item):
-                        results['prs_synced_to_weaviate'] += 1
+                    success, skipped = self._sync_pr_to_weaviate(pr, item, skip_if_exists=skip_existing_in_weaviate)
+                    if success:
+                        if skipped:
+                            results['prs_skipped_in_weaviate'] += 1
+                        else:
+                            results['prs_synced_to_weaviate'] += 1
                     
                     # Export to SharePoint (optional)
                     if export_to_sharepoint:
@@ -471,8 +497,8 @@ class GitHubPRSyncService:
                             results['prs_exported_to_sharepoint'] += 1
                 
                 except Exception as pr_error:
-                    error_msg = f"Error processing PR #{pr_data.get('number', 'unknown')}"
-                    logger.error(f"{error_msg}: {str(pr_error)}")
+                    error_msg = f"Error processing PR #{pr_data.get('number', 'unknown')}: {str(pr_error)}"
+                    logger.error(error_msg)
                     results['errors'].append(error_msg)
                     continue
             

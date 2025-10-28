@@ -144,11 +144,16 @@ class Command(BaseCommand):
                 self.stdout.write(f'Repository: {item.github_repo}')
                 self.stdout.write('')
             
+            # Requirement 2: Skip PRs that already exist in Weaviate
+            # Requirement 3: For --all --initial, enable SharePoint export and skip existing
+            skip_existing = initial_load
+            
             # Sync PRs
             result = service.sync_pull_requests(
                 item=item,
                 initial_load=initial_load,
-                export_to_sharepoint=export_sharepoint
+                export_to_sharepoint=export_sharepoint,
+                skip_existing_in_weaviate=skip_existing
             )
             
             if result.get('success'):
@@ -158,6 +163,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"PRs created: {result.get('prs_created', 0)}")
                 self.stdout.write(f"PRs updated: {result.get('prs_updated', 0)}")
                 self.stdout.write(f"PRs synced to Weaviate: {result.get('prs_synced_to_weaviate', 0)}")
+                self.stdout.write(f"PRs skipped in Weaviate: {result.get('prs_skipped_in_weaviate', 0)}")
                 
                 if export_sharepoint:
                     self.stdout.write(f"PRs exported to SharePoint: {result.get('prs_exported_to_sharepoint', 0)}")
@@ -185,6 +191,12 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('Syncing PRs for all items with GitHub repositories'))
         self.stdout.write('')
         
+        # Requirement 3: For --all --initial, always enable SharePoint export
+        if initial_load:
+            export_sharepoint = True
+            self.stdout.write(self.style.SUCCESS('SharePoint export enabled for initial load'))
+            self.stdout.write('')
+        
         try:
             # Get all items with github_repo set
             items = Item.objects.exclude(github_repo='').exclude(github_repo__isnull=True)
@@ -205,9 +217,13 @@ class Command(BaseCommand):
                 'total_prs_created': 0,
                 'total_prs_updated': 0,
                 'total_prs_synced_to_weaviate': 0,
+                'total_prs_skipped_in_weaviate': 0,
                 'total_prs_exported_to_sharepoint': 0,
                 'errors': []
             }
+            
+            # Requirement 2: Skip PRs that already exist in Weaviate for initial load
+            skip_existing = initial_load
             
             # Sync each item
             for item in items:
@@ -220,7 +236,8 @@ class Command(BaseCommand):
                     result = service.sync_pull_requests(
                         item=item,
                         initial_load=initial_load,
-                        export_to_sharepoint=export_sharepoint
+                        export_to_sharepoint=export_sharepoint,
+                        skip_existing_in_weaviate=skip_existing
                     )
                     
                     if result.get('success'):
@@ -229,6 +246,7 @@ class Command(BaseCommand):
                         total_results['total_prs_created'] += result.get('prs_created', 0)
                         total_results['total_prs_updated'] += result.get('prs_updated', 0)
                         total_results['total_prs_synced_to_weaviate'] += result.get('prs_synced_to_weaviate', 0)
+                        total_results['total_prs_skipped_in_weaviate'] += result.get('prs_skipped_in_weaviate', 0)
                         total_results['total_prs_exported_to_sharepoint'] += result.get('prs_exported_to_sharepoint', 0)
                         
                         prs_created = result.get('prs_created', 0)
@@ -264,6 +282,7 @@ class Command(BaseCommand):
             self.stdout.write(f"Total PRs created: {total_results['total_prs_created']}")
             self.stdout.write(f"Total PRs updated: {total_results['total_prs_updated']}")
             self.stdout.write(f"Total PRs synced to Weaviate: {total_results['total_prs_synced_to_weaviate']}")
+            self.stdout.write(f"Total PRs skipped in Weaviate: {total_results['total_prs_skipped_in_weaviate']}")
             
             if export_sharepoint:
                 self.stdout.write(f"Total PRs exported to SharePoint: {total_results['total_prs_exported_to_sharepoint']}")
