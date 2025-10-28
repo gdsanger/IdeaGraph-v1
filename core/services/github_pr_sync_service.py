@@ -142,7 +142,7 @@ class GitHubPRSyncService:
         
         return parts[-2], parts[-1]
     
-    def _store_pr_in_database(self, item, pr_data: Dict[str, Any], repo_owner: str, repo_name: str) -> Any:
+    def _store_pr_in_database(self, item, pr_data: Dict[str, Any], repo_owner: str, repo_name: str) -> tuple[Any, bool]:
         """
         Store or update a pull request in the database
         
@@ -153,7 +153,7 @@ class GitHubPRSyncService:
             repo_name: Repository name
         
         Returns:
-            GitHubPullRequest model instance
+            Tuple of (GitHubPullRequest model instance, was_created boolean)
         """
         from main.models import GitHubPullRequest
         
@@ -209,7 +209,7 @@ class GitHubPRSyncService:
         action = "Created" if created else "Updated"
         logger.info(f"{action} PR #{pr_number} in database: {pr.title}")
         
-        return pr
+        return pr, created
     
     def _sync_pr_to_weaviate(self, pr, item) -> bool:
         """
@@ -444,10 +444,10 @@ class GitHubPRSyncService:
                     logger.info(f"Processing PR #{pr_number}: {pr_title}")
                     
                     # Store in database
-                    pr = self._store_pr_in_database(item, pr_data, owner, repo)
+                    pr, was_created = self._store_pr_in_database(item, pr_data, owner, repo)
                     
                     # Track if created or updated
-                    if pr.created_at == pr.synced_at:
+                    if was_created:
                         results['prs_created'] += 1
                     else:
                         results['prs_updated'] += 1
