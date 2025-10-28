@@ -93,8 +93,17 @@ class TaskFileService:
         Returns:
             str: Uppercase file extension without dot (e.g., 'PDF', 'DOCX') or empty string if no extension
         """
-        if '.' in filename:
-            return filename.rsplit('.', 1)[-1].upper()
+        if not filename or not isinstance(filename, str):
+            return ''
+        
+        filename = filename.strip()
+        if not filename or filename in ['.', '..'] or not '.' in filename:
+            return ''
+        
+        extension = filename.rsplit('.', 1)[-1]
+        # Ensure we actually got an extension (not an empty string after the dot)
+        if extension and extension != filename:
+            return extension.upper()
         return ''
     
     def normalize_folder_name(self, name: str) -> str:
