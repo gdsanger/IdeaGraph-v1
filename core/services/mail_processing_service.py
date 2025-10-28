@@ -21,6 +21,65 @@ from core.services.openai_service import OpenAIService, OpenAIServiceError
 logger = logging.getLogger('mail_processing_service')
 
 
+def estimate_token_count(text: str) -> int:
+    """
+    Estimate the number of tokens in a text string.
+    Uses a simple heuristic: ~4 characters per token (works well for English/German)
+    
+    Args:
+        text: Input text string
+        
+    Returns:
+        Estimated token count
+    """
+    return len(text) // 4
+
+
+def truncate_text_to_tokens(text: str, max_tokens: int, suffix: str = "\n\n[...content truncated due to length...]") -> str:
+    """
+    Truncate text to fit within token limit, adding a suffix to indicate truncation.
+    
+    Args:
+        text: Text to truncate
+        max_tokens: Maximum tokens allowed
+        suffix: String to append when truncating (counted in token limit)
+        
+    Returns:
+        Truncated text with suffix if truncated, or original text if within limit
+    """
+    estimated_tokens = estimate_token_count(text)
+    
+    if estimated_tokens <= max_tokens:
+        return text
+    
+    # Reserve tokens for suffix
+    suffix_tokens = estimate_token_count(suffix)
+    available_tokens = max_tokens - suffix_tokens
+    
+    if available_tokens <= 0:
+        # If suffix alone exceeds limit, just truncate harshly
+        max_chars = max_tokens * 4
+        return text[:max_chars]
+    
+    # Convert tokens back to approximate character count
+    max_chars = available_tokens * 4
+    
+    # Truncate at character boundary
+    truncated = text[:max_chars]
+    
+    # Try to break at sentence boundary if possible
+    sentence_endings = ['. ', '.\n', '! ', '!\n', '? ', '?\n']
+    best_break = len(truncated)
+    
+    # Search backwards for a sentence boundary
+    for i in range(len(truncated) - 1, max(0, len(truncated) - 500), -1):
+        if any(truncated[i:i+2] == ending for ending in sentence_endings):
+            best_break = i + 2
+            break
+    
+    return truncated[:best_break] + suffix
+
+
 class MailProcessingServiceError(Exception):
     """Base exception for Mail Processing Service errors"""
     
@@ -413,7 +472,11 @@ class MailProcessingService:
             if self.openai_service and len(similar_items) > 1:
                 items_context = self._format_items_for_ai(similar_items)
                 
-                prompt = f"""Basierend auf dem nachfolgenden E-Mail-Inhalt und der Liste verfügbarer Items, bestimme welches Item am BESTEN zu dieser E-Mail passt. Berücksichtige den Kontext und die Relevanz.
+                # Get max tokens limit from settings
+                max_tokens = getattr(self.settings, 'openai_max_tokens', 10000)
+                
+                # Build the prompt template first to estimate overhead
+                prompt_template = """Basierend auf dem nachfolgenden E-Mail-Inhalt und der Liste verfügbarer Items, bestimme welches Item am BESTEN zu dieser E-Mail passt. Berücksichtige den Kontext und die Relevanz.
 
 E-Mail-Inhalt:
 {mail_content}
@@ -423,6 +486,40 @@ Verfügbare Items:
 
 Bitte antworte NUR mit der Item-ID (UUID) des am besten passenden Items. Falls keines relevant ist, antworte mit "NONE".
 """
+                
+                # Estimate tokens for template overhead and items context
+                template_overhead = estimate_token_count(prompt_template.format(mail_content="", items_context=""))
+                items_tokens = estimate_token_count(items_context)
+                
+                # Reserve tokens for response (typically ~100 tokens for UUID response)
+                response_tokens = 150
+                
+                # Calculate available tokens for mail content
+                available_tokens = max_tokens - template_overhead - items_tokens - response_tokens
+                
+                # Truncate mail content if necessary
+                if available_tokens < 100:
+                    # If we don't have enough space, reduce items context
+                    logger.warning(f"Items context too large ({items_tokens} tokens), reducing number of items")
+                    # Try with fewer items
+                    similar_items = similar_items[:3]
+                    items_context = self._format_items_for_ai(similar_items)
+                    items_tokens = estimate_token_count(items_context)
+                    available_tokens = max_tokens - template_overhead - items_tokens - response_tokens
+                
+                truncated_mail_content = truncate_text_to_tokens(
+                    mail_content, 
+                    max(available_tokens, 500),  # At least 500 tokens for mail content
+                    suffix="\n\n[...E-Mail-Inhalt wurde gekürzt...]"
+                )
+                
+                if truncated_mail_content != mail_content:
+                    logger.info(f"Mail content truncated from {estimate_token_count(mail_content)} to {estimate_token_count(truncated_mail_content)} tokens")
+                
+                prompt = prompt_template.format(
+                    mail_content=truncated_mail_content,
+                    items_context=items_context
+                )
                 
                 try:
                     response = self.openai_service.chat_completion(
@@ -494,8 +591,12 @@ Bitte antworte NUR mit der Item-ID (UUID) des am besten passenden Items. Falls k
             item_title = metadata.get('title', 'N/A')
             item_description = metadata.get('description', 'N/A')[:500] if metadata.get('description') else 'No description'
         
-        # Prepare context for AI agent similar to Teams integration pattern
-        ai_prompt = f"""Item: {item_title}
+        # Get max tokens limit from settings
+        # KiGate may use OpenAI internally, so we respect openai_max_tokens
+        max_tokens = getattr(self.settings, 'openai_max_tokens', 10000)
+        
+        # Estimate tokens for the prompt template and context
+        prompt_template = """Item: {item_title}
 Item Description: {item_description}
 
 E-Mail-Betreff: {mail_subject}
@@ -511,6 +612,38 @@ Analyze this email and create a normalized task description in Markdown format:
 5. If there are unclear or open points, list them at the end with "ggf. noch zu klären:"
 6. At the very end, preserve the original email content under a section "---\\nOriginale E-Mail:"
 """
+        
+        # Estimate overhead
+        template_overhead = estimate_token_count(prompt_template.format(
+            item_title="", item_description="", mail_subject="", mail_body=""
+        ))
+        item_title_tokens = estimate_token_count(item_title)
+        item_description_tokens = estimate_token_count(item_description)
+        mail_subject_tokens = estimate_token_count(mail_subject)
+        
+        # Reserve tokens for response (typically ~2000 tokens for a detailed description)
+        response_tokens = 2500
+        
+        # Calculate available tokens for mail body
+        available_tokens = max_tokens - template_overhead - item_title_tokens - item_description_tokens - mail_subject_tokens - response_tokens
+        
+        # Truncate mail body if necessary
+        truncated_mail_body = truncate_text_to_tokens(
+            mail_body, 
+            max(available_tokens, 1000),  # At least 1000 tokens for mail body
+            suffix="\n\n[...E-Mail-Inhalt wurde aufgrund der Länge gekürzt...]"
+        )
+        
+        if truncated_mail_body != mail_body:
+            logger.info(f"Mail body truncated from {estimate_token_count(mail_body)} to {estimate_token_count(truncated_mail_body)} tokens for normalization")
+        
+        # Prepare context for AI agent similar to Teams integration pattern
+        ai_prompt = prompt_template.format(
+            item_title=item_title,
+            item_description=item_description,
+            mail_subject=mail_subject,
+            mail_body=truncated_mail_body
+        )
         
         try:
             logger.info("Generating normalized description with KiGate agent: teams-support-analysis-agent")
