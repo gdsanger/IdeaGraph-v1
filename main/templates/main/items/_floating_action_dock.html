@@ -381,7 +381,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!chatWidgetModalInitialized) {
                 try {
                     const objectType = '{{ object_type|default:"item" }}';
-                    const objectId = '{{ object_id }}';
+                    const objectId = '{{ object_id|escapejs }}';
                     const chatWidget = new ChatWidget({
                         containerId: 'ideagraph-chat-widget-modal',
                         itemId: objectId,
@@ -410,7 +410,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!semanticNetworkModalInitialized) {
                 try {
                     const objectType = '{{ object_type|default:"item" }}';
-                    const objectId = '{{ object_id }}';
+                    const objectId = '{{ object_id|escapejs }}';
                     const semanticNetworkModalViewer = new SemanticGraph('semanticNetworkModalContainer', {
                         objectType: objectType,
                         objectId: objectId,
@@ -665,7 +665,7 @@ document.addEventListener('DOMContentLoaded', function() {
         uploadBtn.addEventListener('click', function() {
             // Trigger file upload - this will depend on your existing upload mechanism
             const objectType = '{{ object_type|default:"item" }}';
-            const objectId = '{{ object_id }}';
+            const objectId = '{{ object_id|escapejs }}';
             window.location.href = `/${objectType}s/${objectId}/?upload=true`;
         });
     }
@@ -673,7 +673,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function loadFiles() {
     const objectType = '{{ object_type|default:"item" }}';
-    const objectId = '{{ object_id }}';
+    const objectId = '{{ object_id|escapejs }}';
     const filesContent = document.getElementById('filesModalContent');
     
     if (!objectId) {
