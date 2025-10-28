@@ -102,7 +102,7 @@ class TaskFileService:
         
         extension = filename.rsplit('.', 1)[-1]
         # Ensure we actually got an extension (not an empty string after the dot)
-        if extension and extension != filename:
+        if extension:
             return extension.upper()
         return ''
     
