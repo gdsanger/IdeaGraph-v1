@@ -6,7 +6,7 @@ This module provides synchronization of Teams conversations with Weaviate vector
 
 import logging
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import weaviate
 from weaviate.classes.init import Auth
 
@@ -151,8 +151,8 @@ class WeaviateConversationSyncService:
                 'source': 'Teams',
                 'related_item': item_id,
                 'created_by': created_by,
-                'created_at': datetime.now().isoformat(),
-                'updated_at': datetime.now().isoformat()
+                'created_at': datetime.now(timezone.utc).isoformat(),
+                'updated_at': datetime.now(timezone.utc).isoformat()
             }
             
             # Add the object to Weaviate

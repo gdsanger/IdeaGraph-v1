@@ -8,7 +8,7 @@ Items are stored with their description as embeddings and metadata.
 import logging
 import requests
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 import weaviate
 from weaviate.classes.init import Auth
 from weaviate.classes.query import MetadataQuery, Filter, HybridFusion
@@ -442,7 +442,7 @@ class WeaviateItemSyncService:
                 'section': metadata.get('section', ''),
                 'owner': metadata.get('owner', ''),
                 'status': metadata.get('status', ''),
-                'createdAt': datetime.now().isoformat(),
+                'createdAt': datetime.now(timezone.utc).isoformat(),
                 'tags': metadata.get('tags', []),
                 'url': metadata.get('url', ''),
                 'parent_id': metadata.get('parent_id', ''),
