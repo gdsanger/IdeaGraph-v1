@@ -1,6 +1,16 @@
 """
-GitHub Issue Synchronization Service for IdeaGraph
+GitHub Issue Synchronization Service for IdeaGraph (DEPRECATED - ChromaDB)
 
+⚠️ DEPRECATED: This service uses ChromaDB with a separate "GitHubIssues" collection,
+which does not comply with the IdeaGraph KnowledgeObject architecture.
+
+USE INSTEAD: WeaviateGitHubIssueSyncService (weaviate_github_issue_sync_service.py)
+which correctly stores all GitHub Issues in the unified KnowledgeObject collection.
+
+This module is kept for reference and backward compatibility only.
+It is not used in production code and is not exported from core.services.
+
+Legacy description:
 This module provides synchronization between GitHub Issues/PRs and IdeaGraph tasks,
 storing issue and PR data in ChromaDB for semantic search and retrieval.
 """
@@ -36,8 +46,14 @@ class GitHubIssueSyncServiceError(Exception):
 
 class GitHubIssueSyncService:
     """
-    GitHub Issue Synchronization Service
+    GitHub Issue Synchronization Service (DEPRECATED)
     
+    ⚠️ DEPRECATED: This service stores GitHub Issues in a separate "GitHubIssues" collection
+    in ChromaDB, which violates the KnowledgeObject architecture requirement.
+    
+    USE INSTEAD: WeaviateGitHubIssueSyncService
+    
+    Legacy description:
     Synchronizes GitHub Issues and Pull Requests with:
     - IdeaGraph Tasks (status updates)
     - ChromaDB GitHubIssues collection (for semantic search)
@@ -48,7 +64,7 @@ class GitHubIssueSyncService:
     - Supports filtering by repository, labels, and state
     """
     
-    COLLECTION_NAME = 'GitHubIssues'
+    COLLECTION_NAME = 'GitHubIssues'  # DEPRECATED: Should use KnowledgeObject instead
     
     def __init__(self, settings=None):
         """

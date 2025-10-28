@@ -2,6 +2,18 @@
 Weaviate GitHub Issue Synchronization Service for IdeaGraph
 
 This module provides synchronization of GitHub Issues and Pull Requests with Weaviate vector database.
+
+✅ COMPLIANT WITH KNOWLEDGEOBJECT ARCHITECTURE
+This service correctly stores ALL GitHub Issues and Pull Requests in the unified KnowledgeObject
+collection, following the IdeaGraph knowledge management architecture:
+
+- All data stored in 'KnowledgeObject' collection (not separate collections)
+- Type discrimination via 'type' property (set to 'GitHubIssue')
+- Descriptions/content stored in 'description' field
+- itemId automatically populated when issue is linked to an Item
+- taskId automatically populated when issue is linked to a Task
+
+For more information, see: KNOWLEDGEOBJECT_SCHEMA_MIGRATION.md
 """
 
 import logging
@@ -37,13 +49,30 @@ class WeaviateGitHubIssueSyncService:
     """
     Weaviate GitHub Issue Synchronization Service
     
-    Synchronizes GitHub Issues and Pull Requests with Weaviate vector database using KnowledgeObject schema:
-    - Stores issue/PR descriptions as embeddings
-    - Stores metadata (title, state, URL, issue number, references to tasks/items)
+    ✅ COMPLIANT WITH KNOWLEDGEOBJECT ARCHITECTURE
+    
+    This service synchronizes GitHub Issues and Pull Requests with Weaviate vector database
+    using the unified KnowledgeObject schema. All information is stored in a single collection
+    with proper type discrimination and metadata.
+    
+    Key Features:
+    - Stores issue/PR descriptions as embeddings in KnowledgeObject collection
+    - Sets type='GitHubIssue' for type discrimination
+    - Stores all content in 'description' field (per architecture requirements)
+    - Automatically populates itemId when issue is linked to an Item
+    - Automatically populates taskId when issue is linked to a Task
+    - Stores metadata (title, state, URL, issue number)
     - Supports create, update, and delete operations
+    
+    Schema Compliance:
+    - Collection: 'KnowledgeObject' (unified collection for all knowledge types)
+    - Type: 'GitHubIssue' (discriminator property)
+    - Description: Issue body/content stored in 'description' field
+    - itemId: Populated when issue is linked to an Item
+    - taskId: Populated when issue is linked to a Task
     """
     
-    COLLECTION_NAME = 'KnowledgeObject'
+    COLLECTION_NAME = 'KnowledgeObject'  # ✅ Unified collection for all knowledge types
     
     def __init__(self, settings=None):
         """
@@ -136,10 +165,12 @@ class WeaviateGitHubIssueSyncService:
             logger.info(f"Syncing issue #{issue_number} to Weaviate KnowledgeObject: {issue_title}")
             
             # Prepare properties for KnowledgeObject schema
+            # ✅ Architecture Requirement: All GitHub Issues stored in KnowledgeObject collection
+            # with type='GitHubIssue' for discrimination
             properties = {
-                'type': 'GitHubIssue',
+                'type': 'GitHubIssue',  # ✅ Type discriminator for KnowledgeObject
                 'title': issue_title,
-                'description': issue_body or '',
+                'description': issue_body or '',  # ✅ Content stored in 'description' field
                 'status': issue_state,
                 'createdAt': created_at,
                 'githubIssueId': issue_number,
@@ -151,7 +182,8 @@ class WeaviateGitHubIssueSyncService:
             if task:
                 properties['taskId'] = str(task.id)
             
-            # Add itemId if linked to an item
+            # ✅ Architecture Requirement: If source object is linked to an Item,
+            # itemId must be populated with the Item ID
             if item:
                 properties['itemId'] = str(item.id)
             
@@ -224,10 +256,11 @@ class WeaviateGitHubIssueSyncService:
             logger.info(f"Syncing PR #{pr_number} to Weaviate KnowledgeObject: {pr_title}")
             
             # Prepare properties for KnowledgeObject schema (same as issue since PRs are issues in GitHub)
+            # ✅ Architecture Requirement: All GitHub PRs stored in KnowledgeObject collection
             properties = {
-                'type': 'GitHubIssue',
+                'type': 'GitHubIssue',  # ✅ Type discriminator (PRs use same type as Issues)
                 'title': pr_title,
-                'description': pr_body or '',
+                'description': pr_body or '',  # ✅ Content stored in 'description' field
                 'status': pr_state,
                 'createdAt': created_at,
                 'githubIssueId': pr_number,
@@ -239,7 +272,8 @@ class WeaviateGitHubIssueSyncService:
             if task:
                 properties['taskId'] = str(task.id)
             
-            # Add itemId if linked to an item
+            # ✅ Architecture Requirement: If source object is linked to an Item,
+            # itemId must be populated with the Item ID
             if item:
                 properties['itemId'] = str(item.id)
             
