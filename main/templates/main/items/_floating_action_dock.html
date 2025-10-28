@@ -281,17 +281,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     const state = JSON.parse(savedState);
                     
                     // Validate and apply dimensions with min/max constraints
-                    if (state.width) {
+                    if (typeof state.width === 'number' && !isNaN(state.width)) {
                         const width = Math.max(MIN_WIDTH, Math.min(state.width, window.innerWidth));
                         modalDialog.style.width = width + 'px';
                     }
-                    if (state.height) {
+                    if (typeof state.height === 'number' && !isNaN(state.height)) {
                         const height = Math.max(MIN_HEIGHT, Math.min(state.height, window.innerHeight));
                         modalDialog.style.height = height + 'px';
                     }
                     
                     // Validate and apply position to keep modal within viewport
-                    if (state.left !== undefined && state.top !== undefined) {
+                    if (typeof state.left === 'number' && !isNaN(state.left) && 
+                        typeof state.top === 'number' && !isNaN(state.top)) {
                         const modalWidth = parseInt(modalDialog.style.width) || DEFAULT_WIDTH;
                         const modalHeight = parseInt(modalDialog.style.height) || DEFAULT_HEIGHT;
                         
@@ -305,7 +306,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         modalDialog.style.left = left + 'px';
                         modalDialog.style.top = top + 'px';
                     } else {
-                        // If position data is missing, center the modal
+                        // If position data is invalid or missing, center the modal
                         centerModal();
                     }
                 } catch (e) {
