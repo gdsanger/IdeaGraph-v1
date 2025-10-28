@@ -1,0 +1,351 @@
+# Email Conversation Recognition and Task Assignment
+
+## Overview
+
+IdeaGraph now supports automatic email conversation recognition and task assignment using Short-IDs. This feature enables seamless email communication within task contexts, with automatic threading and assignment of incoming emails to the correct tasks.
+
+## Features
+
+- **Automatic Short-ID Generation**: Each task gets a 6-character Short-ID derived from its UUID (e.g., `ABC123`)
+- **Email Threading**: Outgoing emails include the Short-ID in the subject line: `[IG-TASK:#ABC123]`
+- **Automatic Assignment**: Incoming emails with Short-IDs are automatically assigned to the correct task
+- **Thread Continuity**: Proper RFC 2822 email headers (Message-ID, In-Reply-To, References) ensure thread continuity
+- **Comment Tracking**: All sent and received emails are tracked as comments on tasks
+
+## How It Works
+
+### 1. Task Short-ID
+
+Every task automatically has a `short_id` property that generates a 6-character uppercase hexadecimal ID from its UUID:
+
+```python
+task = Task.objects.get(id='b9aee2e6-4e7a-bae4-28fa-0e17a97b9aee')
+print(task.short_id)  # Output: B9AEE2
+```
+
+### 2. Sending Emails from Tasks
+
+When sending an email from a task context, the Short-ID is automatically added to the subject:
+
+**Original Subject:**
+```
+Feature: Tokenbasierter Login
+```
+
+**Email Subject:**
+```
+Feature: Tokenbasierter Login [IG-TASK:#B9AEE2]
+```
+
+### 3. Processing Incoming Emails
+
+When an email reply is received with the Short-ID in the subject, it is automatically:
+1. Assigned to the correct task based on the Short-ID
+2. Added as a comment on that task
+3. Linked to the email thread via headers
+
+### 4. Email Headers for Threading
+
+All emails include proper threading headers:
+- **Message-ID**: `<unique-id@ideagraph.local>`
+- **In-Reply-To**: ID of the email being replied to
+- **References**: Complete chain of Message-IDs in the thread
+
+## API Usage
+
+### Send Email from Task
+
+```bash
+POST /api/tasks/{task_id}/send-email
+Authorization: Bearer {jwt_token}
+Content-Type: application/json
+
+{
+  "email": "recipient@example.com",
+  "subject": "Question about feature",
+  "body": "<p>Email content in HTML format</p>",
+  "in_reply_to": "<previous-message-id@domain>"  // optional
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Email sent successfully",
+  "short_id": "B9AEE2",
+  "message_id": "<unique-id@ideagraph.local>"
+}
+```
+
+**Permissions:**
+- Admin and Developer roles can send emails
+- Task owner and assignee can also send emails for their tasks
+
+### Process Incoming Email
+
+```bash
+POST /api/emails/process-incoming
+Authorization: Bearer {jwt_token}
+Content-Type: application/json
+
+{
+  "message": {
+    "id": "AAMkAGI2TG93...",
+    "subject": "Re: Question [IG-TASK:#B9AEE2]",
+    "body": {
+      "content": "<p>Reply content</p>"
+    },
+    "from": {
+      "emailAddress": {
+        "address": "sender@example.com",
+        "name": "John Doe"
+      }
+    },
+    "internetMessageHeaders": [
+      {"name": "Message-ID", "value": "<incoming@example.com>"},
+      {"name": "In-Reply-To", "value": "<original@example.com>"},
+      {"name": "References", "value": "<ref1@example.com> <original@example.com>"}
+    ]
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Email processed and comment created",
+  "task_id": "b9aee2e6-4e7a-bae4-28fa-0e17a97b9aee",
+  "task_title": "Feature: Tokenbasierter Login",
+  "short_id": "B9AEE2",
+  "sender": "sender@example.com"
+}
+```
+
+**Permissions:**
+- Admin and Developer roles can process incoming emails
+
+## Database Schema
+
+### Task Model Extension
+
+```python
+class Task(models.Model):
+    # ... existing fields ...
+    
+    @property
+    def short_id(self):
+        """Generate a 6-character short ID from the UUID"""
+        return self.id.hex[:6].upper()
+```
+
+### TaskComment Model Extension
+
+New fields added to support email metadata:
+
+```python
+class TaskComment(models.Model):
+    # ... existing fields ...
+    
+    SOURCE_CHOICES = [
+        ('user', 'User'),
+        ('agent', 'Agent'),
+        ('email', 'Email'),  # NEW
+    ]
+    
+    # Email-specific fields
+    email_message_id = models.CharField(max_length=500, blank=True)
+    email_in_reply_to = models.CharField(max_length=500, blank=True)
+    email_references = models.TextField(blank=True)
+    email_from = models.EmailField(blank=True)
+    email_subject = models.CharField(max_length=500, blank=True)
+```
+
+## Python Usage Examples
+
+### Sending an Email from Code
+
+```python
+from main.mail_utils import send_task_email
+from main.models import Task, User
+
+# Get task and user
+task = Task.objects.get(id='your-task-id')
+user = User.objects.get(username='your-username')
+
+# Send email
+success, result = send_task_email(
+    task_id=task.id,
+    recipient_email='recipient@example.com',
+    subject='Question about the feature',
+    body='<p>Here is my question...</p>',
+    user=user,
+    in_reply_to='<previous-message-id@domain>'  # optional
+)
+
+if success:
+    print(f"Email sent! Short-ID: {result['short_id']}")
+    print(f"Message-ID: {result['message_id']}")
+else:
+    print(f"Failed: {result}")
+```
+
+### Processing an Incoming Email
+
+```python
+from core.services.email_conversation_service import EmailConversationService
+from main.models import Settings
+
+# Initialize service
+settings = Settings.objects.first()
+email_service = EmailConversationService(settings)
+
+# Process email
+message = {
+    'id': 'message-id',
+    'subject': 'Re: Feature Request [IG-TASK:#B9AEE2]',
+    'body': {'content': '<p>Here is my reply</p>'},
+    'from': {
+        'emailAddress': {
+            'address': 'sender@example.com',
+            'name': 'John Doe'
+        }
+    },
+    'internetMessageHeaders': [...]
+}
+
+result = email_service.process_incoming_email(message)
+
+if result['success']:
+    print(f"Email assigned to task: {result['task_title']}")
+    print(f"Comment created for sender: {result['sender']}")
+else:
+    print(f"Failed: {result['message']}")
+```
+
+### Finding a Task by Short-ID
+
+```python
+from core.services.email_conversation_service import EmailConversationService
+from main.models import Settings
+
+settings = Settings.objects.first()
+email_service = EmailConversationService(settings)
+
+# Find task by Short-ID
+task = email_service.find_task_by_short_id('B9AEE2')
+
+if task:
+    print(f"Found task: {task.title}")
+else:
+    print("Task not found")
+```
+
+## Email Subject Format
+
+The Short-ID is appended to the email subject in a specific format:
+
+```
+<Original Subject> [IG-TASK:#<SHORT_ID>]
+```
+
+**Examples:**
+- `Bug Report [IG-TASK:#B9AEE2]`
+- `Re: Feature Request [IG-TASK:#A1B2C3]`
+- `Question about documentation [IG-TASK:#DEF456]`
+
+## Error Handling
+
+### No Short-ID Found
+
+If an incoming email doesn't contain a Short-ID, it will not be automatically assigned:
+
+```json
+{
+  "success": false,
+  "message": "No Short-ID found in subject",
+  "subject": "Random email without Short-ID"
+}
+```
+
+### Task Not Found
+
+If the Short-ID doesn't match any existing task:
+
+```json
+{
+  "success": false,
+  "message": "Task not found for Short-ID: FFFFFF",
+  "short_id": "FFFFFF",
+  "subject": "Email with invalid Short-ID [IG-TASK:#FFFFFF]"
+}
+```
+
+### Invalid Email Format
+
+If the email address is invalid:
+
+```json
+{
+  "success": false,
+  "error": "Invalid email address format"
+}
+```
+
+## Integration with Mail Processing Service
+
+The email conversation service integrates with the existing `MailProcessingService`:
+
+1. **Outgoing emails** from tasks include Short-IDs and threading headers
+2. **Incoming emails** can be processed by the mail processing service
+3. **HTML to Markdown** conversion is automatically handled
+4. **User auto-creation** for new email senders
+
+## Security Considerations
+
+- **Email validation**: Uses Django's EmailValidator for robust email format checking
+- **Permission checking**: Only authorized users can send/process emails
+- **Error sanitization**: Stack traces are not exposed to external users
+- **ReDoS protection**: Regex patterns have length limits to prevent denial-of-service
+- **Input validation**: All inputs are properly validated before processing
+
+## Testing
+
+Run the test suite:
+
+```bash
+python manage.py test main.test_email_conversation
+```
+
+All tests should pass:
+- Short-ID generation and uniqueness
+- Subject formatting with Short-ID
+- Short-ID extraction from subjects
+- Task lookup by Short-ID
+- Message-ID generation
+- Email metadata storage
+- Incoming email processing
+- Comment creation
+
+## Migration
+
+Apply the database migration:
+
+```bash
+python manage.py migrate
+```
+
+This creates the new email-related fields on the `TaskComment` model.
+
+## Future Enhancements
+
+Potential improvements for future versions:
+
+- UI components for sending emails directly from task detail pages
+- Email reply button in comment list
+- Visual indicators for email-sourced comments
+- Email notification preferences per task
+- Bulk email processing from mailbox
+- Email template support
+- Attachment handling in email threads
