@@ -1458,8 +1458,8 @@ def task_detail(request, task_id):
         type_value = request.POST.get('type', task.type)
         milestone_id = request.POST.get('milestone', '').strip()
         tag_values = request.POST.getlist('tags')
-        assigned_to_id = request.POST.get('assigned_to', None)
-        requester_id = request.POST.get('requester', None)
+        assigned_to_id = request.POST.get('assigned_to')
+        requester_id = request.POST.get('requester')
 
         if not title:
             messages.error(request, 'Title is required.')
