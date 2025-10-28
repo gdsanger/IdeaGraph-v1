@@ -3,15 +3,20 @@
 {% if comments %}
 <div class="comments-container">
     {% for comment in comments %}
-    <div class="comment-card mb-2 {% if comment.source == 'agent' %}comment-agent{% else %}comment-user{% endif %}" data-comment-id="{{ comment.id }}">
+    <div class="comment-card mb-2 {% if comment.source == 'agent' %}comment-agent{% elif comment.source == 'email' %}comment-email{% else %}comment-user{% endif %}" data-comment-id="{{ comment.id }}">
         <div class="comment-header">
             <div class="comment-author">
                 {% if comment.source == 'agent' %}
                 <i class="bi bi-robot"></i>
+                {% elif comment.source == 'email' %}
+                <i class="bi bi-envelope"></i>
                 {% else %}
                 <i class="bi bi-person-circle"></i>
                 {% endif %}
                 <strong>{{ comment.author }}</strong>
+                {% if comment.source == 'email' and comment.email_from %}
+                <small class="text-muted ms-1">&lt;{{ comment.email_from }}&gt;</small>
+                {% endif %}
             </div>
             <div class="comment-meta">
                 <small class="text-muted" style="font-size: 0.75rem;">{{ comment.created_at|date:"d.m.Y H:i" }}</small>
@@ -20,6 +25,11 @@
                 {% endif %}
             </div>
         </div>
+        {% if comment.source == 'email' and comment.email_subject %}
+        <div class="comment-email-subject">
+            <strong>Betreff:</strong> {{ comment.email_subject }}
+        </div>
+        {% endif %}
         <div class="comment-body" data-comment-text="{{ comment.text|escapejs }}">
             <div class="comment-text markdown-content collapsed">{{ comment.text }}</div>
             <button class="comment-expand-btn" style="display: none;">
@@ -89,6 +99,21 @@
 .comment-agent {
     border-left-color: #8b5cf6;
     background: rgba(139, 92, 246, 0.1);
+}
+
+.comment-email {
+    border-left-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.comment-email-subject {
+    font-size: 0.8125rem;
+    margin-bottom: 0.4rem;
+    color: #9ca3af;
+}
+
+.comment-email-subject strong {
+    color: #d1d5db;
 }
 
 .comment-header {

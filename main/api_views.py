@@ -6554,6 +6554,9 @@ def api_task_comments(request, task_id):
                     'updated_at': comment.updated_at,  # Keep as datetime object
                     'can_edit': comment.author == user if comment.author else False,
                     'can_delete': comment.author == user or user.role == 'admin' if comment.author else user.role == 'admin',
+                    # Email-specific fields
+                    'email_from': comment.email_from if comment.source == 'email' else '',
+                    'email_subject': comment.email_subject if comment.source == 'email' else '',
                 }
                 comment_list.append(comment_data)
             
@@ -6576,6 +6579,9 @@ def api_task_comments(request, task_id):
                 'updated_at': comment.updated_at.isoformat(),
                 'can_edit': comment.author == user if comment.author else False,
                 'can_delete': comment.author == user or user.role == 'admin' if comment.author else user.role == 'admin',
+                # Email-specific fields
+                'email_from': comment.email_from if comment.source == 'email' else '',
+                'email_subject': comment.email_subject if comment.source == 'email' else '',
             }
             comment_list.append(comment_data)
         

@@ -480,13 +480,58 @@
                         
                         <!-- Comments Tab -->
                         <div class="tab-pane fade" id="comments-content" role="tabpanel" aria-labelledby="comments-tab">
+                            <!-- Action Buttons -->
+                            <div class="mb-3 d-flex gap-2">
+                                <button type="button" class="btn btn-outline-primary" id="toggleCommentFormBtn">
+                                    <i class="bi bi-chat-left-text"></i> Kommentar hinzufügen
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="toggleEmailFormBtn">
+                                    <i class="bi bi-envelope"></i> E-Mail senden
+                                </button>
+                            </div>
+                            
                             <!-- Comment input -->
-                            <div class="mb-3">
+                            <div class="mb-3" id="commentFormContainer" style="display: none;">
                                 <label for="commentTextarea" class="form-label">Neuer Kommentar</label>
                                 <textarea class="form-control mb-2" id="commentTextarea" rows="3" placeholder="Kommentar hinzufügen (Markdown unterstützt)..."></textarea>
-                                <button type="button" class="btn btn-primary" id="addCommentBtn">
-                                    <i class="bi bi-send"></i> Kommentar hinzufügen
-                                </button>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-primary" id="addCommentBtn">
+                                        <i class="bi bi-send"></i> Kommentar hinzufügen
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" id="cancelCommentBtn">
+                                        <i class="bi bi-x-lg"></i> Abbrechen
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Email compose form -->
+                            <div class="mb-3" id="emailFormContainer" style="display: none;">
+                                <h6 class="mb-3"><i class="bi bi-envelope"></i> E-Mail senden</h6>
+                                <form id="taskEmailForm">
+                                    <div class="mb-3">
+                                        <label for="emailRecipient" class="form-label">Empfänger</label>
+                                        <input type="email" class="form-control" id="emailRecipient" placeholder="empfaenger@example.com" required>
+                                        <div class="form-text">E-Mail-Adresse des Empfängers</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="emailSubject" class="form-label">Betreff</label>
+                                        <input type="text" class="form-control" id="emailSubject" value="{{ task.title }} [IG-TASK:#{{ task.short_id }}]" required>
+                                        <div class="form-text">Der Short-ID [IG-TASK:#{{ task.short_id }}] ermöglicht automatische Zuordnung von Antworten</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="emailBody" class="form-label">Nachricht</label>
+                                        <textarea class="form-control" id="emailBody" rows="6" placeholder="E-Mail-Nachricht..." required></textarea>
+                                        <div class="form-text">HTML und Markdown werden unterstützt</div>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <button type="button" class="btn btn-primary" id="sendTaskEmailBtn">
+                                            <i class="bi bi-send"></i> E-Mail senden
+                                        </button>
+                                        <button type="button" class="btn btn-secondary" id="cancelEmailBtn">
+                                            <i class="bi bi-x-lg"></i> Abbrechen
+                                        </button>
+                                    </div>
+                                </form>
                             </div>
                             
                             <hr>
@@ -1211,6 +1256,55 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Toggle Comment Form
+document.getElementById('toggleCommentFormBtn').addEventListener('click', function() {
+    const commentForm = document.getElementById('commentFormContainer');
+    const emailForm = document.getElementById('emailFormContainer');
+    
+    // Hide email form if visible
+    emailForm.style.display = 'none';
+    
+    // Toggle comment form
+    if (commentForm.style.display === 'none') {
+        commentForm.style.display = 'block';
+        document.getElementById('commentTextarea').focus();
+    } else {
+        commentForm.style.display = 'none';
+    }
+});
+
+// Cancel Comment
+document.getElementById('cancelCommentBtn').addEventListener('click', function() {
+    document.getElementById('commentFormContainer').style.display = 'none';
+    document.getElementById('commentTextarea').value = '';
+});
+
+// Toggle Email Form
+document.getElementById('toggleEmailFormBtn').addEventListener('click', function() {
+    const commentForm = document.getElementById('commentFormContainer');
+    const emailForm = document.getElementById('emailFormContainer');
+    
+    // Hide comment form if visible
+    commentForm.style.display = 'none';
+    
+    // Toggle email form
+    if (emailForm.style.display === 'none') {
+        emailForm.style.display = 'block';
+        document.getElementById('emailRecipient').focus();
+    } else {
+        emailForm.style.display = 'none';
+    }
+});
+
+// Cancel Email
+document.getElementById('cancelEmailBtn').addEventListener('click', function() {
+    document.getElementById('emailFormContainer').style.display = 'none';
+    // Reset form
+    document.getElementById('emailRecipient').value = '';
+    document.getElementById('emailSubject').value = '{{ task.title }} [IG-TASK:#{{ task.short_id }}]';
+    document.getElementById('emailBody').value = '';
+});
+
 // Add Comment functionality
 document.getElementById('addCommentBtn').addEventListener('click', async function() {
     const btn = this;
@@ -1244,6 +1338,9 @@ document.getElementById('addCommentBtn').addEventListener('click', async functio
             // Clear textarea
             textarea.value = '';
             
+            // Hide comment form
+            document.getElementById('commentFormContainer').style.display = 'none';
+            
             // Reload comments list
             htmx.ajax('GET', '/api/tasks/{{ task.id }}/comments', {
                 target: '#taskCommentsListContainer',
@@ -1260,6 +1357,89 @@ document.getElementById('addCommentBtn').addEventListener('click', async functio
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-send"></i> Kommentar hinzufügen';
+    }
+});
+
+// Send Task Email functionality
+document.getElementById('sendTaskEmailBtn').addEventListener('click', async function() {
+    const btn = this;
+    const recipientInput = document.getElementById('emailRecipient');
+    const subjectInput = document.getElementById('emailSubject');
+    const bodyInput = document.getElementById('emailBody');
+    
+    const recipient = recipientInput.value.trim();
+    const subject = subjectInput.value.trim();
+    const body = bodyInput.value.trim();
+    
+    // Validate inputs
+    if (!recipient) {
+        showAlert('Bitte geben Sie eine Empfänger-E-Mail-Adresse ein', 'warning');
+        recipientInput.focus();
+        return;
+    }
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(recipient)) {
+        showAlert('Bitte geben Sie eine gültige E-Mail-Adresse ein', 'warning');
+        recipientInput.focus();
+        return;
+    }
+    
+    if (!subject) {
+        showAlert('Bitte geben Sie einen Betreff ein', 'warning');
+        subjectInput.focus();
+        return;
+    }
+    
+    if (!body) {
+        showAlert('Bitte geben Sie eine Nachricht ein', 'warning');
+        bodyInput.focus();
+        return;
+    }
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gesendet...';
+    
+    try {
+        const response = await fetch('/api/tasks/{{ task.id }}/send-email', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                email: recipient,
+                subject: subject,
+                body: body
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showAlert('E-Mail erfolgreich an ' + recipient + ' gesendet!', 'success');
+            
+            // Reset and hide email form
+            document.getElementById('emailFormContainer').style.display = 'none';
+            recipientInput.value = '';
+            subjectInput.value = '{{ task.title }} [IG-TASK:#{{ task.short_id }}]';
+            bodyInput.value = '';
+            
+            // Reload comments list to show the sent email as a comment
+            htmx.ajax('GET', '/api/tasks/{{ task.id }}/comments', {
+                target: '#taskCommentsListContainer',
+                swap: 'innerHTML'
+            });
+        } else {
+            showAlert(data.error || 'Fehler beim Senden der E-Mail', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Fehler: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-send"></i> E-Mail senden';
     }
 });
 
