@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KIGate Theme Preview</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    
+    <!-- KIGate Theme CSS -->
+    <style>
+        /* Inline KIGate Theme for preview */
+        :root {
+            --bs-body-bg: #0C0E13;
+            --bs-body-color: #E5E7EB;
+            --bs-border-color: #2A2D34;
+            --bs-dark: #181B22;
+            --bs-dark-rgb: 24, 27, 34;
+            --kigate-surface: #181B22;
+            --kigate-surface-hover: #1F232B;
+            --bs-primary: #10B981;
+            --bs-primary-rgb: 16, 185, 129;
+            --bs-secondary: #6366F1;
+            --bs-secondary-rgb: 99, 102, 241;
+            --bs-success: #22C55E;
+            --bs-warning: #F59E0B;
+            --bs-danger: #EF4444;
+            --bs-info: #3B82F6;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #10B981, #34D399);
+            border: none;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #059669, #10B981);
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.6);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #6366F1, #818CF8);
+            box-shadow: 0 0 8px rgba(99, 102, 241, 0.3);
+        }
+        
+        .card {
+            background-color: var(--kigate-surface);
+            border: 1px solid var(--bs-border-color);
+            border-radius: 0.75rem;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+        }
+        
+        .card-header {
+            background-color: rgba(16, 185, 129, 0.1);
+            border-bottom: 1px solid var(--bs-border-color);
+        }
+        
+        .navbar {
+            background: rgba(12, 14, 19, 0.95) !important;
+            border-bottom: 2px solid #10B981;
+            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.2);
+        }
+        
+        .navbar-brand {
+            color: #10B981 !important;
+            text-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+        }
+        
+        .table-dark {
+            background-color: var(--kigate-surface);
+            color: var(--bs-body-color);
+        }
+        
+        .table-dark thead th {
+            background-color: rgba(16, 185, 129, 0.15);
+            border-bottom: 2px solid #10B981;
+        }
+        
+        .table-dark tbody tr:hover {
+            background-color: var(--kigate-surface-hover);
+        }
+        
+        .nav-tabs .nav-link.active {
+            color: #10B981;
+            background: rgba(16, 185, 129, 0.1);
+            border-bottom: 2px solid #10B981;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+        }
+        
+        .icon-primary { color: #10B981; }
+        .icon-secondary { color: #6366F1; }
+        .icon-success { color: #22C55E; }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-shield-lock"></i> KIGate
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="#">Dashboard</a>
+                <a class="nav-link active" href="#">APIs</a>
+                <a class="nav-link" href="#">Monitoring</a>
+                <a class="nav-link" href="#">Settings</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mt-5">
+        <h1 class="mb-4">KIGate Theme Components</h1>
+        
+        <!-- Buttons Section -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3><i class="bi bi-hand-index-thumb"></i> Buttons</h3>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-primary me-2 mb-2">Primary Button</button>
+                <button class="btn btn-secondary me-2 mb-2">Secondary Button</button>
+                <button class="btn btn-success me-2 mb-2">Success Button</button>
+                <button class="btn btn-warning me-2 mb-2">Warning Button</button>
+                <button class="btn btn-danger me-2 mb-2">Danger Button</button>
+                <button class="btn btn-info me-2 mb-2">Info Button</button>
+                <br>
+                <button class="btn btn-outline-primary me-2 mb-2">Outline Primary</button>
+                <button class="btn btn-outline-secondary me-2 mb-2">Outline Secondary</button>
+            </div>
+        </div>
+
+        <!-- Badges Section -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3><i class="bi bi-tags"></i> Badges</h3>
+            </div>
+            <div class="card-body">
+                <span class="badge bg-primary me-2 mb-2">Primary</span>
+                <span class="badge bg-secondary me-2 mb-2">Secondary</span>
+                <span class="badge bg-success me-2 mb-2">Success</span>
+                <span class="badge bg-warning me-2 mb-2">Warning</span>
+                <span class="badge bg-danger me-2 mb-2">Danger</span>
+                <span class="badge bg-info me-2 mb-2">Info</span>
+            </div>
+        </div>
+
+        <!-- Alerts Section -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3><i class="bi bi-exclamation-triangle"></i> Alerts</h3>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-success mb-2">
+                    <i class="bi bi-check-circle"></i> API call successful! Response received in 142ms.
+                </div>
+                <div class="alert alert-warning mb-2">
+                    <i class="bi bi-exclamation-triangle"></i> Token limit approaching - 85% consumed.
+                </div>
+                <div class="alert alert-danger mb-2">
+                    <i class="bi bi-x-circle"></i> Connection failed - Unable to reach API endpoint.
+                </div>
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle"></i> System maintenance scheduled for 02:00 UTC.
+                </div>
+            </div>
+        </div>
+
+        <!-- Table Section -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3><i class="bi bi-table"></i> Table</h3>
+            </div>
+            <div class="card-body">
+                <table class="table table-dark">
+                    <thead>
+                        <tr>
+                            <th>API Endpoint</th>
+                            <th>Status</th>
+                            <th>Response Time</th>
+                            <th>Requests/min</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>/api/v1/users</td>
+                            <td><span class="badge bg-success">Active</span></td>
+                            <td>142ms</td>
+                            <td>523</td>
+                        </tr>
+                        <tr>
+                            <td>/api/v1/auth</td>
+                            <td><span class="badge bg-success">Active</span></td>
+                            <td>89ms</td>
+                            <td>1,234</td>
+                        </tr>
+                        <tr>
+                            <td>/api/v1/data</td>
+                            <td><span class="badge bg-warning">Degraded</span></td>
+                            <td>456ms</td>
+                            <td>245</td>
+                        </tr>
+                        <tr>
+                            <td>/api/v1/legacy</td>
+                            <td><span class="badge bg-danger">Down</span></td>
+                            <td>-</td>
+                            <td>0</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tabs Section -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3><i class="bi bi-window-stack"></i> Tabs</h3>
+            </div>
+            <div class="card-body">
+                <ul class="nav nav-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+                            Overview
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#metrics" type="button" role="tab">
+                            Metrics
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#logs" type="button" role="tab">
+                            Logs
+                        </button>
+                    </li>
+                </ul>
+                <div class="tab-content mt-3">
+                    <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                        <p>System overview and status information.</p>
+                    </div>
+                    <div class="tab-pane fade" id="metrics" role="tabpanel">
+                        <p>Performance metrics and analytics.</p>
+                    </div>
+                    <div class="tab-pane fade" id="logs" role="tabpanel">
+                        <p>System logs and error messages.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Section -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3><i class="bi bi-pencil-square"></i> Forms</h3>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="apiKey" class="form-label">API Key</label>
+                    <input type="text" class="form-control" id="apiKey" placeholder="Enter your API key">
+                </div>
+                <div class="mb-3">
+                    <label for="endpoint" class="form-label">Endpoint</label>
+                    <select class="form-select" id="endpoint">
+                        <option selected>Select an endpoint</option>
+                        <option value="1">/api/v1/users</option>
+                        <option value="2">/api/v1/auth</option>
+                        <option value="3">/api/v1/data</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description</label>
+                    <textarea class="form-control" id="description" rows="3" placeholder="Enter description"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Submit</button>
+                <button type="reset" class="btn btn-secondary">Reset</button>
+            </div>
+        </div>
+
+        <!-- Cards Grid -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="bi bi-speedometer2 icon-primary" style="font-size: 3rem;"></i>
+                        <h5 class="card-title mt-3">Performance</h5>
+                        <p class="card-text">Real-time API performance monitoring</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="bi bi-shield-check icon-success" style="font-size: 3rem;"></i>
+                        <h5 class="card-title mt-3">Security</h5>
+                        <p class="card-text">Advanced security and authentication</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="bi bi-graph-up icon-secondary" style="font-size: 3rem;"></i>
+                        <h5 class="card-title mt-3">Analytics</h5>
+                        <p class="card-text">Detailed usage analytics and insights</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
