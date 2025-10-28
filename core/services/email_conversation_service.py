@@ -176,21 +176,21 @@ class EmailConversationService:
         # Remove HTML tags but preserve basic formatting
         text = html_content
         
-        # Convert <br> to newlines
-        text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+        # Convert <br> to newlines - use non-greedy match
+        text = re.sub(r'<br\s*?/?>', '\n', text, flags=re.IGNORECASE)
         
-        # Convert <p> tags to double newlines
-        text = re.sub(r'<p[^>]*>', '\n\n', text, flags=re.IGNORECASE)
+        # Convert <p> tags to double newlines - use non-greedy match
+        text = re.sub(r'<p[^>]*?>', '\n\n', text, flags=re.IGNORECASE)
         text = re.sub(r'</p>', '', text, flags=re.IGNORECASE)
         
-        # Convert <strong> and <b> to markdown bold
-        text = re.sub(r'<(strong|b)[^>]*>(.*?)</\1>', r'**\2**', text, flags=re.IGNORECASE)
+        # Convert <strong> and <b> to markdown bold - limit backtracking
+        text = re.sub(r'<(?:strong|b)[^>]*?>((?:(?!</).){0,1000}?)</(?:strong|b)>', r'**\1**', text, flags=re.IGNORECASE)
         
-        # Convert <em> and <i> to markdown italic
-        text = re.sub(r'<(em|i)[^>]*>(.*?)</\1>', r'*\2*', text, flags=re.IGNORECASE)
+        # Convert <em> and <i> to markdown italic - limit backtracking
+        text = re.sub(r'<(?:em|i)[^>]*?>((?:(?!</).){0,1000}?)</(?:em|i)>', r'*\1*', text, flags=re.IGNORECASE)
         
-        # Remove all other HTML tags
-        text = re.sub(r'<[^>]+>', '', text)
+        # Remove all other HTML tags - more efficient pattern
+        text = re.sub(r'<[^>]{1,100}>', '', text)
         
         # Clean up excessive newlines
         text = re.sub(r'\n{3,}', '\n\n', text)

@@ -2691,8 +2691,8 @@ def api_send_task_email(request, task_id):
         # Get the task
         task = Task.objects.get(id=task_id)
         
-        # Check permissions (task members or admin can send)
-        if user.role not in ['admin', 'developer']:
+        # Check permissions (admin, developer, or task owner can send)
+        if user.role not in ['admin', 'developer'] and task.created_by != user and task.assigned_to != user:
             return JsonResponse({'error': 'Access denied'}, status=403)
         
         # Parse request body
@@ -2715,8 +2715,12 @@ def api_send_task_email(request, task_id):
         if not body:
             return JsonResponse({'error': 'Body is required'}, status=400)
         
-        # Validate email format (basic validation)
-        if '@' not in recipient_email or '.' not in recipient_email:
+        # Validate email format using Django's EmailValidator
+        from django.core.validators import validate_email
+        from django.core.exceptions import ValidationError
+        try:
+            validate_email(recipient_email)
+        except ValidationError:
             return JsonResponse({'error': 'Invalid email address format'}, status=400)
         
         # Send the email
@@ -2742,7 +2746,7 @@ def api_send_task_email(request, task_id):
             logger.error(f'Failed to send task email for task {task.title}: {error_msg}')
             return JsonResponse({
                 'success': False,
-                'error': error_msg
+                'error': 'Failed to send email'
             }, status=500)
             
     except Task.DoesNotExist:
@@ -2772,8 +2776,8 @@ def api_process_incoming_email(request):
     if not user:
         return JsonResponse({'error': 'Authentication required'}, status=401)
     
-    # Only admins can process incoming emails
-    if user.role != 'admin':
+    # Admins and developers can process incoming emails
+    if user.role not in ['admin', 'developer']:
         return JsonResponse({'error': 'Access denied'}, status=403)
     
     from core.services.email_conversation_service import EmailConversationService
@@ -2807,11 +2811,15 @@ def api_process_incoming_email(request):
             return JsonResponse(result)
         else:
             logger.warning(f"Failed to process incoming email: {result}")
-            return JsonResponse(result, status=400)
+            # Don't expose detailed error information
+            return JsonResponse({
+                'success': False,
+                'message': 'Failed to process email'
+            }, status=400)
             
     except Exception as e:
         logger.error(f'Process incoming email error: {str(e)}')
-        return JsonResponse({'error': f'An error occurred: {str(e)}'}, status=500)
+        return JsonResponse({'error': 'An error occurred while processing email'}, status=500)
 
 
 @csrf_exempt
