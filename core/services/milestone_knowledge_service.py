@@ -161,7 +161,7 @@ class MilestoneKnowledgeService:
         try:
             import weaviate
             from weaviate.classes.init import Auth
-            from weaviate.classes.query import MetadataQuery
+            from weaviate.classes.query import MetadataQuery, HybridFusion
             
             # Initialize Weaviate client
             if self.settings.weaviate_cloud_enabled:
@@ -178,11 +178,12 @@ class MilestoneKnowledgeService:
             try:
                 collection = client.collections.get('KnowledgeObject')
                 
-                # Search for similar objects using near_text
-                response = collection.query.near_text(
+                # Search for similar objects using hybrid search
+                response = collection.query.hybrid(
                     query=query_text,
                     limit=max_results * self.RAG_SEARCH_MULTIPLIER,  # Get extra results to account for similarity filtering
-                    return_metadata=MetadataQuery(distance=True)
+                    return_metadata=MetadataQuery(distance=True, score=True),
+                    fusion_type=HybridFusion.RANKED
                 )
                 
                 # Process and categorize results

@@ -11,7 +11,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 import weaviate
 from weaviate.classes.init import Auth
-from weaviate.classes.query import MetadataQuery, Filter
+from weaviate.classes.query import MetadataQuery, Filter, HybridFusion
 
 
 logger = logging.getLogger('weaviate_sync_service')
@@ -360,13 +360,13 @@ class WeaviateItemSyncService:
             # Get collection
             collection = self._client.collections.get(self.COLLECTION_NAME)
             
-            # Search using near_text with filter for type='Item'
-            from weaviate.classes.query import Filter
-            response = collection.query.near_text(
+            # Search using hybrid search with filter for type='Item'
+            response = collection.query.hybrid(
                 query=query_text,
                 limit=n_results,
-                return_metadata=MetadataQuery(distance=True),
-                filters=Filter.by_property("type").equal("Item")
+                return_metadata=MetadataQuery(distance=True, score=True),
+                filters=Filter.by_property("type").equal("Item"),
+                fusion_type=HybridFusion.RANKED
             )
             
             # Format results

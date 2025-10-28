@@ -82,7 +82,7 @@ class GlobalSearchAPITest(TestCase):
         mock_response = MagicMock()
         mock_response.objects = [mock_obj]
         
-        mock_collection.query.near_text.return_value = mock_response
+        mock_collection.query.hybrid.return_value = mock_response
         mock_client.collections.get.return_value = mock_collection
         mock_weaviate_connect.return_value = mock_client
         
@@ -117,7 +117,7 @@ class GlobalSearchAPITest(TestCase):
         mock_response = MagicMock()
         mock_response.objects = []
         
-        mock_collection.query.near_text.return_value = mock_response
+        mock_collection.query.hybrid.return_value = mock_response
         mock_client.collections.get.return_value = mock_collection
         mock_weaviate_connect.return_value = mock_client
         
@@ -144,7 +144,7 @@ class GlobalSearchAPITest(TestCase):
         mock_response = MagicMock()
         mock_response.objects = []
         
-        mock_collection.query.near_text.return_value = mock_response
+        mock_collection.query.hybrid.return_value = mock_response
         mock_client.collections.get.return_value = mock_collection
         mock_weaviate_connect.return_value = mock_client
         
@@ -160,7 +160,7 @@ class GlobalSearchAPITest(TestCase):
         self.assertTrue(data['success'])
         
         # Verify limit was passed to search service
-        call_args = mock_collection.query.near_text.call_args
+        call_args = mock_collection.query.hybrid.call_args
         self.assertEqual(call_args[1]['limit'], 5)
     
     @patch('core.services.weaviate_search_service.weaviate.connect_to_local')
@@ -173,7 +173,7 @@ class GlobalSearchAPITest(TestCase):
         mock_response = MagicMock()
         mock_response.objects = []
         
-        mock_collection.query.near_text.return_value = mock_response
+        mock_collection.query.hybrid.return_value = mock_response
         mock_client.collections.get.return_value = mock_collection
         mock_weaviate_connect.return_value = mock_client
         
@@ -216,7 +216,7 @@ class GlobalSearchAPITest(TestCase):
         mock_response = MagicMock()
         mock_response.objects = [mock_obj]
         
-        mock_collection.query.near_text.return_value = mock_response
+        mock_collection.query.hybrid.return_value = mock_response
         mock_client.collections.get.return_value = mock_collection
         mock_weaviate_connect.return_value = mock_client
         

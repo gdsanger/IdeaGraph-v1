@@ -9,7 +9,7 @@ import logging
 from typing import Optional, Dict, Any, List
 import weaviate
 from weaviate.classes.init import Auth
-from weaviate.classes.query import MetadataQuery
+from weaviate.classes.query import MetadataQuery, HybridFusion
 
 
 logger = logging.getLogger('weaviate_tag_sync_service')
@@ -327,11 +327,12 @@ class WeaviateTagSyncService:
             # Get collection
             collection = self._client.collections.get(self.COLLECTION_NAME)
             
-            # Search using near_text
-            response = collection.query.near_text(
+            # Search using hybrid search
+            response = collection.query.hybrid(
                 query=query_text,
                 limit=n_results,
-                return_metadata=MetadataQuery(distance=True)
+                return_metadata=MetadataQuery(distance=True, score=True),
+                fusion_type=HybridFusion.RANKED
             )
             
             # Format results
