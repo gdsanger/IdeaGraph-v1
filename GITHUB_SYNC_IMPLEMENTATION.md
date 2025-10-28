@@ -1,5 +1,13 @@
 # GitHub Issues und Tasks Synchronisation - Implementierungszusammenfassung
 
+> **⚠️ DEPRECATED DOCUMENTATION**
+> 
+> This document describes an older ChromaDB-based implementation.
+> 
+> **For the current implementation**, see [GITHUB_ISSUES_KNOWLEDGEOBJECT_MIGRATION.md](./GITHUB_ISSUES_KNOWLEDGEOBJECT_MIGRATION.md)
+> 
+> GitHub Issues are now stored in Weaviate's `KnowledgeObject` collection, not in a separate ChromaDB collection.
+
 ## Überblick
 
 Diese Implementierung erfüllt alle Anforderungen aus dem Issue "Entwicklung eines Python-Skripts zur Synchronisation und Überwachung von GitHub-Issues und Tasks".

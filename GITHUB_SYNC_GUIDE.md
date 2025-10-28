@@ -1,5 +1,13 @@
 # GitHub Issues und Tasks Synchronisation
 
+> **⚠️ DEPRECATED DOCUMENTATION**
+> 
+> This document describes an older ChromaDB-based implementation.
+> 
+> **For the current implementation**, see [GITHUB_ISSUES_KNOWLEDGEOBJECT_MIGRATION.md](./GITHUB_ISSUES_KNOWLEDGEOBJECT_MIGRATION.md)
+> 
+> GitHub Issues are now stored in Weaviate's `KnowledgeObject` collection, not in a separate ChromaDB collection.
+
 ## Übersicht
 
 Dieses Feature implementiert eine automatische Synchronisation zwischen GitHub Issues/Pull Requests und IdeaGraph Tasks. Es ermöglicht:
