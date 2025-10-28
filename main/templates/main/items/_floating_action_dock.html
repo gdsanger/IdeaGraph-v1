@@ -395,71 +395,73 @@
 
 <script>
 // Initialize Chat Widget for Modal (lazy load when modal is shown)
-let chatWidgetModalInitialized = false;
-
-document.addEventListener('DOMContentLoaded', function() {
-    const qaChatModal = document.getElementById('qaChatModal');
-    if (qaChatModal) {
-        qaChatModal.addEventListener('shown.bs.modal', function() {
-            if (!chatWidgetModalInitialized) {
-                try {
-                    const objectType = '{{ object_type|default:"item" }}';
-                    const objectId = '{{ object_id|escapejs }}';
-                    const chatWidget = new ChatWidget({
-                        containerId: 'ideagraph-chat-widget-modal',
-                        itemId: objectId,
-                        apiBaseUrl: `/api/${objectType}s`,
-                        theme: 'dark',
-                        height: '500px',
-                        showHistory: true
-                    });
-                    chatWidgetModalInitialized = true;
-                    console.log('Chat widget initialized in modal');
-                } catch (error) {
-                    console.error('Error initializing chat widget in modal:', error);
+(function() {
+    // Use a unique flag on the modal element to track initialization
+    document.addEventListener('DOMContentLoaded', function() {
+        const qaChatModal = document.getElementById('qaChatModal');
+        if (qaChatModal) {
+            qaChatModal.addEventListener('shown.bs.modal', function() {
+                if (!qaChatModal.dataset.chatWidgetInitialized) {
+                    try {
+                        const objectType = '{{ object_type|default:"item" }}';
+                        const objectId = '{{ object_id|escapejs }}';
+                        const chatWidget = new ChatWidget({
+                            containerId: 'ideagraph-chat-widget-modal',
+                            itemId: objectId,
+                            apiBaseUrl: `/api/${objectType}s`,
+                            theme: 'dark',
+                            height: '500px',
+                            showHistory: true
+                        });
+                        qaChatModal.dataset.chatWidgetInitialized = 'true';
+                        console.log('Chat widget initialized in modal');
+                    } catch (error) {
+                        console.error('Error initializing chat widget in modal:', error);
+                    }
                 }
-            }
-        });
-    }
-});
+            });
+        }
+    });
+})();
 
 // Initialize Semantic Network for Modal (lazy load when modal is shown)
-let semanticNetworkModalInitialized = false;
-
-document.addEventListener('DOMContentLoaded', function() {
-    const graphModal = document.getElementById('graphModal');
-    if (graphModal) {
-        graphModal.addEventListener('shown.bs.modal', function() {
-            if (!semanticNetworkModalInitialized) {
-                try {
-                    const objectType = '{{ object_type|default:"item" }}';
-                    const objectId = '{{ object_id|escapejs }}';
-                    const semanticNetworkModalViewer = new SemanticGraph('semanticNetworkModalContainer', {
-                        objectType: objectType,
-                        objectId: objectId,
-                        depth: 3,
-                        generateSummaries: true,
-                        includeHierarchy: objectType === 'item',
-                        onNodeClick: function(nodeData) {
-                            const type = nodeData.type;
-                            const id = nodeData.id;
-                            
-                            if (type === 'item') {
-                                window.location.href = `/items/${id}/`;
-                            } else if (type === 'task') {
-                                window.location.href = `/tasks/${id}/`;
+(function() {
+    // Use a unique flag on the modal element to track initialization
+    document.addEventListener('DOMContentLoaded', function() {
+        const graphModal = document.getElementById('graphModal');
+        if (graphModal) {
+            graphModal.addEventListener('shown.bs.modal', function() {
+                if (!graphModal.dataset.semanticNetworkInitialized) {
+                    try {
+                        const objectType = '{{ object_type|default:"item" }}';
+                        const objectId = '{{ object_id|escapejs }}';
+                        const semanticNetworkModalViewer = new SemanticGraph('semanticNetworkModalContainer', {
+                            objectType: objectType,
+                            objectId: objectId,
+                            depth: 3,
+                            generateSummaries: true,
+                            includeHierarchy: objectType === 'item',
+                            onNodeClick: function(nodeData) {
+                                const type = nodeData.type;
+                                const id = nodeData.id;
+                                
+                                if (type === 'item') {
+                                    window.location.href = `/items/${id}/`;
+                                } else if (type === 'task') {
+                                    window.location.href = `/tasks/${id}/`;
+                                }
                             }
-                        }
-                    });
-                    semanticNetworkModalInitialized = true;
-                    console.log('Semantic network initialized in modal');
-                } catch (error) {
-                    console.error('Error initializing semantic network in modal:', error);
+                        });
+                        graphModal.dataset.semanticNetworkInitialized = 'true';
+                        console.log('Semantic network initialized in modal');
+                    } catch (error) {
+                        console.error('Error initializing semantic network in modal:', error);
+                    }
                 }
-            }
-        });
-    }
-});
+            });
+        }
+    });
+})();
 </script>
 
 <script>
@@ -669,30 +671,30 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <script>
 // Files Modal - Lazy Loading
-let filesModalInitialized = false;
-
-document.addEventListener('DOMContentLoaded', function() {
-    const filesModal = document.getElementById('filesModal');
-    if (filesModal) {
-        filesModal.addEventListener('shown.bs.modal', function() {
-            if (!filesModalInitialized) {
-                loadFiles();
-                filesModalInitialized = true;
-            }
-        });
-    }
-    
-    // Upload file button handler
-    const uploadBtn = document.getElementById('uploadFileBtn');
-    if (uploadBtn) {
-        uploadBtn.addEventListener('click', function() {
-            // Trigger file upload - this will depend on your existing upload mechanism
-            const objectType = '{{ object_type|default:"item" }}';
-            const objectId = '{{ object_id|escapejs }}';
-            window.location.href = `/${objectType}s/${objectId}/?upload=true`;
-        });
-    }
-});
+(function() {
+    document.addEventListener('DOMContentLoaded', function() {
+        const filesModal = document.getElementById('filesModal');
+        if (filesModal) {
+            filesModal.addEventListener('shown.bs.modal', function() {
+                if (!filesModal.dataset.filesInitialized) {
+                    loadFiles();
+                    filesModal.dataset.filesInitialized = 'true';
+                }
+            });
+        }
+        
+        // Upload file button handler
+        const uploadBtn = document.getElementById('uploadFileBtn');
+        if (uploadBtn) {
+            uploadBtn.addEventListener('click', function() {
+                // Trigger file upload - this will depend on your existing upload mechanism
+                const objectType = '{{ object_type|default:"item" }}';
+                const objectId = '{{ object_id|escapejs }}';
+                window.location.href = `/${objectType}s/${objectId}/?upload=true`;
+            });
+        }
+    });
+})();
 
 function loadFiles() {
     const objectType = '{{ object_type|default:"item" }}';
