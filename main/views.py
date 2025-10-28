@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from .auth_utils import validate_password
 from .models import Tag, Settings, Section, User, Item, Task, Client, Milestone
 import logging
@@ -1827,11 +1828,15 @@ def task_overview(request):
     item_filter = request.GET.get('item', '')
     has_github = request.GET.get('has_github', '')
     search_query = request.GET.get('search', '').strip()
+    assigned_to_me = request.GET.get('assigned_to_me', '')
     
     # Base query - show all tasks
     tasks = Task.objects.all()
     
     # Apply filters
+    if assigned_to_me == 'true':
+        tasks = tasks.filter(assigned_to=user)
+    
     if status_filter:
         tasks = tasks.filter(status=status_filter)
     
@@ -1854,10 +1859,86 @@ def task_overview(request):
     tasks = tasks.select_related('item', 'assigned_to', 'created_by').prefetch_related('tags')
     tasks = tasks.order_by('-updated_at')
     
-    # Calculate status counts
+    # Calculate status counts - respect the assigned_to_me filter
     status_counts = {}
     for status_key, status_label in Task.STATUS_CHOICES:
-        count = Task.objects.filter(status=status_key).count()
+        count_query = Task.objects.filter(status=status_key)
+        if assigned_to_me == 'true':
+            count_query = count_query.filter(assigned_to=user)
+        count = count_query.count()
+        status_counts[status_key] = count
+    
+    # Pagination
+    paginator = Paginator(tasks, 20)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    # Get all items for filter dropdown
+    items = Item.objects.all()
+    
+    context = {
+        'tasks': page_obj,
+        'items': items,
+        'status_choices': Task.STATUS_CHOICES,
+        'status_counts': status_counts,
+        'status_filter': status_filter,
+        'item_filter': item_filter,
+        'has_github': has_github,
+        'search_query': search_query,
+        'assigned_to_me': assigned_to_me,
+    }
+    
+    # If HTMX request, return only the partial template
+    if request.headers.get('HX-Request'):
+        return render(request, 'main/tasks/_task_table.html', context)
+    
+    return render(request, 'main/tasks/overview.html', context)
+
+
+def my_requirements(request):
+    """My Requirements - shows tasks where current user is the requester"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Get filter parameters
+    status_filter = request.GET.get('status', '')
+    item_filter = request.GET.get('item', '')
+    has_github = request.GET.get('has_github', '')
+    search_query = request.GET.get('search', '').strip()
+    
+    # Base query - show tasks where current user is the requester
+    tasks = Task.objects.filter(requester=user)
+    
+    # Apply filters
+    if status_filter:
+        tasks = tasks.filter(status=status_filter)
+    
+    if item_filter:
+        tasks = tasks.filter(item_id=item_filter)
+    
+    if has_github == 'true':
+        tasks = tasks.filter(github_issue_id__isnull=False)
+    elif has_github == 'false':
+        tasks = tasks.filter(github_issue_id__isnull=True)
+    
+    if search_query:
+        tasks = tasks.filter(
+            Q(title__icontains=search_query) | 
+            Q(description__icontains=search_query)
+        )
+    
+    # Prefetch related data
+    tasks = tasks.select_related('item', 'assigned_to', 'created_by').prefetch_related('tags')
+    tasks = tasks.order_by('-updated_at')
+    
+    # Calculate status counts (only for requester's tasks)
+    status_counts = {}
+    for status_key, status_label in Task.STATUS_CHOICES:
+        count = Task.objects.filter(requester=user, status=status_key).count()
         status_counts[status_key] = count
     
     # Pagination
@@ -1883,7 +1964,7 @@ def task_overview(request):
     if request.headers.get('HX-Request'):
         return render(request, 'main/tasks/_task_table.html', context)
     
-    return render(request, 'main/tasks/overview.html', context)
+    return render(request, 'main/tasks/my_requirements.html', context)
 
 
 def tags_network_view(request):
