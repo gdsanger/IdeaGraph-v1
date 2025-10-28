@@ -506,9 +506,14 @@
                                 <h6 class="mb-3"><i class="bi bi-envelope"></i> E-Mail senden</h6>
                                 <form id="taskEmailForm">
                                     <div class="mb-3">
-                                        <label for="emailRecipient" class="form-label">Empfänger</label>
-                                        <input type="email" class="form-control" id="emailRecipient" placeholder="empfaenger@example.com" required>
-                                        <div class="form-text">E-Mail-Adresse des Empfängers</div>
+                                        <label for="emailRecipient" class="form-label">Empfänger (To)</label>
+                                        <input type="text" class="form-control" id="emailRecipient" placeholder="empfaenger@example.com" required value="{% if task.created_by and task.created_by.email %}{{ task.created_by.email }}{% endif %}">
+                                        <div class="form-text">E-Mail-Adressen der Empfänger (mehrere mit Komma trennen)</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="emailCc" class="form-label">Cc</label>
+                                        <input type="text" class="form-control" id="emailCc" placeholder="cc@example.com">
+                                        <div class="form-text">Cc-Empfänger (mehrere mit Komma trennen)</div>
                                     </div>
                                     <div class="mb-3">
                                         <label for="emailSubject" class="form-label">Betreff</label>
@@ -1296,7 +1301,8 @@ document.getElementById('toggleEmailFormBtn').addEventListener('click', function
 document.getElementById('cancelEmailBtn').addEventListener('click', function() {
     document.getElementById('emailFormContainer').style.display = 'none';
     // Reset form
-    document.getElementById('emailRecipient').value = '';
+    document.getElementById('emailRecipient').value = '{% if task.created_by and task.created_by.email %}{{ task.created_by.email }}{% endif %}';
+    document.getElementById('emailCc').value = '';
     document.getElementById('emailSubject').value = '{{ task.title }} [IG-TASK:#{{ task.short_id }}]';
     document.getElementById('emailBody').value = '';
 });
@@ -1360,10 +1366,12 @@ document.getElementById('addCommentBtn').addEventListener('click', async functio
 document.getElementById('sendTaskEmailBtn').addEventListener('click', async function() {
     const btn = this;
     const recipientInput = document.getElementById('emailRecipient');
+    const ccInput = document.getElementById('emailCc');
     const subjectInput = document.getElementById('emailSubject');
     const bodyInput = document.getElementById('emailBody');
     
     const recipient = recipientInput.value.trim();
+    const cc = ccInput.value.trim();
     const subject = subjectInput.value.trim();
     const body = bodyInput.value.trim();
     
@@ -1374,12 +1382,27 @@ document.getElementById('sendTaskEmailBtn').addEventListener('click', async func
         return;
     }
     
-    // Basic email validation
+    // Basic email validation for multiple recipients
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(recipient)) {
-        showAlert('Bitte geben Sie eine gültige E-Mail-Adresse ein', 'warning');
-        recipientInput.focus();
-        return;
+    const recipients = recipient.split(',').map(e => e.trim()).filter(e => e);
+    for (const email of recipients) {
+        if (!emailRegex.test(email)) {
+            showAlert('Bitte geben Sie gültige E-Mail-Adressen ein (mehrere mit Komma trennen)', 'warning');
+            recipientInput.focus();
+            return;
+        }
+    }
+    
+    // Validate CC emails if provided
+    if (cc) {
+        const ccRecipients = cc.split(',').map(e => e.trim()).filter(e => e);
+        for (const email of ccRecipients) {
+            if (!emailRegex.test(email)) {
+                showAlert('Bitte geben Sie gültige Cc E-Mail-Adressen ein (mehrere mit Komma trennen)', 'warning');
+                ccInput.focus();
+                return;
+            }
+        }
     }
     
     if (!subject) {
@@ -1398,27 +1421,34 @@ document.getElementById('sendTaskEmailBtn').addEventListener('click', async func
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gesendet...';
     
     try {
+        const payload = {
+            email: recipient,
+            subject: subject,
+            body: body
+        };
+        
+        if (cc) {
+            payload.cc = cc;
+        }
+        
         const response = await fetch('/api/tasks/{{ task.id }}/send-email', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': getCsrfToken()
             },
-            body: JSON.stringify({
-                email: recipient,
-                subject: subject,
-                body: body
-            })
+            body: JSON.stringify(payload)
         });
         
         const data = await response.json();
         
         if (response.ok && data.success) {
-            showAlert('E-Mail erfolgreich an ' + recipient + ' gesendet!', 'success');
+            showAlert('E-Mail erfolgreich gesendet!', 'success');
             
             // Reset and hide email form
             document.getElementById('emailFormContainer').style.display = 'none';
-            recipientInput.value = '';
+            recipientInput.value = '{% if task.created_by and task.created_by.email %}{{ task.created_by.email }}{% endif %}';
+            ccInput.value = '';
             subjectInput.value = '{{ task.title }} [IG-TASK:#{{ task.short_id }}]';
             bodyInput.value = '';
             

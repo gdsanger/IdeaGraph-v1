@@ -613,6 +613,11 @@ class TaskComment(models.Model):
         ('email', 'Email'),
     ]
     
+    EMAIL_DIRECTION_CHOICES = [
+        ('inbound', 'Inbound'),
+        ('outbound', 'Outbound'),
+    ]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='comments')
     author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='task_comments')
@@ -625,7 +630,10 @@ class TaskComment(models.Model):
     email_in_reply_to = models.CharField(max_length=500, blank=True, default='', help_text='Email In-Reply-To header')
     email_references = models.TextField(blank=True, default='', help_text='Email References header (space-separated Message-IDs)')
     email_from = models.EmailField(max_length=254, blank=True, default='', help_text='Sender email address')
+    email_to = models.TextField(blank=True, default='', help_text='Recipient email addresses (comma-separated)')
+    email_cc = models.TextField(blank=True, default='', help_text='CC email addresses (comma-separated)')
     email_subject = models.CharField(max_length=500, blank=True, default='', help_text='Email subject line')
+    email_direction = models.CharField(max_length=10, choices=EMAIL_DIRECTION_CHOICES, blank=True, default='', help_text='Email direction: inbound or outbound')
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
