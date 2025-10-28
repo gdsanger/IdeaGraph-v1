@@ -11,7 +11,15 @@
     
     <!-- KIGate Theme CSS -->
     <style>
-        /* Inline KIGate Theme for preview */
+        /* 
+         * Inline KIGate Theme for standalone preview
+         * Note: This is intentionally duplicated from kigate-theme.css
+         * to allow this preview file to work independently without 
+         * requiring the full Django static files setup.
+         * 
+         * For production use, always reference the main theme file:
+         * <link rel="stylesheet" href="{% static 'main/css/kigate-theme.css' %}" />
+         */
         :root {
             --bs-body-bg: #0C0E13;
             --bs-body-color: #E5E7EB;
