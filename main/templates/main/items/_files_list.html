@@ -17,6 +17,7 @@
         <thead>
             <tr>
                 <th>Filename</th>
+                <th>File Type</th>
                 <th>Size</th>
                 <th><i class="bi bi-database" title="Weaviate Status"></i></th>
                 <th>Actions</th>
@@ -36,6 +37,13 @@
                         <span title="Uploaded by {{ file.uploaded_by }} on {{ file.created_at|date:'d.m.Y H:i' }}">
                             {{ file.filename }}
                         </span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if file.file_extension %}
+                        <span class="badge bg-secondary">{{ file.file_extension }}</span>
+                    {% else %}
+                        <span class="text-muted">-</span>
                     {% endif %}
                 </td>
                 <td>{{ file.file_size_mb }} MB</td>

@@ -83,6 +83,29 @@ class TaskFileService:
                 raise TaskFileServiceError(f"Failed to initialize Graph service: {e.message}", details=e.details)
         return self.graph_service
     
+    def get_file_extension(self, filename: str) -> str:
+        """
+        Extract file extension from filename
+        
+        Args:
+            filename: Name of the file
+            
+        Returns:
+            str: Uppercase file extension without dot (e.g., 'PDF', 'DOCX') or empty string if no extension
+        """
+        if not filename or not isinstance(filename, str):
+            return ''
+        
+        filename = filename.strip()
+        if not filename or filename in ['.', '..'] or not '.' in filename:
+            return ''
+        
+        extension = filename.rsplit('.', 1)[-1]
+        # Ensure we actually got an extension (not an empty string after the dot)
+        if extension:
+            return extension.upper()
+        return ''
+    
     def normalize_folder_name(self, name: str) -> str:
         """
         Normalize folder name for SharePoint
@@ -315,6 +338,7 @@ class TaskFileService:
                 file_list.append({
                     'id': str(f.id),
                     'filename': f.filename,
+                    'file_extension': self.get_file_extension(f.filename),
                     'file_size': f.file_size,
                     'file_size_mb': f.file_size / (1024 * 1024),
                     'sharepoint_url': f.sharepoint_url,

@@ -23,6 +23,7 @@
         <thead>
             <tr>
                 <th>Filename</th>
+                <th>File Type</th>
                 <th>Size</th>
                 <th>Uploaded</th>
                 <th>Weaviate Status</th>
@@ -42,6 +43,13 @@
                         <a href="{{ file.sharepoint_url }}" target="_blank" rel="noopener noreferrer">
                             {{ file.filename }}
                         </a>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if file.file_extension %}
+                        <span class="badge bg-secondary">{{ file.file_extension }}</span>
+                    {% else %}
+                        <span class="text-muted">-</span>
                     {% endif %}
                 </td>
                 <td>{{ file.file_size_mb|floatformat:2 }} MB</td>
