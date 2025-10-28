@@ -96,6 +96,7 @@ urlpatterns = [
     
     # Global Task Overview
     path('admin/tasks/overview/', views.task_overview, name='task_overview'),
+    path('tasks/my-requirements/', views.my_requirements, name='my_requirements'),
     
     # Milestone Management URLs
     path('items/<uuid:item_id>/milestones/create/', views.milestone_create, name='milestone_create'),

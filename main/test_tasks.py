@@ -1162,6 +1162,16 @@ class TaskTypeAndStatusTest(TestCase):
         self.user.set_password('testpass123')
         self.user.save()
         
+        # Create another user for requester tests
+        self.other_user = User.objects.create(
+            username='otheruser',
+            email='other@example.com',
+            role='developer',
+            is_active=True
+        )
+        self.other_user.set_password('testpass123')
+        self.other_user.save()
+        
         # Create test section
         self.section = Section.objects.create(name='Test Section')
         
@@ -1322,3 +1332,119 @@ class TaskTypeAndStatusTest(TestCase):
         
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '🧪')  # Test status emoji
+    
+    def test_my_requirements_view_access(self):
+        """Test my requirements view requires authentication"""
+        url = reverse('main:my_requirements')
+        response = self.client.get(url)
+        
+        # Should redirect to login
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('login', response.url)
+    
+    def test_my_requirements_view_shows_requester_tasks(self):
+        """Test my requirements view shows only tasks where user is requester"""
+        self.login_user()
+        
+        # Create tasks with different requesters
+        task_as_requester = Task.objects.create(
+            title='My Request Task',
+            description='Task I requested',
+            status='new',
+            item=self.item,
+            created_by=self.user,
+            requester=self.user  # Current user is requester
+        )
+        
+        task_other_requester = Task.objects.create(
+            title='Other Request Task',
+            description='Task someone else requested',
+            status='new',
+            item=self.item,
+            created_by=self.other_user,
+            requester=self.other_user  # Other user is requester
+        )
+        
+        url = reverse('main:my_requirements')
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Meine Anforderungen')
+        self.assertContains(response, 'My Request Task')
+        self.assertNotContains(response, 'Other Request Task')
+    
+    def test_my_requirements_view_filters(self):
+        """Test my requirements view filters work correctly"""
+        self.login_user()
+        
+        # Create tasks with current user as requester
+        task1 = Task.objects.create(
+            title='New Request',
+            description='New task',
+            status='new',
+            item=self.item,
+            requester=self.user
+        )
+        
+        task2 = Task.objects.create(
+            title='Done Request',
+            description='Done task',
+            status='done',
+            item=self.item,
+            requester=self.user
+        )
+        
+        # Test status filter
+        url = reverse('main:my_requirements') + '?status=new'
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'New Request')
+        self.assertNotContains(response, 'Done Request')
+    
+    def test_my_requirements_status_counts(self):
+        """Test status counts are calculated correctly for my requirements"""
+        self.login_user()
+        
+        # Create tasks with current user as requester
+        Task.objects.create(
+            title='New Request 1',
+            description='New task 1',
+            status='new',
+            item=self.item,
+            requester=self.user
+        )
+        
+        Task.objects.create(
+            title='New Request 2',
+            description='New task 2',
+            status='new',
+            item=self.item,
+            requester=self.user
+        )
+        
+        Task.objects.create(
+            title='Done Request',
+            description='Done task',
+            status='done',
+            item=self.item,
+            requester=self.user
+        )
+        
+        # Create task with different requester (should not be counted)
+        Task.objects.create(
+            title='Other Request',
+            description='Other task',
+            status='new',
+            item=self.item,
+            requester=self.other_user
+        )
+        
+        url = reverse('main:my_requirements')
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        # Check status counts in context
+        self.assertEqual(response.context['status_counts']['new'], 2)
+        self.assertEqual(response.context['status_counts']['done'], 1)
+

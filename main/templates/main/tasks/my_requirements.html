@@ -1,0 +1,401 @@
+{% extends "main/base.html" %}
+
+{% block title %}Meine Anforderungen{% endblock %}
+
+{% block extra_css %}
+<style>
+    .status-badge {
+        cursor: pointer;
+    }
+    .filter-bar {
+        position: sticky;
+        top: 76px;
+        z-index: 100;
+        background: rgba(31, 41, 55, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--autumn-primary);
+    }
+    .badge-clickable {
+        cursor: pointer;
+    }
+    .htmx-indicator {
+        display: none;
+    }
+    .htmx-request .htmx-indicator {
+        display: block;
+    }
+    .htmx-request.htmx-indicator {
+        display: block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    {% csrf_token %}
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1 class="mb-0">
+                    <i class="bi bi-person-lines-fill"></i> Meine Anforderungen
+                </h1>
+                <div>
+                    <span class="text-muted">
+                        <i class="bi bi-person-circle"></i> {{ request.session.username }}
+                        {% if request.session.user_role == 'admin' %}
+                        <span class="badge bg-danger ms-2">Admin</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Overview Badges -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">
+                        <i class="bi bi-bar-chart-fill"></i> Status Overview
+                    </h5>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for status_key, status_label in status_choices %}
+                        <a href="?status={{ status_key }}&item={{ item_filter }}&has_github={{ has_github }}&search={{ search_query }}" 
+                           class="text-decoration-none">
+                            {% if status_key == 'new' %}
+                            <span class="badge bg-secondary status-badge badge-clickable" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                                ⚪ {{ status_label }} ({{ status_counts.new|default:0 }})
+                            </span>
+                            {% elif status_key == 'working' %}
+                            <span class="badge bg-primary status-badge badge-clickable" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                                🔵 {{ status_label }} ({{ status_counts.working|default:0 }})
+                            </span>
+                            {% elif status_key == 'review' %}
+                            <span class="badge bg-warning text-dark status-badge badge-clickable" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                                🟡 {{ status_label }} ({{ status_counts.review|default:0 }})
+                            </span>
+                            {% elif status_key == 'ready' %}
+                            <span class="badge bg-success status-badge badge-clickable" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                                🟢 {{ status_label }} ({{ status_counts.ready|default:0 }})
+                            </span>
+                            {% elif status_key == 'test' %}
+                            <span class="badge bg-info status-badge badge-clickable" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                                🧪 {{ status_label }} ({{ status_counts.test|default:0 }})
+                            </span>
+                            {% elif status_key == 'done' %}
+                            <span class="badge bg-secondary status-badge badge-clickable" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                                ✅ {{ status_label }} ({{ status_counts.done|default:0 }})
+                            </span>
+                            {% endif %}
+                        </a>
+                        {% endfor %}
+                        
+                        {% if status_filter %}
+                        <a href="?item={{ item_filter }}&has_github={{ has_github }}&search={{ search_query }}" 
+                           class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Clear Status Filter
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label for="search" class="form-label">
+                    <i class="bi bi-search"></i> Search
+                </label>
+                <input type="text" class="form-control" id="search" name="search" 
+                       value="{{ search_query }}" placeholder="Search title or description">
+            </div>
+            <div class="col-md-2">
+                <label for="status" class="form-label">
+                    <i class="bi bi-flag-fill"></i> Status
+                </label>
+                <select class="form-select" id="status" name="status">
+                    <option value="">All Statuses</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="item" class="form-label">
+                    <i class="bi bi-lightbulb"></i> Item
+                </label>
+                <select class="form-select" id="item" name="item">
+                    <option value="">All Items</option>
+                    {% for item in items %}
+                    <option value="{{ item.id }}" {% if item_filter == item.id|stringformat:"s" %}selected{% endif %}>
+                        {{ item.title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="has_github" class="form-label">
+                    <i class="bi bi-github"></i> GitHub Issue
+                </label>
+                <select class="form-select" id="has_github" name="has_github">
+                    <option value="">All Tasks</option>
+                    <option value="true" {% if has_github == 'true' %}selected{% endif %}>With GitHub Issue</option>
+                    <option value="false" {% if has_github == 'false' %}selected{% endif %}>Without GitHub Issue</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-funnel"></i> Filter
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tasks Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">
+                            <i class="bi bi-list-ul"></i> Tasks 
+                            {% if tasks %}
+                            <span class="badge bg-primary">{{ tasks.paginator.count }} total</span>
+                            {% endif %}
+                        </h5>
+                    </div>
+                    <div>
+                        <button type="button" 
+                                id="deleteSelectedBtn" 
+                                class="btn btn-danger" 
+                                style="display: none;"
+                                onclick="deleteSelectedTasks()">
+                            <i class="bi bi-trash"></i> Delete Selected (<span id="selectedCount">0</span>)
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Loading indicator -->
+                    <div id="loading-indicator" class="htmx-indicator text-center py-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Task table container for HTMX updates -->
+                    <div id="task-table-container">
+                        {% include 'main/tasks/_task_table.html' %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-5">
+                <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h5 id="loadingMessage">Processing...</h5>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Initialize tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+
+// Toggle select all checkboxes
+function toggleSelectAll(checkbox) {
+    const taskCheckboxes = document.querySelectorAll('.task-checkbox');
+    taskCheckboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+    });
+    updateSelectedCount();
+}
+
+// Update the count of selected tasks and show/hide delete button
+function updateSelectedCount() {
+    const selectedCheckboxes = document.querySelectorAll('.task-checkbox:checked');
+    const count = selectedCheckboxes.length;
+    const deleteBtn = document.getElementById('deleteSelectedBtn');
+    const countSpan = document.getElementById('selectedCount');
+    
+    countSpan.textContent = count;
+    
+    if (count > 0) {
+        deleteBtn.style.display = 'inline-block';
+    } else {
+        deleteBtn.style.display = 'none';
+    }
+    
+    // Update select all checkbox state
+    const allCheckboxes = document.querySelectorAll('.task-checkbox');
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = allCheckboxes.length > 0 && selectedCheckboxes.length === allCheckboxes.length;
+    }
+}
+
+// Delete selected tasks
+function deleteSelectedTasks() {
+    const selectedCheckboxes = document.querySelectorAll('.task-checkbox:checked');
+    const taskIds = Array.from(selectedCheckboxes).map(cb => cb.getAttribute('data-task-id'));
+    
+    if (taskIds.length === 0) {
+        return;
+    }
+    
+    // Show loading modal
+    const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    document.getElementById('loadingMessage').textContent = `Deleting ${taskIds.length} task(s)...`;
+    loadingModal.show();
+    
+    // Get CSRF token
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                     document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+    
+    // Send delete request
+    fetch('{% url "main:api_task_bulk_delete" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            task_ids: taskIds
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        loadingModal.hide();
+        if (data.success) {
+            // Reload the page to show updated task list
+            window.location.reload();
+        } else {
+            alert('Error deleting tasks: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        loadingModal.hide();
+        alert('Error deleting tasks: ' + error.message);
+    });
+}
+
+// AI Enhance Task
+function aiEnhanceTask(taskId) {
+    alert('AI enhancement feature is not yet fully implemented. Please use the task detail page.');
+}
+
+// Create GitHub Issue
+function createGitHubIssue(taskId) {
+    if (!confirm('Create a GitHub issue for this task?')) {
+        return;
+    }
+    alert('GitHub issue creation feature is not yet fully implemented. Please use the task detail page.');
+}
+
+// Update Task Type
+function updateTaskType(taskId, newType) {
+    // Get CSRF token
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                     document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+    
+    // Send update request
+    fetch(`/api/tasks/${taskId}/quick-type-update`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            type: newType
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success feedback
+            const select = document.querySelector(`.task-type-select[data-task-id="${taskId}"]`);
+            if (select) {
+                // Flash success animation
+                select.style.backgroundColor = '#d4edda';
+                setTimeout(() => {
+                    select.style.backgroundColor = '';
+                }, 500);
+            }
+        } else {
+            alert('Error updating task type: ' + (data.error || 'Unknown error'));
+            // Reload to reset the select
+            window.location.reload();
+        }
+    })
+    .catch(error => {
+        alert('Error updating task type: ' + error.message);
+        // Reload to reset the select
+        window.location.reload();
+    });
+}
+
+// Mark Task as Done
+function markTaskAsDone(taskId) {
+    if (!confirm('Mark this task as done?')) {
+        return;
+    }
+    
+    // Get CSRF token
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                     document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+    
+    // Send mark done request
+    fetch(`/api/tasks/${taskId}/mark-done`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Reload page to show updated task list with new status
+            window.location.reload();
+        } else {
+            alert('Error marking task as done: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        alert('Error marking task as done: ' + error.message);
+    });
+}
+</script>
+{% endblock %}
