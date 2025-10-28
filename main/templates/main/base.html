@@ -334,28 +334,10 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.url_name == 'tags_network' %}active{% endif %}" href="{% url 'main:tags_network' %}">
-                            <i class="bi bi-diagram-3-fill"></i> Tags
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if 'client' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'main:client_list' %}">
-                            <i class="bi bi-building"></i> Clients
-                        </a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link {% if request.resolver_match.url_name == 'settings' or 'tag' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'main:settings' %}">
-                            <i class="bi bi-gear-fill"></i> Settings
+                            <i class="bi bi-gear-fill"></i> Masterdata
                         </a>
                     </li>
-                    
-                    <!-- Global Search -->
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.url_name == 'global_search' %}active{% endif %}" href="{% url 'main:global_search' %}" title="Global Semantic Search">
-                            <i class="bi bi-search"></i> Search
-                        </a>
-                    </li>
-                    
                     <!-- Mail-Eingang Badge - Only show if there are new tasks -->
                     {% if mail_inbox_new_tasks > 0 and mail_inbox_id %}
                     <li class="nav-item">
@@ -372,7 +354,7 @@
                         {% if request.session.user_role == 'admin' %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle {% if 'settings_list' in request.resolver_match.url_name or 'user' in request.resolver_match.url_name or 'weaviate' in request.resolver_match.url_name %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="bi bi-shield-lock-fill"></i> Admin
+                                <i class="bi bi-shield-lock-fill"></i> Settings
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark">
                                 <li>
@@ -425,12 +407,7 @@
                             <a class="nav-link" href="{% url 'main:login' %}">
                                 <i class="bi bi-box-arrow-in-right"></i> Login
                             </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{% url 'main:register' %}">
-                                <i class="bi bi-person-plus"></i> Register
-                            </a>
-                        </li>
+                        </li>                       
                     {% endif %}
                 </ul>
             </div>
