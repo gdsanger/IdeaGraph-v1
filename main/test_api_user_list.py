@@ -41,6 +41,12 @@ class ApiUserListTest(TestCase):
         
         self.client = Client()
     
+    def _login_user(self, user):
+        """Helper method to simulate session-based authentication"""
+        session = self.client.session
+        session['user_id'] = str(user.id)
+        session.save()
+    
     def test_unauthenticated_access_denied(self):
         """Test that unauthenticated users cannot access the endpoint"""
         response = self.client.get('/api/users')
@@ -50,10 +56,7 @@ class ApiUserListTest(TestCase):
     
     def test_regular_user_can_access(self):
         """Test that regular users can access the endpoint (needed for requester dropdown)"""
-        # Simulate session-based authentication
-        session = self.client.session
-        session['user_id'] = str(self.regular_user.id)
-        session.save()
+        self._login_user(self.regular_user)
         
         response = self.client.get('/api/users')
         self.assertEqual(response.status_code, 200)
@@ -64,10 +67,7 @@ class ApiUserListTest(TestCase):
     
     def test_admin_user_can_access(self):
         """Test that admin users can access the endpoint"""
-        # Simulate session-based authentication
-        session = self.client.session
-        session['user_id'] = str(self.admin_user.id)
-        session.save()
+        self._login_user(self.admin_user)
         
         response = self.client.get('/api/users')
         self.assertEqual(response.status_code, 200)
@@ -77,10 +77,7 @@ class ApiUserListTest(TestCase):
     
     def test_only_active_users_returned(self):
         """Test that only active users are returned in the list"""
-        # Login as regular user
-        session = self.client.session
-        session['user_id'] = str(self.regular_user.id)
-        session.save()
+        self._login_user(self.regular_user)
         
         response = self.client.get('/api/users')
         self.assertEqual(response.status_code, 200)
@@ -99,23 +96,23 @@ class ApiUserListTest(TestCase):
     def test_users_ordered_by_username(self):
         """Test that users are ordered by username for better UX"""
         # Create additional users to test ordering
-        User.objects.create(
-            username='charlie',
-            email='charlie@example.com',
-            role='user',
-            is_active=True
-        )
-        User.objects.create(
+        alice = User.objects.create(
             username='alice',
             email='alice@example.com',
             role='user',
             is_active=True
         )
+        charlie = User.objects.create(
+            username='charlie',
+            email='charlie@example.com',
+            role='user',
+            is_active=True
+        )
+        # Ensure cleanup after test
+        self.addCleanup(alice.delete)
+        self.addCleanup(charlie.delete)
         
-        # Login as regular user
-        session = self.client.session
-        session['user_id'] = str(self.regular_user.id)
-        session.save()
+        self._login_user(self.regular_user)
         
         response = self.client.get('/api/users')
         self.assertEqual(response.status_code, 200)
@@ -131,10 +128,7 @@ class ApiUserListTest(TestCase):
     
     def test_pagination_works(self):
         """Test that pagination parameters work correctly"""
-        # Login as regular user
-        session = self.client.session
-        session['user_id'] = str(self.regular_user.id)
-        session.save()
+        self._login_user(self.regular_user)
         
         response = self.client.get('/api/users?page=1&per_page=1')
         self.assertEqual(response.status_code, 200)
