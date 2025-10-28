@@ -138,15 +138,16 @@ class WeaviateGitHubIssueSyncService:
                 details=str(e)
             )
     
-    def sync_issue_to_weaviate(self, issue: Dict[str, Any], task=None, item=None, uuid: str = None) -> Dict[str, Any]:
+    def sync_issue_to_weaviate(self, issue: Dict[str, Any], task=None, item=None, uuid: str = None, issue_type: str = 'issue') -> Dict[str, Any]:
         """
-        Synchronize a GitHub issue to Weaviate KnowledgeObject
+        Synchronize a GitHub issue or pull request to Weaviate KnowledgeObject
         
         Args:
-            issue: GitHub issue data from API
+            issue: GitHub issue/PR data from API
             task: Optional Task model instance linked to this issue
             item: Optional Item model instance linked to this issue
             uuid: Optional UUID to use for the issue (for consistency)
+            issue_type: Type of GitHub object - 'issue' or 'pull_request'
         
         Returns:
             Dictionary with success status and message
@@ -162,20 +163,23 @@ class WeaviateGitHubIssueSyncService:
             issue_url = issue.get('html_url', '')
             created_at = issue.get('created_at', datetime.now().isoformat())
             
-            logger.info(f"Syncing issue #{issue_number} to Weaviate KnowledgeObject: {issue_title}")
+            # Use appropriate type for logging
+            obj_type = 'PR' if issue_type == 'pull_request' else 'issue'
+            logger.info(f"Syncing {obj_type} #{issue_number} to Weaviate KnowledgeObject: {issue_title}")
             
             # Prepare properties for KnowledgeObject schema
-            # ✅ Architecture Requirement: All GitHub Issues stored in KnowledgeObject collection
-            # with type='GitHubIssue' for discrimination
+            # ✅ Architecture Requirement: All GitHub Issues and PRs stored in KnowledgeObject collection
+            # with type='GitHubIssue' or 'pull_request' for discrimination
+            weaviate_type = 'pull_request' if issue_type == 'pull_request' else 'GitHubIssue'
             properties = {
-                'type': 'GitHubIssue',  # ✅ Type discriminator for KnowledgeObject
+                'type': weaviate_type,  # ✅ Type discriminator for KnowledgeObject
                 'title': issue_title,
                 'description': issue_body or '',  # ✅ Content stored in 'description' field
                 'status': issue_state,
                 'createdAt': created_at,
                 'githubIssueId': issue_number,
                 'url': issue_url,
-                'tags': [],  # GitHub issues don't have tags in our system
+                'tags': [],  # GitHub issues/PRs don't have tags in our system
             }
             
             # Add taskId if linked to a task
