@@ -26,7 +26,10 @@ class WeaviateGitHubIssueSyncUpsertTestCase(TestCase):
             'body': 'Test issue body',
             'state': 'open',
             'html_url': 'https://github.com/test/repo/issues/221',
-            'created_at': '2025-10-21T10:00:00Z'
+            'created_at': '2025-10-21T10:00:00Z',
+            'user': {
+                'login': 'testuser'
+            }
         }
         
         # Sample PR data
@@ -36,7 +39,10 @@ class WeaviateGitHubIssueSyncUpsertTestCase(TestCase):
             'body': 'Test PR body',
             'state': 'open',
             'html_url': 'https://github.com/test/repo/pull/222',
-            'created_at': '2025-10-21T11:00:00Z'
+            'created_at': '2025-10-21T11:00:00Z',
+            'user': {
+                'login': 'prauthor'
+            }
         }
     
     @patch('core.services.weaviate_github_issue_sync_service.weaviate.connect_to_local')
