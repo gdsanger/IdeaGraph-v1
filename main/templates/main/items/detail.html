@@ -1489,31 +1489,6 @@ if (showCompletedSwitch) {
     });
 }
 
-// Initialize Semantic Network Viewer
-let semanticNetworkViewer;
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize the semantic graph component (new modular version)
-    semanticNetworkViewer = new SemanticGraph('semanticNetworkContainer', {
-        objectType: 'item',
-        objectId: '{{ item.id }}',
-        depth: 3,
-        generateSummaries: true,
-        includeHierarchy: true,
-        onNodeClick: function(nodeData) {
-            // Custom click handler - navigate to the clicked object
-            const type = nodeData.type;
-            const id = nodeData.id;
-            
-            if (type === 'item') {
-                window.location.href = `/items/${id}/`;
-            } else if (type === 'task') {
-                window.location.href = `/tasks/${id}/`;
-            }
-        }
-    });
-    // Note: The new component auto-loads by default, no need to call load() separately
-});
-
 // File Upload Functionality - Now handled by htmx
 // The JavaScript functions are kept for backward compatibility and toast notifications
 (function() {
