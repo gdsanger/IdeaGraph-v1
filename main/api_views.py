@@ -2669,6 +2669,153 @@ def api_send_item_email(request, item_id):
 
 @csrf_exempt
 @require_http_methods(["POST"])
+def api_send_task_email(request, task_id):
+    """
+    API endpoint to send email from task context with conversation threading.
+    POST /api/tasks/{task_id}/send-email
+    Body: {
+        "email": "recipient@example.com",
+        "subject": "Email subject",
+        "body": "<p>HTML email body</p>",
+        "in_reply_to": "<message-id@domain>" (optional)
+    }
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Task
+    from .mail_utils import send_task_email
+    
+    try:
+        # Get the task
+        task = Task.objects.get(id=task_id)
+        
+        # Check permissions (task members or admin can send)
+        if user.role not in ['admin', 'developer']:
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        # Parse request body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        
+        recipient_email = data.get('email', '').strip()
+        subject = data.get('subject', '').strip()
+        body = data.get('body', '').strip()
+        in_reply_to = data.get('in_reply_to', '').strip()
+        
+        if not recipient_email:
+            return JsonResponse({'error': 'Email address is required'}, status=400)
+        
+        if not subject:
+            return JsonResponse({'error': 'Subject is required'}, status=400)
+        
+        if not body:
+            return JsonResponse({'error': 'Body is required'}, status=400)
+        
+        # Validate email format (basic validation)
+        if '@' not in recipient_email or '.' not in recipient_email:
+            return JsonResponse({'error': 'Invalid email address format'}, status=400)
+        
+        # Send the email
+        success, result = send_task_email(
+            task_id=task_id,
+            recipient_email=recipient_email,
+            subject=subject,
+            body=body,
+            user=user,
+            in_reply_to=in_reply_to if in_reply_to else None
+        )
+        
+        if success:
+            logger.info(f'Task email sent to {recipient_email} for task {task.title} by user {user.username}')
+            return JsonResponse({
+                'success': True,
+                'message': 'Email sent successfully',
+                'short_id': result.get('short_id') if isinstance(result, dict) else None,
+                'message_id': result.get('message_id') if isinstance(result, dict) else None
+            })
+        else:
+            error_msg = result if isinstance(result, str) else result.get('message', 'Unknown error')
+            logger.error(f'Failed to send task email for task {task.title}: {error_msg}')
+            return JsonResponse({
+                'success': False,
+                'error': error_msg
+            }, status=500)
+            
+    except Task.DoesNotExist:
+        return JsonResponse({'error': 'Task not found'}, status=404)
+    except Exception as e:
+        logger.error(f'Send task email error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while sending email'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_process_incoming_email(request):
+    """
+    API endpoint to process incoming emails and assign to tasks.
+    POST /api/emails/process-incoming
+    Body: {
+        "message": {
+            "id": "message-id",
+            "subject": "Email subject with [IG-TASK:#XXXXXX]",
+            "body": {"content": "<p>HTML body</p>"},
+            "from": {"emailAddress": {"address": "sender@example.com", "name": "Sender Name"}},
+            "internetMessageHeaders": [...]
+        }
+    }
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    # Only admins can process incoming emails
+    if user.role != 'admin':
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    from core.services.email_conversation_service import EmailConversationService
+    from .models import Settings
+    
+    try:
+        # Parse request body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        
+        message = data.get('message')
+        
+        if not message:
+            return JsonResponse({'error': 'Message data is required'}, status=400)
+        
+        # Get settings
+        settings = Settings.objects.first()
+        if not settings:
+            return JsonResponse({'error': 'Settings not configured'}, status=500)
+        
+        # Initialize email conversation service
+        email_service = EmailConversationService(settings)
+        
+        # Process the incoming email
+        result = email_service.process_incoming_email(message)
+        
+        if result.get('success'):
+            logger.info(f"Incoming email processed successfully: {result}")
+            return JsonResponse(result)
+        else:
+            logger.warning(f"Failed to process incoming email: {result}")
+            return JsonResponse(result, status=400)
+            
+    except Exception as e:
+        logger.error(f'Process incoming email error: {str(e)}')
+        return JsonResponse({'error': f'An error occurred: {str(e)}'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
 def api_task_bulk_delete(request):
     """
     API endpoint for bulk task deletion.

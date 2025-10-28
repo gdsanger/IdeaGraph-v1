@@ -144,6 +144,7 @@ urlpatterns = [
     path('api/tasks/<uuid:task_id>/optimize-description', api_views.api_task_optimize_description, name='api_task_optimize_description'),
     path('api/tasks/<uuid:task_id>/create-github-issue', api_views.api_task_create_github_issue, name='api_task_create_github_issue'),
     path('api/tasks/<uuid:task_id>/move', api_views.api_task_move, name='api_task_move'),
+    path('api/tasks/<uuid:task_id>/send-email', api_views.api_send_task_email, name='api_send_task_email'),
     path('api/tasks/<uuid:task_id>/support-analysis-internal', api_views.api_task_support_analysis_internal, name='api_task_support_analysis_internal'),
     path('api/tasks/<uuid:task_id>/support-analysis-external', api_views.api_task_support_analysis_external, name='api_task_support_analysis_external'),
     path('api/tasks/<uuid:task_id>/support-analysis-save', api_views.api_task_support_analysis_save, name='api_task_support_analysis_save'),
@@ -206,6 +207,9 @@ urlpatterns = [
     path('api/milestones/<uuid:milestone_id>/save-optimized-summary', api_views.api_milestone_save_optimized_summary, name='api_milestone_save_optimized_summary'),
     path('api/milestones/<uuid:milestone_id>/summary-history', api_views.api_milestone_summary_history, name='api_milestone_summary_history'),
     path('api/milestones/<uuid:milestone_id>/generate-changelog', api_views.api_milestone_generate_changelog, name='api_milestone_generate_changelog'),
+    
+    # Email Conversation API Endpoints
+    path('api/emails/process-incoming', api_views.api_process_incoming_email, name='api_process_incoming_email'),
     
     # Weaviate Status API Endpoints
     path('api/weaviate/<str:object_type>/<uuid:object_id>/status', api_views.check_weaviate_status, name='api_weaviate_status'),
