@@ -24,7 +24,7 @@
 <div class="modal fade draggable-modal" id="qaChatModal" tabindex="-1" aria-labelledby="qaChatModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable resizable-modal">
         <div class="modal-content bg-dark">
-            <div class="modal-header draggable-handle" style="cursor: move;">
+            <div class="modal-header draggable-handle">
                 <h5 class="modal-title" id="qaChatModalLabel">
                     <i class="bi bi-chat-dots"></i> IdeaGraph Q&A Assistant
                 </h5>
@@ -48,7 +48,7 @@
 <div class="modal fade draggable-modal" id="graphModal" tabindex="-1" aria-labelledby="graphModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable resizable-modal">
         <div class="modal-content bg-dark">
-            <div class="modal-header draggable-handle" style="cursor: move;">
+            <div class="modal-header draggable-handle">
                 <h5 class="modal-title" id="graphModalLabel">
                     <i class="bi bi-diagram-3"></i> Semantic Relationship Graph
                 </h5>
@@ -271,6 +271,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let isDragging = false;
         let isResizing = false;
         let startX, startY, startLeft, startTop, startWidth, startHeight;
+        let cachedModalWidth, cachedModalHeight; // Cache dimensions during drag
         
         // Load saved dimensions and position from localStorage
         function loadModalState() {
@@ -278,12 +279,38 @@ document.addEventListener('DOMContentLoaded', function() {
             if (savedState) {
                 try {
                     const state = JSON.parse(savedState);
-                    if (state.width) modalDialog.style.width = state.width + 'px';
-                    if (state.height) modalDialog.style.height = state.height + 'px';
-                    if (state.left !== undefined) modalDialog.style.left = state.left + 'px';
-                    if (state.top !== undefined) modalDialog.style.top = state.top + 'px';
+                    
+                    // Validate and apply dimensions with min/max constraints
+                    if (state.width) {
+                        const width = Math.max(MIN_WIDTH, Math.min(state.width, window.innerWidth));
+                        modalDialog.style.width = width + 'px';
+                    }
+                    if (state.height) {
+                        const height = Math.max(MIN_HEIGHT, Math.min(state.height, window.innerHeight));
+                        modalDialog.style.height = height + 'px';
+                    }
+                    
+                    // Validate and apply position to keep modal within viewport
+                    if (state.left !== undefined && state.top !== undefined) {
+                        const modalWidth = parseInt(modalDialog.style.width) || DEFAULT_WIDTH;
+                        const modalHeight = parseInt(modalDialog.style.height) || DEFAULT_HEIGHT;
+                        
+                        // Ensure modal stays within viewport bounds
+                        const maxLeft = Math.max(0, window.innerWidth - modalWidth);
+                        const maxTop = Math.max(0, window.innerHeight - modalHeight);
+                        
+                        const left = Math.max(0, Math.min(state.left, maxLeft));
+                        const top = Math.max(0, Math.min(state.top, maxTop));
+                        
+                        modalDialog.style.left = left + 'px';
+                        modalDialog.style.top = top + 'px';
+                    } else {
+                        // If position data is missing, center the modal
+                        centerModal();
+                    }
                 } catch (e) {
                     console.error('Error loading modal state:', e);
+                    centerModal();
                 }
             } else {
                 // Set default position (centered)
@@ -330,6 +357,9 @@ document.addEventListener('DOMContentLoaded', function() {
             startY = e.clientY;
             startLeft = modalDialog.offsetLeft;
             startTop = modalDialog.offsetTop;
+            // Cache dimensions at drag start for consistent bounds checking
+            cachedModalWidth = modalDialog.offsetWidth;
+            cachedModalHeight = modalDialog.offsetHeight;
             
             e.preventDefault();
         });
@@ -357,9 +387,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 let newLeft = startLeft + dx;
                 let newTop = startTop + dy;
                 
-                // Keep modal within viewport bounds
-                const maxLeft = window.innerWidth - modalDialog.offsetWidth;
-                const maxTop = window.innerHeight - modalDialog.offsetHeight;
+                // Keep modal within viewport bounds using cached dimensions
+                const maxLeft = window.innerWidth - cachedModalWidth;
+                const maxTop = window.innerHeight - cachedModalHeight;
                 
                 newLeft = Math.max(0, Math.min(newLeft, maxLeft));
                 newTop = Math.max(0, Math.min(newTop, maxTop));
