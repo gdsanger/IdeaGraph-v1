@@ -753,29 +753,6 @@ class Settings(models.Model):
         help_text='GitHub username to assign issues to (e.g., copilot)'
     )
     
-    # ChromaDB Configuration
-    chroma_api_key = models.CharField(
-        max_length=255, 
-        blank=True, 
-        default='',
-        verbose_name='CHROMA_API_KEY',
-        help_text='ChromaDB Api Key (Cloud)'
-    )
-    chroma_database = models.CharField(
-        max_length=255, 
-        blank=True, 
-        default='',
-        verbose_name='CHROMA_DATABASE',
-        help_text='ChromaDB Api Key (DATABASE)'
-    )
-    chroma_tenant = models.CharField(
-        max_length=255, 
-        blank=True, 
-        default='',
-        verbose_name='CHROMA_TENANT',
-        help_text='ChromaDB Api Key (TENANT)'
-    )
-    
     # KiGate Configuration
     kigate_api_enabled = models.BooleanField(
         default=False,
