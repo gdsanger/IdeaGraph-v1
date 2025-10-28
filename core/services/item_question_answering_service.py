@@ -7,7 +7,7 @@ Weaviate semantic search and KIGate AI agents.
 
 import logging
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 import weaviate
 from weaviate.classes.init import Auth
 from weaviate.classes.query import MetadataQuery, Filter, HybridFusion
@@ -405,7 +405,7 @@ Inhalt: {result['description'][:500]}...
                 'related_item': str(item_id),
                 'source': 'IdeaGraph Q&A',
                 'url': f'/items/{item_id}/#qa-{qa_id}',
-                'createdAt': datetime.now().isoformat(),
+                'createdAt': datetime.now(timezone.utc).isoformat(),
             }
             
             # Add to collection

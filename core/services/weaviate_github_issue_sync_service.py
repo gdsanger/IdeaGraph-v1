@@ -19,7 +19,7 @@ For more information, see: KNOWLEDGEOBJECT_SCHEMA_MIGRATION.md
 import logging
 import requests
 from typing import Optional, Dict, Any, List, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 import weaviate
 from weaviate.classes.init import Auth
 from weaviate.classes.query import MetadataQuery, Filter, HybridFusion
@@ -161,7 +161,7 @@ class WeaviateGitHubIssueSyncService:
             issue_body = issue.get('body', '')
             issue_state = issue.get('state', 'open')
             issue_url = issue.get('html_url', '')
-            created_at = issue.get('created_at', datetime.now().isoformat())
+            created_at = issue.get('created_at', datetime.now(timezone.utc).isoformat())
             
             # Use appropriate type for logging
             obj_type = 'PR' if issue_type == 'pull_request' else 'issue'
@@ -255,7 +255,7 @@ class WeaviateGitHubIssueSyncService:
             pr_body = pr.get('body', '')
             pr_state = pr.get('state', 'open')
             pr_url = pr.get('html_url', '')
-            created_at = pr.get('created_at', datetime.now().isoformat())
+            created_at = pr.get('created_at', datetime.now(timezone.utc).isoformat())
             
             logger.info(f"Syncing PR #{pr_number} to Weaviate KnowledgeObject: {pr_title}")
             
