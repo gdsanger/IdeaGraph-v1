@@ -917,7 +917,7 @@
                 // Stored tab no longer exists, clear it and activate first tab
                 localStorage.removeItem(STORAGE_KEY);
                 const firstTab = document.querySelector('#itemTabs button[data-bs-toggle="tab"]');
-                if (firstTab) {
+                if (firstTab && firstTab.id) {
                     activateTab(firstTab.id);
                 }
             }
