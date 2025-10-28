@@ -478,17 +478,14 @@ class SemanticGraph {
                 url = props.url || props.html_url || '';
                 if (url) {
                     window.open(url, '_blank');
-                    return;
                 }
-                break;
+                return;
             case 'file':
                 // Files can be viewed via their download endpoint
-                url = `/api/files/${id}`;
-                if (url) {
-                    window.open(url, '_blank');
-                    return;
+                if (id) {
+                    window.open(`/api/files/${id}`, '_blank');
                 }
-                break;
+                return;
             default:
                 console.warn('Unknown object type:', type);
                 return;
