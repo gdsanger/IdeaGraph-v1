@@ -517,14 +517,11 @@
 
         </div>
         <!-- End Left Column -->
-        
-        <!-- Right Column: Semantic Network -->
-        <div class="detail-right-column">
-            <div id="semanticNetworkContainer"></div>
-        </div>
-        <!-- End Right Column -->
     </div>
     <!-- End Two-Column Layout -->
+
+    <!-- Floating Action Dock -->
+    {% include 'main/items/_floating_action_dock.html' with context='task' object_type='task' object_id=task.id %}
 
     <!-- Move Task Modal -->
     <div class="modal fade" id="moveTaskModal" tabindex="-1" aria-labelledby="moveTaskModalLabel" aria-hidden="true">
@@ -1112,31 +1109,6 @@ document.querySelector('#saveSupportAnalysisBtn').addEventListener('click', asyn
         btn.disabled = false;
         spinner.style.display = 'none';
     }
-});
-
-// Initialize Semantic Network Viewer
-let semanticNetworkViewer;
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize the semantic graph component (new modular version)
-    semanticNetworkViewer = new SemanticGraph('semanticNetworkContainer', {
-        objectType: 'task',
-        objectId: '{{ task.id }}',
-        depth: 3,
-        generateSummaries: true,
-        includeHierarchy: false,  // Tasks don't have hierarchy
-        onNodeClick: function(nodeData) {
-            // Custom click handler - navigate to the clicked object
-            const type = nodeData.type;
-            const id = nodeData.id;
-            
-            if (type === 'item') {
-                window.location.href = `/items/${id}/`;
-            } else if (type === 'task') {
-                window.location.href = `/tasks/${id}/`;
-            }
-        }
-    });
-    // Note: The new component auto-loads by default, no need to call load() separately
 });
 
 // Move Task Modal functionality
