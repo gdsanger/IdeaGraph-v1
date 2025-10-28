@@ -18,8 +18,6 @@
         margin-bottom: 1.5rem;
         border: 1px solid var(--autumn-primary);
     }
-    .task-row {
-    }
     .badge-clickable {
         cursor: pointer;
     }
@@ -315,17 +313,7 @@ function deleteSelectedTasks() {
 
 // AI Enhance Task
 function aiEnhanceTask(taskId) {
-    // Show loading modal
-    const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
-    document.getElementById('loadingMessage').textContent = 'Enhancing task with AI...';
-    loadingModal.show();
-    
-    // TODO: Implement AI enhancement
-    // This would typically call the /api/tasks/{taskId}/ai-enhance endpoint
-    setTimeout(() => {
-        loadingModal.hide();
-        alert('AI enhancement feature is not yet fully implemented. Please use the task detail page.');
-    }, 2000);
+    alert('AI enhancement feature is not yet fully implemented. Please use the task detail page.');
 }
 
 // Create GitHub Issue
@@ -333,18 +321,7 @@ function createGitHubIssue(taskId) {
     if (!confirm('Create a GitHub issue for this task?')) {
         return;
     }
-    
-    // Show loading modal
-    const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
-    document.getElementById('loadingMessage').textContent = 'Creating GitHub issue...';
-    loadingModal.show();
-    
-    // TODO: Implement GitHub issue creation
-    // This would typically call the /api/tasks/{taskId}/create-github-issue endpoint
-    setTimeout(() => {
-        loadingModal.hide();
-        alert('GitHub issue creation feature is not yet fully implemented. Please use the task detail page.');
-    }, 2000);
+    alert('GitHub issue creation feature is not yet fully implemented. Please use the task detail page.');
 }
 
 // Update Task Type

@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from .auth_utils import validate_password
 from .models import Tag, Settings, Section, User, Item, Task, Client, Milestone
 import logging
@@ -1917,7 +1918,6 @@ def my_requirements(request):
         tasks = tasks.filter(github_issue_id__isnull=True)
     
     if search_query:
-        from django.db.models import Q
         tasks = tasks.filter(
             Q(title__icontains=search_query) | 
             Q(description__icontains=search_query)
