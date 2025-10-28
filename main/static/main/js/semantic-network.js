@@ -728,12 +728,16 @@ class SemanticNetworkViewer {
                 url = props.url || props.html_url || '';
                 if (url) {
                     window.open(url, '_blank');
+                } else {
+                    console.warn(`No URL found for ${type}:`, nodeData);
                 }
                 return;
             case 'file':
                 // Files can be viewed via their download endpoint
                 if (id) {
                     window.open(`/api/files/${id}`, '_blank');
+                } else {
+                    console.warn('No ID found for file:', nodeData);
                 }
                 return;
             default:
