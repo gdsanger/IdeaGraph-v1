@@ -257,6 +257,40 @@ def api_user_list(request):
 
 @csrf_exempt
 @require_http_methods(["GET"])
+def api_users_for_selection(request):
+    """
+    API endpoint to get active users for dropdown selections.
+    Accessible to all authenticated users (not just admins).
+    GET /api/users/for-selection
+    """
+    try:
+        # Check authentication using the standard pattern (supports both JWT and session)
+        user = get_user_from_request(request)
+        if not user:
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+        
+        # Get all active users, ordered by username
+        users = User.objects.filter(is_active=True).order_by('username')
+        
+        # Return minimal data needed for dropdowns
+        users_data = [{
+            'id': str(u.id),
+            'username': u.username,
+        } for u in users]
+        
+        return JsonResponse({
+            'users': users_data,
+        })
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'User selection list error: {str(e)}')
+        return JsonResponse({'error': 'An error occurred while retrieving users'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
 def api_user_detail(request, user_id):
     """
     API endpoint to get a specific user.

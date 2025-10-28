@@ -245,3 +245,65 @@ class QuickTaskEntryTest(TestCase):
         # Should redirect to login
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response.url.startswith(reverse('main:login')))
+
+    def test_users_for_selection_requires_authentication(self):
+        """Test that users for selection endpoint requires authentication"""
+        response = self.test_client.get(reverse('main:api_users_for_selection'))
+        self.assertEqual(response.status_code, 401)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertEqual(data['error'], 'Authentication required')
+
+    def test_users_for_selection_returns_active_users(self):
+        """Test that users for selection endpoint returns all active users"""
+        # Log in the user
+        session = self.test_client.session
+        session['user_id'] = str(self.user.id)
+        session['username'] = self.user.username
+        session.save()
+
+        # Create an inactive user
+        inactive_user = User.objects.create(
+            username='inactive',
+            email='inactive@example.com',
+            role='user',
+            is_active=False
+        )
+
+        # Get users for selection
+        response = self.test_client.get(reverse('main:api_users_for_selection'))
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        
+        # Should have users list
+        self.assertIn('users', data)
+        self.assertIsInstance(data['users'], list)
+        
+        # Should only include active users (testuser and requester, not inactive)
+        usernames = [u['username'] for u in data['users']]
+        self.assertIn('testuser', usernames)
+        self.assertIn('requester', usernames)
+        self.assertNotIn('inactive', usernames)
+        
+        # Each user should have id and username
+        for user_data in data['users']:
+            self.assertIn('id', user_data)
+            self.assertIn('username', user_data)
+
+    def test_users_for_selection_accessible_to_non_admin(self):
+        """Test that users for selection endpoint is accessible to non-admin users"""
+        # Log in as the non-admin requester user
+        session = self.test_client.session
+        session['user_id'] = str(self.requester.id)
+        session['username'] = self.requester.username
+        session.save()
+
+        # Get users for selection
+        response = self.test_client.get(reverse('main:api_users_for_selection'))
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        
+        # Should successfully return users even for non-admin
+        self.assertIn('users', data)
+        self.assertIsInstance(data['users'], list)
+        self.assertGreater(len(data['users']), 0)

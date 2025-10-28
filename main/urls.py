@@ -109,6 +109,7 @@ urlpatterns = [
     
     # API User Management Endpoints
     path('api/users', api_views.api_user_list, name='api_user_list'),
+    path('api/users/for-selection', api_views.api_users_for_selection, name='api_users_for_selection'),
     path('api/users/create', api_views.api_user_create, name='api_user_create'),
     path('api/users/<uuid:user_id>', api_views.api_user_detail, name='api_user_detail'),
     path('api/users/<uuid:user_id>/update', api_views.api_user_update, name='api_user_update'),

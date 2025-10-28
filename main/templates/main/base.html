@@ -356,7 +356,7 @@
 
         // Load users for dropdown
         function loadQuickTaskUsers() {
-            fetch('/api/users')
+            fetch('/api/users/for-selection')
                 .then(response => response.json())
                 .then(data => {
                     var select = document.getElementById('quickTaskRequester');
