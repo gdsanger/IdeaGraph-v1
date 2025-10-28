@@ -112,7 +112,8 @@ class WeaviateSearchService:
         self,
         query: str,
         limit: int = 10,
-        object_types: Optional[List[str]] = None
+        object_types: Optional[List[str]] = None,
+        search_type: str = 'hybrid'
     ) -> Dict[str, Any]:
         """
         Perform global semantic search across all KnowledgeObject types
@@ -122,6 +123,10 @@ class WeaviateSearchService:
             limit: Maximum number of results to return (default: 10)
             object_types: Optional list of object types to filter by 
                          (e.g., ['Item', 'Task', 'File'])
+            search_type: Type of search to perform ('hybrid', 'neartext', 'bm25')
+                        - hybrid: Combines semantic and keyword search (default)
+                        - neartext: Pure semantic/vector search
+                        - bm25: Pure keyword/BM25 search
         
         Returns:
             Dictionary containing:
@@ -136,33 +141,34 @@ class WeaviateSearchService:
                     - metadata: Additional metadata (owner, section, created_at, etc.)
                 - total: Total number of results found
                 - query: Original query text
+                - search_type: Type of search performed
         
         Raises:
             WeaviateSearchServiceError: If search fails
         """
         try:
-            logger.info(f"Performing global semantic search for: '{query[:100]}...'")
+            logger.info(f"Performing {search_type} search for: '{query[:100]}...'")
             
             if not query or not query.strip():
                 return {
                     'success': True,
                     'results': [],
                     'total': 0,
-                    'query': query
+                    'query': query,
+                    'search_type': search_type
                 }
+            
+            # Validate search_type
+            valid_search_types = ['hybrid', 'neartext', 'bm25']
+            if search_type not in valid_search_types:
+                logger.warning(f"Invalid search_type '{search_type}', defaulting to 'hybrid'")
+                search_type = 'hybrid'
             
             # Get collection
             collection = self._client.collections.get(self.COLLECTION_NAME)
             
-            # Build query with optional type filter
-            query_kwargs = {
-                'query': query,
-                'limit': limit,
-                'return_metadata': MetadataQuery(distance=True, certainty=True, score=True),
-                'fusion_type': HybridFusion.RANKED
-            }
-            
-            # Add type filter if specified
+            # Build type filter if specified
+            type_filter = None
             if object_types and len(object_types) > 0:
                 # Create filter for multiple types
                 if len(object_types) == 1:
@@ -173,26 +179,83 @@ class WeaviateSearchService:
                     type_filter = type_filters[0]
                     for f in type_filters[1:]:
                         type_filter = type_filter | f
+            
+            # Perform search based on search_type
+            if search_type == 'neartext':
+                # Pure semantic/vector search
+                query_kwargs = {
+                    'query': query,
+                    'limit': limit,
+                    'return_metadata': MetadataQuery(distance=True, certainty=True, score=True)
+                }
+                if type_filter:
+                    query_kwargs['filters'] = type_filter
+                response = collection.query.near_text(**query_kwargs)
                 
-                query_kwargs['filters'] = type_filter
+            elif search_type == 'bm25':
+                # Pure keyword/BM25 search
+                query_kwargs = {
+                    'query': query,
+                    'limit': limit,
+                    'return_metadata': MetadataQuery(score=True)
+                }
+                if type_filter:
+                    query_kwargs['filters'] = type_filter
+                response = collection.query.bm25(**query_kwargs)
+                
+            else:  # hybrid (default)
+                # Hybrid search combining semantic and keyword search
+                query_kwargs = {
+                    'query': query,
+                    'limit': limit,
+                    'return_metadata': MetadataQuery(distance=True, certainty=True, score=True),
+                    'fusion_type': HybridFusion.RANKED
+                }
+                if type_filter:
+                    query_kwargs['filters'] = type_filter
+                response = collection.query.hybrid(**query_kwargs)
             
-            # Perform hybrid search combining semantic and keyword search
-            response = collection.query.hybrid(**query_kwargs)
-            
-            # Format results
+            # Format results with deduplication
             search_results = []
+            seen_ids = set()  # Track seen IDs to prevent duplicates
+            
             for obj in response.objects:
-                # Calculate relevance score from distance
-                # Distance is 0-2 (0=identical, 2=completely different)
-                # Convert to relevance score 0-1 (1=most relevant, 0=least relevant)
-                distance = obj.metadata.distance if obj.metadata and obj.metadata.distance is not None else 2.0
-                certainty = obj.metadata.certainty if obj.metadata and obj.metadata.certainty is not None else 0.0
+                # Skip duplicates
+                obj_id = str(obj.uuid)
+                if obj_id in seen_ids:
+                    continue
+                seen_ids.add(obj_id)
                 
-                # Use certainty if available (0-1, higher is better), otherwise convert distance
-                if certainty > 0:
-                    relevance = certainty
-                else:
+                # Calculate relevance score - try multiple approaches
+                # Priority: score > certainty > distance
+                relevance = 0.0
+                
+                # Method 1: Use score if available (preferred for hybrid and BM25)
+                if obj.metadata and hasattr(obj.metadata, 'score') and obj.metadata.score is not None:
+                    # Score is typically between 0 and a positive number
+                    # Normalize to 0-1 range by clamping and scaling
+                    raw_score = float(obj.metadata.score)
+                    if raw_score > 0:
+                        # For hybrid/BM25, scores can vary. We'll use a sigmoid-like normalization
+                        # to map scores to 0-1 range
+                        relevance = min(1.0, raw_score / (raw_score + 1.0))
+                
+                # Method 2: Use certainty if score not available (for neartext)
+                elif obj.metadata and hasattr(obj.metadata, 'certainty') and obj.metadata.certainty is not None:
+                    certainty = float(obj.metadata.certainty)
+                    if certainty > 0:
+                        relevance = certainty
+                
+                # Method 3: Use distance as fallback (inverse relationship)
+                elif obj.metadata and hasattr(obj.metadata, 'distance') and obj.metadata.distance is not None:
+                    distance = float(obj.metadata.distance)
+                    # Distance is 0-2 (0=identical, 2=completely different)
+                    # Convert to relevance score 0-1 (1=most relevant, 0=least relevant)
                     relevance = max(0.0, 1.0 - (distance / 2.0))
+                
+                # If still 0, use a small default to indicate match was found
+                if relevance == 0.0:
+                    relevance = 0.1
                 
                 # Extract properties
                 props = obj.properties
@@ -210,12 +273,12 @@ class WeaviateSearchService:
                     created_at = created_at.isoformat()
                 
                 result = {
-                    'id': str(obj.uuid),
+                    'id': obj_id,
                     'type': obj_type,
                     'title': title,
                     'description': description_preview,
                     'url': url,
-                    'relevance': round(relevance, 2),
+                    'relevance': round(relevance, 3),
                     'metadata': {
                         'owner': props.get('owner', ''),
                         'section': props.get('section', ''),
@@ -227,13 +290,14 @@ class WeaviateSearchService:
                 
                 search_results.append(result)
             
-            logger.info(f"Found {len(search_results)} results for query: '{query[:50]}...'")
+            logger.info(f"Found {len(search_results)} unique results for {search_type} query: '{query[:50]}...'")
             
             return {
                 'success': True,
                 'results': search_results,
                 'total': len(search_results),
-                'query': query
+                'query': query,
+                'search_type': search_type
             }
             
         except Exception as e:
