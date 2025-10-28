@@ -789,6 +789,45 @@ class TaskOverviewTest(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn('/login/', response.url)
     
+    def test_task_overview_assigned_to_me_filter(self):
+        """Test filtering tasks assigned to the current user"""
+        self.login_user()
+        
+        # Create a task assigned to admin (not current user)
+        task_for_admin = Task.objects.create(
+            title='Admin Task',
+            description='Task assigned to admin',
+            status='new',
+            item=self.item1,
+            created_by=self.user,
+            assigned_to=self.admin
+        )
+        
+        # Test without filter - should show all tasks
+        url = reverse('main:task_overview')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Task New')
+        self.assertContains(response, 'Task Working')
+        self.assertContains(response, 'Task Ready')
+        self.assertContains(response, 'Admin Task')
+        
+        # Test with assigned_to_me=true - should show only user's tasks
+        response = self.client.get(url, {'assigned_to_me': 'true'})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'My Tasks')
+        self.assertContains(response, 'Task New')
+        self.assertContains(response, 'Task Working')
+        self.assertContains(response, 'Task Ready')
+        self.assertNotContains(response, 'Admin Task')
+        
+        # Check status counts respect the filter
+        self.assertIn('status_counts', response.context)
+        # Should only count tasks assigned to current user
+        self.assertEqual(response.context['status_counts']['new'], 1)  # Only task1
+        self.assertEqual(response.context['status_counts']['working'], 1)  # Only task2
+        self.assertEqual(response.context['status_counts']['ready'], 1)  # Only task3
+    
     def test_api_task_overview(self):
         """Test API task overview endpoint"""
         url = reverse('main:api_task_overview')

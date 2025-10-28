@@ -1828,11 +1828,15 @@ def task_overview(request):
     item_filter = request.GET.get('item', '')
     has_github = request.GET.get('has_github', '')
     search_query = request.GET.get('search', '').strip()
+    assigned_to_me = request.GET.get('assigned_to_me', '')
     
     # Base query - show all tasks
     tasks = Task.objects.all()
     
     # Apply filters
+    if assigned_to_me == 'true':
+        tasks = tasks.filter(assigned_to=user)
+    
     if status_filter:
         tasks = tasks.filter(status=status_filter)
     
@@ -1855,10 +1859,13 @@ def task_overview(request):
     tasks = tasks.select_related('item', 'assigned_to', 'created_by').prefetch_related('tags')
     tasks = tasks.order_by('-updated_at')
     
-    # Calculate status counts
+    # Calculate status counts - respect the assigned_to_me filter
     status_counts = {}
     for status_key, status_label in Task.STATUS_CHOICES:
-        count = Task.objects.filter(status=status_key).count()
+        count_query = Task.objects.filter(status=status_key)
+        if assigned_to_me == 'true':
+            count_query = count_query.filter(assigned_to=user)
+        count = count_query.count()
         status_counts[status_key] = count
     
     # Pagination
@@ -1878,6 +1885,7 @@ def task_overview(request):
         'item_filter': item_filter,
         'has_github': has_github,
         'search_query': search_query,
+        'assigned_to_me': assigned_to_me,
     }
     
     # If HTMX request, return only the partial template

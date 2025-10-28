@@ -52,9 +52,25 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
                 <h1 class="mb-0">
-                    <i class="bi bi-list-check"></i> Task Overview
+                    <i class="bi bi-list-check"></i> 
+                    {% if assigned_to_me == 'true' %}
+                    My Tasks
+                    {% else %}
+                    Task Overview
+                    {% endif %}
                 </h1>
-                <div>
+                <div class="d-flex align-items-center gap-3">
+                    <!-- Toggle between All Tasks and My Tasks -->
+                    <div class="btn-group" role="group" aria-label="Task view toggle">
+                        <a href="?status={{ status_filter }}&item={{ item_filter }}&has_github={{ has_github }}&search={{ search_query }}" 
+                           class="btn btn-sm {% if assigned_to_me != 'true' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                            <i class="bi bi-list-ul"></i> All Tasks
+                        </a>
+                        <a href="?assigned_to_me=true&status={{ status_filter }}&item={{ item_filter }}&has_github={{ has_github }}&search={{ search_query }}" 
+                           class="btn btn-sm {% if assigned_to_me == 'true' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                            <i class="bi bi-person-check"></i> My Tasks
+                        </a>
+                    </div>
                     <span class="text-muted">
                         <i class="bi bi-person-circle"></i> {{ request.session.username }}
                         {% if request.session.user_role == 'admin' %}
@@ -76,7 +92,7 @@
                     </h5>
                     <div class="d-flex flex-wrap gap-2">
                         {% for status_key, status_label in status_choices %}
-                        <a href="?status={{ status_key }}&item={{ item_filter }}&has_github={{ has_github }}&search={{ search_query }}" 
+                        <a href="?status={{ status_key }}&item={{ item_filter }}&has_github={{ has_github }}&search={{ search_query }}&assigned_to_me={{ assigned_to_me }}" 
                            class="text-decoration-none">
                             {% if status_key == 'new' %}
                             <span class="badge bg-secondary status-badge badge-clickable" style="font-size: 1rem; padding: 0.5rem 1rem;">
@@ -107,7 +123,7 @@
                         {% endfor %}
                         
                         {% if status_filter %}
-                        <a href="?item={{ item_filter }}&has_github={{ has_github }}&search={{ search_query }}" 
+                        <a href="?item={{ item_filter }}&has_github={{ has_github }}&search={{ search_query }}&assigned_to_me={{ assigned_to_me }}" 
                            class="btn btn-sm btn-outline-secondary">
                             <i class="bi bi-x-circle"></i> Clear Status Filter
                         </a>
@@ -121,6 +137,10 @@
     <!-- Filter Bar -->
     <div class="filter-bar">
         <form method="get" class="row g-3">
+            <!-- Hidden field to preserve assigned_to_me filter -->
+            {% if assigned_to_me %}
+            <input type="hidden" name="assigned_to_me" value="{{ assigned_to_me }}">
+            {% endif %}
             <div class="col-md-3">
                 <label for="search" class="form-label">
                     <i class="bi bi-search"></i> Search
