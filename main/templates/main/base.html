@@ -63,10 +63,18 @@
                             <i class="bi bi-lightbulb"></i> Items
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.url_name == 'task_overview' %}active{% endif %}" href="{% url 'main:task_overview' %}">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.resolver_match.url_name == 'task_overview' %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-list-task"></i> Tasks
                         </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{% url 'main:task_overview' %}">
+                                <i class="bi bi-list-ul"></i> All Tasks
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'main:task_overview' %}?assigned_to_me=true">
+                                <i class="bi bi-person-check"></i> My Tasks
+                            </a></li>
+                        </ul>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.resolver_match.url_name == 'settings' or 'tag' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'main:settings' %}">
