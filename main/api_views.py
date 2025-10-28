@@ -2878,10 +2878,12 @@ def api_task_bulk_delete(request):
             return JsonResponse({'error': 'No valid task IDs provided'}, status=400)
         
         # Get all tasks by ID (authentication already verified)
+        # Note: No created_by filter to match single task delete behavior
+        # Any authenticated user can delete tasks, same as individual deletion
         tasks = Task.objects.filter(id__in=valid_task_ids)
         
         if not tasks.exists():
-            return JsonResponse({'error': 'No tasks found or access denied'}, status=404)
+            return JsonResponse({'error': 'No tasks found'}, status=404)
         
         # Store task IDs for Weaviate sync before deletion
         deleted_task_ids = [str(task.id) for task in tasks]
