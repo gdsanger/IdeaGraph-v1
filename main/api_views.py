@@ -7856,3 +7856,164 @@ def api_weaviate_search_object(request, object_uuid):
             'error': 'Failed to search for object'
         }, status=500)
 
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_task_close(request, task_id):
+    """
+    Close a task with optional email notification to requester
+    
+    Expects JSON body:
+    {
+        "close_type": "success" | "next_update" | "no_email"
+    }
+    
+    - "success": Task is completed successfully, send email to requester with AI-generated message
+    - "next_update": Task will be in next update, send email to requester with AI-generated message
+    - "no_email": Just close the task without sending email
+    
+    Returns:
+    {
+        "success": true,
+        "message": "Task closed successfully",
+        "email_sent": true/false
+    }
+    """
+    from .models import Task, Settings, User
+    from main.mail_utils import send_task_email
+    
+    try:
+        # Get current user from session
+        user_id = request.session.get('user_id')
+        if not user_id:
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+        
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return JsonResponse({'error': 'User not found'}, status=404)
+        
+        # Parse request body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        
+        # Validate required fields
+        close_type = data.get('close_type')
+        if not close_type or close_type not in ['success', 'next_update', 'no_email']:
+            return JsonResponse({'error': 'close_type is required and must be one of: success, next_update, no_email'}, status=400)
+        
+        # Verify task exists
+        try:
+            task = Task.objects.get(id=task_id)
+        except Task.DoesNotExist:
+            return JsonResponse({'error': 'Task not found'}, status=404)
+        
+        # Mark task as done
+        previous_status = task.status
+        if previous_status != 'done':
+            task.mark_as_done()
+            
+            # Sync with Weaviate
+            try:
+                settings = Settings.objects.first()
+                if settings:
+                    sync_service = WeaviateTaskSyncService(settings)
+                    sync_service.sync_update(task)
+            except Exception as e:
+                logger.warning(f'Weaviate sync failed for task {task.id}: {str(e)}')
+        
+        email_sent = False
+        
+        # Send email if requested
+        if close_type in ['success', 'next_update'] and task.requester and task.requester.email:
+            try:
+                settings = Settings.objects.first()
+                if not settings:
+                    logger.error("No settings found in database")
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'No settings configured'
+                    }, status=500)
+                
+                # Determine which AI agent to use
+                agent_name = 'close_task_success_agent' if close_type == 'success' else 'close_task_update_agent'
+                
+                # Generate email body using KiGate
+                try:
+                    kigate_service = KiGateService(settings)
+                    
+                    # Prepare message for the agent with task description
+                    agent_message = f"Task: {task.title}\n\nDescription:\n{task.description}"
+                    
+                    # Execute the agent
+                    # Use OpenAI settings as KiGate doesn't have separate provider/model config
+                    provider = 'openai'
+                    model = settings.openai_default_model if settings.openai_default_model else 'gpt-4'
+                    
+                    result = kigate_service.execute_agent(
+                        agent_name=agent_name,
+                        provider=provider,
+                        model=model,
+                        message=agent_message,
+                        user_id=str(user.id)
+                    )
+                    
+                    if result.get('success') and result.get('result'):
+                        email_body = result.get('result')
+                    else:
+                        # Fallback to a default message
+                        if close_type == 'success':
+                            email_body = f"<p>Hallo,</p><p>der Task <strong>{task.title}</strong> wurde erfolgreich abgeschlossen.</p><p>Beschreibung:<br>{task.description}</p><p>Mit freundlichen Grüßen</p>"
+                        else:
+                            email_body = f"<p>Hallo,</p><p>der Task <strong>{task.title}</strong> wird im nächsten Update enthalten sein.</p><p>Beschreibung:<br>{task.description}</p><p>Mit freundlichen Grüßen</p>"
+                        
+                except KiGateServiceError as e:
+                    logger.warning(f'KiGate service error: {e.message}, using fallback message')
+                    # Fallback to a default message
+                    if close_type == 'success':
+                        email_body = f"<p>Hallo,</p><p>der Task <strong>{task.title}</strong> wurde erfolgreich abgeschlossen.</p><p>Beschreibung:<br>{task.description}</p><p>Mit freundlichen Grüßen</p>"
+                    else:
+                        email_body = f"<p>Hallo,</p><p>der Task <strong>{task.title}</strong> wird im nächsten Update enthalten sein.</p><p>Beschreibung:<br>{task.description}</p><p>Mit freundlichen Grüßen</p>"
+                
+                # Prepare subject
+                if close_type == 'success':
+                    subject = f"Task abgeschlossen"
+                else:
+                    subject = f"Task wird im nächsten Update enthalten sein"
+                
+                # Send email
+                success, result = send_task_email(
+                    task_id=task.id,
+                    recipient_email=task.requester.email,
+                    subject=subject,
+                    body=email_body,
+                    user=user
+                )
+                
+                if success:
+                    email_sent = True
+                    logger.info(f'Task close email sent to {task.requester.email} for task {task.id}')
+                else:
+                    logger.error(f'Failed to send task close email: {result}')
+                    
+            except Exception as e:
+                logger.error(f'Error sending task close email: {str(e)}')
+                # Don't fail the whole operation if email fails
+        
+        logger.info(f'Task {task_id} closed by user {user.username} with type {close_type}')
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Task erfolgreich geschlossen',
+            'email_sent': email_sent
+        })
+    
+    except Exception as e:
+        logger.error(f'Task close error: {str(e)}')
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'error': 'An error occurred while closing the task'
+        }, status=500)
+
