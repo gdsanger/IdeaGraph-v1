@@ -827,7 +827,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             ${result.description ? `<p class="text-muted mb-2" style="font-size: 0.9rem;">${escapeHtml(result.description)}</p>` : ''}
                             <div class="d-flex justify-content-between align-items-center">
                                 ${result.url ? `
-                                    <a href="${escapeHtml(result.url)}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                    <a href="${sanitizeUrl(result.url)}" class="btn btn-sm btn-outline-primary" target="_blank">
                                         <i class="bi bi-box-arrow-up-right"></i> Öffnen
                                     </a>
                                 ` : '<div></div>'}
@@ -873,6 +873,25 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function sanitizeUrl(url) {
+    // Prevent XSS attacks through javascript: and data: URLs
+    if (!url) return '';
+    
+    const urlString = String(url).trim().toLowerCase();
+    
+    // Block dangerous URL schemes
+    const dangerousSchemes = ['javascript:', 'data:', 'vbscript:', 'file:'];
+    for (const scheme of dangerousSchemes) {
+        if (urlString.startsWith(scheme)) {
+            console.warn('Blocked potentially dangerous URL:', url);
+            return '#';
+        }
+    }
+    
+    // Allow relative URLs and http(s) URLs
+    return escapeHtml(url);
 }
 
 function formatFileSize(bytes) {

@@ -43,6 +43,8 @@ class WeaviateSearchService:
     """
     
     COLLECTION_NAME = 'KnowledgeObject'
+    # Minimum relevance score for results without metadata (indicates match was found)
+    DEFAULT_RELEVANCE = 0.1
     
     def __init__(self, settings=None):
         """
@@ -236,8 +238,11 @@ class WeaviateSearchService:
                     # Normalize to 0-1 range by clamping and scaling
                     raw_score = float(obj.metadata.score)
                     if raw_score > 0:
-                        # For hybrid/BM25, scores can vary. We'll use a sigmoid-like normalization
-                        # to map scores to 0-1 range
+                        # Use sigmoid-like normalization: f(x) = x / (x + 1)
+                        # This maps [0, ∞) to [0, 1) where:
+                        # - Small scores (0-1) map nearly linearly to 0-0.5
+                        # - Larger scores (1+) asymptotically approach 1.0
+                        # - Avoids clamping while ensuring 0-1 range
                         relevance = min(1.0, raw_score / (raw_score + 1.0))
                 
                 # Method 2: Use certainty if score not available (for neartext)
@@ -253,9 +258,10 @@ class WeaviateSearchService:
                     # Convert to relevance score 0-1 (1=most relevant, 0=least relevant)
                     relevance = max(0.0, 1.0 - (distance / 2.0))
                 
-                # If still 0, use a small default to indicate match was found
+                # If still 0, use default minimum relevance to indicate a match was found
+                # This happens when Weaviate returns a result but without quality metrics
                 if relevance == 0.0:
-                    relevance = 0.1
+                    relevance = self.DEFAULT_RELEVANCE
                 
                 # Extract properties
                 props = obj.properties
