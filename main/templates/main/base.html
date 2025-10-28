@@ -340,6 +340,14 @@
                             <i class="bi bi-gear-fill"></i> Masterdata
                         </a>
                     </li>
+                    <!-- Quick Task Entry Button - Only show if user is logged in -->
+                    {% if request.session.user_id %}
+                    <li class="nav-item">
+                        <button type="button" class="nav-link btn btn-link" data-bs-toggle="modal" data-bs-target="#quickTaskEntryModal" title="Quick Task Entry" style="border: none; background: none; padding: 0.5rem 1rem;">
+                            <i class="bi bi-plus-circle-fill"></i>
+                        </button>
+                    </li>
+                    {% endif %}
                     <!-- Mail-Eingang Badge - Only show if there are new tasks -->
                     {% if mail_inbox_new_tasks > 0 and mail_inbox_id %}
                     <li class="nav-item">
@@ -435,6 +443,65 @@
     <!-- Include Floating Action Dock on all pages -->
     {% include 'main/items/_floating_action_dock.html' with dock_context='global' %}
 
+    <!-- Quick Task Entry Modal -->
+    {% if request.session.user_id %}
+    <div class="modal fade" id="quickTaskEntryModal" tabindex="-1" aria-labelledby="quickTaskEntryModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="quickTaskEntryModalLabel">
+                        <i class="bi bi-plus-circle-fill"></i> Schnellerfassung für Aufgaben
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="quickTaskEntryForm">
+                        {% csrf_token %}
+                        
+                        <!-- Item Selection -->
+                        <div class="mb-3">
+                            <label for="quickTaskItem" class="form-label">Element auswählen <span class="text-danger">*</span></label>
+                            <select class="form-select" id="quickTaskItem" name="item" required>
+                                <option value="">-- Element auswählen --</option>
+                            </select>
+                            <small class="text-muted">Wählen Sie das Element aus, zu dem die Aufgabe gehört.</small>
+                        </div>
+
+                        <!-- Requester -->
+                        <div class="mb-3">
+                            <label for="quickTaskRequester" class="form-label">Anfrager</label>
+                            <select class="form-select" id="quickTaskRequester" name="requester">
+                                <option value="">-- Kein Anfrager --</option>
+                            </select>
+                        </div>
+
+                        <!-- Title -->
+                        <div class="mb-3">
+                            <label for="quickTaskTitle" class="form-label">Titel <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="quickTaskTitle" name="title" required>
+                        </div>
+
+                        <!-- Description with Toast UI Editor -->
+                        <div class="mb-3">
+                            <label for="quickTaskDescription" class="form-label">Beschreibung</label>
+                            <div id="quickTaskEditor"></div>
+                            <textarea name="description" id="quickTaskDescription" style="display: none;"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> Abbrechen
+                    </button>
+                    <button type="button" class="btn btn-primary" id="quickTaskSaveBtn">
+                        <i class="bi bi-save"></i> Speichern
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Main Content -->
     <main>
         {% block content %}{% endblock %}
@@ -487,7 +554,191 @@
                 toast.show();
                 return toast;
             });
+
+            // Initialize Quick Task Entry Modal
+            {% if request.session.user_id %}
+            var quickTaskModal = document.getElementById('quickTaskEntryModal');
+            var quickTaskEditor = null;
+            
+            if (quickTaskModal) {
+                quickTaskModal.addEventListener('shown.bs.modal', function() {
+                    // Initialize Toast UI Editor if not already initialized
+                    if (!quickTaskEditor) {
+                        quickTaskEditor = new toastui.Editor({
+                            el: document.querySelector('#quickTaskEditor'),
+                            height: '300px',
+                            initialEditType: 'wysiwyg',
+                            previewStyle: 'vertical',
+                            initialValue: ''
+                        });
+                    }
+                    
+                    // Load items and users for dropdowns
+                    loadQuickTaskItems();
+                    loadQuickTaskUsers();
+                });
+                
+                // Reset form when modal is hidden
+                quickTaskModal.addEventListener('hidden.bs.modal', function() {
+                    document.getElementById('quickTaskEntryForm').reset();
+                    if (quickTaskEditor) {
+                        quickTaskEditor.setMarkdown('');
+                    }
+                });
+            }
+            
+            // Handle save button click
+            var quickTaskSaveBtn = document.getElementById('quickTaskSaveBtn');
+            if (quickTaskSaveBtn) {
+                quickTaskSaveBtn.addEventListener('click', function() {
+                    saveQuickTask(quickTaskEditor);
+                });
+            }
+            {% endif %}
         });
+
+        {% if request.session.user_id %}
+        // Load items for dropdown
+        function loadQuickTaskItems() {
+            fetch('/api/items/for-move')
+                .then(response => response.json())
+                .then(data => {
+                    var select = document.getElementById('quickTaskItem');
+                    select.innerHTML = '<option value="">-- Element auswählen --</option>';
+                    
+                    if (data.items && data.items.length > 0) {
+                        data.items.forEach(function(item) {
+                            var option = document.createElement('option');
+                            option.value = item.id;
+                            option.textContent = item.title;
+                            select.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading items:', error);
+                    showToast('error', 'Fehler beim Laden der Elemente');
+                });
+        }
+
+        // Load users for dropdown
+        function loadQuickTaskUsers() {
+            fetch('/api/users')
+                .then(response => response.json())
+                .then(data => {
+                    var select = document.getElementById('quickTaskRequester');
+                    select.innerHTML = '<option value="">-- Kein Anfrager --</option>';
+                    
+                    if (data.users && data.users.length > 0) {
+                        data.users.forEach(function(user) {
+                            var option = document.createElement('option');
+                            option.value = user.id;
+                            option.textContent = user.username;
+                            select.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading users:', error);
+                    showToast('error', 'Fehler beim Laden der Benutzer');
+                });
+        }
+
+        // Save quick task
+        function saveQuickTask(editor) {
+            var form = document.getElementById('quickTaskEntryForm');
+            var itemId = document.getElementById('quickTaskItem').value;
+            var requesterId = document.getElementById('quickTaskRequester').value;
+            var title = document.getElementById('quickTaskTitle').value;
+            var description = editor ? editor.getMarkdown() : '';
+            
+            // Validate required fields
+            if (!itemId || !title) {
+                showToast('error', 'Bitte füllen Sie alle Pflichtfelder aus');
+                return;
+            }
+            
+            // Get CSRF token
+            var csrfToken = form.querySelector('[name=csrfmiddlewaretoken]').value;
+            
+            // Prepare data
+            var formData = new FormData();
+            formData.append('item_id', itemId);
+            formData.append('title', title);
+            formData.append('description', description);
+            if (requesterId) {
+                formData.append('requester_id', requesterId);
+            }
+            
+            // Disable save button
+            var saveBtn = document.getElementById('quickTaskSaveBtn');
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Speichern...';
+            
+            // Submit form
+            fetch('/api/tasks/quick-create', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('success', 'Aufgabe erfolgreich erstellt');
+                    // Close modal
+                    var modal = bootstrap.Modal.getInstance(document.getElementById('quickTaskEntryModal'));
+                    modal.hide();
+                    // Optionally redirect to task detail
+                    if (data.task_id) {
+                        setTimeout(function() {
+                            window.location.href = '/tasks/' + data.task_id + '/';
+                        }, 1000);
+                    }
+                } else {
+                    showToast('error', data.error || 'Fehler beim Erstellen der Aufgabe');
+                }
+            })
+            .catch(error => {
+                console.error('Error creating task:', error);
+                showToast('error', 'Fehler beim Erstellen der Aufgabe');
+            })
+            .finally(() => {
+                // Re-enable save button
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="bi bi-save"></i> Speichern';
+            });
+        }
+
+        // Show toast notification
+        function showToast(type, message) {
+            var toastContainer = document.querySelector('.toast-container');
+            if (!toastContainer) return;
+            
+            var toastEl = document.createElement('div');
+            toastEl.className = 'toast align-items-center text-bg-' + type + ' border-0';
+            toastEl.setAttribute('role', 'alert');
+            toastEl.setAttribute('aria-live', 'assertive');
+            toastEl.setAttribute('aria-atomic', 'true');
+            
+            toastEl.innerHTML = '<div class="d-flex"><div class="toast-body">' + message + '</div>' +
+                '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>';
+            
+            toastContainer.appendChild(toastEl);
+            
+            var toast = new bootstrap.Toast(toastEl, {
+                autohide: true,
+                delay: 5000
+            });
+            toast.show();
+            
+            // Remove toast element after it's hidden
+            toastEl.addEventListener('hidden.bs.toast', function() {
+                toastEl.remove();
+            });
+        }
+        {% endif %}
     </script>
     
     {% block extra_js %}{% endblock %}

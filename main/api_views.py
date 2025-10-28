@@ -8026,3 +8026,92 @@ def api_task_close(request, task_id):
             'error': 'An error occurred while closing the task'
         }, status=500)
 
+
+@require_http_methods(["POST"])
+def api_task_quick_create(request):
+    """Quick task creation API endpoint for the navigation quick entry modal"""
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Check authentication
+        user_id = request.session.get('user_id')
+        if not user_id:
+            return JsonResponse({
+                'error': 'Authentication required'
+            }, status=401)
+        
+        user = get_object_or_404(User, id=user_id)
+        
+        # Get form data
+        item_id = request.POST.get('item_id', '').strip()
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        requester_id = request.POST.get('requester_id', '').strip()
+        
+        # Validate required fields
+        if not item_id or not title:
+            return JsonResponse({
+                'success': False,
+                'error': 'Element und Titel sind Pflichtfelder'
+            }, status=400)
+        
+        # Get item
+        try:
+            item = Item.objects.get(id=item_id)
+        except Item.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Element nicht gefunden'
+            }, status=404)
+        
+        # Get requester if provided
+        requester = None
+        if requester_id:
+            try:
+                requester = User.objects.get(id=requester_id)
+            except User.DoesNotExist:
+                pass
+        
+        # Create task with logged-in user as assigned_to
+        task = Task(
+            title=title,
+            description=description,
+            status='new',
+            item=item,
+            created_by=user,
+            assigned_to=user,  # Automatically assign to logged-in user
+            requester=requester
+        )
+        task.save()
+        
+        logger.info(f'Quick task created: {task.id} by user {user.username}')
+        
+        # Sync to Weaviate
+        sync_service = None
+        try:
+            from core.services.weaviate_task_sync_service import WeaviateTaskSyncService
+            sync_service = WeaviateTaskSyncService()
+            sync_service.sync_create(task)
+        except Exception as sync_error:
+            # Log error but don't fail the task creation
+            logger.warning(f'Weaviate sync failed for quick task {task.id}: {str(sync_error)}')
+        finally:
+            if sync_service:
+                sync_service.close()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Aufgabe erfolgreich erstellt',
+            'task_id': str(task.id),
+            'task_title': task.title
+        })
+    
+    except Exception as e:
+        logger.error(f'Quick task creation error: {str(e)}')
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': 'Fehler beim Erstellen der Aufgabe'
+        }, status=500)
+
+
