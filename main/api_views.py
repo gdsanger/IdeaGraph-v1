@@ -213,19 +213,23 @@ def api_logout(request):
 @require_http_methods(["GET"])
 def api_user_list(request):
     """
-    API endpoint to list all users (admin only).
+    API endpoint to list all active users.
     GET /api/users?page=1&per_page=10
+    
+    Authentication: Supports both JWT token and session-based authentication.
+    Access: All authenticated users can access this endpoint (needed for requester dropdown).
     """
-    user = get_user_from_token(request)
-    if not user or user.role != 'admin':
-        return JsonResponse({'error': 'Admin access required'}, status=403)
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
     
     try:
         page = int(request.GET.get('page', 1))
         per_page = int(request.GET.get('per_page', 10))
         per_page = min(per_page, 100)  # Max 100 per page
         
-        users = User.objects.all().order_by('-created_at')
+        # Only return active users, ordered by username for better UX in dropdowns
+        users = User.objects.filter(is_active=True).order_by('username')
         paginator = Paginator(users, per_page)
         page_obj = paginator.get_page(page)
         
