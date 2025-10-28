@@ -7926,8 +7926,8 @@ def api_task_close(request, task_id):
                     # Execute the agent
                     result = kigate_service.execute_agent(
                         agent_name=agent_name,
-                        provider=settings.kigate_default_provider if hasattr(settings, 'kigate_default_provider') else 'openai',
-                        model=settings.kigate_default_model if hasattr(settings, 'kigate_default_model') else 'gpt-4',
+                        provider='openai',
+                        model='gpt-4',
                         message=agent_message,
                         user_id=str(user.id)
                     )
