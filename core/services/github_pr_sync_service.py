@@ -126,11 +126,20 @@ class GitHubPRSyncService:
         if github_repo.endswith('.git'):
             github_repo = github_repo[:-4]
         
-        # Extract from URL format
-        if 'github.com' in github_repo:
-            parts = github_repo.split('github.com/')
-            if len(parts) > 1:
-                github_repo = parts[1]
+        # Extract from URL format using proper URL parsing
+        if github_repo.startswith('http://') or github_repo.startswith('https://'):
+            from urllib.parse import urlparse
+            parsed = urlparse(github_repo)
+            
+            # Validate it's actually from github.com
+            if parsed.netloc.lower() != 'github.com':
+                raise GitHubPRSyncServiceError(
+                    f"Invalid GitHub URL: {github_repo}",
+                    details="URL must be from github.com"
+                )
+            
+            # Extract path and use it as the repo string
+            github_repo = parsed.path.strip('/')
         
         # Split into owner/repo
         parts = github_repo.strip('/').split('/')

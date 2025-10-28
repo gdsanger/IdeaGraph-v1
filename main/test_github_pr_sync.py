@@ -91,6 +91,17 @@ class GitHubPRSyncServiceTestCase(TestCase):
         
         self.assertIn("Invalid repository format", str(context.exception))
     
+    def test_extract_repo_info_invalid_domain(self):
+        """Test extracting repo info with non-GitHub domain raises error"""
+        service = GitHubPRSyncService(self.settings)
+        
+        with self.assertRaises(GitHubPRSyncServiceError) as context:
+            service._extract_repo_info('https://malicious-site.com/github.com/owner/repo')
+        
+        self.assertIn("Invalid GitHub URL", str(context.exception))
+        # Check details field
+        self.assertEqual(context.exception.details, "URL must be from github.com")
+    
     def test_parse_github_datetime_valid(self):
         """Test parsing valid GitHub datetime"""
         service = GitHubPRSyncService(self.settings)
