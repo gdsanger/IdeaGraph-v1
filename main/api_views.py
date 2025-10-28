@@ -7,6 +7,7 @@ import logging
 import traceback
 from urllib.parse import urlparse
 from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.core.paginator import Paginator
@@ -8024,5 +8025,95 @@ def api_task_close(request, task_id):
         logger.error(traceback.format_exc())
         return JsonResponse({
             'error': 'An error occurred while closing the task'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_task_quick_create(request):
+    """Quick task creation API endpoint for the navigation quick entry modal"""
+    from .models import Item, Task
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Check authentication using the standard pattern (supports both JWT and session)
+        user = get_user_from_request(request)
+        if not user:
+            return JsonResponse({
+                'error': 'Authentication required'
+            }, status=401)
+        
+        # Get form data
+        item_id = request.POST.get('item_id', '').strip()
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        requester_id = request.POST.get('requester_id', '').strip()
+        
+        # Validate required fields
+        if not item_id or not title:
+            return JsonResponse({
+                'success': False,
+                'error': 'Element und Titel sind Pflichtfelder'
+            }, status=400)
+        
+        # Get item with proper error handling
+        try:
+            item = Item.objects.get(id=item_id)
+        except (Item.DoesNotExist, ValueError):
+            return JsonResponse({
+                'success': False,
+                'error': 'Element nicht gefunden'
+            }, status=404)
+        
+        # Get requester if provided
+        requester = None
+        if requester_id:
+            try:
+                requester = User.objects.get(id=requester_id)
+            except (User.DoesNotExist, ValueError):
+                # Ignore invalid requester ID, just don't set it
+                pass
+        
+        # Create task with logged-in user as assigned_to
+        task = Task(
+            title=title,
+            description=description,
+            status='new',
+            item=item,
+            created_by=user,
+            assigned_to=user,  # Automatically assign to logged-in user
+            requester=requester
+        )
+        task.save()
+        
+        logger.info(f'Quick task created: {task.id} by user {user.username}')
+        
+        # Sync to Weaviate
+        sync_service = None
+        try:
+            from core.services.weaviate_task_sync_service import WeaviateTaskSyncService
+            sync_service = WeaviateTaskSyncService()
+            sync_service.sync_create(task)
+        except Exception as sync_error:
+            # Log error but don't fail the task creation
+            logger.warning(f'Weaviate sync failed for quick task {task.id}: {str(sync_error)}')
+        finally:
+            if sync_service:
+                sync_service.close()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Aufgabe erfolgreich erstellt',
+            'task_id': str(task.id),
+            'task_title': task.title
+        })
+    
+    except Exception as e:
+        logger.error(f'Quick task creation error: {str(e)}')
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': 'Fehler beim Erstellen der Aufgabe'
         }, status=500)
 
