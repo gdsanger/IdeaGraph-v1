@@ -364,6 +364,9 @@
                                         <span class="button-text"><i class="bi bi-github"></i> Create GitHub Issue</span>
                                         <span class="spinner-border" role="status"></span>
                                     </button>
+                                    <button type="button" class="btn btn-secondary" id="closeTaskBtn" data-bs-toggle="modal" data-bs-target="#closeTaskModal">
+                                        <i class="bi bi-check-circle"></i> Close Task
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -602,6 +605,66 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Close Task Modal -->
+    <div class="modal fade" id="closeTaskModal" tabindex="-1" aria-labelledby="closeTaskModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="closeTaskModalLabel">
+                        <i class="bi bi-check-circle"></i> Close Task
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Wie wurde der Task erledigt?</p>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="closeTaskType" id="closeTaskSuccess" value="success" checked>
+                            <label class="form-check-label" for="closeTaskSuccess">
+                                <strong>Erfolgreich abgeschlossen</strong>
+                                <br>
+                                <small class="text-muted">Der Task wurde erfolgreich abgeschlossen. Eine E-Mail wird an den Requester gesendet.</small>
+                            </label>
+                        </div>
+                        <div class="form-check mt-3">
+                            <input class="form-check-input" type="radio" name="closeTaskType" id="closeTaskUpdate" value="next_update">
+                            <label class="form-check-label" for="closeTaskUpdate">
+                                <strong>Ist im nächsten Update dabei</strong>
+                                <br>
+                                <small class="text-muted">Der Task wird im nächsten Update enthalten sein. Eine E-Mail wird an den Requester gesendet.</small>
+                            </label>
+                        </div>
+                        <div class="form-check mt-3">
+                            <input class="form-check-input" type="radio" name="closeTaskType" id="closeTaskNoEmail" value="no_email">
+                            <label class="form-check-label" for="closeTaskNoEmail">
+                                <strong>Keine Antwort senden</strong>
+                                <br>
+                                <small class="text-muted">Der Task wird nur auf Erledigt gesetzt, ohne E-Mail zu senden.</small>
+                            </label>
+                        </div>
+                    </div>
+                    {% if task.requester %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Requester: <strong>{{ task.requester.username }} ({{ task.requester.email }})</strong>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> Kein Requester zugewiesen. Es kann keine E-Mail gesendet werden.
+                    </div>
+                    {% endif %}
+                    <div id="closeTaskAlert" class="alert" style="display: none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="button" class="btn btn-success" id="confirmCloseBtn">
+                        <i class="bi bi-check-circle"></i> Task schließen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
 {% endblock %}
 
@@ -1248,6 +1311,82 @@ document.addEventListener('DOMContentLoaded', function() {
         // Auto-hide after 3 seconds
         setTimeout(() => {
             moveTaskAlert.style.display = 'none';
+        }, 3000);
+    }
+});
+
+// Close Task Modal Handler
+document.addEventListener('DOMContentLoaded', function() {
+    const closeTaskModal = document.getElementById('closeTaskModal');
+    const confirmCloseBtn = document.getElementById('confirmCloseBtn');
+    const closeTaskAlert = document.getElementById('closeTaskAlert');
+    
+    if (!closeTaskModal || !confirmCloseBtn) {
+        return;
+    }
+    
+    // Handle close button click
+    confirmCloseBtn.addEventListener('click', async function() {
+        // Get selected close type
+        const closeTypeRadio = document.querySelector('input[name="closeTaskType"]:checked');
+        if (!closeTypeRadio) {
+            showCloseAlert('Bitte wählen Sie eine Option', 'warning');
+            return;
+        }
+        
+        const closeType = closeTypeRadio.value;
+        
+        // Disable button during request
+        confirmCloseBtn.disabled = true;
+        confirmCloseBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird geschlossen...';
+        
+        try {
+            const response = await fetch('/api/tasks/{{ task.id }}/close', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({
+                    close_type: closeType
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                let message = data.message;
+                if (data.email_sent) {
+                    message += ' E-Mail wurde gesendet.';
+                }
+                showCloseAlert(message, 'success');
+                
+                // Reload page after 1.5 seconds to reflect changes
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                showCloseAlert(data.error || 'Fehler beim Schließen des Tasks', 'danger');
+                confirmCloseBtn.disabled = false;
+                confirmCloseBtn.innerHTML = '<i class="bi bi-check-circle"></i> Task schließen';
+            }
+        } catch (error) {
+            console.error('Error closing task:', error);
+            showCloseAlert('Fehler: ' + error.message, 'danger');
+            confirmCloseBtn.disabled = false;
+            confirmCloseBtn.innerHTML = '<i class="bi bi-check-circle"></i> Task schließen';
+        }
+    });
+    
+    // Helper to show alerts in the modal
+    function showCloseAlert(message, type) {
+        closeTaskAlert.className = `alert alert-${type}`;
+        closeTaskAlert.textContent = message;
+        closeTaskAlert.style.display = 'block';
+        
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+            closeTaskAlert.style.display = 'none';
         }, 3000);
     }
 });
