@@ -21,10 +21,10 @@
 </div>
 
 <!-- Q&A Chat Modal -->
-<div class="modal fade" id="qaChatModal" tabindex="-1" aria-labelledby="qaChatModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+<div class="modal fade draggable-modal" id="qaChatModal" tabindex="-1" aria-labelledby="qaChatModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable resizable-modal">
         <div class="modal-content bg-dark">
-            <div class="modal-header">
+            <div class="modal-header draggable-handle">
                 <h5 class="modal-title" id="qaChatModalLabel">
                     <i class="bi bi-chat-dots"></i> IdeaGraph Q&A Assistant
                 </h5>
@@ -38,15 +38,17 @@
                 <!-- Chat Widget Container -->
                 <div id="ideagraph-chat-widget-modal"></div>
             </div>
+            <!-- Resize handle -->
+            <div class="resize-handle"></div>
         </div>
     </div>
 </div>
 
 <!-- Graph Modal -->
-<div class="modal fade" id="graphModal" tabindex="-1" aria-labelledby="graphModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+<div class="modal fade draggable-modal" id="graphModal" tabindex="-1" aria-labelledby="graphModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable resizable-modal">
         <div class="modal-content bg-dark">
-            <div class="modal-header">
+            <div class="modal-header draggable-handle">
                 <h5 class="modal-title" id="graphModalLabel">
                     <i class="bi bi-diagram-3"></i> Semantic Relationship Graph
                 </h5>
@@ -55,6 +57,8 @@
             <div class="modal-body" style="min-height: 600px;">
                 <div id="semanticNetworkModalContainer" style="width: 100%; height: 550px;"></div>
             </div>
+            <!-- Resize handle -->
+            <div class="resize-handle"></div>
         </div>
     </div>
 </div>
@@ -126,6 +130,57 @@
             height: 52px;
         }
     }
+    
+    /* Draggable and Resizable Modal Styles */
+    .draggable-modal .modal-dialog {
+        margin: 0;
+        max-width: none;
+        width: auto;
+        pointer-events: all;
+    }
+    
+    .draggable-modal.show .modal-dialog {
+        transform: none !important;
+    }
+    
+    .draggable-handle {
+        cursor: move;
+        user-select: none;
+    }
+    
+    .resizable-modal {
+        position: absolute;
+        resize: none;
+        min-width: 400px;
+        min-height: 300px;
+    }
+    
+    .resize-handle {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        width: 20px;
+        height: 20px;
+        cursor: nwse-resize;
+        z-index: 1;
+    }
+    
+    .resize-handle::after {
+        content: '';
+        position: absolute;
+        bottom: 2px;
+        right: 2px;
+        width: 0;
+        height: 0;
+        border-style: solid;
+        border-width: 0 0 12px 12px;
+        border-color: transparent transparent rgba(255, 255, 255, 0.3) transparent;
+    }
+    
+    .modal-dialog.resizing,
+    .modal-dialog.dragging {
+        transition: none !important;
+    }
 </style>
 
 <script>
@@ -191,4 +246,207 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+</script>
+
+<script>
+// Draggable and Resizable Modal Functionality with localStorage
+(function() {
+    const STORAGE_PREFIX = 'floatingModal_';
+    const DEFAULT_WIDTH = 1140; // Bootstrap modal-xl default
+    const DEFAULT_HEIGHT = 700;
+    const MIN_WIDTH = 400;
+    const MIN_HEIGHT = 300;
+    
+    // Initialize draggable and resizable functionality for modals
+    function initDraggableResizableModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (!modal) return;
+        
+        const modalDialog = modal.querySelector('.modal-dialog');
+        const modalHeader = modal.querySelector('.draggable-handle');
+        const resizeHandle = modal.querySelector('.resize-handle');
+        
+        if (!modalDialog || !modalHeader || !resizeHandle) return;
+        
+        let isDragging = false;
+        let isResizing = false;
+        let startX, startY, startLeft, startTop, startWidth, startHeight;
+        let cachedModalWidth, cachedModalHeight; // Cache dimensions during drag
+        
+        // Load saved dimensions and position from localStorage
+        function loadModalState() {
+            const savedState = localStorage.getItem(STORAGE_PREFIX + modalId);
+            if (savedState) {
+                try {
+                    const state = JSON.parse(savedState);
+                    
+                    // Validate and apply dimensions with min/max constraints
+                    if (typeof state.width === 'number' && !isNaN(state.width)) {
+                        const width = Math.max(MIN_WIDTH, Math.min(state.width, window.innerWidth));
+                        modalDialog.style.width = width + 'px';
+                    }
+                    if (typeof state.height === 'number' && !isNaN(state.height)) {
+                        const height = Math.max(MIN_HEIGHT, Math.min(state.height, window.innerHeight));
+                        modalDialog.style.height = height + 'px';
+                    }
+                    
+                    // Validate and apply position to keep modal within viewport
+                    if (typeof state.left === 'number' && !isNaN(state.left) && 
+                        typeof state.top === 'number' && !isNaN(state.top)) {
+                        const modalWidth = parseInt(modalDialog.style.width) || DEFAULT_WIDTH;
+                        const modalHeight = parseInt(modalDialog.style.height) || DEFAULT_HEIGHT;
+                        
+                        // Ensure modal stays within viewport bounds
+                        const maxLeft = Math.max(0, window.innerWidth - modalWidth);
+                        const maxTop = Math.max(0, window.innerHeight - modalHeight);
+                        
+                        const left = Math.max(0, Math.min(state.left, maxLeft));
+                        const top = Math.max(0, Math.min(state.top, maxTop));
+                        
+                        modalDialog.style.left = left + 'px';
+                        modalDialog.style.top = top + 'px';
+                    } else {
+                        // If position data is invalid or missing, center the modal
+                        centerModal();
+                    }
+                } catch (e) {
+                    console.error('Error loading modal state:', e);
+                    centerModal();
+                }
+            } else {
+                // Set default position (centered)
+                centerModal();
+            }
+        }
+        
+        // Save dimensions and position to localStorage
+        function saveModalState() {
+            const rect = modalDialog.getBoundingClientRect();
+            const state = {
+                width: rect.width,
+                height: rect.height,
+                left: modalDialog.offsetLeft,
+                top: modalDialog.offsetTop
+            };
+            localStorage.setItem(STORAGE_PREFIX + modalId, JSON.stringify(state));
+        }
+        
+        // Center modal on screen
+        function centerModal() {
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const width = parseInt(modalDialog.style.width) || DEFAULT_WIDTH;
+            const height = parseInt(modalDialog.style.height) || DEFAULT_HEIGHT;
+            
+            modalDialog.style.width = width + 'px';
+            modalDialog.style.height = height + 'px';
+            modalDialog.style.left = Math.max(0, (viewportWidth - width) / 2) + 'px';
+            modalDialog.style.top = Math.max(0, (viewportHeight - height) / 2) + 'px';
+        }
+        
+        // Dragging functionality
+        modalHeader.addEventListener('mousedown', function(e) {
+            // Don't start drag if clicking on close button or other interactive elements
+            if (e.target.closest('.btn-close') || e.target.closest('button')) {
+                return;
+            }
+            
+            isDragging = true;
+            modalDialog.classList.add('dragging');
+            
+            startX = e.clientX;
+            startY = e.clientY;
+            startLeft = modalDialog.offsetLeft;
+            startTop = modalDialog.offsetTop;
+            // Cache dimensions at drag start for consistent bounds checking
+            cachedModalWidth = modalDialog.offsetWidth;
+            cachedModalHeight = modalDialog.offsetHeight;
+            
+            e.preventDefault();
+        });
+        
+        // Resizing functionality
+        resizeHandle.addEventListener('mousedown', function(e) {
+            isResizing = true;
+            modalDialog.classList.add('resizing');
+            
+            startX = e.clientX;
+            startY = e.clientY;
+            startWidth = modalDialog.offsetWidth;
+            startHeight = modalDialog.offsetHeight;
+            
+            e.preventDefault();
+            e.stopPropagation();
+        });
+        
+        // Mouse move handler
+        document.addEventListener('mousemove', function(e) {
+            if (isDragging) {
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                
+                let newLeft = startLeft + dx;
+                let newTop = startTop + dy;
+                
+                // Keep modal within viewport bounds using cached dimensions
+                const maxLeft = window.innerWidth - cachedModalWidth;
+                const maxTop = window.innerHeight - cachedModalHeight;
+                
+                newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+                newTop = Math.max(0, Math.min(newTop, maxTop));
+                
+                modalDialog.style.left = newLeft + 'px';
+                modalDialog.style.top = newTop + 'px';
+            }
+            
+            if (isResizing) {
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                
+                let newWidth = startWidth + dx;
+                let newHeight = startHeight + dy;
+                
+                // Apply minimum size constraints
+                newWidth = Math.max(MIN_WIDTH, newWidth);
+                newHeight = Math.max(MIN_HEIGHT, newHeight);
+                
+                // Keep within viewport
+                const maxWidth = window.innerWidth - modalDialog.offsetLeft;
+                const maxHeight = window.innerHeight - modalDialog.offsetTop;
+                
+                newWidth = Math.min(newWidth, maxWidth);
+                newHeight = Math.min(newHeight, maxHeight);
+                
+                modalDialog.style.width = newWidth + 'px';
+                modalDialog.style.height = newHeight + 'px';
+            }
+        });
+        
+        // Mouse up handler
+        document.addEventListener('mouseup', function() {
+            if (isDragging || isResizing) {
+                modalDialog.classList.remove('dragging', 'resizing');
+                saveModalState();
+            }
+            isDragging = false;
+            isResizing = false;
+        });
+        
+        // Load state when modal is shown
+        modal.addEventListener('shown.bs.modal', function() {
+            loadModalState();
+        });
+        
+        // Initialize on page load if modal is visible
+        if (modal.classList.contains('show')) {
+            loadModalState();
+        }
+    }
+    
+    // Initialize both modals on DOM ready
+    document.addEventListener('DOMContentLoaded', function() {
+        initDraggableResizableModal('qaChatModal');
+        initDraggableResizableModal('graphModal');
+    });
+})();
 </script>
