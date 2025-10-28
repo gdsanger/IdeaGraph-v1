@@ -1458,13 +1458,22 @@ def task_detail(request, task_id):
         type_value = request.POST.get('type', task.type)
         milestone_id = request.POST.get('milestone', '').strip()
         tag_values = request.POST.getlist('tags')
-        requester_id = request.POST.get('requester', None)
+        assigned_to_id = request.POST.get('assigned_to')
+        requester_id = request.POST.get('requester')
 
         if not title:
             messages.error(request, 'Title is required.')
             selected_tags_payload = _build_selected_tags_payload(tag_values)
         else:
             try:
+                # Get assigned_to if provided
+                assigned_to = None
+                if assigned_to_id:
+                    try:
+                        assigned_to = User.objects.get(id=assigned_to_id)
+                    except User.DoesNotExist:
+                        pass
+                
                 # Get requester if provided
                 requester = None
                 if requester_id:
@@ -1478,6 +1487,7 @@ def task_detail(request, task_id):
                 task.description = description
                 task.status = status
                 task.type = type_value
+                task.assigned_to = assigned_to
                 task.requester = requester
                 
                 # Set milestone

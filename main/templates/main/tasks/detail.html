@@ -290,6 +290,19 @@
                                     </select>
                                 </div>
 
+                                <!-- Assigned To -->
+                                <div class="mb-3">
+                                    <label for="assigned_to" class="form-label">Assigned To</label>
+                                    <select class="form-select" id="assigned_to" name="assigned_to">
+                                        <option value="">-- Not Assigned --</option>
+                                        {% for user in all_users %}
+                                        <option value="{{ user.id }}" {% if task.assigned_to and task.assigned_to.id == user.id %}selected{% endif %}>
+                                            {{ user.username }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
                                 <!-- Requester -->
                                 <div class="mb-3">
                                     <label for="requester" class="form-label">Requester</label>
