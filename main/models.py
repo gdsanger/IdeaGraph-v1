@@ -589,6 +589,11 @@ class Task(models.Model):
     def __str__(self):
         return self.title
     
+    @property
+    def short_id(self):
+        """Generate a 6-character short ID from the UUID for email tracking"""
+        return self.id.hex[:6].upper()
+    
     def mark_as_done(self):
         """Mark task as completed"""
         self.status = 'done'
@@ -605,6 +610,7 @@ class TaskComment(models.Model):
     SOURCE_CHOICES = [
         ('user', 'User'),
         ('agent', 'Agent'),
+        ('email', 'Email'),
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -613,6 +619,14 @@ class TaskComment(models.Model):
     author_name = models.CharField(max_length=255, blank=True, default='', help_text='Author name for agent comments or when user is deleted')
     text = models.TextField(help_text='Comment content (Markdown supported)')
     source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default='user')
+    
+    # Email-specific fields for conversation threading
+    email_message_id = models.CharField(max_length=500, blank=True, default='', help_text='Email Message-ID header for threading')
+    email_in_reply_to = models.CharField(max_length=500, blank=True, default='', help_text='Email In-Reply-To header')
+    email_references = models.TextField(blank=True, default='', help_text='Email References header (space-separated Message-IDs)')
+    email_from = models.EmailField(max_length=254, blank=True, default='', help_text='Sender email address')
+    email_subject = models.CharField(max_length=500, blank=True, default='', help_text='Email subject line')
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

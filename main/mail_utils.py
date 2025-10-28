@@ -4,7 +4,8 @@ Mail utilities for sending emails via Microsoft Graph API.
 import logging
 from django.template.loader import render_to_string
 from core.services.graph_service import GraphService, GraphServiceError
-from main.models import Item
+from core.services.email_conversation_service import EmailConversationService
+from main.models import Item, Task
 
 
 logger = logging.getLogger('mail_utils')
@@ -108,4 +109,76 @@ def send_item_email(item_id, recipient_email):
         return False, f"Email service error: {e.message}"
     except Exception as e:
         logger.error(f"Unexpected error sending item email: {str(e)}")
+        return False, f"Unexpected error: {str(e)}"
+
+
+def send_task_email(task_id, recipient_email, subject, body, user=None, in_reply_to=None):
+    """
+    Send an email from a task context with conversation threading.
+    
+    This function automatically:
+    - Adds the task Short-ID to the subject line
+    - Sets proper email headers for threading (Message-ID, In-Reply-To, References)
+    - Creates a comment in the task to track the sent email
+    
+    Args:
+        task_id: UUID of the task
+        recipient_email: Email address of the recipient
+        subject: Email subject (Short-ID will be appended automatically)
+        body: Email body in HTML format
+        user: User sending the email (optional)
+        in_reply_to: Message-ID this email is replying to (optional)
+        
+    Returns:
+        tuple: (success, message/details_dict)
+    """
+    try:
+        # Get the task
+        task = Task.objects.get(id=task_id)
+        
+        # Get settings
+        from main.models import Settings
+        settings = Settings.objects.first()
+        
+        if not settings:
+            logger.error("No settings found in database")
+            return False, "No settings configured"
+        
+        # Initialize email conversation service
+        email_service = EmailConversationService(settings)
+        
+        # Get references from previous comments if replying
+        references = ''
+        if in_reply_to:
+            # Find the comment with this Message-ID to get its references
+            try:
+                reply_comment = task.comments.filter(email_message_id=in_reply_to).first()
+                if reply_comment and reply_comment.email_references:
+                    references = reply_comment.email_references
+            except Exception as e:
+                logger.warning(f"Could not retrieve references from comment: {str(e)}")
+        
+        # Send email with threading
+        result = email_service.send_task_email(
+            task=task,
+            to=[recipient_email],
+            subject=subject,
+            body=body,
+            author=user,
+            in_reply_to=in_reply_to,
+            references=references
+        )
+        
+        if result.get('success'):
+            logger.info(f"Task email sent successfully to {recipient_email} for task {task.title}")
+            return True, result
+        else:
+            logger.error(f"Failed to send task email to {recipient_email}")
+            return False, result.get('message', 'Failed to send email')
+            
+    except Task.DoesNotExist:
+        logger.error(f"Task with id {task_id} not found")
+        return False, "Task not found"
+    except Exception as e:
+        logger.error(f"Unexpected error sending task email: {str(e)}")
         return False, f"Unexpected error: {str(e)}"

@@ -745,7 +745,8 @@ class GraphService:
         subject: str,
         body: str,
         attachments: Optional[List[Dict[str, Any]]] = None,
-        from_address: Optional[str] = None
+        from_address: Optional[str] = None,
+        internet_message_headers: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """
         Send an email via Microsoft Graph API
@@ -756,9 +757,10 @@ class GraphService:
             body: Email body (HTML supported)
             attachments: List of attachments (each with 'name' and 'content' as base64)
             from_address: Sender email (uses default if not provided)
+            internet_message_headers: List of custom email headers (each with 'name' and 'value')
             
         Returns:
-            Dict with success status
+            Dict with success status and message_id if available
         """
         sender = from_address or self.default_sender
         
@@ -785,6 +787,10 @@ class GraphService:
             },
             'saveToSentItems': 'true'
         }
+        
+        # Add custom internet message headers if provided
+        if internet_message_headers:
+            message['message']['internetMessageHeaders'] = internet_message_headers
         
         # Add attachments if provided
         if attachments:
