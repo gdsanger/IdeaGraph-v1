@@ -1,6 +1,7 @@
 """
 Test Task Close functionality
 """
+from uuid import uuid4
 from django.test import TestCase, Client
 from django.urls import reverse
 from main.models import User, Item, Task, Section, Settings
@@ -189,7 +190,6 @@ class TaskCloseTest(TestCase):
         session.save()
         
         # Use a random UUID that doesn't exist
-        from uuid import uuid4
         fake_id = uuid4()
         url = reverse('main:api_task_close', kwargs={'task_id': fake_id})
         response = self.client.post(

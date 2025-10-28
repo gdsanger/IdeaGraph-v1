@@ -7924,10 +7924,14 @@ def api_task_close(request, task_id):
                     agent_message = f"Task: {task.title}\n\nDescription:\n{task.description}"
                     
                     # Execute the agent
+                    # Use OpenAI settings as KiGate doesn't have separate provider/model config
+                    provider = 'openai'
+                    model = settings.openai_default_model if settings.openai_default_model else 'gpt-4'
+                    
                     result = kigate_service.execute_agent(
                         agent_name=agent_name,
-                        provider='openai',
-                        model='gpt-4',
+                        provider=provider,
+                        model=model,
                         message=agent_message,
                         user_id=str(user.id)
                     )
