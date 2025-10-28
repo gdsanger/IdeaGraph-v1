@@ -1,6 +1,6 @@
 {% load static %}
 <!-- Floating Action Dock -->
-<div class="floating-action-dock" data-context="{{ context|default:'item' }}">
+<div class="floating-action-dock" data-context="{{ dock_context|default:'item' }}">
     <!-- Chat Button (Item View only) -->
     <button type="button" 
             class="btn floating-action-btn floating-action-btn-chat" 
@@ -380,10 +380,12 @@ document.addEventListener('DOMContentLoaded', function() {
         qaChatModal.addEventListener('shown.bs.modal', function() {
             if (!chatWidgetModalInitialized) {
                 try {
+                    const objectType = '{{ object_type|default:"item" }}';
+                    const objectId = '{{ object_id }}';
                     const chatWidget = new ChatWidget({
                         containerId: 'ideagraph-chat-widget-modal',
-                        itemId: '{{ item.id }}',
-                        apiBaseUrl: '/api/items',
+                        itemId: objectId,
+                        apiBaseUrl: `/api/${objectType}s`,
                         theme: 'dark',
                         height: '500px',
                         showHistory: true
@@ -407,12 +409,14 @@ document.addEventListener('DOMContentLoaded', function() {
         graphModal.addEventListener('shown.bs.modal', function() {
             if (!semanticNetworkModalInitialized) {
                 try {
+                    const objectType = '{{ object_type|default:"item" }}';
+                    const objectId = '{{ object_id }}';
                     const semanticNetworkModalViewer = new SemanticGraph('semanticNetworkModalContainer', {
-                        objectType: 'item',
-                        objectId: '{{ item.id }}',
+                        objectType: objectType,
+                        objectId: objectId,
                         depth: 3,
                         generateSummaries: true,
-                        includeHierarchy: true,
+                        includeHierarchy: objectType === 'item',
                         onNodeClick: function(nodeData) {
                             const type = nodeData.type;
                             const id = nodeData.id;
@@ -661,7 +665,7 @@ document.addEventListener('DOMContentLoaded', function() {
         uploadBtn.addEventListener('click', function() {
             // Trigger file upload - this will depend on your existing upload mechanism
             const objectType = '{{ object_type|default:"item" }}';
-            const objectId = '{{ object_id|default:item.id }}{{ task.id }}';
+            const objectId = '{{ object_id }}';
             window.location.href = `/${objectType}s/${objectId}/?upload=true`;
         });
     }
@@ -669,7 +673,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function loadFiles() {
     const objectType = '{{ object_type|default:"item" }}';
-    const objectId = '{{ object_id|default:item.id }}{{ task.id }}';
+    const objectId = '{{ object_id }}';
     const filesContent = document.getElementById('filesModalContent');
     
     if (!objectId) {

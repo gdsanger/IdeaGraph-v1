@@ -521,7 +521,7 @@
     <!-- End Two-Column Layout -->
 
     <!-- Floating Action Dock -->
-    {% include 'main/items/_floating_action_dock.html' with context='task' object_type='task' object_id=task.id %}
+    {% include 'main/items/_floating_action_dock.html' with dock_context='task' object_type='task' object_id=task.id %}
 
     <!-- Move Task Modal -->
     <div class="modal fade" id="moveTaskModal" tabindex="-1" aria-labelledby="moveTaskModalLabel" aria-hidden="true">
