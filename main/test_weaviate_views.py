@@ -120,12 +120,15 @@ class WeaviateViewsTest(TestCase):
         self.assertEqual(response1.status_code, 302)
         self.assertEqual(response2.status_code, 302)
         
-        # Now test with admin
-        self.client.logout()
-        self.login_admin()
+        # Now test with admin - use fresh client for clarity
+        admin_client = Client()
+        admin_client.post('/login/', {
+            'username': 'admin',
+            'password': 'Admin@123'
+        })
         
-        response1 = self.client.get('/admin/weaviate/status/')
-        response2 = self.client.get('/admin/weaviate/maintenance/')
+        response1 = admin_client.get('/admin/weaviate/status/')
+        response2 = admin_client.get('/admin/weaviate/maintenance/')
         
         # Both should be accessible
         self.assertEqual(response1.status_code, 200)
