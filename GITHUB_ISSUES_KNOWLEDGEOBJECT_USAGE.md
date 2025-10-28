@@ -45,25 +45,24 @@ service.close()
 - **Service:** `github_task_sync_service.py` - Uses Weaviate service for issue sync
 - **API Views:** `main/api_views.py` - Similarity search endpoints
 
-## ❌ Deprecated: GitHubIssueSyncService (ChromaDB)
+## ❌ Legacy ChromaDB Services - REMOVED
 
-**File:** `core/services/github_issue_sync_service.py`
+The following legacy services have been **completely removed** from the codebase:
 
-**Status:** ⚠️ DEPRECATED - Legacy code kept for reference only
+**Removed Files:**
+- `core/services/github_issue_sync_service.py` - ChromaDB GitHub Issue sync
+- `core/services/chroma_sync_service.py` - ChromaDB Item sync
+- `core/services/chroma_task_sync_service.py` - ChromaDB Task sync
 
-### Why Deprecated
+**Why Removed:**
+- Used separate "GitHubIssues" collection instead of KnowledgeObject (violated architecture)
+- ChromaDB is no longer used in the system
+- All functionality migrated to Weaviate
+- Not used in production code
 
-This service violates the KnowledgeObject architecture:
-
-1. **Separate Collection:** Uses `GitHubIssues` collection instead of `KnowledgeObject`
-2. **ChromaDB:** Uses ChromaDB instead of Weaviate
-3. **Not Exported:** Removed from `core/services/__init__.py`
-4. **Not Used:** No production code imports this service
-
-### Migration
-
+**Migration:**
 The system migrated from ChromaDB to Weaviate. See:
-- `CHROMADB_TO_WEAVIATE_MIGRATION.md` - Migration documentation
+- `CHROMADB_TO_WEAVIATE_MIGRATION.md` - Historical migration documentation
 - `KNOWLEDGEOBJECT_SCHEMA_MIGRATION.md` - Schema changes
 
 ## KnowledgeObject Schema for GitHub Issues
