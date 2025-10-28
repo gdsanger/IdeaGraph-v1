@@ -73,7 +73,7 @@ Provider-specific implementations:
 #### UI Features:
 - Responsive Bootstrap design matching existing IdeaGraph style
 - Dynamic form fields based on provider type (JavaScript)
-- HTMX integration for smooth interactions
+- Real-time AJAX calls for API operations
 - Color-coded status badges
 - Icon-based navigation
 - Comprehensive help panels with default URLs
