@@ -1,22 +1,44 @@
 {% load static %}
 <!-- Floating Action Dock -->
-<div class="floating-action-dock">
-    <!-- Chat Button -->
+<div class="floating-action-dock" data-context="{{ dock_context|default:'item' }}">
+    <!-- Chat Button (Item View only) -->
     <button type="button" 
-            class="btn floating-action-btn" 
+            class="btn floating-action-btn floating-action-btn-chat" 
             data-bs-toggle="modal" 
             data-bs-target="#qaChatModal"
+            data-context="item"
             title="Q&A Chat">
         <i class="bi bi-chat-dots"></i>
     </button>
     
-    <!-- Graph Button -->
+    <!-- Graph Button (Item & Task Views) -->
     <button type="button" 
-            class="btn floating-action-btn" 
+            class="btn floating-action-btn floating-action-btn-graph" 
             data-bs-toggle="modal" 
             data-bs-target="#graphModal"
+            data-context="item,task"
             title="Relationship Graph">
         <i class="bi bi-diagram-3"></i>
+    </button>
+    
+    <!-- Files Button (Item & Task Views) -->
+    <button type="button" 
+            class="btn floating-action-btn floating-action-btn-files" 
+            data-bs-toggle="modal" 
+            data-bs-target="#filesModal"
+            data-context="item,task"
+            title="Files">
+        <i class="bi bi-folder"></i>
+    </button>
+    
+    <!-- Global Search Button (All Views) -->
+    <button type="button" 
+            class="btn floating-action-btn floating-action-btn-search" 
+            data-bs-toggle="modal" 
+            data-bs-target="#globalSearchModal"
+            data-context="item,task,global"
+            title="Global Search">
+        <i class="bi bi-search"></i>
     </button>
 </div>
 
@@ -63,6 +85,79 @@
     </div>
 </div>
 
+<!-- Files Modal -->
+<div class="modal fade draggable-modal" id="filesModal" tabindex="-1" aria-labelledby="filesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable resizable-modal">
+        <div class="modal-content bg-dark">
+            <div class="modal-header draggable-handle">
+                <h5 class="modal-title" id="filesModalLabel">
+                    <i class="bi bi-folder"></i> Files
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="min-height: 400px;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <p class="text-muted mb-0" style="font-size: 0.9rem;">
+                        Alle Dateien dieses {{ object_type|default:'item' }}s
+                    </p>
+                    <button type="button" class="btn btn-sm btn-primary" id="uploadFileBtn">
+                        <i class="bi bi-upload"></i> Datei hochladen
+                    </button>
+                </div>
+                <div id="filesModalContent">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Laden...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Resize handle -->
+            <div class="resize-handle"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Global Search Modal -->
+<div class="modal fade draggable-modal" id="globalSearchModal" tabindex="-1" aria-labelledby="globalSearchModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable resizable-modal">
+        <div class="modal-content bg-dark">
+            <div class="modal-header draggable-handle">
+                <h5 class="modal-title" id="globalSearchModalLabel">
+                    <i class="bi bi-search"></i> Globale Semantische Suche
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="min-height: 400px;">
+                <p class="text-muted mb-3" style="font-size: 0.9rem;">
+                    Durchsuche alle Items, Tasks, Files und Knowledge Objects mit semantischer KI-Suche
+                </p>
+                
+                <div class="mb-4">
+                    <div class="input-group">
+                        <input type="text" 
+                               class="form-control" 
+                               id="globalSearchInput" 
+                               placeholder="Suchbegriff oder Frage eingeben...">
+                        <button class="btn btn-primary" type="button" id="globalSearchBtn">
+                            <i class="bi bi-search"></i> Suchen
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="globalSearchResults">
+                    <div class="text-muted text-center py-4">
+                        <i class="bi bi-search" style="font-size: 3rem; opacity: 0.3;"></i>
+                        <p class="mt-2">Geben Sie einen Suchbegriff ein, um zu beginnen</p>
+                    </div>
+                </div>
+            </div>
+            <!-- Resize handle -->
+            <div class="resize-handle"></div>
+        </div>
+    </div>
+</div>
+
 <style>
     /* Floating Action Dock Styles */
     .floating-action-dock {
@@ -80,9 +175,8 @@
         border-radius: 50%;
         width: 56px;
         height: 56px;
-        background-color: var(--primary-amber);
         color: var(--soft-white);
-        box-shadow: 0 4px 12px rgba(228, 154, 40, 0.4);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
         transition: all 0.2s ease-in-out;
         display: flex;
         align-items: center;
@@ -91,15 +185,69 @@
         font-size: 1.5rem;
     }
     
-    .floating-action-btn:hover {
+    /* Chat Button - Cyan */
+    .floating-action-btn-chat {
         background-color: var(--secondary-cyan);
-        color: var(--graph-gray);
+        box-shadow: 0 4px 12px rgba(75, 208, 199, 0.4);
+    }
+    
+    .floating-action-btn-chat:hover {
+        background-color: #5dd4c7;
         transform: scale(1.1);
-        box-shadow: 0 6px 16px rgba(75, 208, 199, 0.5);
+        box-shadow: 0 6px 16px rgba(75, 208, 199, 0.6);
+    }
+    
+    /* Graph Button - Amber */
+    .floating-action-btn-graph {
+        background-color: var(--primary-amber);
+        box-shadow: 0 4px 12px rgba(228, 154, 40, 0.4);
+    }
+    
+    .floating-action-btn-graph:hover {
+        background-color: #f5a524;
+        transform: scale(1.1);
+        box-shadow: 0 6px 16px rgba(228, 154, 40, 0.6);
+    }
+    
+    /* Files Button - Neutral */
+    .floating-action-btn-files {
+        background-color: #6b7280;
+        box-shadow: 0 4px 12px rgba(107, 114, 128, 0.4);
+    }
+    
+    .floating-action-btn-files:hover {
+        background-color: #9ca3af;
+        transform: scale(1.1);
+        box-shadow: 0 6px 16px rgba(107, 114, 128, 0.6);
+    }
+    
+    /* Search Button - Gradient Amber to Cyan */
+    .floating-action-btn-search {
+        background: linear-gradient(135deg, var(--primary-amber) 0%, var(--secondary-cyan) 100%);
+        box-shadow: 0 4px 12px rgba(151, 181, 119, 0.4);
+    }
+    
+    .floating-action-btn-search:hover {
+        background: linear-gradient(135deg, #f5a524 0%, #5dd4c7 100%);
+        transform: scale(1.1);
+        box-shadow: 0 6px 16px rgba(151, 181, 119, 0.6);
     }
     
     .floating-action-btn:active {
         transform: scale(0.95);
+    }
+    
+    /* Context-based visibility */
+    .floating-action-dock[data-context="item"] .floating-action-btn[data-context]:not([data-context*="item"]) {
+        display: none;
+    }
+    
+    .floating-action-dock[data-context="task"] .floating-action-btn[data-context]:not([data-context*="task"]) {
+        display: none;
+    }
+    
+    .floating-action-dock[data-context="global"] .floating-action-btn[data-context]:not([data-context*="global"]) {
+        display: none;
     }
     
     /* Responsive adjustments */
@@ -181,6 +329,45 @@
     .modal-dialog.dragging {
         transition: none !important;
     }
+    
+    /* Files Modal Styles */
+    .file-item {
+        padding: 0.75rem;
+        border: 1px solid var(--bs-border-color);
+        border-radius: 0.5rem;
+        margin-bottom: 0.5rem;
+        background: rgba(15, 23, 42, 0.4);
+        transition: background 0.2s;
+    }
+    
+    .file-item:hover {
+        background: rgba(15, 23, 42, 0.6);
+    }
+    
+    /* Search Results Styles */
+    .search-result-item {
+        padding: 1rem;
+        border: 1px solid var(--bs-border-color);
+        border-radius: 0.5rem;
+        margin-bottom: 0.75rem;
+        background: rgba(15, 23, 42, 0.4);
+        transition: all 0.2s;
+    }
+    
+    .search-result-item:hover {
+        background: rgba(15, 23, 42, 0.6);
+        border-color: var(--primary-amber);
+    }
+    
+    .relevance-score {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        background: linear-gradient(135deg, var(--primary-amber) 0%, var(--secondary-cyan) 100%);
+        color: white;
+    }
 </style>
 
 <script>
@@ -193,10 +380,12 @@ document.addEventListener('DOMContentLoaded', function() {
         qaChatModal.addEventListener('shown.bs.modal', function() {
             if (!chatWidgetModalInitialized) {
                 try {
+                    const objectType = '{{ object_type|default:"item" }}';
+                    const objectId = '{{ object_id|escapejs }}';
                     const chatWidget = new ChatWidget({
                         containerId: 'ideagraph-chat-widget-modal',
-                        itemId: '{{ item.id }}',
-                        apiBaseUrl: '/api/items',
+                        itemId: objectId,
+                        apiBaseUrl: `/api/${objectType}s`,
                         theme: 'dark',
                         height: '500px',
                         showHistory: true
@@ -220,12 +409,14 @@ document.addEventListener('DOMContentLoaded', function() {
         graphModal.addEventListener('shown.bs.modal', function() {
             if (!semanticNetworkModalInitialized) {
                 try {
+                    const objectType = '{{ object_type|default:"item" }}';
+                    const objectId = '{{ object_id|escapejs }}';
                     const semanticNetworkModalViewer = new SemanticGraph('semanticNetworkModalContainer', {
-                        objectType: 'item',
-                        objectId: '{{ item.id }}',
+                        objectType: objectType,
+                        objectId: objectId,
                         depth: 3,
                         generateSummaries: true,
-                        includeHierarchy: true,
+                        includeHierarchy: objectType === 'item',
                         onNodeClick: function(nodeData) {
                             const type = nodeData.type;
                             const id = nodeData.id;
@@ -447,6 +638,211 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('DOMContentLoaded', function() {
         initDraggableResizableModal('qaChatModal');
         initDraggableResizableModal('graphModal');
+        initDraggableResizableModal('filesModal');
+        initDraggableResizableModal('globalSearchModal');
     });
 })();
+</script>
+
+<script>
+// Files Modal - Lazy Loading
+let filesModalInitialized = false;
+
+document.addEventListener('DOMContentLoaded', function() {
+    const filesModal = document.getElementById('filesModal');
+    if (filesModal) {
+        filesModal.addEventListener('shown.bs.modal', function() {
+            if (!filesModalInitialized) {
+                loadFiles();
+                filesModalInitialized = true;
+            }
+        });
+    }
+    
+    // Upload file button handler
+    const uploadBtn = document.getElementById('uploadFileBtn');
+    if (uploadBtn) {
+        uploadBtn.addEventListener('click', function() {
+            // Trigger file upload - this will depend on your existing upload mechanism
+            const objectType = '{{ object_type|default:"item" }}';
+            const objectId = '{{ object_id|escapejs }}';
+            window.location.href = `/${objectType}s/${objectId}/?upload=true`;
+        });
+    }
+});
+
+function loadFiles() {
+    const objectType = '{{ object_type|default:"item" }}';
+    const objectId = '{{ object_id|escapejs }}';
+    const filesContent = document.getElementById('filesModalContent');
+    
+    if (!objectId) {
+        filesContent.innerHTML = '<div class="alert alert-warning">Keine ID verfügbar</div>';
+        return;
+    }
+    
+    fetch(`/api/${objectType}s/${objectId}/files`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.files && data.files.length > 0) {
+                let html = '<div class="files-list">';
+                data.files.forEach(file => {
+                    html += `
+                        <div class="file-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">
+                                        <i class="bi bi-file-earmark-text"></i>
+                                        ${escapeHtml(file.name || file.filename)}
+                                    </h6>
+                                    <small class="text-muted">
+                                        ${file.size ? formatFileSize(file.size) : 'Unknown size'} • 
+                                        ${file.created_at ? new Date(file.created_at).toLocaleDateString('de-DE') : 'Unknown date'}
+                                        ${file.source ? ' • ' + escapeHtml(file.source) : ''}
+                                    </small>
+                                </div>
+                                <div>
+                                    ${file.download_url ? `
+                                        <a href="${file.download_url}" 
+                                           class="btn btn-sm btn-outline-primary" 
+                                           download>
+                                            <i class="bi bi-download"></i>
+                                        </a>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                filesContent.innerHTML = html;
+            } else {
+                filesContent.innerHTML = `
+                    <div class="text-muted text-center py-4">
+                        <i class="bi bi-folder" style="font-size: 3rem; opacity: 0.3;"></i>
+                        <p class="mt-2">Keine Dateien vorhanden</p>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading files:', error);
+            filesContent.innerHTML = `
+                <div class="alert alert-danger">
+                    Fehler beim Laden der Dateien: ${escapeHtml(error.message)}
+                </div>
+            `;
+        });
+}
+
+// Global Search Modal
+document.addEventListener('DOMContentLoaded', function() {
+    const globalSearchBtn = document.getElementById('globalSearchBtn');
+    const globalSearchInput = document.getElementById('globalSearchInput');
+    const globalSearchResults = document.getElementById('globalSearchResults');
+    
+    if (globalSearchBtn && globalSearchInput) {
+        globalSearchBtn.addEventListener('click', performGlobalSearch);
+        
+        // Also search on Enter key
+        globalSearchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performGlobalSearch();
+            }
+        });
+    }
+    
+    function performGlobalSearch() {
+        const query = globalSearchInput.value.trim();
+        if (!query) {
+            return;
+        }
+        
+        // Show loading state
+        globalSearchResults.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Suche läuft...</span>
+                </div>
+            </div>
+        `;
+        
+        fetch('/api/search', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({ query: query })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.results && data.results.length > 0) {
+                let html = '<div class="search-results-list">';
+                data.results.forEach(result => {
+                    const score = result.score || result.relevance || 0;
+                    const scorePercent = (score * 100).toFixed(1);
+                    html += `
+                        <div class="search-result-item">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="mb-0">
+                                    ${result.type ? `<span class="badge bg-secondary me-2">${result.type}</span>` : ''}
+                                    ${escapeHtml(result.title || 'Untitled')}
+                                </h6>
+                                <span class="relevance-score">${scorePercent}%</span>
+                            </div>
+                            ${result.content ? `<p class="text-muted mb-2" style="font-size: 0.9rem;">${escapeHtml(truncateText(result.content, 200))}</p>` : ''}
+                            ${result.url ? `
+                                <a href="${result.url}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-box-arrow-up-right"></i> Öffnen
+                                </a>
+                            ` : ''}
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                globalSearchResults.innerHTML = html;
+            } else {
+                globalSearchResults.innerHTML = `
+                    <div class="text-muted text-center py-4">
+                        <i class="bi bi-search" style="font-size: 3rem; opacity: 0.3;"></i>
+                        <p class="mt-2">Keine Ergebnisse gefunden</p>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error performing search:', error);
+            globalSearchResults.innerHTML = `
+                <div class="alert alert-danger">
+                    Fehler bei der Suche: ${escapeHtml(error.message)}
+                </div>
+            `;
+        });
+    }
+});
+
+// Utility functions
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+function truncateText(text, maxLength) {
+    if (text.length <= maxLength) return text;
+    return text.substr(0, maxLength) + '...';
+}
+
+function getCsrfToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+}
 </script>
