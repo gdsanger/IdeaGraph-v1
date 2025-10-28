@@ -69,6 +69,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'my_requirements' %}active{% endif %}" href="{% url 'main:my_requirements' %}">
+                            <i class="bi bi-person-lines-fill"></i> Meine Anforderungen
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.resolver_match.url_name == 'settings' or 'tag' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'main:settings' %}">
                             <i class="bi bi-gear-fill"></i> Masterdata
                         </a>
