@@ -8028,6 +8028,7 @@ def api_task_close(request, task_id):
         }, status=500)
 
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def api_task_quick_create(request):
     """Quick task creation API endpoint for the navigation quick entry modal"""
@@ -8036,14 +8037,12 @@ def api_task_quick_create(request):
     logger = logging.getLogger(__name__)
     
     try:
-        # Check authentication
-        user_id = request.session.get('user_id')
-        if not user_id:
+        # Check authentication using the standard pattern (supports both JWT and session)
+        user = get_user_from_request(request)
+        if not user:
             return JsonResponse({
                 'error': 'Authentication required'
             }, status=401)
-        
-        user = get_object_or_404(User, id=user_id)
         
         # Get form data
         item_id = request.POST.get('item_id', '').strip()
@@ -8117,6 +8116,4 @@ def api_task_quick_create(request):
             'success': False,
             'error': 'Fehler beim Erstellen der Aufgabe'
         }, status=500)
-
-
 
