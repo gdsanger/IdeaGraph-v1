@@ -877,6 +877,13 @@
         const allTabButtons = document.querySelectorAll('#itemTabs button[data-bs-toggle="tab"]');
         const allTabPanes = document.querySelectorAll('#itemTabsContent .tab-pane');
         
+        // Check if the target tab exists before deactivating all tabs
+        const targetButton = document.querySelector(`#${tabId}`);
+        if (!targetButton) {
+            // Tab doesn't exist, return false to signal failure
+            return false;
+        }
+        
         // Deactivate all tabs
         allTabButtons.forEach(btn => {
             btn.classList.remove('active');
@@ -887,18 +894,17 @@
         });
         
         // Activate the target tab
-        const targetButton = document.querySelector(`#${tabId}`);
-        if (targetButton) {
-            const targetId = targetButton.getAttribute('data-bs-target');
-            const targetPane = document.querySelector(targetId);
-            
-            targetButton.classList.add('active');
-            targetButton.setAttribute('aria-selected', 'true');
-            
-            if (targetPane) {
-                targetPane.classList.add('show', 'active');
-            }
+        const targetId = targetButton.getAttribute('data-bs-target');
+        const targetPane = document.querySelector(targetId);
+        
+        targetButton.classList.add('active');
+        targetButton.setAttribute('aria-selected', 'true');
+        
+        if (targetPane) {
+            targetPane.classList.add('show', 'active');
         }
+        
+        return true;
     }
     
     // Wait for DOM to be ready
@@ -906,7 +912,15 @@
         // Restore last opened tab on page load
         const lastTab = localStorage.getItem(STORAGE_KEY);
         if (lastTab) {
-            activateTab(lastTab);
+            const success = activateTab(lastTab);
+            if (!success) {
+                // Stored tab no longer exists, clear it and activate first tab
+                localStorage.removeItem(STORAGE_KEY);
+                const firstTab = document.querySelector('#itemTabs button[data-bs-toggle="tab"]');
+                if (firstTab && firstTab.id) {
+                    activateTab(firstTab.id);
+                }
+            }
         }
         
         // Save tab state when user switches tabs
