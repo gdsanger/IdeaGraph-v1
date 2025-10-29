@@ -26,6 +26,9 @@ from core.services.teams_service import TeamsService, TeamsServiceError
 
 logger = logging.getLogger(__name__)
 
+# Default domain for system-generated email addresses
+DEFAULT_SYSTEM_EMAIL_DOMAIN = "ideagraph.local"
+
 
 def clean_tag_name(tag_text):
     """
@@ -2378,12 +2381,12 @@ def get_or_create_github_copilot_user():
     settings = Settings.objects.first()
     
     # Use default mail sender or fallback email
-    email = settings.default_mail_sender if settings and settings.default_mail_sender else "copilot@ideagraph.local"
+    email = settings.default_mail_sender if settings and settings.default_mail_sender else f"copilot@{DEFAULT_SYSTEM_EMAIL_DOMAIN}"
     
     # Check if email is already in use by another user
     if User.objects.filter(email=email).exists():
         # Email is already taken, use a unique fallback email
-        email = f"github-copilot-{secrets.token_hex(4)}@ideagraph.local"
+        email = f"github-copilot-{secrets.token_hex(4)}@{DEFAULT_SYSTEM_EMAIL_DOMAIN}"
         logger.warning(f'Configured default_mail_sender is already in use, using fallback email: {email}')
     
     # Create user with random password
