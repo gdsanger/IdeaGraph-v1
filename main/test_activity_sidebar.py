@@ -5,13 +5,19 @@ Tests for Activity Sidebar functionality
 from django.test import TestCase, RequestFactory
 from django.contrib.sessions.middleware import SessionMiddleware
 from unittest.mock import Mock, patch, MagicMock
+from datetime import datetime, timedelta
+from django.utils import timezone
+
 from main.views_activity import activity_sidebar
 from main.templatetags.activity_extras import (
     type_to_icon, type_to_badge_color, build_activity_link,
     relative_time, truncate_title
 )
-from datetime import datetime, timedelta
-from django.utils import timezone
+from core.services.weaviate_activity_service import (
+    WeaviateActivityService,
+    WeaviateActivityServiceError
+)
+from main.models import Settings
 
 
 class ActivitySidebarViewTest(TestCase):
@@ -112,7 +118,6 @@ class ActivitySidebarViewTest(TestCase):
         mock_cache_manager.return_value = cache_instance
         
         # Mock Weaviate service to raise error
-        from core.services.weaviate_activity_service import WeaviateActivityServiceError
         mock_service.side_effect = WeaviateActivityServiceError("Test error", "Details")
         
         # Execute
@@ -249,8 +254,6 @@ class WeaviateActivityServiceTest(TestCase):
     @patch('core.services.weaviate_activity_service.weaviate.connect_to_local')
     def test_service_initialization_local(self, mock_connect):
         """Test service initialization with local Weaviate"""
-        from core.services.weaviate_activity_service import WeaviateActivityService
-        from main.models import Settings
         
         # Mock settings
         mock_settings = Mock()
@@ -270,7 +273,6 @@ class WeaviateActivityServiceTest(TestCase):
     @patch('core.services.weaviate_activity_service.weaviate.connect_to_weaviate_cloud')
     def test_service_initialization_cloud(self, mock_connect):
         """Test service initialization with Weaviate Cloud"""
-        from core.services.weaviate_activity_service import WeaviateActivityService
         
         # Mock settings
         mock_settings = Mock()
