@@ -2355,6 +2355,52 @@ def api_item_check_similarity(request, item_id):
         return JsonResponse({'error': 'An error occurred while checking similarity'}, status=500)
 
 
+def get_or_create_github_copilot_user():
+    """
+    Get or create the 'GitHub Copilot' user for auto-assignment.
+    
+    Returns:
+        User: The GitHub Copilot user instance
+    """
+    from .models import Settings
+    import secrets
+    
+    COPILOT_USERNAME = "GitHub Copilot"
+    
+    # Try to get existing user
+    try:
+        user = User.objects.get(username=COPILOT_USERNAME)
+        return user
+    except User.DoesNotExist:
+        pass
+    
+    # User doesn't exist, create it
+    settings = Settings.objects.first()
+    
+    # Use default mail sender or fallback email
+    email = settings.default_mail_sender if settings and settings.default_mail_sender else "copilot@ideagraph.local"
+    
+    # Create user with random password
+    copilot_user = User.objects.create(
+        username=COPILOT_USERNAME,
+        email=email,
+        first_name="GitHub",
+        last_name="Copilot",
+        role="developer",
+        is_active=True,
+        auth_type="local"
+    )
+    
+    # Set a random password (user won't be able to log in as they don't know it)
+    random_password = secrets.token_urlsafe(32)
+    copilot_user.set_password(random_password)
+    copilot_user.save()
+    
+    logger.info(f'GitHub Copilot user created: {copilot_user.id}')
+    
+    return copilot_user
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def api_task_create_github_issue(request, task_id):
@@ -2444,10 +2490,15 @@ def api_task_create_github_issue(request, task_id):
                 logger = logging.getLogger(__name__)
                 logger.warning(f'Failed to add comment to GitHub issue: {str(e)}')
             
-            # Update task with GitHub issue info
+            # Update task with GitHub issue info and assign to GitHub Copilot user
             task.github_issue_id = issue_number
             task.github_issue_url = result.get('url')
             task.github_synced_at = timezone.now()
+            
+            # Assign task to GitHub Copilot user (keep requester unchanged)
+            copilot_user = get_or_create_github_copilot_user()
+            task.assigned_to = copilot_user
+            
             task.save()
             
             # Create a comment about the GitHub issue creation
