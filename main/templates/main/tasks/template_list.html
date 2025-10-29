@@ -1,0 +1,93 @@
+{% extends "main/base.html" %}
+{% load static %}
+
+{% block title %}Task Templates{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card" style="background: rgba(31, 41, 55, 0.9);">
+                <div class="card-header d-flex justify-content-between align-items-center" style="border-bottom: 1px solid rgba(99, 102, 241, 0.3);">
+                    <h3 class="mb-0">
+                        <i class="bi bi-file-earmark-text me-2"></i>
+                        Task Templates
+                    </h3>
+                </div>
+                <div class="card-body">
+                    {% if templates %}
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Description</th>
+                                    <th>Default Item</th>
+                                    <th>Tags</th>
+                                    <th>Created By</th>
+                                    <th>Created At</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for template in templates %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ template.title }}</strong>
+                                    </td>
+                                    <td>
+                                        {% if template.description %}
+                                        {{ template.description|truncatewords:15 }}
+                                        {% else %}
+                                        <span class="text-muted">No description</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if template.default_item %}
+                                        <a href="{% url 'main:item_detail' template.default_item.id %}" class="text-decoration-none">
+                                            {{ template.default_item.title }}
+                                        </a>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="d-flex flex-wrap gap-1">
+                                            {% for tag in template.tags.all %}
+                                            <span class="badge" style="background-color: {{ tag.color }};">
+                                                {{ tag.name }}
+                                            </span>
+                                            {% empty %}
+                                            <span class="text-muted">No tags</span>
+                                            {% endfor %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {{ template.created_by.username }}
+                                    </td>
+                                    <td>
+                                        {{ template.created_at|date:"d.m.Y H:i" }}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'main:task_template_detail' template.id %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye"></i> View
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-file-earmark-text" style="font-size: 3rem; opacity: 0.3;"></i>
+                        <p class="mt-3 text-muted">No task templates found.</p>
+                        <p class="text-muted">Create a template by clicking "Als Vorlage speichern" on any task.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

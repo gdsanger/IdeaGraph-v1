@@ -357,6 +357,12 @@
                                     <a href="{% url 'main:task_delete' task.id %}" class="btn btn-danger">
                                         <i class="bi bi-trash"></i> Delete
                                     </a>
+                                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#saveAsTemplateModal">
+                                        <i class="bi bi-file-earmark-text"></i> Als Vorlage speichern
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#cloneTaskModal">
+                                        <i class="bi bi-files"></i> Task klonen
+                                    </button>
                                     <button type="button" class="btn btn-warning ai-button" id="moveTaskBtn" data-bs-toggle="modal" data-bs-target="#moveTaskModal">
                                         <span class="button-text"><i class="bi bi-folder-symlink"></i> Move Task</span>
                                     </button>
@@ -1749,5 +1755,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Include AI Reply Modal -->
 {% include 'main/tasks/_ai_reply_modal.html' %}
+
+<!-- Include Save as Template Modal -->
+{% include 'main/tasks/_save_as_template_modal.html' %}
+
+<!-- Include Clone Task Modal -->
+{% include 'main/tasks/_clone_modal.html' %}
 
 {% endblock %}

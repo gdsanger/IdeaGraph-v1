@@ -601,6 +601,35 @@ class Task(models.Model):
         self.save(update_fields=['status', 'completed_at'])
 
 
+class TaskTemplate(models.Model):
+    """Task Template model for creating reusable task templates"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=255, help_text='Template title')
+    description = models.TextField(blank=True, default='', help_text='Template description (Markdown)')
+    
+    # Optional default values
+    default_item = models.ForeignKey(Item, on_delete=models.SET_NULL, null=True, blank=True, related_name='task_templates', help_text='Default item for tasks created from this template')
+    default_assignees = models.ManyToManyField(User, blank=True, related_name='default_task_templates', help_text='Default assignees for tasks created from this template')
+    tags = models.ManyToManyField(Tag, blank=True, related_name='task_templates', help_text='Tags to apply to tasks created from this template')
+    
+    # Checklist stored as JSON for flexibility
+    checklist_json = models.JSONField(default=list, blank=True, help_text='Checklist items as JSON array')
+    
+    # Metadata
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_task_templates')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Task Template'
+        verbose_name_plural = 'Task Templates'
+    
+    def __str__(self):
+        return self.title
+
+
 class TaskComment(models.Model):
     """
     Comment model for tasks - supports both user and agent comments.

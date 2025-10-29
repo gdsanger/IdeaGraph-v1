@@ -4,10 +4,11 @@ from django.core.paginator import Paginator
 from django.core.exceptions import ValidationError
 from django.db.models import Q
 from .auth_utils import validate_password
-from .models import Tag, Settings, Section, User, Item, Task, Client, Milestone
+from .models import Tag, Settings, Section, User, Item, Task, TaskTemplate, Client, Milestone
 import logging
 from datetime import datetime, timedelta
 from django.utils import timezone
+from django.http import JsonResponse
 
 logger = logging.getLogger(__name__)
 
@@ -1575,6 +1576,23 @@ def task_create(request, item_id):
     item = get_object_or_404(Item, id=item_id)
     
     selected_tags_payload = list(item.tags.values('id', 'name', 'color'))
+    
+    # Handle template application
+    template_id = request.GET.get('template_id')
+    template_data = None
+    if template_id:
+        try:
+            template = TaskTemplate.objects.get(id=template_id)
+            # User must have access to the template
+            if user.role in ['admin', 'developer'] or template.created_by == user:
+                template_data = {
+                    'description': template.description,
+                    'tags': list(template.tags.values('id', 'name', 'color')),
+                    'assignees': list(template.default_assignees.values('id', 'username')),
+                }
+                selected_tags_payload = template_data['tags']
+        except TaskTemplate.DoesNotExist:
+            pass
 
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
@@ -1583,6 +1601,7 @@ def task_create(request, item_id):
         milestone_id = request.POST.get('milestone', '').strip()
         tag_values = request.POST.getlist('tags')
         requester_id = request.POST.get('requester', None)
+        assigned_to_id = request.POST.get('assigned_to', None)
 
         if not title:
             messages.error(request, 'Title is required.')
@@ -1597,6 +1616,14 @@ def task_create(request, item_id):
                     except User.DoesNotExist:
                         pass
                 
+                # Get assigned_to if provided, otherwise default to current user
+                assigned_to = user
+                if assigned_to_id:
+                    try:
+                        assigned_to = User.objects.get(id=assigned_to_id)
+                    except User.DoesNotExist:
+                        pass
+                
                 # Create task
                 task = Task(
                     title=title,
@@ -1604,7 +1631,7 @@ def task_create(request, item_id):
                     status=status,
                     item=item,
                     created_by=user,
-                    assigned_to=user,
+                    assigned_to=assigned_to,
                     requester=requester
                 )
                 
@@ -1650,8 +1677,14 @@ def task_create(request, item_id):
     milestones = item.milestones.all()
     status_choices = Task.STATUS_CHOICES
     
-    # Get all active users for requester selection
+    # Get all active users for requester and assignee selection
     all_users = User.objects.filter(is_active=True).order_by('username')
+    
+    # Get task templates accessible to user
+    if user.role in ['admin', 'developer']:
+        templates = TaskTemplate.objects.all().order_by('title')
+    else:
+        templates = TaskTemplate.objects.filter(created_by=user).order_by('title')
 
     context = {
         'item': item,
@@ -1661,6 +1694,8 @@ def task_create(request, item_id):
         'milestones': milestones,
         'all_users': all_users,
         'current_user': user,
+        'templates': templates,
+        'template_data': template_data,
     }
     
     return render(request, 'main/tasks/form.html', context)
@@ -2236,4 +2271,245 @@ def weaviate_maintenance_view(request):
         return redirect('main:home')
     
     return render(request, 'main/weaviate/maintenance.html')
+
+
+def task_save_as_template(request, task_id):
+    """Save a task as a template with field selection"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'success': False, 'error': 'Not authenticated'}, status=401)
+    
+    user = get_object_or_404(User, id=user_id)
+    task = get_object_or_404(Task, id=task_id)
+    
+    # Check permissions - user must have at least read access to the task
+    if task.item and task.item.created_by != user and user.role not in ['admin', 'developer']:
+        return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
+    
+    if request.method == 'POST':
+        try:
+            import json
+            data = json.loads(request.body)
+            
+            template_title = data.get('title', '').strip()
+            if not template_title:
+                return JsonResponse({'success': False, 'error': 'Template title is required'}, status=400)
+            
+            # Get selected fields
+            include_description = data.get('include_description', True)
+            include_tags = data.get('include_tags', True)
+            include_assignees = data.get('include_assignees', False)
+            include_checklist = data.get('include_checklist', False)
+            
+            # Create template
+            template = TaskTemplate(
+                title=template_title,
+                description=task.description if include_description else '',
+                default_item=task.item,
+                created_by=user
+            )
+            template.save()
+            
+            # Add tags if selected
+            if include_tags:
+                template.tags.set(task.tags.all())
+            
+            # Add assignees if selected
+            if include_assignees and task.assigned_to:
+                template.default_assignees.add(task.assigned_to)
+            
+            # Note: checklist_json would be added here if Task model had it
+            # For now, we'll leave it empty as Task doesn't have checklist field yet
+            
+            return JsonResponse({
+                'success': True,
+                'template_id': str(template.id),
+                'message': f'Template "{template_title}" created successfully!'
+            })
+            
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+        except Exception as e:
+            logger.error(f'Error creating template from task {task_id}: {str(e)}')
+            return JsonResponse({'success': False, 'error': 'Internal server error while creating template'}, status=500)
+    
+    # GET request - return modal HTML
+    context = {
+        'task': task,
+    }
+    return render(request, 'main/tasks/_save_as_template_modal.html', context)
+
+
+def task_clone(request, task_id):
+    """Clone a task to a different item"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'success': False, 'error': 'Not authenticated'}, status=401)
+    
+    user = get_object_or_404(User, id=user_id)
+    task = get_object_or_404(Task, id=task_id)
+    
+    # Check permissions
+    if task.item and task.item.created_by != user and user.role not in ['admin', 'developer']:
+        return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
+    
+    if request.method == 'POST':
+        try:
+            import json
+            data = json.loads(request.body)
+            
+            target_item_id = data.get('target_item_id')
+            if not target_item_id:
+                return JsonResponse({'success': False, 'error': 'Target item is required'}, status=400)
+            
+            target_item = get_object_or_404(Item, id=target_item_id)
+            
+            # Check if user has create permission for target item
+            if target_item.created_by != user and user.role not in ['admin', 'developer']:
+                return JsonResponse({'success': False, 'error': 'No permission to create tasks in target item'}, status=403)
+            
+            # Get clone options
+            title_prefix = data.get('title_prefix', 'Kopie von ')
+            include_description = data.get('include_description', True)
+            include_tags = data.get('include_tags', True)
+            include_assignees = data.get('include_assignees', True)
+            include_comments = data.get('include_comments', False)
+            
+            # Create cloned task
+            cloned_task = Task(
+                title=f"{title_prefix}{task.title}",
+                description=task.description if include_description else '',
+                status='new',  # Always start as new
+                type=task.type,
+                item=target_item,
+                created_by=user,
+                assigned_to=task.assigned_to if include_assignees else None,
+                requester=task.requester if include_assignees else None
+            )
+            cloned_task.save()
+            
+            # Add tags if selected
+            if include_tags:
+                cloned_task.tags.set(task.tags.all())
+            
+            # Clone comments if selected
+            if include_comments:
+                from .models import TaskComment
+                for comment in task.comments.all():
+                    TaskComment.objects.create(
+                        task=cloned_task,
+                        author=comment.author,
+                        author_name=comment.author_name,
+                        text=comment.text,
+                        source=comment.source
+                    )
+            
+            # Sync to Weaviate
+            try:
+                from core.services.weaviate_task_sync_service import WeaviateTaskSyncService
+                sync_service = WeaviateTaskSyncService()
+                sync_service.sync_create(cloned_task)
+                sync_service.close()
+            except Exception as sync_error:
+                logger.warning(f'Weaviate sync failed for cloned task {cloned_task.id}: {str(sync_error)}')
+            
+            return JsonResponse({
+                'success': True,
+                'task_id': str(cloned_task.id),
+                'task_url': f'/tasks/{cloned_task.id}/',
+                'message': f'Task cloned successfully to {target_item.title}!'
+            })
+            
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+        except Exception as e:
+            logger.error(f'Error cloning task {task_id}: {str(e)}')
+            return JsonResponse({'success': False, 'error': 'Internal server error while cloning task'}, status=500)
+    
+    # GET request - return modal HTML with available items
+    items = Item.objects.filter(
+        Q(created_by=user) | Q(created_by__isnull=True)
+    ).exclude(id=task.item.id if task.item else None).order_by('title')
+    
+    context = {
+        'task': task,
+        'items': items,
+    }
+    return render(request, 'main/tasks/_clone_modal.html', context)
+
+
+def task_template_list(request):
+    """List all task templates"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Only admins and developers can see all templates
+    if user.role in ['admin', 'developer']:
+        templates = TaskTemplate.objects.all().order_by('-created_at')
+    else:
+        templates = TaskTemplate.objects.filter(created_by=user).order_by('-created_at')
+    
+    context = {
+        'templates': templates,
+    }
+    
+    return render(request, 'main/tasks/template_list.html', context)
+
+
+def task_template_detail(request, template_id):
+    """View task template details"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    template = get_object_or_404(TaskTemplate, id=template_id)
+    
+    # Check permissions
+    if template.created_by != user and user.role not in ['admin', 'developer']:
+        messages.error(request, 'Permission denied')
+        return redirect('main:task_template_list')
+    
+    context = {
+        'template': template,
+    }
+    
+    return render(request, 'main/tasks/template_detail.html', context)
+
+
+def api_task_template_list(request):
+    """API endpoint to get list of task templates for dropdowns"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'success': False, 'error': 'Not authenticated'}, status=401)
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Get templates accessible to user
+    if user.role in ['admin', 'developer']:
+        templates = TaskTemplate.objects.all().order_by('title')
+    else:
+        templates = TaskTemplate.objects.filter(created_by=user).order_by('title')
+    
+    template_list = []
+    for template in templates:
+        template_list.append({
+            'id': str(template.id),
+            'title': template.title,
+            'description': template.description,
+            'tag_ids': [str(tag.id) for tag in template.tags.all()],
+            'default_assignee_ids': [str(assignee.id) for assignee in template.default_assignees.all()],
+            'checklist_json': template.checklist_json,
+        })
+    
+    return JsonResponse({'success': True, 'templates': template_list})
+
 

@@ -1,0 +1,217 @@
+<!-- Clone Task Modal -->
+<div class="modal fade" id="cloneTaskModal" tabindex="-1" aria-labelledby="cloneTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid rgba(99, 102, 241, 0.3);">
+            <div class="modal-header" style="border-bottom: 1px solid rgba(99, 102, 241, 0.3);">
+                <h5 class="modal-title" id="cloneTaskModalLabel">
+                    <i class="bi bi-files me-2"></i>
+                    Task klonen
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="cloneTaskForm">
+                    <!-- Target Item Selection -->
+                    <div class="mb-3">
+                        <label for="targetItem" class="form-label">Ziel-Item <span class="text-danger">*</span></label>
+                        <select class="form-select" id="targetItem" required>
+                            <option value="">-- Item auswählen --</option>
+                            {% for item in items %}
+                            <option value="{{ item.id }}">{{ item.title }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">Wählen Sie das Item aus, in das der Task geklont werden soll</small>
+                    </div>
+
+                    <!-- Title Prefix -->
+                    <div class="mb-3">
+                        <label for="titlePrefix" class="form-label">Titel-Präfix</label>
+                        <input type="text" class="form-control" id="titlePrefix" value="Kopie von ">
+                        <small class="text-muted">Wird dem Titel des geklonten Tasks vorangestellt</small>
+                    </div>
+
+                    <!-- Field Selection -->
+                    <div class="mb-3">
+                        <label class="form-label">Welche Teile sollen kopiert werden?</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="cloneTitle" checked disabled>
+                            <label class="form-check-label" for="cloneTitle">
+                                Titel (immer kopiert)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="cloneDescription" checked>
+                            <label class="form-check-label" for="cloneDescription">
+                                Beschreibung
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="cloneTags" checked>
+                            <label class="form-check-label" for="cloneTags">
+                                Tags
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="cloneAssignees" checked>
+                            <label class="form-check-label" for="cloneAssignees">
+                                Zugewiesene Benutzer
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="cloneComments">
+                            <label class="form-check-label" for="cloneComments">
+                                Kommentare (nicht empfohlen für neue Tasks)
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Info -->
+                    <div class="alert alert-info">
+                        <strong><i class="bi bi-info-circle me-2"></i>Hinweis:</strong>
+                        Der neue Task wird mit Status "Neu" erstellt. Mails und Verlaufsdaten werden nicht kopiert.
+                    </div>
+                </form>
+
+                <!-- Error display -->
+                <div id="cloneError" class="alert alert-danger" style="display: none;">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <span id="cloneErrorMessage"></span>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid rgba(99, 102, 241, 0.3);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" id="cloneTaskBtn">
+                    <i class="bi bi-files me-2"></i>
+                    Task klonen
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+#cloneTaskModal .modal-content {
+    color: #e2e8f0;
+}
+
+#cloneTaskModal .form-control,
+#cloneTaskModal .form-select {
+    background: rgba(31, 41, 55, 0.8);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    color: #e2e8f0;
+}
+
+#cloneTaskModal .form-control:focus,
+#cloneTaskModal .form-select:focus {
+    background: rgba(31, 41, 55, 0.9);
+    border-color: #6366f1;
+    color: #e2e8f0;
+    box-shadow: 0 0 0 0.25rem rgba(99, 102, 241, 0.25);
+}
+
+#cloneTaskModal .form-control::placeholder {
+    color: #64748b;
+}
+
+#cloneTaskModal .form-label {
+    color: #cbd5e1;
+}
+
+#cloneTaskModal .form-check-input {
+    background-color: rgba(31, 41, 55, 0.8);
+    border-color: rgba(99, 102, 241, 0.3);
+}
+
+#cloneTaskModal .form-check-input:checked {
+    background-color: #6366f1;
+    border-color: #6366f1;
+}
+
+#cloneTaskModal .form-check-label {
+    color: #cbd5e1;
+}
+
+#cloneTaskModal option {
+    background: #1e293b;
+    color: #e2e8f0;
+}
+</style>
+
+<script>
+(function() {
+    // Handle clone task button click
+    document.getElementById('cloneTaskBtn').addEventListener('click', async function() {
+        const targetItemId = document.getElementById('targetItem').value;
+        
+        if (!targetItemId) {
+            showError('Bitte wählen Sie ein Ziel-Item aus');
+            return;
+        }
+
+        const data = {
+            target_item_id: targetItemId,
+            title_prefix: document.getElementById('titlePrefix').value,
+            include_description: document.getElementById('cloneDescription').checked,
+            include_tags: document.getElementById('cloneTags').checked,
+            include_assignees: document.getElementById('cloneAssignees').checked,
+            include_comments: document.getElementById('cloneComments').checked
+        };
+
+        // Disable button
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird geklont...';
+
+        try {
+            const taskId = window.location.pathname.split('/')[2];
+            const response = await fetch(`/tasks/${taskId}/clone/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                showError(result.error || 'Fehler beim Klonen des Tasks');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-files me-2"></i>Task klonen';
+                return;
+            }
+
+            // Success - close modal and redirect to cloned task
+            bootstrap.Modal.getInstance(document.getElementById('cloneTaskModal')).hide();
+            
+            if (window.showToast) {
+                window.showToast(result.message, 'success');
+            }
+
+            // Redirect to the cloned task
+            setTimeout(() => {
+                window.location.href = result.task_url;
+            }, 1000);
+
+        } catch (error) {
+            console.error('Error cloning task:', error);
+            showError('Fehler beim Klonen: ' + error.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-files me-2"></i>Task klonen';
+        }
+    });
+
+    function showError(message) {
+        document.getElementById('cloneError').style.display = 'block';
+        document.getElementById('cloneErrorMessage').textContent = message;
+        setTimeout(() => {
+            document.getElementById('cloneError').style.display = 'none';
+        }, 5000);
+    }
+
+    function getCsrfToken() {
+        return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+    }
+})();
+</script>
