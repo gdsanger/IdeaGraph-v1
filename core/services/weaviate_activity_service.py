@@ -153,9 +153,11 @@ class WeaviateActivityService:
             
             # Query - only request properties that exist in the schema
             # Note: UUID is accessed via obj.uuid, not as a property
+            # Sort by createdAt descending to get most recent items first
             response = collection.query.fetch_objects(
                 filters=type_filter,
                 limit=limit,
+                sort=Sort.by_property("createdAt", ascending=False),
                 return_properties=[
                     'type', 'title', 'createdAt',
                     'url', 'itemId', 'taskId'
@@ -181,14 +183,8 @@ class WeaviateActivityService:
                     'taskId': props.get('taskId')
                 })
             
-            # Sort by createdAt (descending)
-            results.sort(
-                key=lambda x: x.get('createdAt') or '',
-                reverse=True
-            )
-            
             logger.info(f"Found {len(results)} activity items")
-            return results[:limit]
+            return results
             
         except Exception as e:
             logger.error(f"Failed to fetch recent activity: {str(e)}")

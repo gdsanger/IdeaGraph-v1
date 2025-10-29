@@ -7,6 +7,7 @@ from django.contrib.sessions.middleware import SessionMiddleware
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timedelta
 from django.utils import timezone
+from weaviate.classes.query import Sort
 
 from main.views_activity import activity_sidebar
 from main.templatetags.activity_extras import (
@@ -300,3 +301,62 @@ class WeaviateActivityServiceTest(TestCase):
         # Assert
         mock_connect.assert_called_once()
         self.assertIsNotNone(service._client)
+    
+    @patch('core.services.weaviate_activity_service.weaviate.connect_to_local')
+    def test_get_recent_activity_uses_weaviate_sorting(self, mock_connect):
+        """Test that get_recent_activity uses Weaviate's native sorting"""
+        # Mock settings
+        mock_settings = Mock()
+        mock_settings.weaviate_cloud_enabled = False
+        
+        # Mock client and collection
+        mock_client = MagicMock()
+        mock_collection = MagicMock()
+        mock_query = MagicMock()
+        
+        # Mock response with activity items in specific order
+        mock_obj1 = Mock()
+        mock_obj1.uuid = 'uuid-1'
+        mock_obj1.properties = {
+            'type': 'Task',
+            'title': 'Recent Task',
+            'createdAt': '2025-10-29T16:00:00Z'
+        }
+        
+        mock_obj2 = Mock()
+        mock_obj2.uuid = 'uuid-2'
+        mock_obj2.properties = {
+            'type': 'Email',
+            'title': 'Old Email',
+            'createdAt': '2025-10-22T10:00:00Z'
+        }
+        
+        mock_response = Mock()
+        mock_response.objects = [mock_obj1, mock_obj2]
+        
+        mock_query.fetch_objects.return_value = mock_response
+        mock_collection.query = mock_query
+        mock_client.collections.get.return_value = mock_collection
+        mock_connect.return_value = mock_client
+        
+        # Create service
+        service = WeaviateActivityService(settings=mock_settings)
+        
+        # Call get_recent_activity
+        results = service.get_recent_activity(limit=20)
+        
+        # Assert that fetch_objects was called with sort parameter
+        call_args = mock_query.fetch_objects.call_args
+        self.assertIsNotNone(call_args)
+        
+        # Check that 'sort' parameter was passed
+        self.assertIn('sort', call_args.kwargs)
+        
+        # Verify the sort parameter is configured for descending createdAt
+        sort_param = call_args.kwargs['sort']
+        self.assertIsNotNone(sort_param)
+        
+        # Verify results are returned in the order Weaviate provides them (no post-sort)
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0]['id'], 'uuid-1')
+        self.assertEqual(results[1]['id'], 'uuid-2')
