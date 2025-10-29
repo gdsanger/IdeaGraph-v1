@@ -335,3 +335,88 @@ class GitHubIssueCreationIntegrationTestCase(TestCase):
         self.assertIsNotNone(self.task.assigned_to)
         self.assertEqual(self.task.assigned_to.username, 'GitHub Copilot')
         self.assertNotEqual(self.task.requester.id, self.task.assigned_to.id)
+    
+    @patch('core.services.github_service.requests.request')
+    def test_create_github_copilot_user_with_duplicate_email(self, mock_request):
+        """Test that GitHub Copilot user creation handles duplicate email gracefully"""
+        
+        # Remove any existing GitHub Copilot user
+        AppUser.objects.filter(username='GitHub Copilot').delete()
+        
+        # Set default mail sender in settings
+        duplicate_email = 'existing@example.com'
+        self.settings.default_mail_sender = duplicate_email
+        self.settings.save()
+        
+        # Create a user with the same email that will be used for GitHub Copilot
+        existing_user = AppUser.objects.create(
+            username='existing_user',
+            email=duplicate_email,
+            role='user'
+        )
+        existing_user.set_password('testpass123')
+        existing_user.save()
+        
+        # Mock responses for both issue creation and comment creation
+        def request_side_effect(method, url, *args, **kwargs):
+            if '/issues/' in url and '/comments' in url:
+                return Mock(
+                    status_code=201,
+                    json=lambda: {
+                        'id': 12345,
+                        'body': kwargs.get('json', {}).get('body', ''),
+                        'html_url': 'https://github.com/test-owner/test-repo/issues/45#issuecomment-12345'
+                    },
+                    content=b'...'
+                )
+            else:
+                return Mock(
+                    status_code=201,
+                    json=lambda: {
+                        'number': 45,
+                        'title': 'Test Task',
+                        'html_url': 'https://github.com/test-owner/test-repo/issues/45',
+                        'state': 'open'
+                    },
+                    content=b'...'
+                )
+        
+        mock_request.side_effect = request_side_effect
+        
+        # Set up session authentication
+        session = self.client.session
+        session['user_id'] = str(self.user.id)
+        session.save()
+        
+        # Make the API request - should not fail even though email is duplicate
+        url = reverse('main:api_task_create_github_issue', kwargs={'task_id': self.task.id})
+        response = self.client.post(
+            url,
+            content_type='application/json',
+            HTTP_X_CSRFTOKEN='test-token'
+        )
+        
+        # Verify response - should succeed
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data.get('success'))
+        
+        # Verify GitHub Copilot user was created with a different email (fallback)
+        copilot_user = AppUser.objects.get(username='GitHub Copilot')
+        # Email should be different from the duplicate email
+        self.assertNotEqual(copilot_user.email, duplicate_email)
+        # Email should be a fallback email
+        self.assertTrue(copilot_user.email.startswith('github-copilot-'))
+        self.assertTrue(copilot_user.email.endswith('@ideagraph.local'))
+        self.assertEqual(copilot_user.first_name, 'GitHub')
+        self.assertEqual(copilot_user.last_name, 'Copilot')
+        self.assertEqual(copilot_user.role, 'developer')
+        self.assertTrue(copilot_user.is_active)
+        
+        # Verify task is assigned to the GitHub Copilot user
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.assigned_to.id, copilot_user.id)
+        
+        # Verify existing user still exists with their original email
+        existing_user.refresh_from_db()
+        self.assertEqual(existing_user.email, duplicate_email)
