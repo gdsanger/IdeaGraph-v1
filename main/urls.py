@@ -188,6 +188,10 @@ urlpatterns = [
     path('api/comments/<uuid:comment_id>', api_views.api_task_comment_update, name='api_task_comment_update'),
     path('api/comments/<uuid:comment_id>/delete', api_views.api_task_comment_delete, name='api_task_comment_delete'),
     
+    # AI Email Reply Endpoints
+    path('api/comments/<uuid:comment_id>/ai-reply/draft', api_views.api_comment_ai_reply_draft, name='api_comment_ai_reply_draft'),
+    path('api/comments/<uuid:comment_id>/ai-reply/send', api_views.api_comment_ai_reply_send, name='api_comment_ai_reply_send'),
+    
     # Task Close API Endpoint
     path('api/tasks/<uuid:task_id>/close', api_views.api_task_close, name='api_task_close'),
     

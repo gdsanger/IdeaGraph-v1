@@ -1,0 +1,345 @@
+<!-- AI Reply Modal Template -->
+<div class="modal fade" id="aiReplyModal" tabindex="-1" aria-labelledby="aiReplyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid rgba(99, 102, 241, 0.3);">
+            <div class="modal-header" style="border-bottom: 1px solid rgba(99, 102, 241, 0.3);">
+                <h5 class="modal-title" id="aiReplyModalLabel">
+                    <i class="bi bi-robot me-2"></i>
+                    <span>Mit AI beantworten</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="aiReplyModalBody">
+                <!-- Loading state -->
+                <div id="aiReplyLoading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Wird geladen...</span>
+                    </div>
+                    <p class="mt-3 text-muted">Generiere AI-Entwurf...</p>
+                </div>
+
+                <!-- Draft content (hidden initially) -->
+                <div id="aiReplyContent" style="display: none;">
+                    <!-- Metadata -->
+                    <div class="mb-3 p-3" style="background: rgba(99, 102, 241, 0.1); border-radius: 0.375rem; border-left: 3px solid #6366f1;">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <small class="text-muted">Confidence:</small>
+                                <div id="aiReplyConfidence" class="fw-bold">-</div>
+                            </div>
+                            <div class="col-md-4">
+                                <small class="text-muted">Quellen:</small>
+                                <div id="aiReplySourceCount" class="fw-bold">-</div>
+                            </div>
+                            <div class="col-md-4">
+                                <small class="text-muted">Latenz:</small>
+                                <div id="aiReplyLatency" class="fw-bold">-</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Email form -->
+                    <div class="mb-3">
+                        <label for="aiReplySubject" class="form-label">Betreff</label>
+                        <input type="text" class="form-control" id="aiReplySubject" placeholder="Betreff">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="aiReplyBody" class="form-label">Nachricht</label>
+                        <textarea class="form-control" id="aiReplyBody" rows="12" placeholder="Nachricht"></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="aiReplyCc" class="form-label">CC (optional)</label>
+                        <input type="text" class="form-control" id="aiReplyCc" placeholder="email@example.com, other@example.com">
+                        <small class="text-muted">Mehrere E-Mail-Adressen durch Komma trennen</small>
+                    </div>
+
+                    <!-- Sources section (collapsible) -->
+                    <div class="accordion mb-3" id="aiReplySourcesAccordion">
+                        <div class="accordion-item" style="background: rgba(31, 41, 55, 0.6); border: 1px solid rgba(99, 102, 241, 0.3);">
+                            <h2 class="accordion-header" id="aiReplySourcesHeader">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#aiReplySourcesCollapse" aria-expanded="false" aria-controls="aiReplySourcesCollapse" style="background: rgba(31, 41, 55, 0.8); color: #e2e8f0;">
+                                    <i class="bi bi-journals me-2"></i>
+                                    Quellen anzeigen
+                                </button>
+                            </h2>
+                            <div id="aiReplySourcesCollapse" class="accordion-collapse collapse" aria-labelledby="aiReplySourcesHeader">
+                                <div class="accordion-body" id="aiReplySourcesList">
+                                    <!-- Sources will be inserted here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error state (hidden initially) -->
+                <div id="aiReplyError" class="alert alert-danger" style="display: none;">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <span id="aiReplyErrorMessage"></span>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid rgba(99, 102, 241, 0.3);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" id="aiReplySendBtn" style="display: none;">
+                    <i class="bi bi-send me-2"></i>
+                    Senden
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+#aiReplyModal .modal-content {
+    color: #e2e8f0;
+}
+
+#aiReplyModal .form-control {
+    background: rgba(31, 41, 55, 0.8);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    color: #e2e8f0;
+}
+
+#aiReplyModal .form-control:focus {
+    background: rgba(31, 41, 55, 0.9);
+    border-color: #6366f1;
+    color: #e2e8f0;
+    box-shadow: 0 0 0 0.25rem rgba(99, 102, 241, 0.25);
+}
+
+#aiReplyModal .form-control::placeholder {
+    color: #64748b;
+}
+
+#aiReplyModal .form-label {
+    color: #cbd5e1;
+}
+
+.ai-reply-source {
+    background: rgba(31, 41, 55, 0.6);
+    border-left: 3px solid transparent;
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.ai-reply-source.tier-a {
+    border-left-color: #10b981;
+}
+
+.ai-reply-source.tier-b {
+    border-left-color: #3b82f6;
+}
+
+.ai-reply-source.tier-c {
+    border-left-color: #8b5cf6;
+}
+
+.ai-reply-source-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.ai-reply-source-marker {
+    font-weight: bold;
+    font-size: 0.875rem;
+}
+
+.ai-reply-source-type {
+    font-size: 0.75rem;
+    color: #9ca3af;
+}
+
+.ai-reply-source-excerpt {
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: #cbd5e1;
+    white-space: pre-wrap;
+}
+</style>
+
+<script>
+(function() {
+    let currentCommentId = null;
+
+    // Open AI reply modal
+    window.openAIReplyModal = function(commentId) {
+        currentCommentId = commentId;
+        
+        // Reset modal state
+        document.getElementById('aiReplyLoading').style.display = 'block';
+        document.getElementById('aiReplyContent').style.display = 'none';
+        document.getElementById('aiReplyError').style.display = 'none';
+        document.getElementById('aiReplySendBtn').style.display = 'none';
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('aiReplyModal'));
+        modal.show();
+        
+        // Load draft
+        loadAIDraft(commentId);
+    };
+
+    // Load AI draft
+    async function loadAIDraft(commentId) {
+        try {
+            const response = await fetch(`/api/comments/${commentId}/ai-reply/draft`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                }
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                showError(data.error || 'Fehler beim Laden des Entwurfs');
+                return;
+            }
+
+            // Show draft
+            showDraft(data);
+
+        } catch (error) {
+            console.error('Error loading draft:', error);
+            showError('Fehler beim Laden des Entwurfs: ' + error.message);
+        }
+    }
+
+    // Show draft in modal
+    function showDraft(data) {
+        // Hide loading, show content
+        document.getElementById('aiReplyLoading').style.display = 'none';
+        document.getElementById('aiReplyContent').style.display = 'block';
+        document.getElementById('aiReplySendBtn').style.display = 'block';
+
+        // Set metadata
+        document.getElementById('aiReplyConfidence').textContent = data.confidence || '-';
+        document.getElementById('aiReplySourceCount').textContent = 
+            `${data.total_sources || 0} (A: ${data.tier_a_count || 0}, B: ${data.tier_b_count || 0}, C: ${data.tier_c_count || 0})`;
+        document.getElementById('aiReplyLatency').textContent = 
+            data.latency_ms ? `${data.latency_ms} ms` : '-';
+
+        // Set form fields
+        document.getElementById('aiReplySubject').value = data.subject || '';
+        document.getElementById('aiReplyBody').value = data.body || '';
+        document.getElementById('aiReplyCc').value = '';
+
+        // Render sources
+        renderSources(data.sources || []);
+    }
+
+    // Render sources list
+    function renderSources(sources) {
+        const container = document.getElementById('aiReplySourcesList');
+        container.innerHTML = '';
+
+        if (sources.length === 0) {
+            container.innerHTML = '<p class="text-muted">Keine Quellen verfügbar</p>';
+            return;
+        }
+
+        sources.forEach(source => {
+            const tierClass = `tier-${source.tier.toLowerCase()}`;
+            const sourceEl = document.createElement('div');
+            sourceEl.className = `ai-reply-source ${tierClass}`;
+            
+            const title = source.title ? `<div><strong>${source.title}</strong></div>` : '';
+            const author = source.author ? `<small>von ${source.author}</small>` : '';
+            
+            sourceEl.innerHTML = `
+                <div class="ai-reply-source-header">
+                    <span class="ai-reply-source-marker">[${source.marker}]</span>
+                    <span class="ai-reply-source-type">${source.type} (Tier ${source.tier})</span>
+                </div>
+                ${title}
+                ${author}
+                <div class="ai-reply-source-excerpt mt-2">${source.excerpt}</div>
+            `;
+            
+            container.appendChild(sourceEl);
+        });
+    }
+
+    // Show error
+    function showError(message) {
+        document.getElementById('aiReplyLoading').style.display = 'none';
+        document.getElementById('aiReplyContent').style.display = 'none';
+        document.getElementById('aiReplyError').style.display = 'block';
+        document.getElementById('aiReplyErrorMessage').textContent = message;
+    }
+
+    // Send AI reply
+    document.getElementById('aiReplySendBtn').addEventListener('click', async function() {
+        const subject = document.getElementById('aiReplySubject').value.trim();
+        const body = document.getElementById('aiReplyBody').value.trim();
+        const cc = document.getElementById('aiReplyCc').value.trim();
+
+        if (!subject) {
+            alert('Bitte geben Sie einen Betreff ein');
+            return;
+        }
+
+        if (!body) {
+            alert('Bitte geben Sie eine Nachricht ein');
+            return;
+        }
+
+        // Disable button
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gesendet...';
+
+        try {
+            const response = await fetch(`/api/comments/${currentCommentId}/ai-reply/send`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({
+                    subject: subject,
+                    body: body,
+                    cc: cc
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                alert('Fehler beim Senden: ' + (data.error || 'Unbekannter Fehler'));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-send me-2"></i>Senden';
+                return;
+            }
+
+            // Success - close modal and reload comments
+            bootstrap.Modal.getInstance(document.getElementById('aiReplyModal')).hide();
+            
+            // Reload comments list
+            const taskId = window.location.pathname.split('/')[2];
+            htmx.ajax('GET', `/api/tasks/${taskId}/comments`, {
+                target: '#taskCommentsListContainer',
+                swap: 'innerHTML'
+            });
+
+            // Show success message
+            if (window.showToast) {
+                window.showToast('E-Mail erfolgreich versendet', 'success');
+            } else {
+                alert('E-Mail erfolgreich versendet');
+            }
+
+        } catch (error) {
+            console.error('Error sending reply:', error);
+            alert('Fehler beim Senden: ' + error.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-send me-2"></i>Senden';
+        }
+    });
+})();
+</script>

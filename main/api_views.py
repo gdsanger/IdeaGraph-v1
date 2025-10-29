@@ -8192,3 +8192,194 @@ def api_task_quick_create(request):
             'error': 'Fehler beim Erstellen der Aufgabe'
         }, status=500)
 
+
+def api_comment_ai_reply_draft(request, comment_id):
+    """
+    Generate AI draft reply for an inbound email comment
+    
+    Args:
+        comment_id: UUID of the comment
+        
+    Returns:
+        JSON response with draft or error
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    # Only GET method
+    if request.method != 'GET':
+        return JsonResponse({
+            'success': False,
+            'error': 'Method not allowed'
+        }, status=405)
+    
+    try:
+        from .models import TaskComment, Settings
+        from core.services.ai_email_reply_service import AIEmailReplyService
+        
+        # Get comment
+        try:
+            comment = TaskComment.objects.select_related('task', 'task__item').get(id=comment_id)
+        except TaskComment.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Comment not found'
+            }, status=404)
+        
+        # Validate comment is inbound email
+        if comment.source != 'email' or comment.email_direction != 'inbound':
+            return JsonResponse({
+                'success': False,
+                'error': 'Can only generate AI replies for inbound email comments'
+            }, status=400)
+        
+        # Get settings and initialize service
+        settings = Settings.objects.first()
+        if not settings:
+            return JsonResponse({
+                'success': False,
+                'error': 'No settings configured'
+            }, status=500)
+        
+        # Check KiGate is enabled
+        if not settings.kigate_api_enabled:
+            return JsonResponse({
+                'success': False,
+                'error': 'KiGate API is not enabled'
+            }, status=400)
+        
+        # Generate draft
+        ai_service = AIEmailReplyService(settings)
+        result = ai_service.generate_draft(comment, user)
+        
+        if not result.get('success'):
+            logger.error(f"AI draft generation failed: {result}")
+            return JsonResponse(result, status=500)
+        
+        # Return draft data
+        return JsonResponse(result)
+        
+    except Exception as e:
+        logger.error(f'AI reply draft generation error: {str(e)}')
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': 'Unexpected error generating draft',
+            'details': str(e)
+        }, status=500)
+
+
+def api_comment_ai_reply_send(request, comment_id):
+    """
+    Send AI-generated email reply
+    
+    Args:
+        comment_id: UUID of the original comment
+        
+    Body:
+        subject: Email subject
+        body: Email body (HTML)
+        cc: Optional CC addresses (comma-separated)
+        
+    Returns:
+        JSON response with send status
+    """
+    # Check authentication
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentication required'
+        }, status=401)
+    
+    # Only POST method
+    if request.method != 'POST':
+        return JsonResponse({
+            'success': False,
+            'error': 'Method not allowed'
+        }, status=405)
+    
+    try:
+        from .models import TaskComment, Settings
+        from core.services.ai_email_reply_service import AIEmailReplyService
+        
+        # Parse request body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid JSON'
+            }, status=400)
+        
+        # Validate required fields
+        subject = data.get('subject', '').strip()
+        body = data.get('body', '').strip()
+        cc = data.get('cc', '').strip()
+        
+        if not subject:
+            return JsonResponse({
+                'success': False,
+                'error': 'Subject is required'
+            }, status=400)
+        
+        if not body:
+            return JsonResponse({
+                'success': False,
+                'error': 'Body is required'
+            }, status=400)
+        
+        # Get comment
+        try:
+            comment = TaskComment.objects.select_related('task', 'task__item').get(id=comment_id)
+        except TaskComment.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Comment not found'
+            }, status=404)
+        
+        # Validate comment is inbound email
+        if comment.source != 'email' or comment.email_direction != 'inbound':
+            return JsonResponse({
+                'success': False,
+                'error': 'Can only send replies to inbound email comments'
+            }, status=400)
+        
+        # Get settings and initialize service
+        settings = Settings.objects.first()
+        if not settings:
+            return JsonResponse({
+                'success': False,
+                'error': 'No settings configured'
+            }, status=500)
+        
+        # Send reply
+        ai_service = AIEmailReplyService(settings)
+        result = ai_service.send_reply(
+            comment=comment,
+            subject=subject,
+            body=body,
+            user=user,
+            cc=cc if cc else None
+        )
+        
+        if not result.get('success'):
+            logger.error(f"AI reply send failed: {result}")
+            return JsonResponse(result, status=500)
+        
+        return JsonResponse(result)
+        
+    except Exception as e:
+        logger.error(f'AI reply send error: {str(e)}')
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': 'Unexpected error sending reply',
+            'details': str(e)
+        }, status=500)
+

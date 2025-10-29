@@ -71,6 +71,13 @@
         </div>
         <div class="comment-actions">
             {% if comment.source == 'email' %}
+            {% if comment.email_direction == 'inbound' %}
+            <button class="btn btn-sm btn-outline-success ai-reply-btn" 
+                    title="Mit AI beantworten"
+                    onclick="openAIReplyModal('{{ comment.id }}')">
+                <i class="bi bi-robot"></i>
+            </button>
+            {% endif %}
             <button class="btn btn-sm btn-outline-info reply-email-btn" title="Antworten">
                 <i class="bi bi-reply"></i>
             </button>
