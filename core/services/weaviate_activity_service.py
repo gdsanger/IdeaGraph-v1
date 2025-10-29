@@ -120,7 +120,7 @@ class WeaviateActivityService:
             List of activity objects with:
                 - id: UUID of the object
                 - type: Object type
-                - title: Title/subject of the object
+                - title: Title of the object
                 - createdAt: Creation timestamp
                 - updatedAt: Update timestamp (if available)
                 - url: External URL (for GitHub objects)
@@ -158,7 +158,7 @@ class WeaviateActivityService:
                 filters=type_filter,
                 limit=limit,
                 return_properties=[
-                    'id', 'type', 'title', 'subject', 'createdAt', 'updatedAt',
+                    'id', 'type', 'title', 'createdAt', 'updatedAt',
                     'url', 'slug', 'itemId', 'taskId', 'icon'
                 ]
             )
@@ -168,8 +168,8 @@ class WeaviateActivityService:
             for obj in response.objects:
                 props = obj.properties
                 
-                # Map title/subject
-                title = props.get('subject') or props.get('title') or '(ohne Betreff)'
+                # Use title property for all object types
+                title = props.get('title') or '(ohne Betreff)'
                 
                 results.append({
                     'id': props.get('id'),
