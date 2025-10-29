@@ -16,6 +16,8 @@ ICON_MAP = {
     "Item": "bi-lightbulb-fill",
     "GitHubPullRequest": "bi-git",
     "GitHubIssue": "bi-github",
+    "File": "bi-file-earmark-text-fill",
+    "Comment": "bi-chat-left-text-fill",
 }
 
 
@@ -50,6 +52,8 @@ def type_to_badge_color(activity_type):
         "Item": "warning",
         "GitHubPullRequest": "info",
         "GitHubIssue": "danger",
+        "File": "secondary",
+        "Comment": "light",
     }
     return color_map.get(activity_type, "secondary")
 

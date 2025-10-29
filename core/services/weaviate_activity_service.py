@@ -36,7 +36,7 @@ class WeaviateActivityService:
     """
     
     COLLECTION_NAME = 'KnowledgeObject'
-    ACTIVITY_TYPES = ['Email', 'Task', 'Item', 'GitHubPullRequest', 'GitHubIssue']
+    ACTIVITY_TYPES = ['Email', 'Task', 'Item', 'GitHubPullRequest', 'GitHubIssue', 'File', 'Comment']
     
     def __init__(self, settings=None):
         """
@@ -127,7 +127,6 @@ class WeaviateActivityService:
                 - slug: Internal slug for routing
                 - itemId: Parent item ID (for tasks)
                 - taskId: Task ID (for emails/comments)
-                - icon: Icon identifier
         
         Raises:
             WeaviateActivityServiceError: If query fails
@@ -159,7 +158,7 @@ class WeaviateActivityService:
                 limit=limit,
                 return_properties=[
                     'id', 'type', 'title', 'createdAt', 'updatedAt',
-                    'url', 'slug', 'itemId', 'taskId', 'icon'
+                    'url', 'slug', 'itemId', 'taskId'
                 ]
             )
             
@@ -180,8 +179,7 @@ class WeaviateActivityService:
                     'url': props.get('url'),
                     'slug': props.get('slug'),
                     'itemId': props.get('itemId'),
-                    'taskId': props.get('taskId'),
-                    'icon': props.get('icon')
+                    'taskId': props.get('taskId')
                 })
             
             # Sort by updatedAt or createdAt (descending)
