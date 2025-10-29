@@ -2363,6 +2363,8 @@ def get_or_create_github_copilot_user():
     Returns:
         User: The GitHub Copilot user instance
     """
+    from django.db import IntegrityError
+    
     COPILOT_USERNAME = "GitHub Copilot"
     
     # Try to get existing user
@@ -2378,25 +2380,42 @@ def get_or_create_github_copilot_user():
     # Use default mail sender or fallback email
     email = settings.default_mail_sender if settings and settings.default_mail_sender else "copilot@ideagraph.local"
     
+    # Check if email is already in use by another user
+    if User.objects.filter(email=email).exists():
+        # Email is already taken, use a unique fallback email
+        email = f"github-copilot-{secrets.token_hex(4)}@ideagraph.local"
+        logger.warning(f'Configured default_mail_sender is already in use, using fallback email: {email}')
+    
     # Create user with random password
-    copilot_user = User.objects.create(
-        username=COPILOT_USERNAME,
-        email=email,
-        first_name="GitHub",
-        last_name="Copilot",
-        role="developer",
-        is_active=True,
-        auth_type="local"
-    )
-    
-    # Set a random password (user won't be able to log in as they don't know it)
-    random_password = secrets.token_urlsafe(32)
-    copilot_user.set_password(random_password)
-    copilot_user.save()
-    
-    logger.info(f'GitHub Copilot user created: {copilot_user.id}')
-    
-    return copilot_user
+    try:
+        copilot_user = User.objects.create(
+            username=COPILOT_USERNAME,
+            email=email,
+            first_name="GitHub",
+            last_name="Copilot",
+            role="developer",
+            is_active=True,
+            auth_type="local"
+        )
+        
+        # Set a random password (user won't be able to log in as they don't know it)
+        random_password = secrets.token_urlsafe(32)
+        copilot_user.set_password(random_password)
+        copilot_user.save()
+        
+        logger.info(f'GitHub Copilot user created: {copilot_user.id}')
+        
+        return copilot_user
+    except IntegrityError as e:
+        # Race condition: another process created the user between our checks
+        # Try to get the user one more time
+        logger.warning(f'IntegrityError during copilot user creation, attempting to retrieve: {str(e)}')
+        try:
+            user = User.objects.get(username=COPILOT_USERNAME)
+            return user
+        except User.DoesNotExist:
+            # Re-raise the original error if we still can't find the user
+            raise e
 
 
 @csrf_exempt
