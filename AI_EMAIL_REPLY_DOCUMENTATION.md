@@ -100,9 +100,11 @@ Sends the AI-generated (and optionally edited) reply.
 {
   "subject": "Re: Question about task",
   "body": "Thank you for your question...",
-  "cc": "optional@example.com"  // Optional
+  "cc": "optional@example.com"
 }
 ```
+
+**Note**: The `cc` field is optional and can be omitted.
 
 **Response**:
 ```json
@@ -313,7 +315,7 @@ python manage.py test main.test_ai_email_reply
 ### Data Privacy
 
 - PII is masked before sending to AI
-- Context is cached with short TTL (10 minutes)
+- Context is cached with short TTL (600 seconds)
 - No persistent storage of AI interactions
 - Email content follows existing access controls
 
