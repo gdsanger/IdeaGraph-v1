@@ -123,6 +123,23 @@
                     <form method="post" id="taskForm">
                         {% csrf_token %}
                         
+                        {% if not task and templates %}
+                        <!-- Template Selection (only for new tasks) -->
+                        <div class="mb-3">
+                            <label for="templateSelect" class="form-label">
+                                <i class="bi bi-file-earmark-text me-1"></i>
+                                Aus Vorlage erstellen (optional)
+                            </label>
+                            <select class="form-select" id="templateSelect">
+                                <option value="">-- Keine Vorlage verwenden --</option>
+                                {% for template in templates %}
+                                <option value="{{ template.id }}">{{ template.title }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Wählen Sie eine Vorlage aus, um Felder automatisch auszufüllen</small>
+                        </div>
+                        {% endif %}
+                        
                         <!-- Title -->
                         <div class="mb-3">
                             <label for="title" class="form-label">Title <span class="text-danger">*</span></label>
@@ -244,5 +261,61 @@ initializeTagTokenBox('taskTagTokenBox', {
     hiddenInputContainerId: 'taskTagHiddenInputs',
     inputPlaceholder: 'Add a tag and press Enter'
 });
+
+// Handle template selection
+{% if not task and templates %}
+document.getElementById('templateSelect').addEventListener('change', async function(e) {
+    const templateId = e.target.value;
+    
+    if (!templateId) {
+        // Clear form if "no template" is selected
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/task-templates/list/`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const template = data.templates.find(t => t.id === templateId);
+            
+            if (template) {
+                // Apply template description
+                if (template.description) {
+                    editor.setMarkdown(template.description);
+                }
+                
+                // Apply template tags
+                if (template.tag_ids && template.tag_ids.length > 0) {
+                    // Clear current tags
+                    const tagTokenBox = window.tagTokenBoxInstances?.['taskTagTokenBox'];
+                    if (tagTokenBox) {
+                        // Find tags from all tags
+                        const tagsToAdd = taskAllTags.filter(tag => 
+                            template.tag_ids.includes(tag.id)
+                        );
+                        
+                        // Clear and add new tags
+                        tagTokenBox.clearTags();
+                        tagsToAdd.forEach(tag => {
+                            tagTokenBox.addTag(tag);
+                        });
+                    }
+                }
+                
+                // Show success message
+                if (window.showToast) {
+                    window.showToast(`Vorlage "${template.title}" angewendet`, 'success');
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error loading template:', error);
+        if (window.showToast) {
+            window.showToast('Fehler beim Laden der Vorlage', 'error');
+        }
+    }
+});
+{% endif %}
 </script>
 {% endblock %}

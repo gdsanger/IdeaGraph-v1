@@ -1,0 +1,193 @@
+<!-- Save Task as Template Modal -->
+<div class="modal fade" id="saveAsTemplateModal" tabindex="-1" aria-labelledby="saveAsTemplateModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid rgba(99, 102, 241, 0.3);">
+            <div class="modal-header" style="border-bottom: 1px solid rgba(99, 102, 241, 0.3);">
+                <h5 class="modal-title" id="saveAsTemplateModalLabel">
+                    <i class="bi bi-file-earmark-text me-2"></i>
+                    Als Vorlage speichern
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="saveAsTemplateForm">
+                    <!-- Template Title -->
+                    <div class="mb-3">
+                        <label for="templateTitle" class="form-label">Vorlagenname <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="templateTitle" placeholder="z.B. Bug-Fix Vorlage" required>
+                        <small class="text-muted">Geben Sie einen eindeutigen Namen für die Vorlage ein</small>
+                    </div>
+
+                    <!-- Field Selection -->
+                    <div class="mb-3">
+                        <label class="form-label">Welche Felder sollen in der Vorlage gespeichert werden?</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="includeTitle" checked disabled>
+                            <label class="form-check-label" for="includeTitle">
+                                Titel (immer erforderlich)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="includeDescription" checked>
+                            <label class="form-check-label" for="includeDescription">
+                                Beschreibung
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="includeTags" checked>
+                            <label class="form-check-label" for="includeTags">
+                                Tags
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="includeAssignees">
+                            <label class="form-check-label" for="includeAssignees">
+                                Zugewiesene Benutzer
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Preview -->
+                    <div class="alert alert-info">
+                        <strong><i class="bi bi-info-circle me-2"></i>Hinweis:</strong>
+                        Die Vorlage kann später beim Erstellen neuer Tasks verwendet werden.
+                    </div>
+                </form>
+
+                <!-- Error display -->
+                <div id="templateError" class="alert alert-danger" style="display: none;">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <span id="templateErrorMessage"></span>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid rgba(99, 102, 241, 0.3);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" id="saveTemplateBtn">
+                    <i class="bi bi-save me-2"></i>
+                    Vorlage speichern
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+#saveAsTemplateModal .modal-content {
+    color: #e2e8f0;
+}
+
+#saveAsTemplateModal .form-control {
+    background: rgba(31, 41, 55, 0.8);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    color: #e2e8f0;
+}
+
+#saveAsTemplateModal .form-control:focus {
+    background: rgba(31, 41, 55, 0.9);
+    border-color: #6366f1;
+    color: #e2e8f0;
+    box-shadow: 0 0 0 0.25rem rgba(99, 102, 241, 0.25);
+}
+
+#saveAsTemplateModal .form-control::placeholder {
+    color: #64748b;
+}
+
+#saveAsTemplateModal .form-label {
+    color: #cbd5e1;
+}
+
+#saveAsTemplateModal .form-check-input {
+    background-color: rgba(31, 41, 55, 0.8);
+    border-color: rgba(99, 102, 241, 0.3);
+}
+
+#saveAsTemplateModal .form-check-input:checked {
+    background-color: #6366f1;
+    border-color: #6366f1;
+}
+
+#saveAsTemplateModal .form-check-label {
+    color: #cbd5e1;
+}
+</style>
+
+<script>
+(function() {
+    // Handle save template button click
+    document.getElementById('saveTemplateBtn').addEventListener('click', async function() {
+        const title = document.getElementById('templateTitle').value.trim();
+        
+        if (!title) {
+            showError('Bitte geben Sie einen Vorlagennamen ein');
+            return;
+        }
+
+        const data = {
+            title: title,
+            include_description: document.getElementById('includeDescription').checked,
+            include_tags: document.getElementById('includeTags').checked,
+            include_assignees: document.getElementById('includeAssignees').checked,
+            include_checklist: false // Not implemented yet in Task model
+        };
+
+        // Disable button
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gespeichert...';
+
+        try {
+            const taskId = window.location.pathname.split('/')[2];
+            const response = await fetch(`/tasks/${taskId}/save-as-template/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                showError(result.error || 'Fehler beim Speichern der Vorlage');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-save me-2"></i>Vorlage speichern';
+                return;
+            }
+
+            // Success - close modal and show message
+            bootstrap.Modal.getInstance(document.getElementById('saveAsTemplateModal')).hide();
+            
+            if (window.showToast) {
+                window.showToast(result.message, 'success');
+            } else {
+                alert(result.message);
+            }
+
+            // Reset form
+            document.getElementById('saveAsTemplateForm').reset();
+            document.getElementById('includeDescription').checked = true;
+            document.getElementById('includeTags').checked = true;
+
+        } catch (error) {
+            console.error('Error saving template:', error);
+            showError('Fehler beim Speichern: ' + error.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-save me-2"></i>Vorlage speichern';
+        }
+    });
+
+    function showError(message) {
+        document.getElementById('templateError').style.display = 'block';
+        document.getElementById('templateErrorMessage').textContent = message;
+        setTimeout(() => {
+            document.getElementById('templateError').style.display = 'none';
+        }, 5000);
+    }
+
+    function getCsrfToken() {
+        return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+    }
+})();
+</script>

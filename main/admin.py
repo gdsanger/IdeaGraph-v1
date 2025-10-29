@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Tag, User, Settings, Section, Item, Task, Relation, Milestone, MilestoneContextObject, MilestoneSummaryVersion, ItemQuestionAnswer
+from .models import Tag, User, Settings, Section, Item, Task, TaskTemplate, Relation, Milestone, MilestoneContextObject, MilestoneSummaryVersion, ItemQuestionAnswer
 
 
 @admin.register(Tag)
@@ -161,6 +161,26 @@ class TaskAdmin(admin.ModelAdmin):
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at', 'completed_at')
+        }),
+    )
+
+
+@admin.register(TaskTemplate)
+class TaskTemplateAdmin(admin.ModelAdmin):
+    list_display = ['title', 'default_item', 'created_by', 'created_at', 'updated_at']
+    list_filter = ['created_by', 'created_at']
+    search_fields = ['title', 'description']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+    filter_horizontal = ['tags', 'default_assignees']
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('id', 'title', 'description')
+        }),
+        ('Default Values', {
+            'fields': ('default_item', 'default_assignees', 'tags', 'checklist_json')
+        }),
+        ('Metadata', {
+            'fields': ('created_by', 'created_at', 'updated_at')
         }),
     )
 

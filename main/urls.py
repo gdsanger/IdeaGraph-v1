@@ -93,6 +93,13 @@ urlpatterns = [
     path('tasks/<uuid:task_id>/', views.task_detail, name='task_detail'),
     path('tasks/<uuid:task_id>/edit/', views.task_edit, name='task_edit'),
     path('tasks/<uuid:task_id>/delete/', views.task_delete, name='task_delete'),
+    path('tasks/<uuid:task_id>/save-as-template/', views.task_save_as_template, name='task_save_as_template'),
+    path('tasks/<uuid:task_id>/clone/', views.task_clone, name='task_clone'),
+    
+    # Task Template Management URLs
+    path('admin/task-templates/', views.task_template_list, name='task_template_list'),
+    path('admin/task-templates/<uuid:template_id>/', views.task_template_detail, name='task_template_detail'),
+    path('api/task-templates/list/', views.api_task_template_list, name='api_task_template_list'),
     
     # Global Task Overview
     path('admin/tasks/overview/', views.task_overview, name='task_overview'),
