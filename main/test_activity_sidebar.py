@@ -57,9 +57,7 @@ class ActivitySidebarViewTest(TestCase):
                 'type': 'Task',
                 'title': 'Test Task',
                 'createdAt': '2025-10-29T10:00:00Z',
-                'updatedAt': None,
                 'url': None,
-                'slug': 'test-task',
                 'itemId': None,
                 'taskId': None
             }
@@ -162,7 +160,16 @@ class ActivityTemplateTagsTest(TestCase):
         self.assertEqual(link, 'https://github.com/org/repo/pull/1')
     
     def test_build_activity_link_task(self):
-        """Test building task link"""
+        """Test building task link without slug (uses id)"""
+        item = {
+            'type': 'Task',
+            'id': 'test-id'
+        }
+        link = build_activity_link(item)
+        self.assertEqual(link, '/tasks/test-id/')
+    
+    def test_build_activity_link_task_with_slug(self):
+        """Test building task link with slug (for backwards compatibility)"""
         item = {
             'type': 'Task',
             'slug': 'test-task-slug',

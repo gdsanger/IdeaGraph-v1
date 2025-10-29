@@ -124,9 +124,7 @@ class WeaviateActivityService:
                 - type: Object type
                 - title: Title of the object
                 - createdAt: Creation timestamp
-                - updatedAt: Update timestamp (if available)
                 - url: External URL (for GitHub objects)
-                - slug: Internal slug for routing
                 - itemId: Parent item ID (for tasks)
                 - taskId: Task ID (for emails/comments)
         
@@ -153,14 +151,14 @@ class WeaviateActivityService:
                 tenant_filter = Filter.by_property("tenant").equal(tenant)
                 type_filter = type_filter & tenant_filter
             
-            # Query with sorting by updatedAt/createdAt (descending)
-            # Note: Weaviate v4 sorts by properties, fallback in code if needed
+            # Query - only request properties that exist in the schema
+            # Note: UUID is accessed via obj.uuid, not as a property
             response = collection.query.fetch_objects(
                 filters=type_filter,
                 limit=limit,
                 return_properties=[
-                    'id', 'type', 'title', 'createdAt', 'updatedAt',
-                    'url', 'slug', 'itemId', 'taskId'
+                    'type', 'title', 'createdAt',
+                    'url', 'itemId', 'taskId'
                 ]
             )
             
@@ -172,21 +170,20 @@ class WeaviateActivityService:
                 # Use title property for all object types
                 title = props.get('title') or '(ohne Betreff)'
                 
+                # UUID is accessed via obj.uuid, not as a property
                 results.append({
-                    'id': props.get('id'),
+                    'id': str(obj.uuid),
                     'type': props.get('type'),
                     'title': title,
                     'createdAt': props.get('createdAt'),
-                    'updatedAt': props.get('updatedAt'),
                     'url': props.get('url'),
-                    'slug': props.get('slug'),
                     'itemId': props.get('itemId'),
                     'taskId': props.get('taskId')
                 })
             
-            # Sort by updatedAt or createdAt (descending)
+            # Sort by createdAt (descending)
             results.sort(
-                key=lambda x: x.get('updatedAt') or x.get('createdAt') or '',
+                key=lambda x: x.get('createdAt') or '',
                 reverse=True
             )
             
