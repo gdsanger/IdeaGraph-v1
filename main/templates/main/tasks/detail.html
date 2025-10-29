@@ -1139,6 +1139,18 @@ function renderMarkdown(markdown) {
     return html;
 }
 
+// Helper function to render plain text/markdown for email
+function renderEmailBody(text) {
+    // Remove markdown escape sequences
+    let cleaned = text.replace(/\\([,\-.*_[\](){}#!+])/g, '$1');
+    
+    // Convert to HTML using renderMarkdown
+    let html = renderMarkdown(cleaned);
+    
+    // Wrap in proper email HTML structure
+    return `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333;">${html}</div>`;
+}
+
 // Helper function to display support analysis result
 let currentAnalysisData = null; // Store current analysis data for saving
 
@@ -1566,10 +1578,13 @@ document.getElementById('sendTaskEmailBtn').addEventListener('click', async func
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gesendet...';
     
     try {
+        // Convert plain text/markdown to HTML for email
+        const htmlBody = renderEmailBody(body);
+        
         const payload = {
             email: recipient,
             subject: subject,
-            body: body
+            body: htmlBody
         };
         
         if (cc) {
