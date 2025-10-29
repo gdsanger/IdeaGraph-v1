@@ -1,0 +1,124 @@
+{% extends "main/base.html" %}
+{% load static %}
+
+{% block title %}{{ template.title }} - Template Detail{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card" style="background: rgba(31, 41, 55, 0.9);">
+                <div class="card-header d-flex justify-content-between align-items-center" style="border-bottom: 1px solid rgba(99, 102, 241, 0.3);">
+                    <h3 class="mb-0">
+                        <i class="bi bi-file-earmark-text me-2"></i>
+                        {{ template.title }}
+                    </h3>
+                    <div>
+                        <a href="{% url 'main:task_template_list' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Back to List
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Template Info -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5>Template Information</h5>
+                            <table class="table table-dark">
+                                <tbody>
+                                    <tr>
+                                        <th width="30%">Title:</th>
+                                        <td>{{ template.title }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Created By:</th>
+                                        <td>{{ template.created_by.username }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Created At:</th>
+                                        <td>{{ template.created_at|date:"d.m.Y H:i" }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Last Updated:</th>
+                                        <td>{{ template.updated_at|date:"d.m.Y H:i" }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Default Item:</th>
+                                        <td>
+                                            {% if template.default_item %}
+                                            <a href="{% url 'main:item_detail' template.default_item.id %}" class="text-decoration-none">
+                                                {{ template.default_item.title }}
+                                            </a>
+                                            {% else %}
+                                            <span class="text-muted">None</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Template Contents</h5>
+                            
+                            <!-- Tags -->
+                            <div class="mb-3">
+                                <strong>Tags:</strong>
+                                <div class="d-flex flex-wrap gap-2 mt-2">
+                                    {% for tag in template.tags.all %}
+                                    <span class="badge" style="background-color: {{ tag.color }};">
+                                        {{ tag.name }}
+                                    </span>
+                                    {% empty %}
+                                    <span class="text-muted">No tags</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            
+                            <!-- Default Assignees -->
+                            <div class="mb-3">
+                                <strong>Default Assignees:</strong>
+                                <div class="mt-2">
+                                    {% for assignee in template.default_assignees.all %}
+                                    <span class="badge bg-secondary">{{ assignee.username }}</span>
+                                    {% empty %}
+                                    <span class="text-muted">No default assignees</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Description -->
+                    <div class="row">
+                        <div class="col-12">
+                            <h5>Description</h5>
+                            <div class="card" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(99, 102, 241, 0.3);">
+                                <div class="card-body">
+                                    {% if template.description %}
+                                    <div class="markdown-content">
+                                        {{ template.description|linebreaks }}
+                                    </div>
+                                    {% else %}
+                                    <p class="text-muted mb-0">No description provided</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Usage Instructions -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="alert alert-info">
+                                <strong><i class="bi bi-info-circle me-2"></i>Usage:</strong>
+                                To use this template, go to any item and click "Create Task". 
+                                Select this template from the dropdown to pre-fill the task fields.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
