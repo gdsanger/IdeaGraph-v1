@@ -33,6 +33,8 @@ class WeaviateActivityService:
     - Items (Item)
     - GitHub Pull Requests (GitHubPullRequest)
     - GitHub Issues (GitHubIssue)
+    - Files (File)
+    - Comments (Comment)
     """
     
     COLLECTION_NAME = 'KnowledgeObject'
