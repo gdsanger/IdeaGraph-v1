@@ -1923,3 +1923,117 @@ td .weaviate-indicator {
 #weaviateDumpModal .modal-body pre code {
     color: #f8f9fa;
 }
+
+/* ========================================
+   7. ACTIVITY SIDEBAR STYLES
+   ======================================== */
+
+/* Activity Sidebar Container */
+.activity-sidebar {
+    width: 320px;
+    max-width: 320px;
+    height: calc(100vh - 56px); /* Subtract navbar height */
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: sticky;
+    top: 56px; /* Navbar height */
+    flex-shrink: 0;
+}
+
+/* Activity Sidebar Header */
+.activity-sidebar-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: var(--kigate-surface);
+}
+
+.activity-sidebar-header h6 {
+    color: var(--primary-amber);
+    font-weight: 600;
+}
+
+.activity-sidebar-header .btn-link {
+    text-decoration: none;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+.activity-sidebar-header .btn-link:hover {
+    opacity: 1;
+}
+
+/* Activity Sidebar Body */
+#activity-sidebar-body {
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+}
+
+/* Activity List Items */
+.activity-sidebar-content .list-group-item {
+    padding: 0.75rem;
+    transition: background-color 0.2s ease;
+}
+
+.activity-sidebar-content .list-group-item:hover {
+    background-color: var(--kigate-surface-hover) !important;
+}
+
+.activity-sidebar-content .list-group-item a {
+    color: inherit;
+}
+
+.activity-sidebar-content .list-group-item a:hover {
+    color: var(--primary-amber);
+}
+
+/* Activity Icons */
+.activity-sidebar-content .bi {
+    font-size: 1.25rem;
+}
+
+/* Activity Badges */
+.activity-sidebar-content .badge {
+    font-size: 0.625rem;
+    padding: 0.25rem 0.5rem;
+    white-space: nowrap;
+}
+
+/* Empty State */
+.activity-sidebar-content .text-muted {
+    color: var(--bs-secondary) !important;
+}
+
+/* Scrollbar Styling for Activity Sidebar */
+.activity-sidebar::-webkit-scrollbar {
+    width: 8px;
+}
+
+.activity-sidebar::-webkit-scrollbar-track {
+    background: var(--bs-dark);
+}
+
+.activity-sidebar::-webkit-scrollbar-thumb {
+    background: var(--bs-border-color);
+    border-radius: 4px;
+}
+
+.activity-sidebar::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-amber);
+}
+
+/* Responsive: Hide sidebar on smaller screens */
+@media (max-width: 992px) {
+    .activity-sidebar {
+        display: none;
+    }
+}
+
+/* Ensure main content doesn't overflow with sidebar */
+main.d-flex {
+    min-height: calc(100vh - 56px); /* Subtract navbar height */
+}
+
+main.d-flex > .flex-grow-1 {
+    overflow-x: hidden;
+}

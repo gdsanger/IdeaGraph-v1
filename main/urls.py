@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, api_views, auth_views
+from . import views, api_views, auth_views, views_activity
 
 app_name = 'main'
 
@@ -241,4 +241,7 @@ urlpatterns = [
     
     # Global Search API Endpoint
     path('api/search', api_views.api_global_search, name='api_global_search'),
+    
+    # Activity Sidebar
+    path('activity/sidebar', views_activity.activity_sidebar, name='activity_sidebar'),
 ]
