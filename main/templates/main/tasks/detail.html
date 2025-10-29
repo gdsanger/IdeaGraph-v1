@@ -1139,6 +1139,43 @@ function renderMarkdown(markdown) {
     return html;
 }
 
+// Helper function to render plain text/markdown for email
+function renderEmailBody(text) {
+    // Remove markdown escape sequences
+    // Note: Hyphen is at the end to avoid being interpreted as a range
+    let cleaned = text.replace(/\\([,.*_\[\](){}#!+-])/g, '$1');
+    
+    // Convert to HTML using renderMarkdown
+    let html = renderMarkdown(cleaned);
+    
+    // Sanitize HTML to prevent XSS using DOMParser (safer than innerHTML)
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const tempDiv = doc.body;
+    
+    // Remove any script tags
+    const scripts = tempDiv.querySelectorAll('script');
+    scripts.forEach(script => script.remove());
+    
+    // Remove any event handlers (iterate backwards for efficiency)
+    const allElements = tempDiv.querySelectorAll('*');
+    allElements.forEach(el => {
+        // Remove event handler attributes
+        for (let i = el.attributes.length - 1; i >= 0; i--) {
+            const attr = el.attributes[i];
+            if (attr.name.startsWith('on')) {
+                el.removeAttribute(attr.name);
+            }
+        }
+    });
+    
+    // Get sanitized HTML
+    html = tempDiv.innerHTML;
+    
+    // Wrap in proper email HTML structure
+    return `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333;">${html}</div>`;
+}
+
 // Helper function to display support analysis result
 let currentAnalysisData = null; // Store current analysis data for saving
 
@@ -1566,10 +1603,13 @@ document.getElementById('sendTaskEmailBtn').addEventListener('click', async func
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gesendet...';
     
     try {
+        // Convert plain text/markdown to HTML for email
+        const htmlBody = renderEmailBody(body);
+        
         const payload = {
             email: recipient,
             subject: subject,
-            body: body
+            body: htmlBody
         };
         
         if (cc) {
