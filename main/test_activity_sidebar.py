@@ -7,6 +7,7 @@ from django.contrib.sessions.middleware import SessionMiddleware
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timedelta
 from django.utils import timezone
+from weaviate.classes.query import Sort
 
 from main.views_activity import activity_sidebar
 from main.templatetags.activity_extras import (
@@ -304,8 +305,6 @@ class WeaviateActivityServiceTest(TestCase):
     @patch('core.services.weaviate_activity_service.weaviate.connect_to_local')
     def test_get_recent_activity_uses_weaviate_sorting(self, mock_connect):
         """Test that get_recent_activity uses Weaviate's native sorting"""
-        from weaviate.classes.query import Sort
-        
         # Mock settings
         mock_settings = Mock()
         mock_settings.weaviate_cloud_enabled = False
