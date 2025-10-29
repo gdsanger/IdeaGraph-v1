@@ -325,7 +325,7 @@ Potential improvements for future iterations:
 3. **Batch Operations**: Analyze multiple context objects at once
 4. **File Preview**: Preview files without downloading
 5. **Version Control**: Track file versions in SharePoint
-6. **Large File Support**: Implement chunked upload for files >4MB
+6. **Large File Support**: Implement chunked upload for files >25MB
 7. **Advanced Search**: Search within context objects
 8. **Export/Import**: Export milestone with all context objects
 
