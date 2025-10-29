@@ -61,8 +61,7 @@ class ActivitySidebarViewTest(TestCase):
                 'url': None,
                 'slug': 'test-task',
                 'itemId': None,
-                'taskId': None,
-                'icon': None
+                'taskId': None
             }
         ]
         service_instance.get_recent_activity.return_value = mock_activity
@@ -138,6 +137,8 @@ class ActivityTemplateTagsTest(TestCase):
         self.assertEqual(type_to_icon('Item'), 'bi-lightbulb-fill')
         self.assertEqual(type_to_icon('GitHubPullRequest'), 'bi-git')
         self.assertEqual(type_to_icon('GitHubIssue'), 'bi-github')
+        self.assertEqual(type_to_icon('File'), 'bi-file-earmark-text-fill')
+        self.assertEqual(type_to_icon('Comment'), 'bi-chat-left-text-fill')
         self.assertEqual(type_to_icon('Unknown'), 'bi-file-earmark-fill')
     
     def test_type_to_badge_color(self):
@@ -147,6 +148,8 @@ class ActivityTemplateTagsTest(TestCase):
         self.assertEqual(type_to_badge_color('Item'), 'warning')
         self.assertEqual(type_to_badge_color('GitHubPullRequest'), 'info')
         self.assertEqual(type_to_badge_color('GitHubIssue'), 'danger')
+        self.assertEqual(type_to_badge_color('File'), 'secondary')
+        self.assertEqual(type_to_badge_color('Comment'), 'light')
         self.assertEqual(type_to_badge_color('Unknown'), 'secondary')
     
     def test_build_activity_link_external(self):
