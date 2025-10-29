@@ -111,6 +111,13 @@ class GitHubIssueCreationIntegrationTestCase(TestCase):
         self.assertEqual(self.task.github_issue_id, 42)
         self.assertIsNotNone(self.task.github_synced_at)
         
+        # Verify task is assigned to GitHub Copilot user
+        self.assertIsNotNone(self.task.assigned_to)
+        self.assertEqual(self.task.assigned_to.username, 'GitHub Copilot')
+        self.assertEqual(self.task.assigned_to.first_name, 'GitHub')
+        self.assertEqual(self.task.assigned_to.last_name, 'Copilot')
+        self.assertEqual(self.task.assigned_to.role, 'developer')
+        
         # Verify that both issue creation and comment creation were called
         self.assertEqual(mock_request.call_count, 2)
         
@@ -182,8 +189,149 @@ class GitHubIssueCreationIntegrationTestCase(TestCase):
         data = json.loads(response.content)
         self.assertTrue(data.get('success'))
         
+        # Verify task is still assigned to GitHub Copilot user even without copilot_username setting
+        self.task.refresh_from_db()
+        self.assertIsNotNone(self.task.assigned_to)
+        self.assertEqual(self.task.assigned_to.username, 'GitHub Copilot')
+        
         # Check that issue was created without assignees
         issue_call = mock_request.call_args_list[0]
         issue_json = issue_call[1]['json']
         # When assignees is empty, it should not be in the request
         self.assertNotIn('assignees', issue_json)
+    
+    @patch('core.services.github_service.requests.request')
+    def test_create_github_copilot_user_with_default_mail_sender(self, mock_request):
+        """Test that GitHub Copilot user is created with email from Settings.default_mail_sender"""
+        
+        # Remove any existing GitHub Copilot user to test creation
+        AppUser.objects.filter(username='GitHub Copilot').delete()
+        
+        # Set default mail sender in settings
+        self.settings.default_mail_sender = 'noreply@ideagraph.example.com'
+        self.settings.save()
+        
+        # Mock responses for both issue creation and comment creation
+        def request_side_effect(method, url, *args, **kwargs):
+            if '/issues/' in url and '/comments' in url:
+                return Mock(
+                    status_code=201,
+                    json=lambda: {
+                        'id': 12345,
+                        'body': kwargs.get('json', {}).get('body', ''),
+                        'html_url': 'https://github.com/test-owner/test-repo/issues/44#issuecomment-12345'
+                    },
+                    content=b'...'
+                )
+            else:
+                return Mock(
+                    status_code=201,
+                    json=lambda: {
+                        'number': 44,
+                        'title': 'Test Task',
+                        'html_url': 'https://github.com/test-owner/test-repo/issues/44',
+                        'state': 'open'
+                    },
+                    content=b'...'
+                )
+        
+        mock_request.side_effect = request_side_effect
+        
+        # Set up session authentication
+        session = self.client.session
+        session['user_id'] = str(self.user.id)
+        session.save()
+        
+        # Make the API request
+        url = reverse('main:api_task_create_github_issue', kwargs={'task_id': self.task.id})
+        response = self.client.post(
+            url,
+            content_type='application/json',
+            HTTP_X_CSRFTOKEN='test-token'
+        )
+        
+        # Verify response
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data.get('success'))
+        
+        # Verify GitHub Copilot user was created with correct email
+        copilot_user = AppUser.objects.get(username='GitHub Copilot')
+        self.assertEqual(copilot_user.email, 'noreply@ideagraph.example.com')
+        self.assertEqual(copilot_user.first_name, 'GitHub')
+        self.assertEqual(copilot_user.last_name, 'Copilot')
+        self.assertEqual(copilot_user.role, 'developer')
+        self.assertTrue(copilot_user.is_active)
+        self.assertEqual(copilot_user.auth_type, 'local')
+        # Verify password is set (user has a password_hash)
+        self.assertNotEqual(copilot_user.password_hash, '')
+        
+        # Verify task is assigned to this user
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.assigned_to.id, copilot_user.id)
+    
+    @patch('core.services.github_service.requests.request')
+    def test_preserve_requester_when_creating_github_issue(self, mock_request):
+        """Test that task requester is preserved when creating GitHub issue"""
+        
+        # Create a requester user
+        requester = AppUser.objects.create(
+            username='requester',
+            email='requester@example.com',
+            role='user'
+        )
+        
+        # Set requester on task
+        self.task.requester = requester
+        self.task.save()
+        
+        # Mock responses
+        def request_side_effect(method, url, *args, **kwargs):
+            if '/issues/' in url and '/comments' in url:
+                return Mock(
+                    status_code=201,
+                    json=lambda: {
+                        'id': 12345,
+                        'body': kwargs.get('json', {}).get('body', ''),
+                        'html_url': 'https://github.com/test-owner/test-repo/issues/45#issuecomment-12345'
+                    },
+                    content=b'...'
+                )
+            else:
+                return Mock(
+                    status_code=201,
+                    json=lambda: {
+                        'number': 45,
+                        'title': 'Test Task',
+                        'html_url': 'https://github.com/test-owner/test-repo/issues/45',
+                        'state': 'open'
+                    },
+                    content=b'...'
+                )
+        
+        mock_request.side_effect = request_side_effect
+        
+        # Set up session authentication
+        session = self.client.session
+        session['user_id'] = str(self.user.id)
+        session.save()
+        
+        # Make the API request
+        url = reverse('main:api_task_create_github_issue', kwargs={'task_id': self.task.id})
+        response = self.client.post(
+            url,
+            content_type='application/json',
+            HTTP_X_CSRFTOKEN='test-token'
+        )
+        
+        # Verify response
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data.get('success'))
+        
+        # Verify requester is unchanged and assigned_to is set to GitHub Copilot
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.requester.id, requester.id)
+        self.assertIsNotNone(self.task.assigned_to)
+        self.assertEqual(self.task.assigned_to.username, 'GitHub Copilot')
+        self.assertNotEqual(self.task.requester.id, self.task.assigned_to.id)
