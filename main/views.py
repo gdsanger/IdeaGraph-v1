@@ -2332,7 +2332,7 @@ def task_save_as_template(request, task_id):
             return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
         except Exception as e:
             logger.error(f'Error creating template from task {task_id}: {str(e)}')
-            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+            return JsonResponse({'success': False, 'error': 'Internal server error while creating template'}, status=500)
     
     # GET request - return modal HTML
     context = {
@@ -2426,7 +2426,7 @@ def task_clone(request, task_id):
             return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
         except Exception as e:
             logger.error(f'Error cloning task {task_id}: {str(e)}')
-            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+            return JsonResponse({'success': False, 'error': 'Internal server error while cloning task'}, status=500)
     
     # GET request - return modal HTML with available items
     items = Item.objects.filter(
