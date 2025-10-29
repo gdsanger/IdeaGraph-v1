@@ -1148,20 +1148,21 @@ function renderEmailBody(text) {
     // Convert to HTML using renderMarkdown
     let html = renderMarkdown(cleaned);
     
-    // Sanitize HTML to prevent XSS
-    // Create a temporary div to parse HTML
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = html;
+    // Sanitize HTML to prevent XSS using DOMParser (safer than innerHTML)
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const tempDiv = doc.body;
     
     // Remove any script tags
     const scripts = tempDiv.querySelectorAll('script');
     scripts.forEach(script => script.remove());
     
-    // Remove any event handlers
+    // Remove any event handlers (iterate backwards for efficiency)
     const allElements = tempDiv.querySelectorAll('*');
     allElements.forEach(el => {
         // Remove event handler attributes
-        for (let attr of [...el.attributes]) {
+        for (let i = el.attributes.length - 1; i >= 0; i--) {
+            const attr = el.attributes[i];
             if (attr.name.startsWith('on')) {
                 el.removeAttribute(attr.name);
             }
