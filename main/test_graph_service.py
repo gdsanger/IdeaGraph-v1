@@ -237,7 +237,7 @@ class GraphServiceTestCase(TestCase):
         )
         
         service = GraphService(self.settings)
-        large_content = b'x' * (5 * 1024 * 1024)  # 5MB
+        large_content = b'x' * (26 * 1024 * 1024)  # 26MB (exceeds 25MB limit)
         
         with self.assertRaises(GraphServiceError) as context:
             service.upload_sharepoint_file('Documents', 'large.txt', large_content)

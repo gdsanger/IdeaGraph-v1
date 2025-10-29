@@ -418,7 +418,7 @@ class GraphService:
                 details="sharepoint_site_id must be set in settings"
             )
         
-        # For files <= 4MB, use simple upload
+        # For files <= 25MB, use simple upload
         file_size = len(content)
         
         logger.info(f"Uploading file: {file_name} ({file_size} bytes)")
@@ -426,12 +426,12 @@ class GraphService:
         logger.debug(f"Folder path: {folder_path}")
         logger.debug(f"Base URL: {self.base_url}")
         
-        if file_size > 4 * 1024 * 1024:
-            logger.error(f"File size {file_size} bytes exceeds 4MB limit")
-            logger.warning(f"File size {file_size} bytes exceeds 4MB, large file upload not implemented")
+        if file_size > 25 * 1024 * 1024:
+            logger.error(f"File size {file_size} bytes exceeds 25MB limit")
+            logger.warning(f"File size {file_size} bytes exceeds 25MB, large file upload not implemented")
             raise GraphServiceError(
                 "File too large",
-                details="Files larger than 4MB require chunk upload (not yet implemented)"
+                details="Files larger than 25MB require chunk upload (not yet implemented)"
             )
         
         # Build endpoint
