@@ -1142,10 +1142,34 @@ function renderMarkdown(markdown) {
 // Helper function to render plain text/markdown for email
 function renderEmailBody(text) {
     // Remove markdown escape sequences
-    let cleaned = text.replace(/\\([,\-.*_[\](){}#!+])/g, '$1');
+    // Note: Hyphen is at the end to avoid being interpreted as a range
+    let cleaned = text.replace(/\\([,.*_\[\](){}#!+-])/g, '$1');
     
     // Convert to HTML using renderMarkdown
     let html = renderMarkdown(cleaned);
+    
+    // Sanitize HTML to prevent XSS
+    // Create a temporary div to parse HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    
+    // Remove any script tags
+    const scripts = tempDiv.querySelectorAll('script');
+    scripts.forEach(script => script.remove());
+    
+    // Remove any event handlers
+    const allElements = tempDiv.querySelectorAll('*');
+    allElements.forEach(el => {
+        // Remove event handler attributes
+        for (let attr of [...el.attributes]) {
+            if (attr.name.startsWith('on')) {
+                el.removeAttribute(attr.name);
+            }
+        }
+    });
+    
+    // Get sanitized HTML
+    html = tempDiv.innerHTML;
     
     // Wrap in proper email HTML structure
     return `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333;">${html}</div>`;
