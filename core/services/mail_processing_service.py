@@ -16,6 +16,7 @@ from core.services.graph_service import GraphService, GraphServiceError
 from core.services.weaviate_sync_service import WeaviateItemSyncService, WeaviateItemSyncServiceError
 from core.services.kigate_service import KiGateService, KiGateServiceError
 from core.services.openai_service import OpenAIService, OpenAIServiceError
+from core.services.email_conversation_service import EmailConversationService, EmailConversationServiceError
 
 
 logger = logging.getLogger('mail_processing_service')
@@ -136,6 +137,7 @@ class MailProcessingService:
             self.weaviate_service = WeaviateItemSyncService(settings)
             self.kigate_service = KiGateService(settings) if settings.kigate_api_enabled else None
             self.openai_service = OpenAIService(settings) if settings.openai_api_enabled else None
+            self.email_conversation_service = EmailConversationService(settings)
         except Exception as e:
             logger.error(f"Failed to initialize services: {str(e)}")
             raise MailProcessingServiceError("Failed to initialize services", details=str(e))
@@ -901,7 +903,15 @@ Analyze this email and create a normalized task description in Markdown format:
         comment_text: str,
         author_user=None,
         author_name: str = '',
-        source: str = 'user'
+        source: str = 'user',
+        email_message_id: str = '',
+        email_in_reply_to: str = '',
+        email_references: str = '',
+        email_from: str = '',
+        email_to: str = '',
+        email_cc: str = '',
+        email_subject: str = '',
+        email_direction: str = ''
     ) -> bool:
         """
         Add a comment to a task
@@ -911,7 +921,15 @@ Analyze this email and create a normalized task description in Markdown format:
             comment_text: Text content of the comment (Markdown supported)
             author_user: User object for the author (optional)
             author_name: Name to display if author_user is None
-            source: 'user' or 'agent'
+            source: 'user', 'agent', or 'email'
+            email_message_id: Email Message-ID header (for email comments)
+            email_in_reply_to: Email In-Reply-To header (for email comments)
+            email_references: Email References header (for email comments)
+            email_from: Sender email address (for email comments)
+            email_to: Recipient email addresses (for email comments)
+            email_cc: CC email addresses (for email comments)
+            email_subject: Email subject (for email comments)
+            email_direction: 'inbound' or 'outbound' (for email comments)
             
         Returns:
             True if comment added successfully, False otherwise
@@ -926,7 +944,15 @@ Analyze this email and create a normalized task description in Markdown format:
                 author=author_user,
                 author_name=author_name,
                 text=comment_text,
-                source=source
+                source=source,
+                email_message_id=email_message_id,
+                email_in_reply_to=email_in_reply_to,
+                email_references=email_references,
+                email_from=email_from,
+                email_to=email_to,
+                email_cc=email_cc,
+                email_subject=email_subject,
+                email_direction=email_direction
             )
             
             logger.info(f"Added {source} comment to task {task_id}")
@@ -944,7 +970,8 @@ Analyze this email and create a normalized task description in Markdown format:
         recipient_email: str,
         mail_subject: str,
         normalized_description: str,
-        item_title: str
+        item_title: str,
+        task=None
     ) -> Dict[str, Any]:
         """
         Send confirmation email to the sender
@@ -954,6 +981,7 @@ Analyze this email and create a normalized task description in Markdown format:
             mail_subject: Original email subject
             normalized_description: The normalized task description
             item_title: Title of the Item the task was assigned to
+            task: Task object (optional, for adding Short-ID to subject)
             
         Returns:
             Dictionary with 'success' (bool), 'email_body_html' (str), and 'email_body_markdown' (str)
@@ -961,6 +989,11 @@ Analyze this email and create a normalized task description in Markdown format:
         try:
             # Convert markdown description to HTML
             description_html = self.convert_markdown_to_html(normalized_description)
+            
+            # Build email subject with task reference if task is provided
+            email_subject = f"Re: {mail_subject}"
+            if task:
+                email_subject = self.email_conversation_service.format_subject_with_short_id(task, email_subject)
             
             # Build email body
             email_body_html = f"""
@@ -1034,7 +1067,7 @@ Diese E-Mail wurde automatisch von IdeaGraph generiert.
             # Send email
             result = self.graph_service.send_mail(
                 to=[recipient_email],
-                subject=f"Re: {mail_subject}",
+                subject=email_subject,
                 body=email_body_html
             )
             
@@ -1060,9 +1093,113 @@ Diese E-Mail wurde automatisch von IdeaGraph generiert.
             logger.error(f"Unexpected error sending confirmation: {str(e)}")
             return {'success': False, 'email_body_html': '', 'email_body_markdown': ''}
     
+    def send_notification_to_assigned_user(
+        self,
+        task,
+        sender_name: str,
+        sender_email: str
+    ) -> Dict[str, Any]:
+        """
+        Send notification email to the assigned user about a new message on the task
+        
+        Args:
+            task: Task object
+            sender_name: Name of the person who sent the message
+            sender_email: Email of the person who sent the message
+            
+        Returns:
+            Dictionary with success status
+        """
+        try:
+            # Check if task has an assigned user
+            if not task.assigned_to or not task.assigned_to.email:
+                logger.info(f"Task {task.id} has no assigned user, skipping notification")
+                return {'success': False, 'message': 'No assigned user'}
+            
+            assigned_user_email = task.assigned_to.email
+            assigned_user_name = task.assigned_to.get_full_name() or task.assigned_to.username
+            
+            # Build notification email subject with Short-ID
+            email_subject = self.email_conversation_service.format_subject_with_short_id(
+                task, 
+                f"Neue Nachricht zu Task: {task.title}"
+            )
+            
+            # Build email body
+            email_body_html = f"""
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; padding: 20px; border-radius: 8px 8px 0 0; }}
+        .content {{ background: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px; }}
+        .section {{ margin: 20px 0; padding: 15px; background: white; border-radius: 5px; border-left: 4px solid #3b82f6; }}
+        .footer {{ margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📬 Neue Nachricht eingegangen</h1>
+        </div>
+        <div class="content">
+            <p>Hallo {assigned_user_name},</p>
+            
+            <p>Es ist eine neue Nachricht zu Ihrem Task eingegangen.</p>
+            
+            <div class="section">
+                <h3>📋 Task:</h3>
+                <p><strong>{task.title}</strong></p>
+            </div>
+            
+            <div class="section">
+                <h3>👤 Von:</h3>
+                <p><strong>{sender_name}</strong> ({sender_email})</p>
+            </div>
+            
+            <p>Bitte überprüfen Sie den Task für weitere Details.</p>
+            
+            <div class="footer">
+                <p>Diese E-Mail wurde automatisch von IdeaGraph generiert.</p>
+                <p>&copy; IdeaGraph v1.0 | idea@angermeier.net</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+"""
+            
+            # Send notification email
+            result = self.graph_service.send_mail(
+                to=[assigned_user_email],
+                subject=email_subject,
+                body=email_body_html
+            )
+            
+            if result.get('success'):
+                logger.info(f"Notification sent to assigned user {assigned_user_email} for task {task.id}")
+                return {'success': True}
+            else:
+                logger.error(f"Failed to send notification to {assigned_user_email}")
+                return {'success': False, 'message': 'Failed to send email'}
+                
+        except GraphServiceError as e:
+            logger.error(f"Graph service error sending notification: {e.message}")
+            return {'success': False, 'message': f'Graph service error: {e.message}'}
+        except Exception as e:
+            logger.error(f"Error sending notification: {str(e)}")
+            return {'success': False, 'message': f'Error: {str(e)}'}
+    
     def process_mail(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process a single email message
+        
+        First checks if the email is a reply to an existing task (by checking for IG-TASK reference).
+        If found, adds the message as a comment to the existing task and notifies the assigned user.
+        Otherwise, creates a new task following the original workflow.
         
         Args:
             message: Email message dict from Graph API
@@ -1085,7 +1222,117 @@ Diese E-Mail wurde automatisch von IdeaGraph generiert.
             # Step 1: Convert HTML to Markdown
             body_markdown = self.convert_html_to_markdown(body_html)
             
-            # Step 2: Find matching Item
+            # Step 2: Check if this is a reply to an existing task (IG-TASK reference in subject)
+            short_id = self.email_conversation_service.extract_short_id_from_subject(subject)
+            
+            if short_id:
+                logger.info(f"Found IG-TASK reference: {short_id}")
+                existing_task = self.email_conversation_service.find_task_by_short_id(short_id)
+                
+                if existing_task:
+                    logger.info(f"Email matched to existing task: {existing_task.title} ({existing_task.id})")
+                    
+                    # Find or create user for sender
+                    from main.models import User
+                    try:
+                        sender_user = User.objects.get(email=sender_email)
+                    except User.DoesNotExist:
+                        logger.info(f"Creating new user for email: {sender_email}")
+                        first_name = ''
+                        last_name = ''
+                        if sender_name:
+                            name_parts = sender_name.strip().split()
+                            if len(name_parts) >= 2:
+                                first_name = name_parts[0]
+                                last_name = ' '.join(name_parts[1:])
+                            elif len(name_parts) == 1:
+                                first_name = name_parts[0]
+                        
+                        sender_user = User.objects.create(
+                            username=sender_email,
+                            email=sender_email,
+                            first_name=first_name,
+                            last_name=last_name,
+                            role='user',
+                            is_active=True
+                        )
+                    
+                    # Add incoming email as comment to existing task
+                    comment_text = f"**E-Mail-Antwort von {sender_name}:**\n\n{body_markdown}"
+                    
+                    self.add_comment_to_task(
+                        task_id=str(existing_task.id),
+                        comment_text=comment_text,
+                        author_user=sender_user,
+                        author_name=sender_name,
+                        source='email',
+                        email_from=sender_email,
+                        email_to=self.settings.default_mail_sender or '',
+                        email_subject=subject,
+                        email_direction='inbound'
+                    )
+                    logger.info(f"Added email as comment to existing task {existing_task.id}")
+                    
+                    # Process attachments if present
+                    has_attachments = message.get('hasAttachments', False)
+                    attachments_result = {'processed': 0, 'failed': 0}
+                    
+                    if has_attachments:
+                        logger.info(f"Message has attachments, processing...")
+                        try:
+                            attachments_result = self.process_attachments(
+                                message_id=message_id,
+                                task=existing_task,
+                                user=sender_user
+                            )
+                            logger.info(f"Processed {attachments_result.get('processed', 0)} attachments, "
+                                      f"{attachments_result.get('failed', 0)} failed")
+                        except Exception as e:
+                            logger.error(f"Error during attachment processing: {str(e)}")
+                    
+                    # Send notification to assigned user
+                    notification_sent = False
+                    if existing_task.assigned_to:
+                        notification_result = self.send_notification_to_assigned_user(
+                            task=existing_task,
+                            sender_name=sender_name,
+                            sender_email=sender_email
+                        )
+                        notification_sent = notification_result.get('success', False)
+                    
+                    # Mark message as read and archive
+                    try:
+                        self.graph_service.mark_message_as_read(message_id)
+                    except GraphServiceError as e:
+                        logger.warning(f"Failed to mark message as read: {e.message}")
+                    
+                    archived = False
+                    try:
+                        self.graph_service.move_message(message_id, destination_folder='archive')
+                        archived = True
+                        logger.info(f"Message {message_id} archived successfully")
+                    except GraphServiceError as e:
+                        logger.warning(f"Failed to archive message: {e.message}")
+                    
+                    return {
+                        'success': True,
+                        'message': 'Mail added to existing task',
+                        'mail_subject': subject,
+                        'task_id': str(existing_task.id),
+                        'task_title': existing_task.title,
+                        'is_reply': True,
+                        'notification_sent': notification_sent,
+                        'archived': archived,
+                        'attachments_processed': attachments_result.get('processed', 0),
+                        'attachments_failed': attachments_result.get('failed', 0)
+                    }
+                else:
+                    logger.warning(f"Task not found for Short-ID: {short_id}, creating new task")
+            
+            # No IG-TASK reference or task not found - proceed with creating new task
+            logger.info("No existing task found, creating new task")
+            
+            # Step 3: Find matching Item
             mail_content = f"Subject: {subject}\n\n{body_markdown}"
             matched_item = self.find_matching_item(mail_content)
             
@@ -1102,14 +1349,14 @@ Diese E-Mail wurde automatisch von IdeaGraph generiert.
             
             logger.info(f"Matched to item: {item_title} ({item_id})")
             
-            # Step 3: Generate normalized description
+            # Step 4: Generate normalized description
             normalized_description = self.generate_normalized_description(
                 mail_subject=subject,
                 mail_body=body_markdown,
                 item_context=matched_item
             )
             
-            # Step 4: Create task
+            # Step 5: Create task
             task_info = self.create_task_from_mail(
                 mail_subject=subject,
                 mail_body_markdown=normalized_description,
@@ -1126,13 +1373,15 @@ Diese E-Mail wurde automatisch von IdeaGraph generiert.
                     'mail_subject': subject
                 }
             
-            # Step 4a: Add comment with original mail content
-            # Get the requester user for the comment
-            from main.models import User
+            # Step 5a: Get the created task for further operations
+            from main.models import Task, User
+            task = Task.objects.get(id=task_info['id'])
+            
+            # Step 5b: Add comment with original mail content marked as email inbound
             try:
                 requester = User.objects.get(email=sender_email)
                 
-                # Create original mail comment with sender as author
+                # Create original mail comment marked as inbound email
                 original_mail_comment = f"""**Originale E-Mail von {sender_name}:**
 
 **Betreff:** {subject}
@@ -1143,8 +1392,12 @@ Diese E-Mail wurde automatisch von IdeaGraph generiert.
                     task_id=task_info['id'],
                     comment_text=original_mail_comment,
                     author_user=requester,
-                    author_name='',
-                    source='user'
+                    author_name=sender_name,
+                    source='email',
+                    email_from=sender_email,
+                    email_to=self.settings.default_mail_sender or '',
+                    email_subject=subject,
+                    email_direction='inbound'
                 )
                 logger.info(f"Added original mail comment to task {task_info['id']}")
                 
@@ -1153,20 +1406,13 @@ Diese E-Mail wurde automatisch von IdeaGraph generiert.
             except Exception as e:
                 logger.error(f"Error adding original mail comment: {str(e)}")
             
-            # Step 5: Process attachments if present
+            # Step 6: Process attachments if present
             has_attachments = message.get('hasAttachments', False)
             attachments_result = {'processed': 0, 'failed': 0}
             
             if has_attachments:
                 logger.info(f"Message has attachments, processing...")
-                
-                # Get the created task object
-                from main.models import Task
                 try:
-                    task = Task.objects.get(id=task_info['id'])
-                    
-                    # Get requester user for file uploads
-                    from main.models import User
                     requester = User.objects.get(email=sender_email)
                     
                     # Process attachments
@@ -1179,38 +1425,41 @@ Diese E-Mail wurde automatisch von IdeaGraph generiert.
                     logger.info(f"Processed {attachments_result.get('processed', 0)} attachments, "
                               f"{attachments_result.get('failed', 0)} failed")
                     
-                except Task.DoesNotExist:
-                    logger.error(f"Task {task_info['id']} not found for attachment processing")
                 except User.DoesNotExist:
                     logger.error(f"User {sender_email} not found for attachment processing")
                 except Exception as e:
                     logger.error(f"Error during attachment processing: {str(e)}")
             
-            # Step 6: Send confirmation email
+            # Step 7: Send confirmation email with task reference
             confirmation_result = self.send_confirmation_email(
                 recipient_email=sender_email,
                 mail_subject=subject,
                 normalized_description=normalized_description,
-                item_title=item_title
+                item_title=item_title,
+                task=task
             )
             
             confirmation_sent = confirmation_result.get('success', False)
             
-            # Step 6a: Add comment with confirmation email content (if sent)
+            # Step 7a: Add comment with confirmation email content marked as outbound email
             if confirmation_sent and confirmation_result.get('email_body_markdown'):
                 try:
                     self.add_comment_to_task(
                         task_id=task_info['id'],
                         comment_text=confirmation_result['email_body_markdown'],
                         author_user=None,
-                        author_name='AI Agent Bot',
-                        source='agent'
+                        author_name='System',
+                        source='email',
+                        email_from=self.settings.default_mail_sender or '',
+                        email_to=sender_email,
+                        email_subject=f"Re: {subject} [IG-TASK:#{task.short_id}]",
+                        email_direction='outbound'
                     )
                     logger.info(f"Added confirmation email comment to task {task_info['id']}")
                 except Exception as e:
                     logger.error(f"Error adding confirmation email comment: {str(e)}")
             
-            # Step 7: Mark message as read
+            # Step 8: Mark message as read
             try:
                 self.graph_service.mark_message_as_read(message_id)
             except GraphServiceError as e:

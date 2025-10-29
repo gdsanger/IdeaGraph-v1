@@ -1004,3 +1004,228 @@ class MailProcessingServiceTestCase(TestCase):
         self.assertIsNone(confirmation_comment.author)
         self.assertEqual(confirmation_comment.author_name, 'AI Agent Bot')
         self.assertIn('Ihr Anliegen wurde erfolgreich erfasst', confirmation_comment.text)
+    
+    @patch('core.services.graph_service.GraphService.send_mail')
+    @patch('core.services.graph_service.GraphService.mark_message_as_read')
+    @patch('core.services.graph_service.GraphService.move_message')
+    def test_process_mail_with_existing_task_reference(
+        self, 
+        mock_move, 
+        mock_mark_read, 
+        mock_send_mail, 
+        mock_weaviate_init
+    ):
+        """Test processing an email that replies to an existing task (IG-TASK reference)"""
+        # Create an existing task
+        existing_task = Task.objects.create(
+            title='Existing Task',
+            description='This is an existing task',
+            status='new',
+            item=self.item,
+            requester=self.user,
+            created_by=self.user,
+            assigned_to=self.user
+        )
+        
+        short_id = existing_task.short_id
+        
+        # Mock email message with IG-TASK reference
+        message = {
+            'id': 'test-message-456',
+            'subject': f'Re: Existing Task [IG-TASK:#{short_id}]',
+            'body': {
+                'content': '<p>This is a reply to the existing task</p>'
+            },
+            'from': {
+                'emailAddress': {
+                    'address': 'sender@example.com',
+                    'name': 'Test Sender'
+                }
+            },
+            'hasAttachments': False
+        }
+        
+        # Mock the Graph API calls
+        mock_mark_read.return_value = {'success': True}
+        mock_move.return_value = {'success': True}
+        mock_send_mail.return_value = {'success': True}
+        
+        # Create service and process mail
+        service = MailProcessingService(self.settings)
+        result = service.process_mail(message)
+        
+        # Verify result
+        self.assertTrue(result.get('success'))
+        self.assertEqual(result.get('task_id'), str(existing_task.id))
+        self.assertTrue(result.get('is_reply'))
+        self.assertTrue(result.get('notification_sent'))
+        
+        # Verify comment was added to existing task
+        from main.models import TaskComment
+        comments = TaskComment.objects.filter(task=existing_task).order_by('created_at')
+        self.assertEqual(comments.count(), 1)
+        
+        # Verify comment is marked as email inbound
+        reply_comment = comments[0]
+        self.assertEqual(reply_comment.source, 'email')
+        self.assertEqual(reply_comment.email_direction, 'inbound')
+        self.assertEqual(reply_comment.email_from, 'sender@example.com')
+        self.assertIn('E-Mail-Antwort von Test Sender', reply_comment.text)
+        self.assertIn('This is a reply to the existing task', reply_comment.text)
+        
+        # Verify notification was sent to assigned user
+        mock_send_mail.assert_called()
+        notification_call = mock_send_mail.call_args
+        self.assertIn(self.user.email, notification_call[1]['to'])
+        self.assertIn(short_id, notification_call[1]['subject'])
+    
+    @patch('core.services.graph_service.GraphService.send_mail')
+    @patch('core.services.graph_service.GraphService.mark_message_as_read')
+    @patch('core.services.graph_service.GraphService.move_message')
+    @patch('core.services.kigate_service.KiGateService.execute_agent')
+    @patch('core.services.weaviate_sync_service.WeaviateItemSyncService.search_similar')
+    def test_process_mail_marks_comments_as_email(
+        self, 
+        mock_search, 
+        mock_kigate, 
+        mock_move, 
+        mock_mark_read, 
+        mock_send_mail, 
+        mock_weaviate_init
+    ):
+        """Test that new task creation marks comments correctly as email inbound/outbound"""
+        # Mock Weaviate search
+        mock_search.return_value = {
+            'success': True,
+            'results': [{
+                'id': str(self.item.id),
+                'distance': 0.1,
+                'metadata': {
+                    'title': self.item.title,
+                    'description': self.item.description,
+                    'section': self.section.name,
+                    'status': self.item.status
+                }
+            }]
+        }
+        
+        # Mock KiGate agent for normalization
+        mock_kigate.return_value = {
+            'success': True,
+            'result': 'Normalized task description'
+        }
+        
+        # Mock Graph API calls
+        mock_send_mail.return_value = {'success': True}
+        mock_mark_read.return_value = {'success': True}
+        mock_move.return_value = {'success': True}
+        
+        # Mock email message
+        message = {
+            'id': 'test-message-789',
+            'subject': 'New Support Request',
+            'body': {
+                'content': '<p>I need help with something</p>'
+            },
+            'from': {
+                'emailAddress': {
+                    'address': 'newuser@example.com',
+                    'name': 'New User'
+                }
+            },
+            'hasAttachments': False
+        }
+        
+        # Process mail
+        service = MailProcessingService(self.settings)
+        result = service.process_mail(message)
+        
+        # Verify result
+        self.assertTrue(result.get('success'))
+        task_id = result.get('task_id')
+        self.assertIsNotNone(task_id)
+        
+        # Verify comments
+        from main.models import Task, TaskComment
+        task = Task.objects.get(id=task_id)
+        comments = TaskComment.objects.filter(task=task).order_by('created_at')
+        self.assertEqual(comments.count(), 2)
+        
+        # First comment should be the inbound email
+        inbound_comment = comments[0]
+        self.assertEqual(inbound_comment.source, 'email')
+        self.assertEqual(inbound_comment.email_direction, 'inbound')
+        self.assertEqual(inbound_comment.email_from, 'newuser@example.com')
+        self.assertIn('newuser@example.com', inbound_comment.email_from)
+        self.assertIn('New Support Request', inbound_comment.email_subject)
+        
+        # Second comment should be the outbound confirmation email
+        outbound_comment = comments[1]
+        self.assertEqual(outbound_comment.source, 'email')
+        self.assertEqual(outbound_comment.email_direction, 'outbound')
+        self.assertEqual(outbound_comment.email_from, self.settings.default_mail_sender)
+        self.assertEqual(outbound_comment.email_to, 'newuser@example.com')
+        self.assertIn(task.short_id, outbound_comment.email_subject)
+        self.assertIn('IG-TASK', outbound_comment.email_subject)
+    
+    @patch('core.services.graph_service.GraphService.send_mail')
+    @patch('core.services.graph_service.GraphService.mark_message_as_read')
+    @patch('core.services.graph_service.GraphService.move_message')
+    def test_process_mail_with_invalid_task_reference(
+        self, 
+        mock_move, 
+        mock_mark_read, 
+        mock_send_mail, 
+        mock_weaviate_init
+    ):
+        """Test processing email with invalid IG-TASK reference falls back to creating new task"""
+        # Mock dependencies
+        with patch('core.services.weaviate_sync_service.WeaviateItemSyncService.search_similar') as mock_search, \
+             patch('core.services.kigate_service.KiGateService.execute_agent') as mock_kigate:
+            
+            mock_search.return_value = {
+                'success': True,
+                'results': [{
+                    'id': str(self.item.id),
+                    'distance': 0.1,
+                    'metadata': {
+                        'title': self.item.title,
+                        'description': self.item.description,
+                        'section': self.section.name,
+                        'status': self.item.status
+                    }
+                }]
+            }
+            
+            mock_kigate.return_value = {
+                'success': True,
+                'result': 'Normalized task description'
+            }
+            
+            mock_send_mail.return_value = {'success': True}
+            mock_mark_read.return_value = {'success': True}
+            mock_move.return_value = {'success': True}
+            
+            # Message with non-existent task reference
+            message = {
+                'id': 'test-message-999',
+                'subject': 'Re: Something [IG-TASK:#ABCDEF]',  # Non-existent task
+                'body': {
+                    'content': '<p>Reply to non-existent task</p>'
+                },
+                'from': {
+                    'emailAddress': {
+                        'address': 'sender@example.com',
+                        'name': 'Test Sender'
+                    }
+                },
+                'hasAttachments': False
+            }
+            
+            service = MailProcessingService(self.settings)
+            result = service.process_mail(message)
+            
+            # Should succeed by creating new task
+            self.assertTrue(result.get('success'))
+            self.assertIsNotNone(result.get('task_id'))
+            self.assertFalse(result.get('is_reply', False))  # Not a reply to existing task
