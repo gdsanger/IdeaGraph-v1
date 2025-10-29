@@ -1,4 +1,4 @@
-# Mail Processing Improvements - IG-TASK Email Threading
+# Mail Processing Improvements - Email Threading with Task References
 
 ## Overview
 
@@ -12,32 +12,32 @@ Based on issue requirements, the following changes have been implemented:
 **Requirement:** Comments must be marked as "Mail" (email) and not as "Note", with sender information stored.
 
 **Implementation:**
-- All incoming email comments are now created with `source='email'` and `email_direction='inbound'`
-- Sender information is stored in `email_from`, `author`, and `author_name` fields
-- Original email subject is stored in `email_subject` field
+- All incoming email comments are now created with `source='email'` and `email_direction='inbound'`.
+- Sender information is stored in `email_from`, `author`, and `author_name` fields.
+- Original email subject is stored in `email_subject` field.
 
 ### 2. Task Reference in Reply Subject
 **Requirement:** Reply emails must include the task reference `[IG-TASK:#XXXXXX]` in the subject.
 
 **Implementation:**
-- Confirmation emails now use `EmailConversationService.format_subject_with_short_id()` to add the task reference
-- Example: `Re: Support Request [IG-TASK:#A1B2C3]`
+- Confirmation emails now use `EmailConversationService.format_subject_with_short_id()` to add the task reference.
+- Example: `Re: Support Request [IG-TASK:#A1B2C3]`.
 
 ### 3. Outgoing Email Marked Correctly
 **Requirement:** Outgoing mail must be marked as email outbound with System as sender.
 
 **Implementation:**
-- Confirmation emails are now created with `source='email'` and `email_direction='outbound'`
-- `email_from` is set to `settings.default_mail_sender`
-- `author_name` is set to 'System'
+- Confirmation emails are now created with `source='email'` and `email_direction='outbound'`.
+- `email_from` is set to `settings.default_mail_sender`.
+- `author_name` is set to 'System'.
 
 ### 4. Process Replies to Existing Tasks
-**Requirement:** When emails come in via `process_mails`, check if IG-TASK is in the subject.
-- If yes: Add message to task comments, send notification to assigned user
-- If no or task not found: Create new task as before
+**Requirement:** When emails come in via `process_mails`, check if IG-TASK is in the subject:
+- If yes: Add message to task comments, send notification to assigned user.
+- If no or task not found: Create new task as before.
 
 **Implementation:**
-- `process_mail()` method now checks for IG-TASK reference first using `EmailConversationService.extract_short_id_from_subject()`
+- `process_mail()` method now checks for IG-TASK reference first using `EmailConversationService.extract_short_id_from_subject()`.
 - If found and task exists:
   - Email is added as a comment to the existing task
   - Comment is marked with `source='email'` and `email_direction='inbound'`
