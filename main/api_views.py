@@ -4,6 +4,7 @@ API views for user management and authentication.
 import json
 import base64
 import logging
+import secrets
 import traceback
 from urllib.parse import urlparse
 from django.http import JsonResponse
@@ -12,7 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.core.paginator import Paginator
 from django.utils import timezone
-from .models import User
+from .models import User, Settings
 from .auth_utils import generate_jwt_token, decode_jwt_token, validate_password
 from core.services.graph_service import GraphService, GraphServiceError
 from core.services.github_service import GitHubService, GitHubServiceError
@@ -2362,9 +2363,6 @@ def get_or_create_github_copilot_user():
     Returns:
         User: The GitHub Copilot user instance
     """
-    from .models import Settings
-    import secrets
-    
     COPILOT_USERNAME = "GitHub Copilot"
     
     # Try to get existing user
