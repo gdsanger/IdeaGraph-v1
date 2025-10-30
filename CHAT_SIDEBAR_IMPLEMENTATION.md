@@ -45,8 +45,9 @@ Diese Implementierung ersetzt das bisherige Chat-Modal durch eine effiziente, an
 
 ### 6. Debug-Kontext entfernt
 - **Datei**: `main/static/main/js/chat-widget/ChatWidget.js`
-- **Änderung**: Kontext-Badge (Object Type + ID) aus Header entfernt
+- **Änderung**: Kontext-Badge (Object Type + ID) aus Chat-Header entfernt (Lines 115-123)
 - **Grund**: Nur für Debugging, nicht für Produktivbetrieb
+- **Entfernt**: `.chat-widget-context` div mit context-badge und context-id
 
 ### 7. Quellen in kleinerer Schrift
 - **Datei**: `main/templates/main/partials/chat_sidebar.html`
@@ -61,6 +62,7 @@ Diese Implementierung ersetzt das bisherige Chat-Modal durch eine effiziente, an
 
 ### Chat-Sidebar Toggle
 ```javascript
+// Located in: main/templates/main/partials/chat_sidebar.html
 function toggleChatSidebar() {
     // Sidebar ein-/ausblenden
     // Overlay erstellen/entfernen
@@ -76,7 +78,8 @@ Die Chat-Sidebar erhält folgende Attribute:
 ### Kontext-History
 - **Anzahl**: Letzte 10 Nachrichten
 - **Bereits implementiert**: Keine Änderungen nötig
-- **Datei**: `ChatWidget.js` Line 254
+- **Datei**: `ChatWidget.js` Line 248
+- **Code**: `const conversationHistory = this.messages.slice(-10);`
 
 ### Weaviate/KnowledgeObject Suche
 - Filtert automatisch nach `object_id`
@@ -167,8 +170,9 @@ Mögliche Verbesserungen:
 - Console-Log: "ChatWidget: Cannot initialize without object_id"
 
 ### Thinking-Indikator bleibt sichtbar
-- API-Fehler abfangen in `handleSendMessage`
-- `removeThinkingIndicator()` wird in catch-Block aufgerufen
+- API-Fehler abfangen in `handleSendMessage` (ChatWidget.js)
+- `removeThinkingIndicator()` wird im finally-Block aufgerufen (Line 290)
+- Prüfen: API-Endpunkt erreichbar
 
 ### Sidebar bleibt offen
 - Escape-Taste drücken
