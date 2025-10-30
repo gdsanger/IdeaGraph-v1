@@ -12,7 +12,7 @@ from GitHub repositories to IdeaGraph Items, including:
 import logging
 import re
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 from django.db import transaction
 
 from core.services.github_service import GitHubService, GitHubServiceError
@@ -534,7 +534,7 @@ class GitHubDocSyncService:
                 'file_url': file_url,
                 'itemId': str(item.id),
                 'tags': ['docs', 'documentation', 'github'],
-                'last_synced': datetime.utcnow().isoformat() + 'Z',
+                'last_synced': datetime.now(timezone.utc).isoformat() + 'Z',
                 'github_url': github_url,
                 'github_path': github_file_path,
                 'github_repo': f"{repo_owner}/{repo_name}"
