@@ -45,7 +45,12 @@ class ItemQuestionAnsweringService:
     
     COLLECTION_NAME = 'KnowledgeObject'
     DEFAULT_SEARCH_LIMIT = 10
-    MIN_RELEVANCE_CERTAINTY = 0.3  # Lowered from 0.5 to match Global Search behavior and allow more relevant results
+    # MIN_RELEVANCE_CERTAINTY = 0.0: Set to 0 to match Global Search behavior
+    # Global Search returns all results without relevance filtering, allowing users
+    # to see all potentially relevant content. This matches user expectations where
+    # Global Search finds 20+ results but item-specific search was returning 0.
+    # If quality issues arise, consider: (1) low threshold like 0.1, or (2) UI ranking
+    MIN_RELEVANCE_CERTAINTY = 0.0
     
     # Two-stage search configuration
     SEMANTIC_SEARCH_MULTIPLIER = 3  # Increased from 2 to get more results in semantic search for better coverage
@@ -179,6 +184,13 @@ class ItemQuestionAnsweringService:
             
             logger.debug(f"Stage 1 found {len(direct_response.objects)} directly related objects")
             
+            # Log details of direct results for debugging
+            if len(direct_response.objects) > 0:
+                logger.debug(f"Stage 1 sample results:")
+                for i, obj in enumerate(direct_response.objects[:3]):
+                    props = obj.properties
+                    logger.debug(f"  [{i+1}] {props.get('type', 'Unknown')}: {props.get('title', 'Untitled')[:50]} (score: {obj.metadata.score if obj.metadata else 'N/A'})")
+            
             # Stage 2: Broader semantic search across all KnowledgeObjects
             # This finds semantically related content even if not directly linked
             logger.debug(f"Stage 2: Performing broader semantic search")
@@ -192,6 +204,14 @@ class ItemQuestionAnsweringService:
             
             logger.debug(f"Stage 2 found {len(semantic_response.objects)} semantically related objects")
             
+            # Log details of semantic results for debugging
+            if len(semantic_response.objects) > 0:
+                logger.debug(f"Stage 2 sample results:")
+                for i, obj in enumerate(semantic_response.objects[:3]):
+                    props = obj.properties
+                    item_id_prop = props.get('itemId', 'N/A')
+                    logger.debug(f"  [{i+1}] {props.get('type', 'Unknown')}: {props.get('title', 'Untitled')[:50]} (itemId: {item_id_prop}, score: {obj.metadata.score if obj.metadata else 'N/A'})")
+            
             # Combine and deduplicate results
             seen_uuids = set()
             search_results = []
@@ -204,8 +224,11 @@ class ItemQuestionAnsweringService:
                 seen_uuids.add(obj_uuid)
                 
                 result = self._format_search_result(obj, boost_relevance=self.DIRECT_RESULT_BOOST)
-                if result and result['relevance'] >= self.MIN_RELEVANCE_CERTAINTY:
-                    search_results.append(result)
+                if result:
+                    if result['relevance'] >= self.MIN_RELEVANCE_CERTAINTY:
+                        search_results.append(result)
+                    else:
+                        logger.debug(f"Filtered out direct result (low relevance {result['relevance']}): {result['title'][:50]}")
             
             # Then process semantic results
             for obj in semantic_response.objects:
@@ -215,8 +238,11 @@ class ItemQuestionAnsweringService:
                 seen_uuids.add(obj_uuid)
                 
                 result = self._format_search_result(obj)
-                if result and result['relevance'] >= self.MIN_RELEVANCE_CERTAINTY:
-                    search_results.append(result)
+                if result:
+                    if result['relevance'] >= self.MIN_RELEVANCE_CERTAINTY:
+                        search_results.append(result)
+                    else:
+                        logger.debug(f"Filtered out semantic result (low relevance {result['relevance']}): {result['title'][:50]}")
             
             # Sort by relevance (highest first) and limit to requested number
             search_results.sort(key=lambda x: x['relevance'], reverse=True)

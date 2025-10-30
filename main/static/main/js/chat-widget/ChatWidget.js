@@ -36,6 +36,7 @@ class ChatWidget {
         this.theme = options.theme || 'dark';
         this.height = options.height || '500px';
         this.showHistory = options.showHistory !== false;
+        this.contextType = options.contextType || 'Item'; // 'Item' or 'Task'
         
         // Validate required parameters
         if (!this._isValidItemId(this.itemId)) {
@@ -46,6 +47,7 @@ class ChatWidget {
         this.messages = [];
         this.isLoading = false;
         this.currentQuestion = '';
+        this.lastSearchSources = []; // Store sources from last search
         
         // Get CSRF token from cookie or meta tag
         this.csrfToken = this.getCSRFToken();
@@ -110,7 +112,24 @@ class ChatWidget {
                         <i class="bi bi-chat-dots"></i>
                         <span>IdeaGraph Q&A Assistant</span>
                     </div>
+                    <div class="chat-widget-context">
+                        <span class="context-badge">
+                            <i class="bi bi-${this.contextType === 'Task' ? 'check-circle' : 'box'}"></i>
+                            ${this.contextType}
+                        </span>
+                        <span class="context-id" title="Objekt-ID: ${this.itemId}">
+                            ID: ${this.itemId.substring(0, 8)}...
+                        </span>
+                    </div>
                     <div class="chat-widget-actions">
+                        <button 
+                            id="chat-sources-button" 
+                            class="chat-action-button"
+                            title="Letzte Kontext-Quellen anzeigen"
+                            style="display: none;"
+                        >
+                            <i class="bi bi-journal-text"></i>
+                        </button>
                         <button 
                             id="chat-delete-button" 
                             class="chat-action-button"
@@ -166,6 +185,7 @@ class ChatWidget {
         const inputField = document.getElementById('chat-input-field');
         const sendButton = document.getElementById('chat-send-button');
         const deleteButton = document.getElementById('chat-delete-button');
+        const sourcesButton = document.getElementById('chat-sources-button');
         
         if (!inputField || !sendButton) {
             console.error('ChatWidget: Input elements not found');
@@ -178,6 +198,11 @@ class ChatWidget {
         // Delete button click
         if (deleteButton) {
             deleteButton.addEventListener('click', () => this.handleDeleteChat());
+        }
+        
+        // Sources button click
+        if (sourcesButton) {
+            sourcesButton.addEventListener('click', () => this.showSourcesModal());
         }
         
         // Enter key to send (Shift+Enter for new line)
@@ -232,6 +257,15 @@ class ChatWidget {
             const response = await this.askQuestion(question, conversationHistory);
             
             if (response.success) {
+                // Store sources for inspection
+                this.lastSearchSources = response.sources || [];
+                
+                // Show sources button if we have sources
+                const sourcesButton = document.getElementById('chat-sources-button');
+                if (sourcesButton && this.lastSearchSources.length > 0) {
+                    sourcesButton.style.display = 'block';
+                }
+                
                 // Add bot response
                 this.addMessage({
                     type: 'bot',
@@ -451,6 +485,77 @@ class ChatWidget {
                 statusText.style.color = '';
             }, 3000);
         }
+    }
+    
+    /**
+     * Show modal with sources from last search
+     */
+    showSourcesModal() {
+        if (!this.lastSearchSources || this.lastSearchSources.length === 0) {
+            this.showNotification('Keine Quellen verfügbar. Stelle zuerst eine Frage.', 'info');
+            return;
+        }
+        
+        // Create modal HTML
+        let sourcesHtml = `
+            <div class="sources-modal-overlay" id="sources-modal-overlay">
+                <div class="sources-modal">
+                    <div class="sources-modal-header">
+                        <h5>
+                            <i class="bi bi-journal-text"></i>
+                            Gefundene Kontext-Quellen (${this.lastSearchSources.length})
+                        </h5>
+                        <button class="sources-modal-close" onclick="document.getElementById('sources-modal-overlay').remove()">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                    <div class="sources-modal-body">
+        `;
+        
+        this.lastSearchSources.forEach((source, index) => {
+            const relevancePercent = (source.relevance * 100).toFixed(1);
+            sourcesHtml += `
+                <div class="source-item">
+                    <div class="source-header">
+                        <span class="source-badge">${source.type || 'Unknown'}</span>
+                        <span class="source-relevance">${relevancePercent}% Relevanz</span>
+                    </div>
+                    <h6 class="source-title">${this.escapeHtml(source.title || 'Untitled')}</h6>
+                    ${source.description ? `<p class="source-description">${this.escapeHtml(source.description.substring(0, 200))}${source.description.length > 200 ? '...' : ''}</p>` : ''}
+                    <div class="source-meta">
+                        <small class="text-muted">
+                            ${source.created_at ? new Date(source.created_at).toLocaleDateString('de-DE') : 'Unbekanntes Datum'}
+                        </small>
+                        ${source.url ? `<a href="${this.escapeHtml(source.url)}" target="_blank" class="source-link"><i class="bi bi-box-arrow-up-right"></i> Öffnen</a>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+        
+        sourcesHtml += `
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to DOM
+        document.body.insertAdjacentHTML('beforeend', sourcesHtml);
+        
+        // Close on overlay click
+        document.getElementById('sources-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'sources-modal-overlay') {
+                e.target.remove();
+            }
+        });
+    }
+    
+    /**
+     * Escape HTML to prevent XSS
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 }
 
