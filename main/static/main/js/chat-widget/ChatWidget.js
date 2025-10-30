@@ -26,7 +26,6 @@ class ChatWidget {
         
         // Validate required parameters
         if (!this.itemId || this.itemId.trim() === '') {
-            console.error('ChatWidget: itemId is required');
             throw new Error('ChatWidget requires itemId parameter');
         }
         
