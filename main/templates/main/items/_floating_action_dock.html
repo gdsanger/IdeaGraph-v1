@@ -405,6 +405,13 @@
                     try {
                         const objectType = '{{ object_type|default:"item" }}';
                         const objectId = '{{ object_id|escapejs }}';
+                        
+                        // Only initialize if objectId is provided
+                        if (!objectId || objectId.trim() === '') {
+                            console.warn('ChatWidget: Cannot initialize without object_id');
+                            return;
+                        }
+                        
                         const chatWidget = new ChatWidget({
                             containerId: 'ideagraph-chat-widget-modal',
                             itemId: objectId,
@@ -435,6 +442,13 @@
                     try {
                         const objectType = '{{ object_type|default:"item" }}';
                         const objectId = '{{ object_id|escapejs }}';
+                        
+                        // Only initialize if objectId is provided
+                        if (!objectId || objectId.trim() === '') {
+                            console.warn('SemanticGraph: Cannot initialize without object_id');
+                            return;
+                        }
+                        
                         const semanticNetworkModalViewer = new SemanticGraph('semanticNetworkModalContainer', {
                             objectType: objectType,
                             objectId: objectId,
@@ -690,6 +704,13 @@
                 // Trigger file upload - this will depend on your existing upload mechanism
                 const objectType = '{{ object_type|default:"item" }}';
                 const objectId = '{{ object_id|escapejs }}';
+                
+                // Only proceed if objectId is provided
+                if (!objectId || objectId.trim() === '') {
+                    console.warn('Cannot upload file without object_id');
+                    return;
+                }
+                
                 window.location.href = `/${objectType}s/${objectId}/?upload=true`;
             });
         }

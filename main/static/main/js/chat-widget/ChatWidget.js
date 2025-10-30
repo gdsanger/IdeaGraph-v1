@@ -24,6 +24,12 @@ class ChatWidget {
         this.height = options.height || '500px';
         this.showHistory = options.showHistory !== false;
         
+        // Validate required parameters
+        if (!this.itemId || this.itemId.trim() === '') {
+            console.error('ChatWidget: itemId is required');
+            throw new Error('ChatWidget requires itemId parameter');
+        }
+        
         // State
         this.messages = [];
         this.isLoading = false;
