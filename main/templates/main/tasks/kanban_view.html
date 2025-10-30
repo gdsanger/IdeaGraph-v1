@@ -1,0 +1,355 @@
+{% extends "main/base.html" %}
+
+{% block title %}{{ page_title }} - Kanban{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Kanban Board Styles */
+    .kanban-board {
+        display: flex;
+        gap: 1rem;
+        overflow-x: auto;
+        padding: 1rem 0;
+        min-height: 70vh;
+    }
+    
+    .kanban-column {
+        flex: 0 0 300px;
+        min-width: 300px;
+        background: rgba(31, 41, 55, 0.5);
+        border-radius: 10px;
+        padding: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .kanban-column-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid;
+    }
+    
+    /* Status Colors */
+    .status-new .kanban-column-header {
+        border-bottom-color: #6c757d; /* Gray */
+    }
+    
+    .status-review .kanban-column-header {
+        border-bottom-color: #a855f7; /* Purple/Lila */
+    }
+    
+    .status-ready .kanban-column-header {
+        border-bottom-color: #84cc16; /* Light Green */
+    }
+    
+    .status-working .kanban-column-header {
+        border-bottom-color: #3b82f6; /* Blue */
+    }
+    
+    .status-testing .kanban-column-header {
+        border-bottom-color: #eab308; /* Yellow */
+    }
+    
+    .status-done .kanban-column-header {
+        border-bottom-color: #22c55e; /* Green */
+    }
+    
+    .kanban-column-title {
+        font-size: 1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .kanban-column-count {
+        font-size: 0.875rem;
+        opacity: 0.7;
+    }
+    
+    .kanban-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        min-height: 100px;
+    }
+    
+    .kanban-card {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        padding: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        cursor: move;
+        transition: all 0.2s;
+    }
+    
+    .kanban-card:hover {
+        background: rgba(255, 255, 255, 0.08);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+    
+    .kanban-card-title {
+        font-size: 0.95rem;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        color: #fff;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    
+    .kanban-card-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        margin-top: 0.5rem;
+    }
+    
+    .kanban-card-tag {
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+    }
+    
+    /* Drag & Drop States */
+    .sortable-ghost {
+        opacity: 0.4;
+    }
+    
+    .sortable-drag {
+        opacity: 1;
+        background: rgba(59, 130, 246, 0.3) !important;
+    }
+    
+    .kanban-cards.sortable-chosen {
+        background: rgba(59, 130, 246, 0.1);
+    }
+    
+    /* Filter Bar */
+    .filter-bar {
+        position: sticky;
+        top: 76px;
+        z-index: 100;
+        background: rgba(31, 41, 55, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--autumn-primary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    {% csrf_token %}
+    
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1 class="mb-0">
+                    <i class="bi bi-kanban"></i> {{ page_title }} - Kanban
+                </h1>
+                <div class="d-flex align-items-center gap-3">
+                    <!-- View Toggle -->
+                    <div class="btn-group" role="group" aria-label="View toggle">
+                        <a href="{% url 'main:my_tasks_kanban' %}" 
+                           class="btn btn-sm {% if view_type == 'my_tasks' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                            <i class="bi bi-person-check"></i> Meine Tasks
+                        </a>
+                        <a href="{% url 'main:my_requirements_kanban' %}" 
+                           class="btn btn-sm {% if view_type == 'my_requirements' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                            <i class="bi bi-clipboard-check"></i> Meine Anforderungen
+                        </a>
+                    </div>
+                    <span class="text-muted">
+                        <i class="bi bi-person-circle"></i> {{ request.session.username }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+        <form method="get" id="filter-form">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label for="search" class="form-label">
+                        <i class="bi bi-search"></i> Search
+                    </label>
+                    <input type="text" name="search" id="search" class="form-control form-control-sm" placeholder="Search in title and description..." value="{{ search_query }}">
+                </div>
+                <div class="col-md-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="show_done" id="show_done" value="true" {% if show_done == 'true' %}checked{% endif %} onchange="this.form.submit()">
+                        <label class="form-check-label" for="show_done">
+                            <i class="bi bi-eye"></i> Erledigte anzeigen
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-sm btn-primary w-100">
+                        <i class="bi bi-funnel"></i> Apply
+                    </button>
+                </div>
+                <div class="col-md-3 text-end">
+                    <a href="{% url 'main:task_overview' %}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-list-ul"></i> List View
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Kanban Board -->
+    <div class="kanban-board">
+        {% for status_key, status_data in tasks_by_status.items %}
+        <div class="kanban-column status-{{ status_key }}">
+            <div class="kanban-column-header">
+                <div class="kanban-column-title">
+                    {% if status_key == 'new' %}
+                        <span style="color: #6c757d;">⚪</span>
+                    {% elif status_key == 'review' %}
+                        <span style="color: #a855f7;">🟣</span>
+                    {% elif status_key == 'ready' %}
+                        <span style="color: #84cc16;">🟢</span>
+                    {% elif status_key == 'working' %}
+                        <span style="color: #3b82f6;">🔵</span>
+                    {% elif status_key == 'testing' %}
+                        <span style="color: #eab308;">🟡</span>
+                    {% elif status_key == 'done' %}
+                        <span style="color: #22c55e;">✅</span>
+                    {% endif %}
+                    {{ status_data.label }}
+                </div>
+                <span class="kanban-column-count badge bg-secondary">{{ status_data.count }}</span>
+            </div>
+            <div class="kanban-cards" data-status="{{ status_key }}" id="column-{{ status_key }}">
+                {% for task in status_data.tasks %}
+                <div class="kanban-card" data-task-id="{{ task.id }}">
+                    <a href="{% url 'main:task_detail' task.id %}" class="text-decoration-none">
+                        <div class="kanban-card-title">{{ task.title }}</div>
+                    </a>
+                    <div class="kanban-card-meta">
+                        {% if task.item %}
+                        <span class="badge bg-info text-dark">
+                            <i class="bi bi-folder"></i> {{ task.item.title|truncatechars:15 }}
+                        </span>
+                        {% endif %}
+                        {% if task.assigned_to %}
+                        <span class="badge bg-secondary">
+                            <i class="bi bi-person"></i> {{ task.assigned_to.username }}
+                        </span>
+                        {% endif %}
+                        {% if task.github_issue_id %}
+                        <span class="badge bg-dark">
+                            <i class="bi bi-github"></i> #{{ task.github_issue_id }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% if task.tags.all %}
+                    <div class="kanban-card-meta mt-2">
+                        {% for tag in task.tags.all|slice:":3" %}
+                        <span class="kanban-card-tag" style="background-color: {{ tag.color }}; color: #fff;">
+                            {{ tag.name }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <div class="text-muted text-center py-3" style="font-size: 0.875rem;">
+                    <i class="bi bi-inbox"></i> Keine Tasks
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Sortable.js for Drag & Drop -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize Sortable for each kanban column
+        const columns = document.querySelectorAll('.kanban-cards');
+        
+        columns.forEach(column => {
+            new Sortable(column, {
+                group: 'kanban',
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                dragClass: 'sortable-drag',
+                onEnd: function(evt) {
+                    // Get task ID and new status
+                    const taskId = evt.item.dataset.taskId;
+                    const newStatus = evt.to.dataset.status;
+                    
+                    // Get CSRF token
+                    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                    
+                    // Send AJAX request to update task status
+                    fetch(`/tasks/${taskId}/set_status`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: JSON.stringify({
+                            status: newStatus
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Update column count badges
+                            updateColumnCounts();
+                            
+                            // Show success toast (optional)
+                            console.log('Task status updated successfully');
+                        } else {
+                            // Revert the move
+                            evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex]);
+                            alert('Failed to update task status: ' + data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        // Revert the move
+                        evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex]);
+                        alert('An error occurred while updating task status');
+                    });
+                }
+            });
+        });
+        
+        function updateColumnCounts() {
+            columns.forEach(column => {
+                const count = column.querySelectorAll('.kanban-card').length;
+                const badge = column.closest('.kanban-column').querySelector('.kanban-column-count');
+                badge.textContent = count;
+            });
+        }
+    });
+</script>
+{% endblock %}

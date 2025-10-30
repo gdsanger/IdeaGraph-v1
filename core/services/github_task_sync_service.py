@@ -270,13 +270,14 @@ class GitHubTaskSyncService:
                         is_potential_duplicate = True
                     
                     # Create task
+                    # According to Epic requirements: closed GitHub issues → status = "testing"
                     task = Task.objects.create(
                         title=task_title,
                         description=issue_body or '',
                         item=item,
                         github_issue_id=issue_number,
                         github_issue_url=issue_url,
-                        status='done' if issue_state == 'closed' else 'new',
+                        status='testing' if issue_state == 'closed' else 'new',
                         type='task',
                         created_by=created_by,
                         github_synced_at=timezone.now()

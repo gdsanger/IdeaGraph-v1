@@ -241,6 +241,24 @@
                         <i class="bi bi-folder"></i> {{ item.section.name }}
                     </div>
                     {% endif %}
+                    <!-- Task Count Badges -->
+                    <div class="d-flex gap-1 flex-wrap mb-2" style="font-size: 0.7rem;">
+                        {% if item.new_tasks > 0 %}
+                        <span class="badge bg-secondary" title="{{ item.new_tasks }} neue Tasks">
+                            <i class="bi bi-plus-circle"></i> {{ item.new_tasks }} neu
+                        </span>
+                        {% endif %}
+                        {% if item.open_tasks > 0 %}
+                        <span class="badge bg-primary" title="{{ item.open_tasks }} offene Tasks">
+                            <i class="bi bi-clock"></i> {{ item.open_tasks }} offen
+                        </span>
+                        {% endif %}
+                        {% if item.done_tasks > 0 %}
+                        <span class="badge bg-success" title="{{ item.done_tasks }} erledigte Tasks">
+                            <i class="bi bi-check-circle"></i> {{ item.done_tasks }}
+                        </span>
+                        {% endif %}
+                    </div>
                     <div class="tile-card-tags d-flex flex-wrap gap-1">
                         {% for tag in item.tags.all %}
                         <span class="badge" style="background-color: {{ tag.color }}; font-size: 0.7rem;">{{ tag.name }}</span>

@@ -104,6 +104,10 @@ urlpatterns = [
     # Global Task Overview
     path('admin/tasks/overview/', views.task_overview, name='task_overview'),
     path('tasks/my-requirements/', views.my_requirements, name='my_requirements'),
+    path('tasks/in-progress/', views.tasks_in_progress, name='tasks_in_progress'),
+    path('tasks/for-testing/', views.tasks_for_testing, name='tasks_for_testing'),
+    path('tasks/my-tasks-kanban/', views.my_tasks_kanban, name='my_tasks_kanban'),
+    path('tasks/my-requirements-kanban/', views.my_requirements_kanban, name='my_requirements_kanban'),
     
     # Milestone Management URLs
     path('items/<uuid:item_id>/milestones/create/', views.milestone_create, name='milestone_create'),
@@ -162,6 +166,7 @@ urlpatterns = [
     path('api/tasks/<uuid:task_id>/quick-status-update', api_views.api_task_quick_status_update, name='api_task_quick_status_update'),
     path('api/tasks/<uuid:task_id>/quick-type-update', api_views.api_task_quick_type_update, name='api_task_quick_type_update'),
     path('api/tasks/<uuid:task_id>/mark-done', api_views.api_task_mark_done, name='api_task_mark_done'),
+    path('tasks/<uuid:task_id>/set_status', api_views.api_task_set_status, name='api_task_set_status'),
     path('api/tasks/quick-create', api_views.api_task_quick_create, name='api_task_quick_create'),
     path('api/items/for-move', api_views.api_get_items_for_move, name='api_get_items_for_move'),
     

@@ -520,10 +520,10 @@ class Task(models.Model):
     
     STATUS_CHOICES = [
         ('new', 'Neu'),
-        ('working', 'Working'),
         ('review', 'Review'),
         ('ready', 'Ready'),
-        ('test', 'Test'),
+        ('working', 'Working'),
+        ('testing', 'Testing'),
         ('done', 'Erledigt'),
     ]
     

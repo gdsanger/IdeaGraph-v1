@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.core.exceptions import ValidationError
-from django.db.models import Q
+from django.db.models import Q, Count
 from .auth_utils import validate_password
 from .models import Tag, Settings, Section, User, Item, Task, TaskTemplate, Client, Milestone
 import logging
@@ -900,6 +900,14 @@ def item_list(request):
     # Prefetch related data
     items = items.select_related('section', 'created_by').prefetch_related('tags')
     
+    # Annotate with task counts
+    items = items.annotate(
+        total_tasks=Count('tasks', distinct=True),
+        open_tasks=Count('tasks', filter=~Q(tasks__status='done'), distinct=True),
+        done_tasks=Count('tasks', filter=Q(tasks__status='done'), distinct=True),
+        new_tasks=Count('tasks', filter=Q(tasks__status='new'), distinct=True)
+    )
+    
     # Pagination
     paginator = Paginator(items, 20)
     page_number = request.GET.get('page', 1)
@@ -954,6 +962,14 @@ def item_kanban(request):
     
     # Prefetch related data
     items = items.select_related('section', 'created_by').prefetch_related('tags')
+    
+    # Annotate with task counts
+    items = items.annotate(
+        total_tasks=Count('tasks', distinct=True),
+        open_tasks=Count('tasks', filter=~Q(tasks__status='done'), distinct=True),
+        done_tasks=Count('tasks', filter=Q(tasks__status='done'), distinct=True),
+        new_tasks=Count('tasks', filter=Q(tasks__status='new'), distinct=True)
+    )
     
     # Order by creation date (most recent first)
     items = items.order_by('-created_at')
@@ -2000,6 +2016,240 @@ def my_requirements(request):
         return render(request, 'main/tasks/_task_table.html', context)
     
     return render(request, 'main/tasks/my_requirements.html', context)
+
+
+def tasks_in_progress(request):
+    """Tasks in Progress (Working) - shows all tasks with status 'working'"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Get filter parameters
+    item_filter = request.GET.get('item', '')
+    has_github = request.GET.get('has_github', '')
+    search_query = request.GET.get('search', '').strip()
+    assigned_to_me = request.GET.get('assigned_to_me', '')
+    
+    # Base query - show tasks with status 'working'
+    tasks = Task.objects.filter(status='working')
+    
+    # Apply filters
+    if assigned_to_me == 'true':
+        tasks = tasks.filter(assigned_to=user)
+    
+    if item_filter:
+        tasks = tasks.filter(item_id=item_filter)
+    
+    if has_github == 'true':
+        tasks = tasks.filter(github_issue_id__isnull=False)
+    elif has_github == 'false':
+        tasks = tasks.filter(github_issue_id__isnull=True)
+    
+    if search_query:
+        from django.db.models import Q
+        tasks = tasks.filter(
+            Q(title__icontains=search_query) | 
+            Q(description__icontains=search_query)
+        )
+    
+    # Prefetch related data
+    tasks = tasks.select_related('item', 'assigned_to', 'created_by').prefetch_related('tags')
+    tasks = tasks.order_by('-updated_at')
+    
+    # Pagination
+    paginator = Paginator(tasks, 20)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    # Get all items for filter dropdown
+    items = Item.objects.all()
+    
+    context = {
+        'tasks': page_obj,
+        'items': items,
+        'status_choices': Task.STATUS_CHOICES,
+        'item_filter': item_filter,
+        'has_github': has_github,
+        'search_query': search_query,
+        'assigned_to_me': assigned_to_me,
+        'page_title': 'Tasks in Arbeit',
+        'filter_status': 'working',
+    }
+    
+    # If HTMX request, return only the partial template
+    if request.headers.get('HX-Request'):
+        return render(request, 'main/tasks/_task_table.html', context)
+    
+    return render(request, 'main/tasks/filtered_view.html', context)
+
+
+def tasks_for_testing(request):
+    """Tasks for Testing - shows all tasks with status 'testing'"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Get filter parameters
+    item_filter = request.GET.get('item', '')
+    has_github = request.GET.get('has_github', '')
+    search_query = request.GET.get('search', '').strip()
+    assigned_to_me = request.GET.get('assigned_to_me', '')
+    
+    # Base query - show tasks with status 'testing'
+    tasks = Task.objects.filter(status='testing')
+    
+    # Apply filters
+    if assigned_to_me == 'true':
+        tasks = tasks.filter(assigned_to=user)
+    
+    if item_filter:
+        tasks = tasks.filter(item_id=item_filter)
+    
+    if has_github == 'true':
+        tasks = tasks.filter(github_issue_id__isnull=False)
+    elif has_github == 'false':
+        tasks = tasks.filter(github_issue_id__isnull=True)
+    
+    if search_query:
+        from django.db.models import Q
+        tasks = tasks.filter(
+            Q(title__icontains=search_query) | 
+            Q(description__icontains=search_query)
+        )
+    
+    # Prefetch related data
+    tasks = tasks.select_related('item', 'assigned_to', 'created_by').prefetch_related('tags')
+    tasks = tasks.order_by('-updated_at')
+    
+    # Pagination
+    paginator = Paginator(tasks, 20)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    # Get all items for filter dropdown
+    items = Item.objects.all()
+    
+    context = {
+        'tasks': page_obj,
+        'items': items,
+        'status_choices': Task.STATUS_CHOICES,
+        'item_filter': item_filter,
+        'has_github': has_github,
+        'search_query': search_query,
+        'assigned_to_me': assigned_to_me,
+        'page_title': 'Tasks zum Testen',
+        'filter_status': 'testing',
+    }
+    
+    # If HTMX request, return only the partial template
+    if request.headers.get('HX-Request'):
+        return render(request, 'main/tasks/_task_table.html', context)
+    
+    return render(request, 'main/tasks/filtered_view.html', context)
+
+
+def my_tasks_kanban(request):
+    """Meine Tasks Kanban - shows all tasks assigned to current user in Kanban view"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Get filter parameters
+    show_done = request.GET.get('show_done', 'false')
+    search_query = request.GET.get('search', '').strip()
+    
+    # Base query - show tasks assigned to current user
+    tasks = Task.objects.filter(assigned_to=user)
+    
+    # Apply search filter
+    if search_query:
+        tasks = tasks.filter(
+            Q(title__icontains=search_query) | 
+            Q(description__icontains=search_query)
+        )
+    
+    # Prefetch related data
+    tasks = tasks.select_related('item', 'assigned_to', 'created_by').prefetch_related('tags')
+    
+    # Group tasks by status
+    tasks_by_status = {}
+    for status_key, status_label in Task.STATUS_CHOICES:
+        if status_key == 'done' and show_done == 'false':
+            continue
+        status_tasks = tasks.filter(status=status_key).order_by('-updated_at')
+        tasks_by_status[status_key] = {
+            'label': status_label,
+            'tasks': list(status_tasks),
+            'count': status_tasks.count()
+        }
+    
+    context = {
+        'tasks_by_status': tasks_by_status,
+        'show_done': show_done,
+        'search_query': search_query,
+        'page_title': 'Meine Tasks',
+        'view_type': 'my_tasks',
+    }
+    
+    return render(request, 'main/tasks/kanban_view.html', context)
+
+
+def my_requirements_kanban(request):
+    """Meine Anforderungen Kanban - shows tasks where current user is author or stakeholder in Kanban view"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Get filter parameters
+    show_done = request.GET.get('show_done', 'false')
+    search_query = request.GET.get('search', '').strip()
+    
+    # Base query - show tasks where current user is author (created_by) or requester
+    tasks = Task.objects.filter(Q(created_by=user) | Q(requester=user))
+    
+    # Apply search filter
+    if search_query:
+        tasks = tasks.filter(
+            Q(title__icontains=search_query) | 
+            Q(description__icontains=search_query)
+        )
+    
+    # Prefetch related data
+    tasks = tasks.select_related('item', 'assigned_to', 'created_by').prefetch_related('tags')
+    
+    # Group tasks by status
+    tasks_by_status = {}
+    for status_key, status_label in Task.STATUS_CHOICES:
+        if status_key == 'done' and show_done == 'false':
+            continue
+        status_tasks = tasks.filter(status=status_key).order_by('-updated_at')
+        tasks_by_status[status_key] = {
+            'label': status_label,
+            'tasks': list(status_tasks),
+            'count': status_tasks.count()
+        }
+    
+    context = {
+        'tasks_by_status': tasks_by_status,
+        'show_done': show_done,
+        'search_query': search_query,
+        'page_title': 'Meine Anforderungen',
+        'view_type': 'my_requirements',
+    }
+    
+    return render(request, 'main/tasks/kanban_view.html', context)
 
 
 def tags_network_view(request):
