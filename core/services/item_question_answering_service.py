@@ -45,7 +45,12 @@ class ItemQuestionAnsweringService:
     
     COLLECTION_NAME = 'KnowledgeObject'
     DEFAULT_SEARCH_LIMIT = 10
-    MIN_RELEVANCE_CERTAINTY = 0.0  # Set to 0 to include all results (was 0.2, 0.3, 0.5 before)
+    # MIN_RELEVANCE_CERTAINTY = 0.0: Set to 0 to match Global Search behavior
+    # Global Search returns all results without relevance filtering, allowing users
+    # to see all potentially relevant content. This matches user expectations where
+    # Global Search finds 20+ results but item-specific search was returning 0.
+    # If quality issues arise, consider: (1) low threshold like 0.1, or (2) UI ranking
+    MIN_RELEVANCE_CERTAINTY = 0.0
     
     # Two-stage search configuration
     SEMANTIC_SEARCH_MULTIPLIER = 3  # Increased from 2 to get more results in semantic search for better coverage
