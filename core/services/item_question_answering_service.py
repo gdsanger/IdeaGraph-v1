@@ -45,7 +45,7 @@ class ItemQuestionAnsweringService:
     
     COLLECTION_NAME = 'KnowledgeObject'
     DEFAULT_SEARCH_LIMIT = 10
-    MIN_RELEVANCE_CERTAINTY = 0.7
+    MIN_RELEVANCE_CERTAINTY = 0.5  # Lowered from 0.7 to allow more relevant results
     
     def __init__(self, settings=None):
         """
@@ -118,7 +118,12 @@ class ItemQuestionAnsweringService:
         limit: int = DEFAULT_SEARCH_LIMIT
     ) -> Dict[str, Any]:
         """
-        Search for KnowledgeObjects related to a specific item using semantic search
+        Search for KnowledgeObjects related to a specific item using hybrid semantic search
+        
+        This method performs a two-stage search strategy:
+        1. Searches for objects directly linked to the item (via itemId property)
+        2. Performs a broader semantic search across all KnowledgeObjects
+        3. Combines and deduplicates results, prioritizing directly linked content
         
         Args:
             item_id: UUID of the item (as string)
@@ -138,6 +143,7 @@ class ItemQuestionAnsweringService:
             logger.info(f"Searching related knowledge for item {item_id} with question: {question[:100]}")
             
             if not question or not question.strip():
+                logger.warning("Empty question provided")
                 return {
                     'success': True,
                     'results': [],
@@ -146,24 +152,17 @@ class ItemQuestionAnsweringService:
             
             # Get collection
             collection = self._client.collections.get(self.COLLECTION_NAME)
-            
-            # Build query with related_item filter
-            # Note: related_item filter searches for objects that have this item as their parent
-            # We also want to include the item itself
             item_uuid_str = str(item_id)
             
-            # Create filter for related_item OR the item itself
-            # First, try to find objects where related_item equals our item_id
+            # Stage 1: Search for directly related objects (with itemId filter)
+            # This finds Tasks, Files, Milestones, etc. that belong to this item
+            logger.debug(f"Stage 1: Searching for objects with itemId={item_uuid_str}")
+            
             related_filter = Filter.by_property("itemId").equal(item_uuid_str)
-            
-            # Also include objects where the uuid is the item itself
             item_filter = Filter.by_id().equal(item_uuid_str)
-            
-            # Combine with OR
             combined_filter = related_filter | item_filter
             
-            # Perform hybrid search
-            response = collection.query.hybrid(
+            direct_response = collection.query.hybrid(
                 query=question,
                 limit=limit,
                 filters=combined_filter,
@@ -171,49 +170,55 @@ class ItemQuestionAnsweringService:
                 fusion_type=HybridFusion.RANKED
             )
             
-            # Format results
-            search_results = []
-            for obj in response.objects:
-                # Calculate relevance score
-                distance = obj.metadata.distance if obj.metadata and obj.metadata.distance is not None else 2.0
-                certainty = obj.metadata.certainty if obj.metadata and obj.metadata.certainty is not None else 0.0
-                
-                # Use certainty if available (0-1, higher is better)
-                if certainty > 0:
-                    relevance = certainty
-                else:
-                    relevance = max(0.0, 1.0 - (distance / 2.0))
-                
-                # Skip results with low relevance
-                if relevance < self.MIN_RELEVANCE_CERTAINTY:
-                    continue
-                
-                # Extract properties
-                props = obj.properties
-                obj_type = props.get('type', 'Unknown')
-                title = props.get('title', 'Untitled')
-                description = props.get('description', '')
-                url = props.get('url', '')
-                
-                # Ensure created_at is always a string (convert datetime if necessary)
-                created_at = props.get('createdAt', '')
-                if isinstance(created_at, datetime):
-                    created_at = created_at.isoformat()
-                
-                result = {
-                    'uuid': str(obj.uuid),
-                    'type': obj_type,
-                    'title': title,
-                    'description': description,
-                    'url': url,
-                    'relevance': round(relevance, 2),
-                    'source': props.get('source', ''),
-                    'created_at': created_at
-                }
-                
-                search_results.append(result)
+            logger.debug(f"Stage 1 found {len(direct_response.objects)} directly related objects")
             
-            logger.info(f"Found {len(search_results)} relevant results for item {item_id}")
+            # Stage 2: Broader semantic search across all KnowledgeObjects
+            # This finds semantically related content even if not directly linked
+            logger.debug(f"Stage 2: Performing broader semantic search")
+            
+            semantic_response = collection.query.hybrid(
+                query=question,
+                limit=limit * 2,  # Get more results for better coverage
+                return_metadata=MetadataQuery(distance=True, certainty=True, score=True),
+                fusion_type=HybridFusion.RANKED
+            )
+            
+            logger.debug(f"Stage 2 found {len(semantic_response.objects)} semantically related objects")
+            
+            # Combine and deduplicate results
+            seen_uuids = set()
+            search_results = []
+            
+            # Process directly related objects first (they get priority)
+            for obj in direct_response.objects:
+                obj_uuid = str(obj.uuid)
+                if obj_uuid in seen_uuids:
+                    continue
+                seen_uuids.add(obj_uuid)
+                
+                result = self._format_search_result(obj, boost_relevance=0.1)
+                if result and result['relevance'] >= self.MIN_RELEVANCE_CERTAINTY:
+                    search_results.append(result)
+            
+            # Then process semantic results
+            for obj in semantic_response.objects:
+                obj_uuid = str(obj.uuid)
+                if obj_uuid in seen_uuids:
+                    continue
+                seen_uuids.add(obj_uuid)
+                
+                result = self._format_search_result(obj)
+                if result and result['relevance'] >= self.MIN_RELEVANCE_CERTAINTY:
+                    search_results.append(result)
+            
+            # Sort by relevance (highest first) and limit to requested number
+            search_results.sort(key=lambda x: x['relevance'], reverse=True)
+            search_results = search_results[:limit]
+            
+            logger.info(f"Found {len(search_results)} relevant results for item {item_id} (after filtering and deduplication)")
+            
+            if len(search_results) == 0:
+                logger.warning(f"No results found above relevance threshold {self.MIN_RELEVANCE_CERTAINTY} for item {item_id}")
             
             return {
                 'success': True,
@@ -227,6 +232,64 @@ class ItemQuestionAnsweringService:
                 "Failed to search related knowledge",
                 details=str(e)
             )
+    
+    def _format_search_result(self, obj, boost_relevance: float = 0.0) -> Optional[Dict[str, Any]]:
+        """
+        Format a Weaviate search result object into a standardized result dictionary
+        
+        Args:
+            obj: Weaviate object from search results
+            boost_relevance: Optional boost to add to relevance score (for prioritizing certain results)
+        
+        Returns:
+            Formatted result dictionary or None if object is invalid
+        """
+        try:
+            # Calculate relevance score from metadata
+            distance = obj.metadata.distance if obj.metadata and obj.metadata.distance is not None else 2.0
+            certainty = obj.metadata.certainty if obj.metadata and obj.metadata.certainty is not None else 0.0
+            score = obj.metadata.score if obj.metadata and obj.metadata.score is not None else 0.0
+            
+            # Priority: score > certainty > distance
+            relevance = 0.0
+            if score > 0:
+                # Normalize score using sigmoid-like function
+                relevance = min(1.0, score / (score + 1.0))
+            elif certainty > 0:
+                relevance = certainty
+            else:
+                # Convert distance to relevance (distance is 0-2, lower is better)
+                relevance = max(0.0, 1.0 - (distance / 2.0))
+            
+            # Apply boost if provided
+            relevance = min(1.0, relevance + boost_relevance)
+            
+            # Extract properties
+            props = obj.properties
+            obj_type = props.get('type', 'Unknown')
+            title = props.get('title', 'Untitled')
+            description = props.get('description', '')
+            url = props.get('url', '')
+            
+            # Ensure created_at is always a string
+            created_at = props.get('createdAt', '')
+            if isinstance(created_at, datetime):
+                created_at = created_at.isoformat()
+            
+            return {
+                'uuid': str(obj.uuid),
+                'type': obj_type,
+                'title': title,
+                'description': description,
+                'url': url,
+                'relevance': round(relevance, 2),
+                'source': props.get('source', ''),
+                'created_at': created_at
+            }
+            
+        except Exception as e:
+            logger.warning(f"Failed to format search result: {str(e)}")
+            return None
     
     def generate_answer_with_kigate(
         self,
@@ -259,9 +322,11 @@ class ItemQuestionAnsweringService:
             from core.services.kigate_service import KiGateService, KiGateServiceError
             
             logger.info(f"Generating answer using KIGate for question: {question[:100]}")
+            logger.debug(f"Number of search results provided: {len(search_results)}")
             
             # Check if we have any search results
             if not search_results:
+                logger.warning("No search results available - returning default 'no information' message")
                 return {
                     'success': True,
                     'answer': "**Keine relevanten Informationen gefunden**\n\nZu dieser Frage wurden keine passenden Informationen im Projektkontext gefunden. Bitte versuche eine andere Formulierung oder füge relevante Dokumentationen, Tasks oder Dateien zum Item hinzu.",
@@ -271,14 +336,21 @@ class ItemQuestionAnsweringService:
             # Prepare context from search results
             context_parts = []
             for i, result in enumerate(search_results, 1):
+                # Include more of the description for better context
+                description_length = min(1000, len(result['description']))
+                description_text = result['description'][:description_length]
+                if description_length < len(result['description']):
+                    description_text += "..."
+                
                 context_parts.append(f"""
 **Quelle {i}: {result['type']} - {result['title']}**
 Relevanz: {result['relevance']}
 URL: {result['url']}
-Inhalt: {result['description'][:500]}...
+Inhalt: {description_text}
 """)
             
             context_text = "\n\n".join(context_parts)
+            logger.debug(f"Prepared context from {len(search_results)} sources, total length: {len(context_text)} characters")
             
             # Prepare conversation history context if provided
             history_text = ""
