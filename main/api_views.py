@@ -6390,6 +6390,9 @@ def add_to_weaviate(request, object_type, object_id):
                         
                         file_content = file_result.get('content', b'')
                         
+                        logger.info(f"Starting Weaviate sync for file {file_obj.filename} (ID: {object_id})")
+                        logger.debug(f"File size: {len(file_content)} bytes")
+                        
                         # Sync to Weaviate using item_file_service
                         sync_result = item_file_service._sync_to_weaviate(
                             item, 
@@ -6398,15 +6401,19 @@ def add_to_weaviate(request, object_type, object_id):
                             file_obj.filename
                         )
                         
+                        logger.info(f"Weaviate sync result for {file_obj.filename}: {sync_result}")
+                        
                         if sync_result['success']:
                             file_obj.weaviate_synced = True
                             file_obj.save()
+                            logger.info(f"File {file_obj.filename} marked as weaviate_synced=True")
                             return JsonResponse({
                                 'success': True,
                                 'message': f'File "{file_obj.filename}" synced to Weaviate successfully',
                                 'chunks_synced': sync_result.get('chunks_synced', 0)
                             })
                         else:
+                            logger.error(f"File sync failed for {file_obj.filename}: {sync_result.get('error')}")
                             return JsonResponse({
                                 'success': False,
                                 'error': sync_result.get('error', 'Failed to sync file to Weaviate')

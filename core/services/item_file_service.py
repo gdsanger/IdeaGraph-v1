@@ -7,6 +7,7 @@ integrating with SharePoint via Graph API and Weaviate for file content storage.
 
 import logging
 import re
+import uuid
 from typing import Optional, Dict, Any, List
 from django.db import transaction
 
@@ -353,14 +354,27 @@ class ItemFileService:
                     'itemId': str(item.id),
                 }
                 
-                # Generate UUID for this chunk (file ID + chunk index)
-                chunk_uuid = f"{item_file.id}_{i}" if len(text_chunks) > 1 else str(item_file.id)
+                # Generate UUID for this chunk
+                # For single chunks, use file ID directly; for multiple chunks, generate unique UUIDs
+                if len(text_chunks) == 1:
+                    chunk_uuid = str(item_file.id)
+                else:
+                    # Generate deterministic UUID from file ID and chunk index
+                    chunk_seed = f"{item_file.id}_{i}"
+                    chunk_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, chunk_seed))
+                
+                logger.debug(f"Adding chunk {i+1}/{len(text_chunks)} to Weaviate with UUID {chunk_uuid}")
                 
                 # Add to Weaviate collection
-                collection.data.insert(
-                    properties=properties,
-                    uuid=chunk_uuid
-                )
+                try:
+                    collection.data.insert(
+                        properties=properties,
+                        uuid=chunk_uuid
+                    )
+                    logger.debug(f"Successfully added chunk {i+1} to Weaviate")
+                except Exception as chunk_error:
+                    logger.error(f"Failed to add chunk {i+1} to Weaviate: {str(chunk_error)}")
+                    raise
             
             weaviate_service.close()
             
