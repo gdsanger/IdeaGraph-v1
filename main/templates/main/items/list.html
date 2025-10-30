@@ -69,6 +69,7 @@
                                     <th>Title</th>
                                     <th>Section</th>
                                     <th>Status</th>
+                                    <th>Tasks</th>
                                     <th>Tags</th>
                                     <th>Created</th>
                                     <th>Actions</th>
@@ -103,6 +104,28 @@
                                         {% else %}
                                         <span class="badge bg-secondary">⚪ {{ item.get_status_display }}</span>
                                         {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="d-flex gap-1 flex-wrap">
+                                            {% if item.new_tasks > 0 %}
+                                            <span class="badge bg-secondary" title="{{ item.new_tasks }} neue Tasks">
+                                                <i class="bi bi-plus-circle"></i> {{ item.new_tasks }} neu
+                                            </span>
+                                            {% endif %}
+                                            {% if item.open_tasks > 0 %}
+                                            <span class="badge bg-primary" title="{{ item.open_tasks }} offene Tasks">
+                                                <i class="bi bi-clock"></i> {{ item.open_tasks }} offen
+                                            </span>
+                                            {% endif %}
+                                            {% if item.done_tasks > 0 %}
+                                            <span class="badge bg-success" title="{{ item.done_tasks }} erledigte Tasks">
+                                                <i class="bi bi-check-circle"></i> {{ item.done_tasks }}
+                                            </span>
+                                            {% endif %}
+                                            {% if item.total_tasks == 0 %}
+                                            <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </div>
                                     </td>
                                     <td>
                                         {% for tag in item.tags.all %}

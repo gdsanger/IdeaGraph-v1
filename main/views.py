@@ -900,6 +900,15 @@ def item_list(request):
     # Prefetch related data
     items = items.select_related('section', 'created_by').prefetch_related('tags')
     
+    # Annotate with task counts
+    from django.db.models import Count, Q
+    items = items.annotate(
+        total_tasks=Count('tasks', distinct=True),
+        open_tasks=Count('tasks', filter=~Q(tasks__status='done'), distinct=True),
+        done_tasks=Count('tasks', filter=Q(tasks__status='done'), distinct=True),
+        new_tasks=Count('tasks', filter=Q(tasks__status='new'), distinct=True)
+    )
+    
     # Pagination
     paginator = Paginator(items, 20)
     page_number = request.GET.get('page', 1)
@@ -954,6 +963,15 @@ def item_kanban(request):
     
     # Prefetch related data
     items = items.select_related('section', 'created_by').prefetch_related('tags')
+    
+    # Annotate with task counts
+    from django.db.models import Count, Q
+    items = items.annotate(
+        total_tasks=Count('tasks', distinct=True),
+        open_tasks=Count('tasks', filter=~Q(tasks__status='done'), distinct=True),
+        done_tasks=Count('tasks', filter=Q(tasks__status='done'), distinct=True),
+        new_tasks=Count('tasks', filter=Q(tasks__status='new'), distinct=True)
+    )
     
     # Order by creation date (most recent first)
     items = items.order_by('-created_at')
@@ -2136,6 +2154,106 @@ def tasks_for_testing(request):
         return render(request, 'main/tasks/_task_table.html', context)
     
     return render(request, 'main/tasks/filtered_view.html', context)
+
+
+def my_tasks_kanban(request):
+    """Meine Tasks Kanban - shows all tasks assigned to current user in Kanban view"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Get filter parameters
+    show_done = request.GET.get('show_done', 'false')
+    search_query = request.GET.get('search', '').strip()
+    
+    # Base query - show tasks assigned to current user
+    tasks = Task.objects.filter(assigned_to=user)
+    
+    # Apply search filter
+    if search_query:
+        from django.db.models import Q
+        tasks = tasks.filter(
+            Q(title__icontains=search_query) | 
+            Q(description__icontains=search_query)
+        )
+    
+    # Prefetch related data
+    tasks = tasks.select_related('item', 'assigned_to', 'created_by').prefetch_related('tags')
+    
+    # Group tasks by status
+    tasks_by_status = {}
+    for status_key, status_label in Task.STATUS_CHOICES:
+        if status_key == 'done' and show_done == 'false':
+            continue
+        status_tasks = tasks.filter(status=status_key).order_by('-updated_at')
+        tasks_by_status[status_key] = {
+            'label': status_label,
+            'tasks': list(status_tasks),
+            'count': status_tasks.count()
+        }
+    
+    context = {
+        'tasks_by_status': tasks_by_status,
+        'show_done': show_done,
+        'search_query': search_query,
+        'page_title': 'Meine Tasks',
+        'view_type': 'my_tasks',
+    }
+    
+    return render(request, 'main/tasks/kanban_view.html', context)
+
+
+def my_requirements_kanban(request):
+    """Meine Anforderungen Kanban - shows tasks where current user is author or stakeholder in Kanban view"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Get filter parameters
+    show_done = request.GET.get('show_done', 'false')
+    search_query = request.GET.get('search', '').strip()
+    
+    # Base query - show tasks where current user is author (created_by) or requester
+    from django.db.models import Q
+    tasks = Task.objects.filter(Q(created_by=user) | Q(requester=user))
+    
+    # Apply search filter
+    if search_query:
+        tasks = tasks.filter(
+            Q(title__icontains=search_query) | 
+            Q(description__icontains=search_query)
+        )
+    
+    # Prefetch related data
+    tasks = tasks.select_related('item', 'assigned_to', 'created_by').prefetch_related('tags')
+    
+    # Group tasks by status
+    tasks_by_status = {}
+    for status_key, status_label in Task.STATUS_CHOICES:
+        if status_key == 'done' and show_done == 'false':
+            continue
+        status_tasks = tasks.filter(status=status_key).order_by('-updated_at')
+        tasks_by_status[status_key] = {
+            'label': status_label,
+            'tasks': list(status_tasks),
+            'count': status_tasks.count()
+        }
+    
+    context = {
+        'tasks_by_status': tasks_by_status,
+        'show_done': show_done,
+        'search_query': search_query,
+        'page_title': 'Meine Anforderungen',
+        'view_type': 'my_requirements',
+    }
+    
+    return render(request, 'main/tasks/kanban_view.html', context)
 
 
 def tags_network_view(request):

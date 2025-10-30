@@ -106,6 +106,8 @@ urlpatterns = [
     path('tasks/my-requirements/', views.my_requirements, name='my_requirements'),
     path('tasks/in-progress/', views.tasks_in_progress, name='tasks_in_progress'),
     path('tasks/for-testing/', views.tasks_for_testing, name='tasks_for_testing'),
+    path('tasks/my-tasks-kanban/', views.my_tasks_kanban, name='my_tasks_kanban'),
+    path('tasks/my-requirements-kanban/', views.my_requirements_kanban, name='my_requirements_kanban'),
     
     # Milestone Management URLs
     path('items/<uuid:item_id>/milestones/create/', views.milestone_create, name='milestone_create'),
