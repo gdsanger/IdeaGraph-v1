@@ -1,16 +1,6 @@
 {% load static %}
 <!-- Floating Action Dock -->
 <div class="floating-action-dock" data-context="{{ dock_context|default:'item' }}">
-    <!-- Chat Button (Item View only) -->
-    <button type="button" 
-            class="btn floating-action-btn floating-action-btn-chat" 
-            data-bs-toggle="modal" 
-            data-bs-target="#qaChatModal"
-            data-context="item"
-            title="Q&A Chat">
-        <i class="bi bi-chat-dots"></i>
-    </button>
-    
     <!-- Graph Button (Item & Task Views) -->
     <button type="button" 
             class="btn floating-action-btn floating-action-btn-graph" 
@@ -42,29 +32,6 @@
     </button>
 </div>
 
-<!-- Q&A Chat Modal -->
-<div class="modal fade draggable-modal" id="qaChatModal" tabindex="-1" aria-labelledby="qaChatModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable resizable-modal">
-        <div class="modal-content bg-dark">
-            <div class="modal-header draggable-handle">
-                <h5 class="modal-title" id="qaChatModalLabel">
-                    <i class="bi bi-chat-dots"></i> IdeaGraph Q&A Assistant
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" style="min-height: 600px;">
-                <p class="text-muted" style="font-size: 0.9rem;">
-                    Stelle Fragen zu diesem Item. Der IdeaGraph Assistant durchsucht automatisch alle zugehörigen Tasks, Files, Kommentare und Dokumentationen und generiert eine fundierte Antwort mit Quellenangaben.
-                </p>
-                
-                <!-- Chat Widget Container -->
-                <div id="ideagraph-chat-widget-modal"></div>
-            </div>
-            <!-- Resize handle -->
-            <div class="resize-handle"></div>
-        </div>
-    </div>
-</div>
 
 <!-- Graph Modal -->
 <div class="modal fade draggable-modal" id="graphModal" tabindex="-1" aria-labelledby="graphModalLabel" aria-hidden="true">
@@ -206,18 +173,6 @@
         justify-content: center;
         border: none;
         font-size: 1.5rem;
-    }
-    
-    /* Chat Button - Cyan */
-    .floating-action-btn-chat {
-        background-color: var(--secondary-cyan);
-        box-shadow: 0 4px 12px rgba(75, 208, 199, 0.4);
-    }
-    
-    .floating-action-btn-chat:hover {
-        background-color: #5dd4c7;
-        transform: scale(1.1);
-        box-shadow: 0 6px 16px rgba(75, 208, 199, 0.6);
     }
     
     /* Graph Button - Amber */
@@ -403,66 +358,6 @@ function isValidObjectId(objectId) {
            objectId !== 'None' && 
            objectId !== 'undefined';
 }
-
-// Initialize Chat Widget for Modal (lazy load when modal is shown)
-(function() {
-    // Use a unique flag on the modal element to track initialization
-    document.addEventListener('DOMContentLoaded', function() {
-        const qaChatModal = document.getElementById('qaChatModal');
-        if (qaChatModal) {
-            qaChatModal.addEventListener('shown.bs.modal', function() {
-                if (!qaChatModal.dataset.chatWidgetInitialized) {
-                    try {
-                        const objectType = '{{ object_type|default:"item" }}';
-                        const objectId = '{{ object_id|escapejs }}';
-                        
-                        // Only initialize if objectId is provided and valid
-                        if (!isValidObjectId(objectId)) {
-                            console.warn('ChatWidget: Cannot initialize without object_id');
-                            const container = document.getElementById('ideagraph-chat-widget-modal');
-                            if (container) {
-                                container.innerHTML = `
-                                    <div class="alert alert-warning" role="alert">
-                                        <i class="bi bi-exclamation-triangle"></i>
-                                        <strong>Keine Kontext-ID verfügbar</strong>
-                                        <p class="mb-0 mt-2">Der Q&A Chat ist nur auf Item- und Task-Detail-Seiten verfügbar.</p>
-                                    </div>
-                                `;
-                            }
-                            qaChatModal.dataset.chatWidgetInitialized = 'true';
-                            return;
-                        }
-                        
-                        const chatWidget = new ChatWidget({
-                            containerId: 'ideagraph-chat-widget-modal',
-                            itemId: objectId,
-                            contextType: objectType === 'item' ? 'Item' : 'Task',
-                            apiBaseUrl: `/api/${objectType}s`,
-                            theme: 'dark',
-                            height: '500px',
-                            showHistory: true
-                        });
-                        qaChatModal.dataset.chatWidgetInitialized = 'true';
-                        console.log('Chat widget initialized in modal');
-                    } catch (error) {
-                        console.error('Error initializing chat widget in modal:', error);
-                        const container = document.getElementById('ideagraph-chat-widget-modal');
-                        if (container) {
-                            container.innerHTML = `
-                                <div class="alert alert-danger" role="alert">
-                                    <i class="bi bi-exclamation-triangle"></i>
-                                    <strong>Fehler beim Initialisieren des Chats</strong>
-                                    <p class="mb-0 mt-2">${error.message || 'Ein unbekannter Fehler ist aufgetreten.'}</p>
-                                </div>
-                            `;
-                        }
-                        qaChatModal.dataset.chatWidgetInitialized = 'true';
-                    }
-                }
-            });
-        }
-    });
-})();
 
 // Initialize Semantic Network for Modal (lazy load when modal is shown)
 (function() {
@@ -732,9 +627,8 @@ function isValidObjectId(objectId) {
         }
     }
     
-    // Initialize both modals on DOM ready
+    // Initialize modals on DOM ready
     document.addEventListener('DOMContentLoaded', function() {
-        initDraggableResizableModal('qaChatModal');
         initDraggableResizableModal('graphModal');
         initDraggableResizableModal('filesModal');
         initDraggableResizableModal('globalSearchModal');

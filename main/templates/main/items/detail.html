@@ -275,17 +275,55 @@
         opacity: 0.7;
     }
 
+    /* Chat Floating Button in Breadcrumb */
+    .chat-floating-btn-breadcrumb {
+        background-color: var(--secondary-cyan);
+        color: var(--soft-white);
+        border-radius: 50%;
+        width: 42px;
+        height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        font-size: 1.2rem;
+        box-shadow: 0 2px 8px rgba(75, 208, 199, 0.4);
+        transition: all 0.2s ease-in-out;
+    }
+    
+    .chat-floating-btn-breadcrumb:hover {
+        background-color: #5dd4c7;
+        transform: scale(1.1);
+        box-shadow: 0 4px 12px rgba(75, 208, 199, 0.6);
+    }
+    
+    .chat-floating-btn-breadcrumb:active {
+        transform: scale(0.95);
+    }
+    
+    .chat-floating-btn-breadcrumb.hidden {
+        display: none !important;
+    }
+
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <!-- Breadcrumb -->
-    <nav aria-label="breadcrumb" class="mb-2">
-        <ol class="breadcrumb">
+    <!-- Breadcrumb with Chat Button -->
+    <nav aria-label="breadcrumb" class="mb-2 d-flex justify-content-between align-items-center">
+        <ol class="breadcrumb mb-0">
             <li class="breadcrumb-item"><a href="{% url 'main:item_list' %}">Items</a></li>
             <li class="breadcrumb-item active" aria-current="page">{{ item.title }}</li>
         </ol>
+        <!-- Floating Chat Button in Breadcrumb Area -->
+        <button type="button" 
+                class="btn chat-floating-btn-breadcrumb"
+                id="chatFloatingBtn"
+                onclick="toggleChatSidebar()"
+                title="Q&A Assistant">
+            <i class="bi bi-chat-dots"></i>
+        </button>
     </nav>
 
     <!-- Milestone Badge Bar - Only show non-completed milestones -->
@@ -803,6 +841,8 @@
         
         </div>
     
+    <!-- Chat Sidebar -->
+    {% include 'main/partials/chat_sidebar.html' with object_type='item' object_id=item.id %}
 
     <!-- Send Email Modal -->
     <div class="modal fade" id="sendEmailModal" tabindex="-1" aria-labelledby="sendEmailModalLabel" aria-hidden="true">
