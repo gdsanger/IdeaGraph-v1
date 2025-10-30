@@ -263,16 +263,18 @@ def _basic_markdown_to_html(markdown_content: str) -> str:
     html = re.sub(r'^# (.*?)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
     
     # Convert bold (must be done before italic to avoid conflicts)
-    html = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', html)
-    html = re.sub(r'__(.*?)__', r'<strong>\1</strong>', html)
+    # Use non-capturing groups and limit repetition to prevent ReDoS
+    html = re.sub(r'\*\*([^\*]+?)\*\*', r'<strong>\1</strong>', html)
+    html = re.sub(r'__([^_]+?)__', r'<strong>\1</strong>', html)
     
     # Convert italic (avoid matching already converted bold tags)
-    # Use negative lookahead/lookbehind to avoid matching asterisks in bold patterns
-    html = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', html)
-    html = re.sub(r'(?<!_)_(?!_)(.+?)(?<!_)_(?!_)', r'<em>\1</em>', html)
+    # Use more specific patterns to prevent catastrophic backtracking
+    html = re.sub(r'(?<!\*)\*([^\*\n]+?)\*(?!\*)', r'<em>\1</em>', html)
+    html = re.sub(r'(?<!_)_([^_\n]+?)_(?!_)', r'<em>\1</em>', html)
     
-    # Convert links
-    html = re.sub(r'\[(.*?)\]\((.*?)\)', r'<a href="\2">\1</a>', html)
+    # Convert links - use more specific pattern to prevent ReDoS
+    # Limit the content to exclude nested brackets and parentheses
+    html = re.sub(r'\[([^\[\]\n]{1,200}?)\]\(([^\(\)\s\n]{1,500}?)\)', r'<a href="\2">\1</a>', html)
     
     # Helper function to process lists
     def process_lists(text: str, list_pattern: str, list_tag: str) -> str:
