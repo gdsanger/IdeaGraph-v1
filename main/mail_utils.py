@@ -192,3 +192,69 @@ def send_task_email(task_id, recipient_email, subject, body, user=None, in_reply
     except Exception as e:
         logger.error(f"Unexpected error sending task email: {str(e)}")
         return False, f"Unexpected error: {str(e)}"
+
+
+def send_task_moved_notification(task_id, source_item_title, target_item_title):
+    """
+    Send a notification email to the task requester when a task is moved to another item.
+    
+    Args:
+        task_id: UUID of the task that was moved
+        source_item_title: Title of the source item (where the task was before)
+        target_item_title: Title of the target item (where the task was moved to)
+        
+    Returns:
+        tuple: (success, message)
+    """
+    try:
+        # Get the task with requester information
+        task = Task.objects.select_related('requester').get(id=task_id)
+        
+        # Check if task has a requester
+        if not task.requester:
+            logger.info(f"Task {task_id} has no requester, skipping notification email")
+            return True, "No requester to notify"
+        
+        # Check if requester has an email
+        if not task.requester.email:
+            logger.warning(f"Task requester {task.requester.username} has no email address")
+            return False, "Requester has no email address"
+        
+        # Prepare context for the email template
+        context = {
+            'requester_name': task.requester.username,
+            'task_title': task.title,
+            'task_description': task.description,
+            'source_item_title': source_item_title,
+            'target_item_title': target_item_title
+        }
+        
+        # Render the email template
+        html_content = render_to_string('main/mailtemplates/task_moved.html', context)
+        
+        # Initialize Graph service
+        graph_service = GraphService()
+        
+        # Send email
+        result = graph_service.send_mail(
+            to=[task.requester.email],
+            subject=f'Task verschoben: {task.title}',
+            body=html_content
+        )
+        
+        if result.get('success'):
+            logger.info(f"Task moved notification sent successfully to {task.requester.email} for task {task.title}")
+            return True, "Notification email sent successfully"
+        else:
+            logger.error(f"Failed to send task moved notification to {task.requester.email}")
+            return False, "Failed to send notification email"
+            
+    except Task.DoesNotExist:
+        logger.error(f"Task with id {task_id} not found")
+        return False, "Task not found"
+    except GraphServiceError as e:
+        logger.error(f"Graph service error sending task moved notification: {e.message}")
+        return False, f"Email service error: {e.message}"
+    except Exception as e:
+        logger.error(f"Unexpected error sending task moved notification: {str(e)}")
+        return False, f"Unexpected error: {str(e)}"

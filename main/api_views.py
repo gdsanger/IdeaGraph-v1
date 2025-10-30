@@ -3004,7 +3004,8 @@ def api_task_move(request, task_id):
     
     Expects JSON body:
     {
-        "target_item_id": "uuid-of-target-item"
+        "target_item_id": "uuid-of-target-item",
+        "notify_requester": true  // optional, defaults to false
     }
     
     Returns:
@@ -3013,11 +3014,18 @@ def api_task_move(request, task_id):
         "message": "Task moved successfully",
         "moved": true,
         "files_moved": true,
-        "files_count": 2
+        "files_count": 2,
+        "requester": {
+            "id": "uuid",
+            "username": "username",
+            "email": "email@example.com"
+        },
+        "notification_sent": true  // if notify_requester was true
     }
     """
     from .models import Task, Item, Settings, User
     from core.services.task_move_service import TaskMoveService, TaskMoveServiceError
+    from main.mail_utils import send_task_moved_notification
     
     try:
         # Get current user from session
@@ -3041,15 +3049,21 @@ def api_task_move(request, task_id):
         if not target_item_id:
             return JsonResponse({'error': 'target_item_id is required'}, status=400)
         
-        # Verify task exists
+        # Get optional notify_requester flag
+        notify_requester = data.get('notify_requester', False)
+        
+        # Verify task exists and get it with related data
         try:
-            task = Task.objects.get(id=task_id)
+            task = Task.objects.select_related('item', 'requester').get(id=task_id)
         except Task.DoesNotExist:
             return JsonResponse({'error': 'Task not found'}, status=404)
         
         # Check permissions - user must be the creator or admin
         if user.role != 'admin' and task.created_by != user:
             return JsonResponse({'error': 'Permission denied'}, status=403)
+        
+        # Store source item title before move
+        source_item_title = task.item.title if task.item else 'Standalone Task'
         
         # Initialize move service
         try:
@@ -3068,6 +3082,42 @@ def api_task_move(request, task_id):
                 target_item_id=str(target_item_id),
                 user=user
             )
+            
+            # Add requester information to the response
+            if task.requester:
+                result['requester'] = {
+                    'id': str(task.requester.id),
+                    'username': task.requester.username,
+                    'email': task.requester.email
+                }
+            else:
+                result['requester'] = None
+            
+            # Send notification if requested and task has a requester
+            if notify_requester and task.requester and result.get('moved'):
+                # Get target item for notification
+                try:
+                    target_item = Item.objects.get(id=target_item_id)
+                    target_item_title = target_item.title
+                    
+                    # Send notification email
+                    notification_success, notification_message = send_task_moved_notification(
+                        task_id=str(task_id),
+                        source_item_title=source_item_title,
+                        target_item_title=target_item_title
+                    )
+                    
+                    result['notification_sent'] = notification_success
+                    result['notification_message'] = notification_message
+                    
+                    if not notification_success:
+                        logger.warning(f'Task moved but notification failed: {notification_message}')
+                except Item.DoesNotExist:
+                    logger.error(f'Target item {target_item_id} not found for notification')
+                    result['notification_sent'] = False
+                    result['notification_message'] = 'Target item not found'
+            else:
+                result['notification_sent'] = False
             
             logger.info(f'Task {task_id} moved by user {user.username}')
             return JsonResponse(result)

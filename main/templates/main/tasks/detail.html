@@ -612,6 +612,24 @@
                         </small>
                         {% endif %}
                     </div>
+                    
+                    {% if task.requester %}
+                    <div class="mb-3 border border-info rounded p-3 bg-dark-subtle">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="notifyRequesterCheck">
+                            <label class="form-check-label" for="notifyRequesterCheck">
+                                <i class="bi bi-envelope"></i> Notify requester about this move
+                            </label>
+                        </div>
+                        <small class="text-info d-block mt-2">
+                            <i class="bi bi-person"></i> Requester: <strong>{{ task.requester.username }}</strong>
+                            {% if task.requester.email %}
+                            ({{ task.requester.email }})
+                            {% endif %}
+                        </small>
+                    </div>
+                    {% endif %}
+                    
                     <div id="moveTaskAlert" class="alert" style="display: none;"></div>
                 </div>
                 <div class="modal-footer">
@@ -1318,6 +1336,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        // Get notify requester checkbox state (if it exists)
+        const notifyRequesterCheck = document.getElementById('notifyRequesterCheck');
+        const notifyRequester = notifyRequesterCheck ? notifyRequesterCheck.checked : false;
+        
         // Disable button during request
         confirmMoveBtn.disabled = true;
         confirmMoveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Moving...';
@@ -1330,14 +1352,24 @@ document.addEventListener('DOMContentLoaded', function() {
                     'X-CSRFToken': getCsrfToken()
                 },
                 body: JSON.stringify({
-                    target_item_id: targetItemId
+                    target_item_id: targetItemId,
+                    notify_requester: notifyRequester
                 })
             });
             
             const data = await response.json();
             
             if (response.ok && data.success) {
-                showMoveAlert(data.message, 'success');
+                let message = data.message;
+                
+                // Add notification status to message if applicable
+                if (notifyRequester && data.notification_sent) {
+                    message += ' Email notification sent to requester.';
+                } else if (notifyRequester && !data.notification_sent) {
+                    message += ' Warning: Could not send email notification.';
+                }
+                
+                showMoveAlert(message, 'success');
                 
                 // Reload page after 1.5 seconds to reflect changes
                 setTimeout(() => {
