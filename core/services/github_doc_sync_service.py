@@ -570,7 +570,10 @@ class GitHubDocSyncService:
                     )
             except Exception as e:
                 # If fetch_object_by_id raises an exception, the object likely doesn't exist
-                # Try to create it
+                # Log the exception for debugging
+                logger.debug(f"Error fetching object {doc_uuid}: {str(e)}")
+                
+                # Try to create it - if it actually exists, Weaviate will return an error
                 logger.info(f"Object not found, creating new KnowledgeObject: {doc_uuid}")
                 try:
                     collection.data.insert(
@@ -578,9 +581,23 @@ class GitHubDocSyncService:
                         uuid=doc_uuid
                     )
                 except Exception as insert_error:
-                    # If insert also fails, log the error with details
-                    logger.error(f"Failed to insert object {doc_uuid}: {str(insert_error)}")
-                    raise
+                    # If insert fails, check if it's because the object already exists
+                    error_msg = str(insert_error).lower()
+                    if 'already exists' in error_msg or '422' in str(insert_error):
+                        # Object exists but fetch failed - try update instead
+                        logger.info(f"Object exists but fetch failed, attempting update: {doc_uuid}")
+                        try:
+                            collection.data.update(
+                                uuid=doc_uuid,
+                                properties=properties
+                            )
+                        except Exception as update_error:
+                            logger.error(f"Failed to update object {doc_uuid}: {str(update_error)}")
+                            raise
+                    else:
+                        # Other error - log and raise
+                        logger.error(f"Failed to insert object {doc_uuid}: {str(insert_error)}")
+                        raise
             
             logger.info(f"Successfully synced {filename} to Weaviate")
             return {
