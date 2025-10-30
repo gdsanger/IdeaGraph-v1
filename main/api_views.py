@@ -6360,20 +6360,71 @@ def add_to_weaviate(request, object_type, object_id):
                 }, status=500)
                 
         elif object_type in ['item_file', 'task_file']:
-            # For files, we need to sync them through the parent object's sync service
+            # For files, extract content and sync to Weaviate
             try:
                 if object_type == 'item_file':
+                    from core.services.item_file_service import ItemFileService
+                    from core.services.graph_service import GraphService
+                    
                     file_obj = ItemFile.objects.get(id=object_id)
-                    # Mark as synced and trigger parent item sync
-                    file_obj.weaviate_synced = True
-                    file_obj.save()
-                    return JsonResponse({
-                        'success': True,
-                        'message': f'File "{file_obj.filename}" marked for Weaviate sync'
-                    })
+                    item = file_obj.item
+                    
+                    # Initialize services
+                    graph_service = GraphService(settings)
+                    item_file_service = ItemFileService(settings)
+                    
+                    # Download file content from SharePoint
+                    if not file_obj.sharepoint_file_id:
+                        return JsonResponse({
+                            'success': False,
+                            'error': 'SharePoint file ID not found'
+                        }, status=400)
+                    
+                    try:
+                        file_result = graph_service.get_sharepoint_file(file_obj.sharepoint_file_id)
+                        if not file_result.get('success'):
+                            return JsonResponse({
+                                'success': False,
+                                'error': 'Failed to download file from SharePoint'
+                            }, status=500)
+                        
+                        file_content = file_result.get('content', b'')
+                        
+                        # Sync to Weaviate using item_file_service
+                        sync_result = item_file_service._sync_to_weaviate(
+                            item, 
+                            file_obj, 
+                            file_content, 
+                            file_obj.filename
+                        )
+                        
+                        if sync_result['success']:
+                            file_obj.weaviate_synced = True
+                            file_obj.save()
+                            return JsonResponse({
+                                'success': True,
+                                'message': f'File "{file_obj.filename}" synced to Weaviate successfully',
+                                'chunks_synced': sync_result.get('chunks_synced', 0)
+                            })
+                        else:
+                            return JsonResponse({
+                                'success': False,
+                                'error': sync_result.get('error', 'Failed to sync file to Weaviate')
+                            }, status=500)
+                            
+                    except GraphServiceError as e:
+                        logger.error(f'Error downloading file from SharePoint: {str(e)}')
+                        return JsonResponse({
+                            'success': False,
+                            'error': f'SharePoint error: {e.message}'
+                        }, status=500)
+                    
                 else:
+                    # TaskFile handling
+                    from core.services.task_file_service import TaskFileService
+                    
                     file_obj = TaskFile.objects.get(id=object_id)
-                    # Mark as synced
+                    # For now, just mark as synced (TaskFile sync can be implemented similarly)
                     file_obj.weaviate_synced = True
                     file_obj.save()
                     return JsonResponse({
@@ -6385,6 +6436,12 @@ def add_to_weaviate(request, object_type, object_id):
                     'success': False,
                     'error': 'File not found'
                 }, status=404)
+            except Exception as e:
+                logger.error(f'Error syncing file to Weaviate: {str(e)}')
+                return JsonResponse({
+                    'success': False,
+                    'error': str(e)
+                }, status=500)
         else:
             return JsonResponse({
                 'success': False,
