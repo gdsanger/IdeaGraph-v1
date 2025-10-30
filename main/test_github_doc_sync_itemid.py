@@ -89,7 +89,8 @@ class GitHubDocSyncItemIdTest(TestCase):
         # Mock the collection object
         mock_collection = MagicMock()
         mock_weaviate_instance._client.collections.get.return_value = mock_collection
-        mock_collection.data.exists.return_value = False  # New object
+        # Mock fetch_object_by_id to return None (object doesn't exist)
+        mock_collection.query.fetch_object_by_id.return_value = None
         
         # Initialize service and sync
         service = GitHubDocSyncService(self.settings)
@@ -164,7 +165,8 @@ class GitHubDocSyncItemIdTest(TestCase):
         # Mock the collection object
         mock_collection = MagicMock()
         mock_weaviate_instance._client.collections.get.return_value = mock_collection
-        mock_collection.data.exists.return_value = False  # New object
+        # Mock fetch_object_by_id to return None (object doesn't exist)
+        mock_collection.query.fetch_object_by_id.return_value = None
         
         # Initialize service and sync
         service = GitHubDocSyncService(self.settings)

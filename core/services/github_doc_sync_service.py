@@ -12,7 +12,7 @@ from GitHub repositories to IdeaGraph Items, including:
 import logging
 import re
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 from django.db import transaction
 
 from core.services.github_service import GitHubService, GitHubServiceError
@@ -534,7 +534,7 @@ class GitHubDocSyncService:
                 'file_url': file_url,
                 'itemId': str(item.id),
                 'tags': ['docs', 'documentation', 'github'],
-                'last_synced': datetime.utcnow().isoformat() + 'Z',
+                'last_synced': datetime.now(timezone.utc).isoformat() + 'Z',
                 'github_url': github_url,
                 'github_path': github_file_path,
                 'github_repo': f"{repo_owner}/{repo_name}"
@@ -549,30 +549,55 @@ class GitHubDocSyncService:
             import uuid
             doc_uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{repo_owner}/{repo_name}/{github_file_path}"))
             
-            # Check if already exists
+            # Check if already exists and update or create accordingly
             try:
+                # Try to fetch the object to check if it exists
                 existing_obj = collection.query.fetch_object_by_id(doc_uuid)
+                
+                # If we get here and have an object, it exists - update it
                 if existing_obj:
-                    # Update existing
                     logger.info(f"Updating existing KnowledgeObject: {doc_uuid}")
                     collection.data.update(
                         uuid=doc_uuid,
                         properties=properties
                     )
                 else:
-                    # Create new
+                    # Object doesn't exist, create it
                     logger.info(f"Creating new KnowledgeObject: {doc_uuid}")
                     collection.data.insert(
                         properties=properties,
                         uuid=doc_uuid
                     )
-            except:
-                # Object doesn't exist, create it
-                logger.info(f"Creating new KnowledgeObject: {doc_uuid}")
-                collection.data.insert(
-                    properties=properties,
-                    uuid=doc_uuid
-                )
+            except Exception as e:
+                # If fetch_object_by_id raises an exception, the object likely doesn't exist
+                # Log the exception for debugging
+                logger.debug(f"Error fetching object {doc_uuid}: {str(e)}")
+                
+                # Try to create it - if it actually exists, Weaviate will return an error
+                logger.info(f"Object not found, creating new KnowledgeObject: {doc_uuid}")
+                try:
+                    collection.data.insert(
+                        properties=properties,
+                        uuid=doc_uuid
+                    )
+                except Exception as insert_error:
+                    # If insert fails, check if it's because the object already exists
+                    error_msg = str(insert_error).lower()
+                    if 'already exists' in error_msg or '422' in str(insert_error):
+                        # Object exists but fetch failed - try update instead
+                        logger.info(f"Object exists but fetch failed, attempting update: {doc_uuid}")
+                        try:
+                            collection.data.update(
+                                uuid=doc_uuid,
+                                properties=properties
+                            )
+                        except Exception as update_error:
+                            logger.error(f"Failed to update object {doc_uuid}: {str(update_error)}")
+                            raise
+                    else:
+                        # Other error - log and raise
+                        logger.error(f"Failed to insert object {doc_uuid}: {str(insert_error)}")
+                        raise
             
             logger.info(f"Successfully synced {filename} to Weaviate")
             return {
