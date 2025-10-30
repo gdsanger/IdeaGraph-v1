@@ -397,6 +397,7 @@
 // Helper function to validate object IDs for modal initialization
 function isValidObjectId(objectId) {
     return objectId && 
+           objectId !== undefined &&
            objectId !== '' && 
            objectId.trim() !== '' && 
            objectId !== 'None' && 

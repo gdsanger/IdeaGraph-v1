@@ -22,6 +22,7 @@ class ChatWidget {
      */
     _isValidItemId(itemId) {
         return itemId && 
+               itemId !== undefined &&
                typeof itemId === 'string' && 
                itemId.trim() !== '' && 
                itemId !== 'None' && 
