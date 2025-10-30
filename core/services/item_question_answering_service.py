@@ -422,17 +422,11 @@ Inhalt: {description_text}
 - Formuliere eine klare, präzise Antwort in Markdown-Format
 - Nutze die bereitgestellten Informationen als Basis
 - Berücksichtige den bisherigen Gesprächsverlauf für Kontext und Zusammenhang
-- Erstelle eine Liste der genutzten Quellen mit Titel und Link am Ende
+- Referenziere Quellen natürlich im Fließtext durch Angabe des Quellentyps und Titels (z.B. "Laut Task 'Implementierung XY'..." oder "Wie in der Datei 'Konzept.pdf' beschrieben...")
+- Verlinke wichtige Quellen direkt im Text mit Markdown-Links: [Quelle](URL)
+- Erstelle KEINE separate Quellenliste am Ende der Antwort
 - Erfinde keine neuen Fakten - bleibe bei den bereitgestellten Informationen
 - Wenn die Informationen nicht ausreichen, sage das deutlich
-
-**Format der Antwort:**
-## Antwort auf deine Frage:
-[Deine Antwort hier]
-
-## Quellen:
-1. [Typ] [Titel] - [Link]
-2. ...
 """
             
             # Initialize KiGate service
