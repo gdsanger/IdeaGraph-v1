@@ -64,15 +64,30 @@
                         </a>
                     </li>
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {% if request.resolver_match.url_name == 'task_overview' %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <a class="nav-link dropdown-toggle {% if request.resolver_match.url_name in 'task_overview,my_tasks_kanban,my_requirements_kanban,tasks_in_progress,tasks_for_testing' %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-list-task"></i> Tasks
                         </a>
                         <ul class="dropdown-menu">
+                            <li><h6 class="dropdown-header">List Views</h6></li>
                             <li><a class="dropdown-item" href="{% url 'main:task_overview' %}">
                                 <i class="bi bi-list-ul"></i> All Tasks
                             </a></li>
                             <li><a class="dropdown-item" href="{% url 'main:task_overview' %}?assigned_to_me=true">
                                 <i class="bi bi-person-check"></i> My Tasks
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'main:tasks_in_progress' %}">
+                                <i class="bi bi-arrow-repeat"></i> Tasks in Arbeit
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'main:tasks_for_testing' %}">
+                                <i class="bi bi-check2-square"></i> Tasks zum Testen
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header">Kanban Views</h6></li>
+                            <li><a class="dropdown-item" href="{% url 'main:my_tasks_kanban' %}">
+                                <i class="bi bi-kanban"></i> Meine Tasks
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'main:my_requirements_kanban' %}">
+                                <i class="bi bi-kanban-fill"></i> Meine Anforderungen
                             </a></li>
                         </ul>
                     </li>

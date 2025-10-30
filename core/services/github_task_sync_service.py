@@ -246,30 +246,39 @@ class GitHubTaskSyncService:
                     
                     logger.info(f"Processing issue #{issue_number}: {issue_title}")
                     
-                    # Check for duplicate by GitHub Issue ID
-                    duplicate_by_id = self._check_duplicate_by_issue_id(item, issue_number)
+                    # Check if task already exists by GitHub Issue ID
+                    existing_task = Task.objects.filter(
+                        item=item,
+                        github_issue_id=issue_number
+                    ).first()
+                    
+                    if existing_task:
+                        logger.info(f"Issue #{issue_number} already exists - updating status")
+                        results['duplicates_by_id'] += 1
+                        
+                        # Update task status based on GitHub issue state
+                        # According to Epic requirements: closed GitHub issues → status = "testing"
+                        if issue_state == 'closed' and existing_task.status not in ['done', 'testing']:
+                            existing_task.status = 'testing'
+                            existing_task.github_synced_at = timezone.now()
+                            existing_task.save()
+                            logger.info(f"Updated task #{existing_task.id} status to 'testing'")
+                        
+                        continue
                     
                     # Check for duplicate by title
                     duplicate_by_title, matching_title = self._check_duplicate_by_title(item, issue_title)
                     
                     # Determine task title
                     task_title = issue_title
-                    is_potential_duplicate = False
                     
-                    if duplicate_by_id:
-                        logger.info(f"Issue #{issue_number} already exists (by ID)")
-                        results['duplicates_by_id'] += 1
-                        # Still create task but mark as duplicate
-                        task_title = f"*** Duplikat? *** {issue_title}"
-                        is_potential_duplicate = True
-                    elif duplicate_by_title:
+                    if duplicate_by_title:
                         logger.info(f"Issue #{issue_number} appears to be duplicate of: {matching_title}")
                         results['duplicates_by_title'] += 1
                         # Create task but mark as potential duplicate
                         task_title = f"*** Duplikat? *** {issue_title}"
-                        is_potential_duplicate = True
                     
-                    # Create task
+                    # Create new task
                     # According to Epic requirements: closed GitHub issues → status = "testing"
                     task = Task.objects.create(
                         title=task_title,
@@ -278,7 +287,7 @@ class GitHubTaskSyncService:
                         github_issue_id=issue_number,
                         github_issue_url=issue_url,
                         status='testing' if issue_state == 'closed' else 'new',
-                        type='task',
+                        type='sonstige',
                         created_by=created_by,
                         github_synced_at=timezone.now()
                     )
