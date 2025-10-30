@@ -275,35 +275,6 @@
         <div class="flex-grow-1">
             {% block content %}{% endblock %}
         </div>
-        
-        <!-- Activity Sidebar (Right) -->
-        {% if request.session.user_id %}
-        <aside class="activity-sidebar bg-dark border-start border-secondary">
-            <div class="activity-sidebar-header p-3 border-bottom border-secondary d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">
-                    <i class="bi bi-activity"></i> Letzte Aktivitäten
-                </h6>
-                <button class="btn btn-sm btn-link text-white p-0" 
-                        hx-get="{% url 'main:activity_sidebar' %}" 
-                        hx-target="#activity-sidebar-body"
-                        hx-swap="innerHTML"
-                        title="Aktualisieren">
-                    <i class="bi bi-arrow-clockwise"></i>
-                </button>
-            </div>
-            <div id="activity-sidebar-body" 
-                 hx-get="{% url 'main:activity_sidebar' %}" 
-                 hx-trigger="load, every 30s"
-                 hx-swap="innerHTML">
-                <!-- Activity items will be loaded here via HTMX -->
-                <div class="text-center text-muted py-4">
-                    <div class="spinner-border spinner-border-sm" role="status">
-                        <span class="visually-hidden">Lädt...</span>
-                    </div>
-                </div>
-            </div>
-        </aside>
-        {% endif %}
     </main>
 
     <!-- Footer -->

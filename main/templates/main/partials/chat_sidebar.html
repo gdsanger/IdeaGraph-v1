@@ -1,0 +1,243 @@
+{% load static %}
+<!-- Chat Sidebar (Right) -->
+<aside class="chat-sidebar bg-dark border-start border-secondary" 
+       id="chatSidebar" 
+       data-object-type="{{ object_type }}" 
+       data-object-id="{{ object_id }}">
+    <div class="chat-sidebar-header p-3 border-bottom border-secondary d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">
+            <i class="bi bi-chat-dots"></i> Q&A Assistant
+        </h6>
+        <button class="btn btn-sm btn-link text-white p-0" 
+                onclick="toggleChatSidebar()"
+                title="Schließen">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
+    <div class="chat-sidebar-body p-3">
+        <!-- Chat Widget Container -->
+        <div id="ideagraph-chat-widget-sidebar"></div>
+    </div>
+</aside>
+
+<style>
+    /* Chat Sidebar Styles */
+    .chat-sidebar {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 450px;
+        height: 100vh;
+        z-index: 1040;
+        transform: translateX(100%);
+        transition: transform 0.3s ease-in-out;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .chat-sidebar.show {
+        transform: translateX(0);
+    }
+    
+    .chat-sidebar-header {
+        flex-shrink: 0;
+    }
+    
+    .chat-sidebar-body {
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    #ideagraph-chat-widget-sidebar {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+    
+    /* Smaller font size for sources */
+    .message-sources {
+        font-size: 0.8rem;
+    }
+    
+    .sources-header {
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .source-item {
+        font-size: 0.75rem;
+    }
+    
+    .source-title {
+        font-size: 0.8rem;
+    }
+    
+    .source-description {
+        font-size: 0.7rem;
+    }
+    
+    /* Thinking indicator animation */
+    .thinking-animation {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem;
+    }
+    
+    .thinking-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: var(--secondary-cyan);
+        animation: thinkingPulse 1.4s infinite ease-in-out;
+    }
+    
+    .thinking-dot:nth-child(1) {
+        animation-delay: 0s;
+    }
+    
+    .thinking-dot:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+    
+    .thinking-dot:nth-child(3) {
+        animation-delay: 0.4s;
+    }
+    
+    .thinking-text {
+        font-style: italic;
+        color: var(--secondary-cyan);
+        margin-left: 0.25rem;
+    }
+    
+    @keyframes thinkingPulse {
+        0%, 60%, 100% {
+            transform: scale(0.8);
+            opacity: 0.5;
+        }
+        30% {
+            transform: scale(1.2);
+            opacity: 1;
+        }
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .chat-sidebar {
+            width: 100%;
+        }
+    }
+    
+    /* Overlay when sidebar is open */
+    .chat-sidebar-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1039;
+        opacity: 0;
+        transition: opacity 0.3s ease-in-out;
+        pointer-events: none;
+    }
+    
+    .chat-sidebar-overlay.show {
+        opacity: 1;
+        pointer-events: all;
+    }
+</style>
+
+<script>
+// Chat Sidebar Toggle Functionality
+let chatWidgetInstance = null;
+let isChatSidebarOpen = false;
+
+function toggleChatSidebar() {
+    const sidebar = document.getElementById('chatSidebar');
+    const floatingBtn = document.getElementById('chatFloatingBtn');
+    const overlay = document.getElementById('chatSidebarOverlay');
+    
+    if (!sidebar) return;
+    
+    isChatSidebarOpen = !isChatSidebarOpen;
+    
+    if (isChatSidebarOpen) {
+        // Show sidebar
+        sidebar.classList.add('show');
+        if (floatingBtn) floatingBtn.classList.add('hidden');
+        
+        // Create overlay if it doesn't exist
+        if (!overlay) {
+            const newOverlay = document.createElement('div');
+            newOverlay.id = 'chatSidebarOverlay';
+            newOverlay.className = 'chat-sidebar-overlay';
+            newOverlay.onclick = toggleChatSidebar;
+            document.body.appendChild(newOverlay);
+            // Trigger reflow to enable transition
+            newOverlay.offsetHeight;
+            newOverlay.classList.add('show');
+        } else {
+            overlay.classList.add('show');
+        }
+        
+        // Initialize chat widget if not already initialized
+        if (!chatWidgetInstance) {
+            try {
+                const objectType = sidebar.dataset.objectType || 'item';
+                const objectId = sidebar.dataset.objectId;
+                
+                if (!objectId || objectId.trim() === '' || objectId === 'None') {
+                    console.warn('ChatWidget: Cannot initialize without object_id');
+                    document.getElementById('ideagraph-chat-widget-sidebar').innerHTML = `
+                        <div class="alert alert-warning" role="alert">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            <strong>Keine Kontext-ID verfügbar</strong>
+                            <p class="mb-0 mt-2">Der Q&A Chat ist nur auf Item- und Task-Detail-Seiten verfügbar.</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                chatWidgetInstance = new ChatWidget({
+                    containerId: 'ideagraph-chat-widget-sidebar',
+                    itemId: objectId,
+                    contextType: objectType === 'item' ? 'Item' : 'Task',
+                    apiBaseUrl: `/api/${objectType}s`,
+                    theme: 'dark',
+                    height: '100%',
+                    showHistory: true
+                });
+                console.log('Chat widget initialized in sidebar');
+            } catch (error) {
+                console.error('Error initializing chat widget in sidebar:', error);
+                document.getElementById('ideagraph-chat-widget-sidebar').innerHTML = `
+                    <div class="alert alert-danger" role="alert">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Fehler beim Initialisieren des Chats</strong>
+                        <p class="mb-0 mt-2">${error.message || 'Ein unbekannter Fehler ist aufgetreten.'}</p>
+                    </div>
+                `;
+            }
+        }
+    } else {
+        // Hide sidebar
+        sidebar.classList.remove('show');
+        if (floatingBtn) floatingBtn.classList.remove('hidden');
+        
+        if (overlay) {
+            overlay.classList.remove('show');
+        }
+    }
+}
+
+// Close sidebar on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && isChatSidebarOpen) {
+        toggleChatSidebar();
+    }
+});
+</script>

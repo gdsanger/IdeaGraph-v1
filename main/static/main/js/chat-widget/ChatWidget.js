@@ -112,15 +112,6 @@ class ChatWidget {
                         <i class="bi bi-chat-dots"></i>
                         <span>IdeaGraph Q&A Assistant</span>
                     </div>
-                    <div class="chat-widget-context">
-                        <span class="context-badge">
-                            <i class="bi bi-${this.contextType === 'Task' ? 'check-circle' : 'box'}"></i>
-                            ${this.contextType}
-                        </span>
-                        <span class="context-id" title="Objekt-ID: ${this.itemId}">
-                            ID: ${this.itemId.substring(0, 8)}...
-                        </span>
-                    </div>
                     <div class="chat-widget-actions">
                         <button 
                             id="chat-sources-button" 
@@ -241,6 +232,9 @@ class ChatWidget {
             timestamp: new Date()
         });
         
+        // Add "Thinking..." indicator message
+        this.addThinkingIndicator();
+        
         // Clear input
         inputField.value = '';
         this.currentQuestion = '';
@@ -255,6 +249,9 @@ class ChatWidget {
             
             // Call API with conversation history
             const response = await this.askQuestion(question, conversationHistory);
+            
+            // Remove thinking indicator
+            this.removeThinkingIndicator();
             
             if (response.success) {
                 // Store sources for inspection
@@ -324,6 +321,45 @@ class ChatWidget {
         const messagesContainer = document.getElementById('chat-messages');
         if (messagesContainer) {
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+    }
+    
+    /**
+     * Add thinking indicator
+     */
+    addThinkingIndicator() {
+        const messagesContainer = document.getElementById('chat-messages');
+        if (!messagesContainer) return;
+        
+        // Create thinking indicator element
+        const thinkingElement = document.createElement('div');
+        thinkingElement.className = 'chat-message chat-message-bot thinking-indicator';
+        thinkingElement.id = 'thinking-indicator';
+        thinkingElement.innerHTML = `
+            <div class="chat-message-avatar">
+                <i class="bi bi-robot"></i>
+            </div>
+            <div class="chat-message-content">
+                <div class="thinking-animation">
+                    <span class="thinking-dot"></span>
+                    <span class="thinking-dot"></span>
+                    <span class="thinking-dot"></span>
+                    <span class="thinking-text">Thinking...</span>
+                </div>
+            </div>
+        `;
+        
+        messagesContainer.appendChild(thinkingElement);
+        this.scrollToBottom();
+    }
+    
+    /**
+     * Remove thinking indicator
+     */
+    removeThinkingIndicator() {
+        const thinkingElement = document.getElementById('thinking-indicator');
+        if (thinkingElement) {
+            thinkingElement.remove();
         }
     }
     
