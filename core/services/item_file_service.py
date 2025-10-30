@@ -7,6 +7,7 @@ integrating with SharePoint via Graph API and Weaviate for file content storage.
 
 import logging
 import re
+import uuid
 from typing import Optional, Dict, Any, List
 from django.db import transaction
 
@@ -359,7 +360,6 @@ class ItemFileService:
                     chunk_uuid = str(item_file.id)
                 else:
                     # Generate deterministic UUID from file ID and chunk index
-                    import uuid
                     chunk_seed = f"{item_file.id}_{i}"
                     chunk_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, chunk_seed))
                 
