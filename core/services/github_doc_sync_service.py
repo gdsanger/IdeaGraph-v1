@@ -522,9 +522,9 @@ class GitHubDocSyncService:
             if first_heading_match:
                 title = first_heading_match.group(1).strip()
             
-            # Prepare description (first 500 chars of content, excluding headings)
-            description_text = re.sub(r'^#+\s+.*$', '', content, flags=re.MULTILINE)
-            description_text = description_text.strip()[:500]
+            # Prepare description (full content for Weaviate vector search)
+            # Store the full content to enable proper AI-powered search
+            description_text = content.strip()
             
             properties = {
                 'type': 'documentation',
@@ -532,7 +532,7 @@ class GitHubDocSyncService:
                 'description': description_text,
                 'source': 'GitHub',
                 'file_url': file_url,
-                'related_item': str(item.id),
+                'itemId': str(item.id),
                 'tags': ['docs', 'documentation', 'github'],
                 'last_synced': datetime.utcnow().isoformat() + 'Z',
                 'github_url': github_url,
