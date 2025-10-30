@@ -45,7 +45,7 @@ class ItemQuestionAnsweringService:
     
     COLLECTION_NAME = 'KnowledgeObject'
     DEFAULT_SEARCH_LIMIT = 10
-    MIN_RELEVANCE_CERTAINTY = 0.2  # Lowered from 0.3 to allow more results (was 0.5 originally)
+    MIN_RELEVANCE_CERTAINTY = 0.0  # Set to 0 to include all results (was 0.2, 0.3, 0.5 before)
     
     # Two-stage search configuration
     SEMANTIC_SEARCH_MULTIPLIER = 3  # Increased from 2 to get more results in semantic search for better coverage
