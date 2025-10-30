@@ -891,7 +891,6 @@ def item_list(request):
         items = items.filter(section_id=section_filter)
     
     if search_query:
-        from django.db.models import Q
         items = items.filter(
             Q(title__icontains=search_query) | 
             Q(description__icontains=search_query)
@@ -954,7 +953,6 @@ def item_kanban(request):
         items = items.filter(section_id=section_filter)
     
     if search_query:
-        from django.db.models import Q
         items = items.filter(
             Q(title__icontains=search_query) | 
             Q(description__icontains=search_query)
