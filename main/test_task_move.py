@@ -379,3 +379,289 @@ class TaskMoveAPITest(TestCase):
         )
         
         self.assertEqual(response.status_code, 404)
+    
+    @patch('main.mail_utils.send_task_moved_notification')
+    @patch('core.services.task_move_service.TaskMoveService.move_task')
+    def test_api_task_move_with_requester_notification(self, mock_move_task, mock_send_notification):
+        """Test API task move with requester notification enabled"""
+        # Create a requester user
+        requester = User.objects.create(
+            username='requester',
+            email='requester@example.com',
+            role='user',
+            is_active=True
+        )
+        
+        # Assign requester to task
+        self.task.requester = requester
+        self.task.save()
+        
+        self.login()
+        
+        # Mock the move_task method
+        mock_move_task.return_value = {
+            'success': True,
+            'message': 'Task moved successfully',
+            'moved': True,
+            'files_moved': False,
+            'files_count': 0,
+            'task_id': str(self.task.id),
+            'source_item_id': str(self.item1.id),
+            'target_item_id': str(self.item2.id)
+        }
+        
+        # Mock the notification sending
+        mock_send_notification.return_value = (True, 'Notification email sent successfully')
+        
+        url = reverse('main:api_task_move', args=[self.task.id])
+        data = {
+            'target_item_id': str(self.item2.id),
+            'notify_requester': True
+        }
+        
+        response = self.client.post(
+            url,
+            data=json.dumps(data),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        response_data = json.loads(response.content)
+        self.assertTrue(response_data['success'])
+        self.assertTrue(response_data['moved'])
+        self.assertTrue(response_data['notification_sent'])
+        self.assertIsNotNone(response_data.get('requester'))
+        self.assertEqual(response_data['requester']['username'], 'requester')
+        self.assertEqual(response_data['requester']['email'], 'requester@example.com')
+        
+        # Verify notification was sent
+        mock_send_notification.assert_called_once_with(
+            task_id=str(self.task.id),
+            source_item_title='Test Item 1',
+            target_item_title='Test Item 2'
+        )
+    
+    @patch('main.mail_utils.send_task_moved_notification')
+    @patch('core.services.task_move_service.TaskMoveService.move_task')
+    def test_api_task_move_without_requester_notification(self, mock_move_task, mock_send_notification):
+        """Test API task move without notification when checkbox not checked"""
+        # Create a requester user
+        requester = User.objects.create(
+            username='requester',
+            email='requester@example.com',
+            role='user',
+            is_active=True
+        )
+        
+        # Assign requester to task
+        self.task.requester = requester
+        self.task.save()
+        
+        self.login()
+        
+        # Mock the move_task method
+        mock_move_task.return_value = {
+            'success': True,
+            'message': 'Task moved successfully',
+            'moved': True,
+            'files_moved': False,
+            'files_count': 0,
+            'task_id': str(self.task.id),
+            'source_item_id': str(self.item1.id),
+            'target_item_id': str(self.item2.id)
+        }
+        
+        url = reverse('main:api_task_move', args=[self.task.id])
+        data = {
+            'target_item_id': str(self.item2.id),
+            'notify_requester': False
+        }
+        
+        response = self.client.post(
+            url,
+            data=json.dumps(data),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        response_data = json.loads(response.content)
+        self.assertTrue(response_data['success'])
+        self.assertTrue(response_data['moved'])
+        self.assertFalse(response_data['notification_sent'])
+        
+        # Verify notification was NOT sent
+        mock_send_notification.assert_not_called()
+    
+    @patch('core.services.task_move_service.TaskMoveService.move_task')
+    def test_api_task_move_no_requester_returns_none(self, mock_move_task):
+        """Test that task without requester returns None for requester field"""
+        self.login()
+        
+        # Mock the move_task method
+        mock_move_task.return_value = {
+            'success': True,
+            'message': 'Task moved successfully',
+            'moved': True,
+            'files_moved': False,
+            'files_count': 0,
+            'task_id': str(self.task.id),
+            'source_item_id': str(self.item1.id),
+            'target_item_id': str(self.item2.id)
+        }
+        
+        url = reverse('main:api_task_move', args=[self.task.id])
+        data = {
+            'target_item_id': str(self.item2.id)
+        }
+        
+        response = self.client.post(
+            url,
+            data=json.dumps(data),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        response_data = json.loads(response.content)
+        self.assertTrue(response_data['success'])
+        self.assertIsNone(response_data.get('requester'))
+
+
+class TaskMoveNotificationTest(TestCase):
+    """Test Task Move Notification Email functionality"""
+    
+    def setUp(self):
+        """Set up test data"""
+        # Create test users
+        self.creator = User.objects.create(
+            username='creator',
+            email='creator@example.com',
+            role='developer',
+            is_active=True
+        )
+        
+        self.requester = User.objects.create(
+            username='requester',
+            email='requester@example.com',
+            role='user',
+            is_active=True
+        )
+        
+        # Create test section
+        self.section = Section.objects.create(name='Test Section')
+        
+        # Create test items
+        self.item1 = Item.objects.create(
+            title='Source Item',
+            description='Source item description',
+            status='new',
+            section=self.section,
+            created_by=self.creator
+        )
+        
+        self.item2 = Item.objects.create(
+            title='Target Item',
+            description='Target item description',
+            status='new',
+            section=self.section,
+            created_by=self.creator
+        )
+        
+        # Create test task with requester
+        self.task = Task.objects.create(
+            title='Test Task',
+            description='This is a test task description',
+            status='new',
+            item=self.item1,
+            created_by=self.creator,
+            requester=self.requester
+        )
+        
+        # Create settings
+        self.settings = Settings.objects.create(
+            graph_api_enabled=False  # Disable for unit tests
+        )
+    
+    @patch('main.mail_utils.GraphService')
+    def test_send_task_moved_notification_success(self, mock_graph_service_class):
+        """Test successful sending of task moved notification"""
+        from main.mail_utils import send_task_moved_notification
+        
+        # Mock GraphService instance and send_mail method
+        mock_graph_service = MagicMock()
+        mock_graph_service.send_mail.return_value = {'success': True}
+        mock_graph_service_class.return_value = mock_graph_service
+        
+        success, message = send_task_moved_notification(
+            task_id=str(self.task.id),
+            source_item_title='Source Item',
+            target_item_title='Target Item'
+        )
+        
+        self.assertTrue(success)
+        self.assertEqual(message, 'Notification email sent successfully')
+        
+        # Verify send_mail was called
+        mock_graph_service.send_mail.assert_called_once()
+        call_args = mock_graph_service.send_mail.call_args
+        self.assertEqual(call_args[1]['to'], [self.requester.email])
+        self.assertIn('Task verschoben', call_args[1]['subject'])
+        self.assertIn(self.task.title, call_args[1]['subject'])
+    
+    @patch('main.mail_utils.GraphService')
+    def test_send_task_moved_notification_no_requester(self, mock_graph_service_class):
+        """Test notification handling when task has no requester"""
+        from main.mail_utils import send_task_moved_notification
+        
+        # Create task without requester
+        task_no_requester = Task.objects.create(
+            title='Task Without Requester',
+            description='Test task',
+            status='new',
+            item=self.item1,
+            created_by=self.creator
+        )
+        
+        success, message = send_task_moved_notification(
+            task_id=str(task_no_requester.id),
+            source_item_title='Source Item',
+            target_item_title='Target Item'
+        )
+        
+        self.assertTrue(success)
+        self.assertEqual(message, 'No requester to notify')
+        
+        # Verify send_mail was NOT called
+        mock_graph_service_class.return_value.send_mail.assert_not_called()
+    
+    @patch('main.mail_utils.GraphService')
+    def test_send_task_moved_notification_no_email(self, mock_graph_service_class):
+        """Test notification handling when requester has no email"""
+        from main.mail_utils import send_task_moved_notification
+        
+        # Create requester without email
+        requester_no_email = User.objects.create(
+            username='requester_no_email',
+            role='user',
+            is_active=True
+        )
+        
+        task = Task.objects.create(
+            title='Test Task',
+            description='Test task',
+            status='new',
+            item=self.item1,
+            created_by=self.creator,
+            requester=requester_no_email
+        )
+        
+        success, message = send_task_moved_notification(
+            task_id=str(task.id),
+            source_item_title='Source Item',
+            target_item_title='Target Item'
+        )
+        
+        self.assertFalse(success)
+        self.assertEqual(message, 'Requester has no email address')
+        
+        # Verify send_mail was NOT called
+        mock_graph_service_class.return_value.send_mail.assert_not_called()
