@@ -126,8 +126,8 @@ class GitHubDocSyncItemIdTest(TestCase):
         mock_github_instance = MagicMock()
         mock_github.return_value = mock_github_instance
         
-        # Create content longer than 500 characters
-        test_content = '# Test Document\n\n' + ('This is a long test content. ' * 50)  # ~1500 chars
+        # Create content longer than 500 characters (approximately 1486 chars)
+        test_content = '# Test Document\n\n' + ('This is a long test content. ' * 50)
         
         mock_github_instance.get_repository_contents.return_value = {
             'success': True,
