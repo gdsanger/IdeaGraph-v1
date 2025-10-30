@@ -415,6 +415,33 @@ class GraphServiceTestCase(TestCase):
     
     @patch('core.services.graph_service.requests.request')
     @patch('core.services.graph_service.requests.post')
+    def test_send_mail_with_empty_default_sender(self, mock_post, mock_request):
+        """Test that sending works when default_mail_sender is empty"""
+        mock_post.return_value = Mock(
+            status_code=200,
+            json=lambda: {'access_token': 'test-token', 'expires_in': 3600}
+        )
+        
+        mock_request.return_value = Mock(status_code=202)
+        
+        # Set default_mail_sender to empty string
+        self.settings.default_mail_sender = ''
+        self.settings.save()
+        
+        service = GraphService(self.settings)
+        
+        # This should succeed even though we're checking validation
+        result = service.send_mail(
+            to=['user@example.com'],
+            subject='Test with Empty Sender',
+            body='This should work',
+            from_address='sender@example.com'  # Must provide sender since default is empty
+        )
+        
+        self.assertTrue(result['success'])
+    
+    @patch('core.services.graph_service.requests.request')
+    @patch('core.services.graph_service.requests.post')
     def test_send_system_mail(self, mock_post, mock_request):
         """Test sending system notification email"""
         mock_post.return_value = Mock(

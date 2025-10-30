@@ -739,6 +739,39 @@ class GraphService:
     
     # Mail Methods
     
+    def _validate_no_self_send(self, recipients: List[str], subject: str, recipient_type: str = 'to'):
+        """
+        Validate that recipients list does not contain the default_mail_sender
+        
+        This prevents infinite loops where IdeaGraph sends emails to itself,
+        which would then be processed by AI and generate responses.
+        
+        Args:
+            recipients: List of email addresses to validate
+            subject: Email subject (for logging)
+            recipient_type: Type of recipient ('to' or 'cc') for error message
+            
+        Raises:
+            GraphServiceError: If any recipient matches default_mail_sender
+        """
+        if not self.default_sender:
+            return
+        
+        default_sender_lower = self.default_sender.lower()
+        
+        for recipient in recipients:
+            if recipient.lower() == default_sender_lower:
+                logger.warning(
+                    f"SELF-SEND BLOCKED: Attempted to {recipient_type.upper()} email to default_mail_sender "
+                    f"'{self.default_sender}'. This is not allowed to prevent infinite loops. "
+                    f"Subject: '{subject}'"
+                )
+                raise GraphServiceError(
+                    "Self-sending not allowed",
+                    details=f"Cannot {recipient_type.upper()} email to default_mail_sender ({self.default_sender}). "
+                           "This would create an infinite loop."
+                )
+    
     def send_mail(
         self,
         to: List[str],
@@ -777,37 +810,10 @@ class GraphService:
         
         # Prevent self-sending: Check if any recipient is the default_mail_sender
         # This prevents infinite loops where IdeaGraph sends emails to itself
-        if self.default_sender:
-            default_sender_lower = self.default_sender.lower()
-            
-            # Check TO recipients
-            for recipient in to:
-                if recipient.lower() == default_sender_lower:
-                    logger.warning(
-                        f"SELF-SEND BLOCKED: Attempted to send email to default_mail_sender "
-                        f"'{self.default_sender}'. This is not allowed to prevent infinite loops. "
-                        f"Subject: '{subject}'"
-                    )
-                    raise GraphServiceError(
-                        "Self-sending not allowed",
-                        details=f"Cannot send email to default_mail_sender ({self.default_sender}). "
-                               "This would create an infinite loop."
-                    )
-            
-            # Check CC recipients if provided
+        if self.default_sender and self.default_sender.strip():
+            self._validate_no_self_send(to, subject, 'to')
             if cc:
-                for recipient in cc:
-                    if recipient.lower() == default_sender_lower:
-                        logger.warning(
-                            f"SELF-SEND BLOCKED: Attempted to CC email to default_mail_sender "
-                            f"'{self.default_sender}'. This is not allowed to prevent infinite loops. "
-                            f"Subject: '{subject}'"
-                        )
-                        raise GraphServiceError(
-                            "Self-sending not allowed",
-                            details=f"Cannot CC email to default_mail_sender ({self.default_sender}). "
-                                   "This would create an infinite loop."
-                        )
+                self._validate_no_self_send(cc, subject, 'cc')
         
         # Build email message
         message = {
