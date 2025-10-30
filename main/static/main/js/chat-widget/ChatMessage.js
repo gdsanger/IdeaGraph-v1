@@ -47,12 +47,11 @@ class ChatMessage {
     
     /**
      * Render a bot message with markdown support
+     * Note: Sources are displayed inline within the AI response markdown,
+     * not as a separate list below (to avoid duplication)
      */
     renderBotMessage(message) {
         const renderedContent = this.renderMarkdown(message.content);
-        const sourcesHtml = message.sources && message.sources.length > 0 
-            ? new ChatSources().render(message.sources) 
-            : '';
         
         return `
             <div class="message-avatar">
@@ -62,7 +61,6 @@ class ChatMessage {
                 <div class="message-content markdown-content">
                     ${renderedContent}
                 </div>
-                ${sourcesHtml}
                 <div class="message-meta">
                     <span class="message-time">${this.formatTime(message.timestamp)}</span>
                     ${message.relevanceScore ? `<span class="relevance-score" title="Durchschnittliche Relevanz der Quellen">Relevanz: ${Math.round(message.relevanceScore * 100)}%</span>` : ''}
