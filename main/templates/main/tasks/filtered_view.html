@@ -1,0 +1,174 @@
+{% extends "main/base.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .status-badge {
+        cursor: pointer;
+    }
+    .filter-bar {
+        position: sticky;
+        top: 76px;
+        z-index: 100;
+        background: rgba(31, 41, 55, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--autumn-primary);
+    }
+    .task-row {
+    }
+    .badge-clickable {
+        cursor: pointer;
+    }
+    .htmx-indicator {
+        display: none;
+    }
+    .htmx-request .htmx-indicator {
+        display: block;
+    }
+    .htmx-request.htmx-indicator {
+        display: block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    {% csrf_token %}
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1 class="mb-0">
+                    <i class="bi bi-list-check"></i> {{ page_title }}
+                </h1>
+                <div class="d-flex align-items-center gap-3">
+                    <!-- Navigation buttons -->
+                    <div class="btn-group" role="group" aria-label="Task view navigation">
+                        <a href="{% url 'main:task_overview' %}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-list-ul"></i> All Tasks
+                        </a>
+                        <a href="{% url 'main:tasks_in_progress' %}" 
+                           class="btn btn-sm {% if filter_status == 'working' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                            <i class="bi bi-hourglass-split"></i> In Arbeit
+                        </a>
+                        <a href="{% url 'main:tasks_for_testing' %}" 
+                           class="btn btn-sm {% if filter_status == 'testing' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                            <i class="bi bi-clipboard-check"></i> Zum Testen
+                        </a>
+                    </div>
+                    <span class="text-muted">
+                        <i class="bi bi-person-circle"></i> {{ request.session.username }}
+                        {% if request.session.user_role == 'admin' %}
+                        <span class="badge bg-danger ms-2">Admin</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+        <form method="get" id="filter-form" hx-get="" hx-trigger="change, submit" hx-target="#task-table" hx-swap="innerHTML" hx-indicator="#filter-spinner">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label for="item_filter" class="form-label">
+                        <i class="bi bi-folder"></i> Item
+                    </label>
+                    <select name="item" id="item_filter" class="form-select form-select-sm">
+                        <option value="">All Items</option>
+                        {% for item in items %}
+                        <option value="{{ item.id }}" {% if item_filter == item.id|stringformat:"s" %}selected{% endif %}>
+                            {{ item.title }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="has_github" class="form-label">
+                        <i class="bi bi-github"></i> GitHub
+                    </label>
+                    <select name="has_github" id="has_github" class="form-select form-select-sm">
+                        <option value="">All Tasks</option>
+                        <option value="true" {% if has_github == 'true' %}selected{% endif %}>With GitHub Issue</option>
+                        <option value="false" {% if has_github == 'false' %}selected{% endif %}>Without GitHub Issue</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="search" class="form-label">
+                        <i class="bi bi-search"></i> Search
+                    </label>
+                    <input type="text" name="search" id="search" class="form-control form-control-sm" placeholder="Search in title and description..." value="{{ search_query }}">
+                </div>
+                <div class="col-md-2">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="assigned_to_me" id="assigned_to_me" value="true" {% if assigned_to_me == 'true' %}checked{% endif %}>
+                        <label class="form-check-label" for="assigned_to_me">
+                            <i class="bi bi-person-check"></i> Assigned to Me
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-sm btn-primary w-100">
+                        <i class="bi bi-funnel"></i> Apply Filter
+                        <span id="filter-spinner" class="spinner-border spinner-border-sm ms-2 htmx-indicator" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </span>
+                    </button>
+                </div>
+            </div>
+            <!-- Hidden field to preserve the filter_status -->
+            <input type="hidden" name="filter_status" value="{{ filter_status }}">
+        </form>
+    </div>
+
+    <!-- Task Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body p-0">
+                    <div id="task-table">
+                        {% include 'main/tasks/_task_table.html' %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-submit form on filter changes
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('filter-form');
+        const selects = form.querySelectorAll('select');
+        const checkbox = form.querySelector('#assigned_to_me');
+        
+        selects.forEach(select => {
+            select.addEventListener('change', () => {
+                form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            });
+        });
+        
+        if (checkbox) {
+            checkbox.addEventListener('change', () => {
+                form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            });
+        }
+    });
+</script>
+{% endblock %}

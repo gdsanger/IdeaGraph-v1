@@ -2002,6 +2002,142 @@ def my_requirements(request):
     return render(request, 'main/tasks/my_requirements.html', context)
 
 
+def tasks_in_progress(request):
+    """Tasks in Progress (Working) - shows all tasks with status 'working'"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Get filter parameters
+    item_filter = request.GET.get('item', '')
+    has_github = request.GET.get('has_github', '')
+    search_query = request.GET.get('search', '').strip()
+    assigned_to_me = request.GET.get('assigned_to_me', '')
+    
+    # Base query - show tasks with status 'working'
+    tasks = Task.objects.filter(status='working')
+    
+    # Apply filters
+    if assigned_to_me == 'true':
+        tasks = tasks.filter(assigned_to=user)
+    
+    if item_filter:
+        tasks = tasks.filter(item_id=item_filter)
+    
+    if has_github == 'true':
+        tasks = tasks.filter(github_issue_id__isnull=False)
+    elif has_github == 'false':
+        tasks = tasks.filter(github_issue_id__isnull=True)
+    
+    if search_query:
+        from django.db.models import Q
+        tasks = tasks.filter(
+            Q(title__icontains=search_query) | 
+            Q(description__icontains=search_query)
+        )
+    
+    # Prefetch related data
+    tasks = tasks.select_related('item', 'assigned_to', 'created_by').prefetch_related('tags')
+    tasks = tasks.order_by('-updated_at')
+    
+    # Pagination
+    paginator = Paginator(tasks, 20)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    # Get all items for filter dropdown
+    items = Item.objects.all()
+    
+    context = {
+        'tasks': page_obj,
+        'items': items,
+        'status_choices': Task.STATUS_CHOICES,
+        'item_filter': item_filter,
+        'has_github': has_github,
+        'search_query': search_query,
+        'assigned_to_me': assigned_to_me,
+        'page_title': 'Tasks in Arbeit',
+        'filter_status': 'working',
+    }
+    
+    # If HTMX request, return only the partial template
+    if request.headers.get('HX-Request'):
+        return render(request, 'main/tasks/_task_table.html', context)
+    
+    return render(request, 'main/tasks/filtered_view.html', context)
+
+
+def tasks_for_testing(request):
+    """Tasks for Testing - shows all tasks with status 'testing'"""
+    # Get current user from session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return redirect('main:login')
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Get filter parameters
+    item_filter = request.GET.get('item', '')
+    has_github = request.GET.get('has_github', '')
+    search_query = request.GET.get('search', '').strip()
+    assigned_to_me = request.GET.get('assigned_to_me', '')
+    
+    # Base query - show tasks with status 'testing'
+    tasks = Task.objects.filter(status='testing')
+    
+    # Apply filters
+    if assigned_to_me == 'true':
+        tasks = tasks.filter(assigned_to=user)
+    
+    if item_filter:
+        tasks = tasks.filter(item_id=item_filter)
+    
+    if has_github == 'true':
+        tasks = tasks.filter(github_issue_id__isnull=False)
+    elif has_github == 'false':
+        tasks = tasks.filter(github_issue_id__isnull=True)
+    
+    if search_query:
+        from django.db.models import Q
+        tasks = tasks.filter(
+            Q(title__icontains=search_query) | 
+            Q(description__icontains=search_query)
+        )
+    
+    # Prefetch related data
+    tasks = tasks.select_related('item', 'assigned_to', 'created_by').prefetch_related('tags')
+    tasks = tasks.order_by('-updated_at')
+    
+    # Pagination
+    paginator = Paginator(tasks, 20)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    # Get all items for filter dropdown
+    items = Item.objects.all()
+    
+    context = {
+        'tasks': page_obj,
+        'items': items,
+        'status_choices': Task.STATUS_CHOICES,
+        'item_filter': item_filter,
+        'has_github': has_github,
+        'search_query': search_query,
+        'assigned_to_me': assigned_to_me,
+        'page_title': 'Tasks zum Testen',
+        'filter_status': 'testing',
+    }
+    
+    # If HTMX request, return only the partial template
+    if request.headers.get('HX-Request'):
+        return render(request, 'main/tasks/_task_table.html', context)
+    
+    return render(request, 'main/tasks/filtered_view.html', context)
+
+
 def tags_network_view(request):
     """Tags network graph visualization view"""
     return render(request, 'main/tags/network.html')

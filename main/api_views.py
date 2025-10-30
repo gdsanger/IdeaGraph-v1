@@ -2519,6 +2519,9 @@ def api_task_create_github_issue(request, task_id):
             copilot_user = get_or_create_github_copilot_user()
             task.assigned_to = copilot_user
             
+            # Automatic status change: Task sent to GitHub → status = "working"
+            task.status = 'working'
+            
             task.save()
             
             # Create a comment about the GitHub issue creation
@@ -4840,7 +4843,7 @@ def api_task_quick_status_update(request, task_id):
     """
     API endpoint for quick task status update.
     POST /api/tasks/{task_id}/quick-status-update
-    Body: {"status": "new|working|review|ready|done"}
+    Body: {"status": "new|review|ready|working|testing|done"}
     
     Used by the item detail view task table for inline status changes.
     Updates the database and syncs with Weaviate.
@@ -4859,7 +4862,72 @@ def api_task_quick_status_update(request, task_id):
         new_status = data.get('status', '').strip()
         
         # Validate status
-        valid_statuses = ['new', 'working', 'review', 'ready', 'test', 'done']
+        valid_statuses = ['new', 'review', 'ready', 'working', 'testing', 'done']
+        if new_status not in valid_statuses:
+            return JsonResponse({'error': 'Invalid status value'}, status=400)
+        
+        previous_status = task.status
+        task.status = new_status
+        
+        # Mark as done if status changed to done
+        if new_status == 'done' and previous_status != 'done':
+            task.save()
+            task.mark_as_done()
+        else:
+            task.save()
+        
+        # Sync with Weaviate
+        try:
+            from main.models import Settings
+            settings = Settings.objects.first()
+            if settings:
+                sync_service = WeaviateTaskSyncService(settings)
+                sync_service.sync_update(task)
+        except WeaviateTaskSyncServiceError as e:
+            logger.warning(f'Weaviate sync failed for task {task.id}: {e.message}')
+        except Exception as e:
+            logger.warning(f'Weaviate sync error for task {task.id}: {str(e)}')
+        
+        return JsonResponse({
+            'success': True,
+            'status': task.status,
+            'status_display': task.get_status_display()
+        })
+    
+    except Task.DoesNotExist:
+        return JsonResponse({'error': 'Task not found'}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f'Task status update error: {str(e)}')
+        return JsonResponse({'error': 'Failed to update task status'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_task_set_status(request, task_id):
+    """
+    API endpoint for setting task status (used by Kanban drag & drop).
+    POST /tasks/{task_id}/set_status
+    Body: {"status": "new|review|ready|working|testing|done"}
+    
+    Returns HTML fragment for HTMX swap.
+    """
+    user = get_user_from_request(request)
+    if not user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    from .models import Task
+    
+    try:
+        task = Task.objects.get(id=task_id)
+        
+        # Parse request body
+        data = json.loads(request.body)
+        new_status = data.get('status', '').strip()
+        
+        # Validate status
+        valid_statuses = ['new', 'review', 'ready', 'working', 'testing', 'done']
         if new_status not in valid_statuses:
             return JsonResponse({'error': 'Invalid status value'}, status=400)
         
