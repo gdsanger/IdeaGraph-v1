@@ -47,6 +47,13 @@ class ItemQuestionAnsweringService:
     DEFAULT_SEARCH_LIMIT = 10
     MIN_RELEVANCE_CERTAINTY = 0.5  # Lowered from 0.7 to allow more relevant results
     
+    # Two-stage search configuration
+    SEMANTIC_SEARCH_MULTIPLIER = 2  # Get more results in semantic search for better coverage
+    DIRECT_RESULT_BOOST = 0.1  # Boost relevance score for directly linked objects
+    
+    # Context preparation configuration
+    MAX_DESCRIPTION_LENGTH = 1000  # Maximum characters to include from description in context
+    
     def __init__(self, settings=None):
         """
         Initialize ItemQuestionAnsweringService with settings
@@ -178,7 +185,7 @@ class ItemQuestionAnsweringService:
             
             semantic_response = collection.query.hybrid(
                 query=question,
-                limit=limit * 2,  # Get more results for better coverage
+                limit=limit * self.SEMANTIC_SEARCH_MULTIPLIER,  # Get more results for better coverage
                 return_metadata=MetadataQuery(distance=True, certainty=True, score=True),
                 fusion_type=HybridFusion.RANKED
             )
@@ -196,7 +203,7 @@ class ItemQuestionAnsweringService:
                     continue
                 seen_uuids.add(obj_uuid)
                 
-                result = self._format_search_result(obj, boost_relevance=0.1)
+                result = self._format_search_result(obj, boost_relevance=self.DIRECT_RESULT_BOOST)
                 if result and result['relevance'] >= self.MIN_RELEVANCE_CERTAINTY:
                     search_results.append(result)
             
@@ -253,7 +260,12 @@ class ItemQuestionAnsweringService:
             # Priority: score > certainty > distance
             relevance = 0.0
             if score > 0:
-                # Normalize score using sigmoid-like function
+                # Normalize score using sigmoid-like function: f(x) = x / (x + 1)
+                # This maps unbounded scores [0, ∞) to bounded range [0, 1)
+                # Benefits:
+                # - Small scores (0-1) map nearly linearly to 0-0.5
+                # - Larger scores (1+) asymptotically approach 1.0
+                # - Prevents outlier scores from dominating
                 relevance = min(1.0, score / (score + 1.0))
             elif certainty > 0:
                 relevance = certainty
@@ -337,7 +349,7 @@ class ItemQuestionAnsweringService:
             context_parts = []
             for i, result in enumerate(search_results, 1):
                 # Include more of the description for better context
-                description_length = min(1000, len(result['description']))
+                description_length = min(self.MAX_DESCRIPTION_LENGTH, len(result['description']))
                 description_text = result['description'][:description_length]
                 if description_length < len(result['description']):
                     description_text += "..."
