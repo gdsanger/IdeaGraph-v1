@@ -25,8 +25,8 @@ class ChatWidget {
         this.showHistory = options.showHistory !== false;
         
         // Validate required parameters
-        if (!this.itemId || this.itemId.trim() === '') {
-            throw new Error('ChatWidget requires itemId parameter');
+        if (!this.itemId || typeof this.itemId !== 'string' || this.itemId.trim() === '' || this.itemId === 'None' || this.itemId === 'undefined') {
+            throw new Error('ChatWidget requires valid itemId parameter');
         }
         
         // State

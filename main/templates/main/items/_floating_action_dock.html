@@ -406,9 +406,20 @@
                         const objectType = '{{ object_type|default:"item" }}';
                         const objectId = '{{ object_id|escapejs }}';
                         
-                        // Only initialize if objectId is provided
-                        if (!objectId || objectId.trim() === '') {
+                        // Only initialize if objectId is provided and valid
+                        if (!objectId || objectId === '' || objectId.trim() === '' || objectId === 'None') {
                             console.warn('ChatWidget: Cannot initialize without object_id');
+                            const container = document.getElementById('ideagraph-chat-widget-modal');
+                            if (container) {
+                                container.innerHTML = `
+                                    <div class="alert alert-warning" role="alert">
+                                        <i class="bi bi-exclamation-triangle"></i>
+                                        <strong>Keine Kontext-ID verfügbar</strong>
+                                        <p class="mb-0 mt-2">Der Q&A Chat ist nur auf Item- und Task-Detail-Seiten verfügbar.</p>
+                                    </div>
+                                `;
+                            }
+                            qaChatModal.dataset.chatWidgetInitialized = 'true';
                             return;
                         }
                         
@@ -424,6 +435,17 @@
                         console.log('Chat widget initialized in modal');
                     } catch (error) {
                         console.error('Error initializing chat widget in modal:', error);
+                        const container = document.getElementById('ideagraph-chat-widget-modal');
+                        if (container) {
+                            container.innerHTML = `
+                                <div class="alert alert-danger" role="alert">
+                                    <i class="bi bi-exclamation-triangle"></i>
+                                    <strong>Fehler beim Initialisieren des Chats</strong>
+                                    <p class="mb-0 mt-2">${error.message || 'Ein unbekannter Fehler ist aufgetreten.'}</p>
+                                </div>
+                            `;
+                        }
+                        qaChatModal.dataset.chatWidgetInitialized = 'true';
                     }
                 }
             });
@@ -443,9 +465,22 @@
                         const objectType = '{{ object_type|default:"item" }}';
                         const objectId = '{{ object_id|escapejs }}';
                         
-                        // Only initialize if objectId is provided
-                        if (!objectId || objectId.trim() === '') {
+                        // Only initialize if objectId is provided and valid
+                        if (!objectId || objectId === '' || objectId.trim() === '' || objectId === 'None') {
                             console.warn('SemanticGraph: Cannot initialize without object_id');
+                            const container = document.getElementById('semanticNetworkModalContainer');
+                            if (container) {
+                                container.innerHTML = `
+                                    <div class="alert alert-warning d-flex align-items-center justify-content-center" role="alert" style="height: 100%;">
+                                        <div class="text-center">
+                                            <i class="bi bi-exclamation-triangle" style="font-size: 3rem;"></i>
+                                            <h5 class="mt-3">Keine Kontext-ID verfügbar</h5>
+                                            <p class="mb-0">Der Relationship Graph ist nur auf Item- und Task-Detail-Seiten verfügbar.</p>
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                            graphModal.dataset.semanticNetworkInitialized = 'true';
                             return;
                         }
                         
@@ -470,6 +505,19 @@
                         console.log('Semantic network initialized in modal');
                     } catch (error) {
                         console.error('Error initializing semantic network in modal:', error);
+                        const container = document.getElementById('semanticNetworkModalContainer');
+                        if (container) {
+                            container.innerHTML = `
+                                <div class="alert alert-danger d-flex align-items-center justify-content-center" role="alert" style="height: 100%;">
+                                    <div class="text-center">
+                                        <i class="bi bi-exclamation-triangle" style="font-size: 3rem;"></i>
+                                        <h5 class="mt-3">Fehler beim Initialisieren</h5>
+                                        <p class="mb-0">${error.message || 'Ein unbekannter Fehler ist aufgetreten.'}</p>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                        graphModal.dataset.semanticNetworkInitialized = 'true';
                     }
                 }
             });
