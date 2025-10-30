@@ -5,6 +5,7 @@ import logging
 from django.template.loader import render_to_string
 from core.services.graph_service import GraphService, GraphServiceError
 from core.services.email_conversation_service import EmailConversationService
+from core.services.kigate_service import KiGateService, KiGateServiceError
 from main.models import Item, Task
 
 
@@ -194,6 +195,128 @@ def send_task_email(task_id, recipient_email, subject, body, user=None, in_reply
         return False, f"Unexpected error: {str(e)}"
 
 
+def _convert_markdown_to_html(markdown_content: str) -> str:
+    """
+    Convert Markdown content to HTML using KiGate agent with fallback.
+    
+    Args:
+        markdown_content: Markdown string to convert
+        
+    Returns:
+        HTML string
+    """
+    if not markdown_content:
+        return ""
+    
+    # Try to use KiGate service for conversion
+    try:
+        from main.models import Settings
+        settings = Settings.objects.first()
+        
+        if settings and settings.kigate_api_enabled:
+            kigate_service = KiGateService(settings)
+            
+            result = kigate_service.execute_agent(
+                agent_name='markdown-to-html-converter',
+                provider='openai',
+                model='gpt-4',
+                message=markdown_content,
+                user_id='system'
+            )
+            
+            if result.get('success'):
+                html = result.get('result', '')
+                # Verify that we actually got HTML back
+                if html and ('<' in html and '>' in html):
+                    logger.info("Successfully converted Markdown to HTML using KiGate")
+                    return html
+                else:
+                    logger.warning("Markdown to HTML conversion returned non-HTML content, using fallback")
+            else:
+                logger.warning("Markdown to HTML conversion failed, using fallback")
+    except KiGateServiceError as e:
+        logger.warning(f"KiGate service error: {e.message}, using fallback conversion")
+    except Exception as e:
+        logger.warning(f"Error during markdown to HTML conversion: {str(e)}, using fallback")
+    
+    # Fallback: basic markdown to HTML conversion
+    return _basic_markdown_to_html(markdown_content)
+
+
+def _basic_markdown_to_html(markdown_content: str) -> str:
+    """
+    Basic fallback method to convert common markdown patterns to HTML.
+    
+    Args:
+        markdown_content: Markdown string to convert
+        
+    Returns:
+        HTML string with basic formatting
+    """
+    import re
+    
+    html = markdown_content
+    
+    # Convert headers (must be done before other conversions)
+    html = re.sub(r'^### (.*?)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
+    html = re.sub(r'^## (.*?)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
+    html = re.sub(r'^# (.*?)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
+    
+    # Convert bold (must be done before italic to avoid conflicts)
+    # Use non-capturing groups and limit repetition to prevent ReDoS
+    html = re.sub(r'\*\*([^\*]+?)\*\*', r'<strong>\1</strong>', html)
+    html = re.sub(r'__([^_]+?)__', r'<strong>\1</strong>', html)
+    
+    # Convert italic (avoid matching already converted bold tags)
+    # Use more specific patterns to prevent catastrophic backtracking
+    html = re.sub(r'(?<!\*)\*([^\*\n]+?)\*(?!\*)', r'<em>\1</em>', html)
+    html = re.sub(r'(?<!_)_([^_\n]+?)_(?!_)', r'<em>\1</em>', html)
+    
+    # Convert links - use more specific pattern to prevent ReDoS
+    # Limit the content to exclude nested brackets and parentheses
+    html = re.sub(r'\[([^\[\]\n]{1,200}?)\]\(([^\(\)\s\n]{1,500}?)\)', r'<a href="\2">\1</a>', html)
+    
+    # Helper function to process lists
+    def process_lists(text: str, list_pattern: str, list_tag: str) -> str:
+        lines = text.split('\n')
+        in_list = False
+        result_lines = []
+        for line in lines:
+            if re.match(list_pattern, line):
+                if not in_list:
+                    result_lines.append(f'<{list_tag}>')
+                    in_list = True
+                # Remove the list marker and wrap in <li>
+                list_item = re.sub(list_pattern, '', line)
+                result_lines.append(f'<li>{list_item}</li>')
+            else:
+                if in_list:
+                    result_lines.append(f'</{list_tag}>')
+                    in_list = False
+                result_lines.append(line)
+        if in_list:
+            result_lines.append(f'</{list_tag}>')
+        return '\n'.join(result_lines)
+    
+    # Convert unordered lists
+    html = process_lists(html, r'^\s*[-*+]\s+', 'ul')
+    
+    # Convert ordered lists
+    html = process_lists(html, r'^\s*\d+\.\s+', 'ol')
+    
+    # Convert code blocks
+    html = re.sub(r'```(.*?)```', r'<pre><code>\1</code></pre>', html, flags=re.DOTALL)
+    
+    # Convert inline code
+    html = re.sub(r'`(.*?)`', r'<code>\1</code>', html)
+    
+    # Convert line breaks (two spaces at end of line or double newline)
+    html = re.sub(r'  \n', '<br>\n', html)
+    html = re.sub(r'\n\n', '<br><br>\n', html)
+    
+    return html
+
+
 def send_task_moved_notification(task_id, source_item_title, target_item_title):
     """
     Send a notification email to the task requester when a task is moved to another item.
@@ -220,11 +343,14 @@ def send_task_moved_notification(task_id, source_item_title, target_item_title):
             logger.warning(f"Task requester {task.requester.username} has no email address")
             return False, "Requester has no email address"
         
+        # Convert task description from Markdown to HTML
+        task_description_html = _convert_markdown_to_html(task.description) if task.description else ""
+        
         # Prepare context for the email template
         context = {
             'requester_name': task.requester.username,
             'task_title': task.title,
-            'task_description': task.description,
+            'task_description': task_description_html,
             'source_item_title': source_item_title,
             'target_item_title': target_item_title
         }
