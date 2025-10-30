@@ -157,6 +157,12 @@ class FloatingActionDockTest(TestCase):
         self.assertContains(response, 'id="globalSearchResults"')
         self.assertContains(response, 'id="semanticNetworkModalContainer"')
     
+    def _assert_no_duplicate_modals(self, response, modal_id='qaChatModal'):
+        """Helper method to verify only one modal exists with given ID"""
+        content = response.content.decode('utf-8')
+        modal_count = content.count(f'id="{modal_id}"')
+        self.assertEqual(modal_count, 1, f"Expected 1 {modal_id}, found {modal_count}")
+    
     def test_chat_modal_has_object_id_in_item_view(self):
         """Test that chat modal receives the correct object_id in item detail view"""
         url = reverse('main:item_detail', args=[self.item.id])
@@ -167,9 +173,7 @@ class FloatingActionDockTest(TestCase):
         self.assertContains(response, f"const objectId = '{self.item.id}'")
         self.assertContains(response, "const objectType = 'item'")
         # Verify only one qaChatModal exists (no duplicates)
-        content = response.content.decode('utf-8')
-        modal_count = content.count('id="qaChatModal"')
-        self.assertEqual(modal_count, 1, f"Expected 1 qaChatModal, found {modal_count}")
+        self._assert_no_duplicate_modals(response)
     
     def test_chat_modal_has_object_id_in_task_view(self):
         """Test that chat modal receives the correct object_id in task detail view"""
@@ -181,6 +185,4 @@ class FloatingActionDockTest(TestCase):
         self.assertContains(response, f"const objectId = '{self.task.id}'")
         self.assertContains(response, "const objectType = 'task'")
         # Verify only one qaChatModal exists (no duplicates)
-        content = response.content.decode('utf-8')
-        modal_count = content.count('id="qaChatModal"')
-        self.assertEqual(modal_count, 1, f"Expected 1 qaChatModal, found {modal_count}")
+        self._assert_no_duplicate_modals(response)
