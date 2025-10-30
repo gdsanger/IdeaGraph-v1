@@ -297,6 +297,122 @@ class GraphServiceTestCase(TestCase):
         
         self.assertIn("No recipients", str(context.exception))
     
+    @patch('core.services.graph_service.requests.post')
+    def test_send_mail_to_self_blocked(self, mock_post):
+        """Test that sending email to default_mail_sender is blocked"""
+        mock_post.return_value = Mock(
+            status_code=200,
+            json=lambda: {'access_token': 'test-token', 'expires_in': 3600}
+        )
+        
+        service = GraphService(self.settings)
+        
+        # Attempt to send email to the default_mail_sender
+        with self.assertRaises(GraphServiceError) as context:
+            service.send_mail(
+                to=['test@example.com'],  # This is the default_mail_sender
+                subject='Test Self Send',
+                body='This should be blocked'
+            )
+        
+        self.assertIn("Self-sending not allowed", str(context.exception))
+        self.assertIn("infinite loop", str(context.exception.details))
+    
+    @patch('core.services.graph_service.requests.post')
+    def test_send_mail_to_self_case_insensitive(self, mock_post):
+        """Test that self-send check is case-insensitive"""
+        mock_post.return_value = Mock(
+            status_code=200,
+            json=lambda: {'access_token': 'test-token', 'expires_in': 3600}
+        )
+        
+        service = GraphService(self.settings)
+        
+        # Test with uppercase
+        with self.assertRaises(GraphServiceError) as context:
+            service.send_mail(
+                to=['TEST@EXAMPLE.COM'],
+                subject='Test Self Send',
+                body='This should be blocked'
+            )
+        
+        self.assertIn("Self-sending not allowed", str(context.exception))
+        
+        # Test with mixed case
+        with self.assertRaises(GraphServiceError) as context:
+            service.send_mail(
+                to=['Test@Example.Com'],
+                subject='Test Self Send',
+                body='This should be blocked'
+            )
+        
+        self.assertIn("Self-sending not allowed", str(context.exception))
+    
+    @patch('core.services.graph_service.requests.post')
+    def test_send_mail_cc_to_self_blocked(self, mock_post):
+        """Test that CC'ing email to default_mail_sender is blocked"""
+        mock_post.return_value = Mock(
+            status_code=200,
+            json=lambda: {'access_token': 'test-token', 'expires_in': 3600}
+        )
+        
+        service = GraphService(self.settings)
+        
+        # Attempt to CC email to the default_mail_sender
+        with self.assertRaises(GraphServiceError) as context:
+            service.send_mail(
+                to=['other@example.com'],
+                cc=['test@example.com'],  # This is the default_mail_sender
+                subject='Test Self CC',
+                body='This should be blocked'
+            )
+        
+        self.assertIn("Self-sending not allowed", str(context.exception))
+        self.assertIn("infinite loop", str(context.exception.details))
+    
+    @patch('core.services.graph_service.requests.request')
+    @patch('core.services.graph_service.requests.post')
+    def test_send_mail_to_self_in_list_blocked(self, mock_post, mock_request):
+        """Test that self-send is blocked even when mixed with other recipients"""
+        mock_post.return_value = Mock(
+            status_code=200,
+            json=lambda: {'access_token': 'test-token', 'expires_in': 3600}
+        )
+        
+        service = GraphService(self.settings)
+        
+        # Attempt to send to multiple recipients including self
+        with self.assertRaises(GraphServiceError) as context:
+            service.send_mail(
+                to=['user1@example.com', 'test@example.com', 'user2@example.com'],
+                subject='Test Self Send in List',
+                body='This should be blocked'
+            )
+        
+        self.assertIn("Self-sending not allowed", str(context.exception))
+    
+    @patch('core.services.graph_service.requests.request')
+    @patch('core.services.graph_service.requests.post')
+    def test_send_mail_to_others_allowed(self, mock_post, mock_request):
+        """Test that sending to other addresses is still allowed"""
+        mock_post.return_value = Mock(
+            status_code=200,
+            json=lambda: {'access_token': 'test-token', 'expires_in': 3600}
+        )
+        
+        mock_request.return_value = Mock(status_code=202)
+        
+        service = GraphService(self.settings)
+        
+        # This should succeed
+        result = service.send_mail(
+            to=['user@example.com', 'another@example.com'],
+            subject='Test Normal Send',
+            body='This should work'
+        )
+        
+        self.assertTrue(result['success'])
+    
     @patch('core.services.graph_service.requests.request')
     @patch('core.services.graph_service.requests.post')
     def test_send_system_mail(self, mock_post, mock_request):

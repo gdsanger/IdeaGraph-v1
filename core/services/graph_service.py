@@ -775,6 +775,40 @@ class GraphService:
         if not to:
             raise GraphServiceError("No recipients specified")
         
+        # Prevent self-sending: Check if any recipient is the default_mail_sender
+        # This prevents infinite loops where IdeaGraph sends emails to itself
+        if self.default_sender:
+            default_sender_lower = self.default_sender.lower()
+            
+            # Check TO recipients
+            for recipient in to:
+                if recipient.lower() == default_sender_lower:
+                    logger.warning(
+                        f"SELF-SEND BLOCKED: Attempted to send email to default_mail_sender "
+                        f"'{self.default_sender}'. This is not allowed to prevent infinite loops. "
+                        f"Subject: '{subject}'"
+                    )
+                    raise GraphServiceError(
+                        "Self-sending not allowed",
+                        details=f"Cannot send email to default_mail_sender ({self.default_sender}). "
+                               "This would create an infinite loop."
+                    )
+            
+            # Check CC recipients if provided
+            if cc:
+                for recipient in cc:
+                    if recipient.lower() == default_sender_lower:
+                        logger.warning(
+                            f"SELF-SEND BLOCKED: Attempted to CC email to default_mail_sender "
+                            f"'{self.default_sender}'. This is not allowed to prevent infinite loops. "
+                            f"Subject: '{subject}'"
+                        )
+                        raise GraphServiceError(
+                            "Self-sending not allowed",
+                            details=f"Cannot CC email to default_mail_sender ({self.default_sender}). "
+                                   "This would create an infinite loop."
+                        )
+        
         # Build email message
         message = {
             'message': {
