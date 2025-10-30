@@ -690,9 +690,17 @@ class TaskMoveNotificationTest(TestCase):
         
         # Mock KiGateService
         mock_kigate_service = MagicMock()
+        expected_html_result = (
+            '<strong>Bold text</strong> and <em>italic text</em>'
+            '<br><br>'
+            '<ul>'
+            '<li>List item 1</li>'
+            '<li>List item 2</li>'
+            '</ul>'
+        )
         mock_kigate_service.execute_agent.return_value = {
             'success': True,
-            'result': '<strong>Bold text</strong> and <em>italic text</em><br><br><ul><li>List item 1</li><li>List item 2</li></ul>'
+            'result': expected_html_result
         }
         mock_kigate_service_class.return_value = mock_kigate_service
         

@@ -262,58 +262,45 @@ def _basic_markdown_to_html(markdown_content: str) -> str:
     html = re.sub(r'^## (.*?)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
     html = re.sub(r'^# (.*?)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
     
-    # Convert bold
+    # Convert bold (must be done before italic to avoid conflicts)
     html = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', html)
     html = re.sub(r'__(.*?)__', r'<strong>\1</strong>', html)
     
-    # Convert italic
-    html = re.sub(r'\*(.*?)\*', r'<em>\1</em>', html)
-    html = re.sub(r'_(.*?)_', r'<em>\1</em>', html)
+    # Convert italic (avoid matching already converted bold tags)
+    # Use negative lookahead/lookbehind to avoid matching asterisks in bold patterns
+    html = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', html)
+    html = re.sub(r'(?<!_)_(?!_)(.+?)(?<!_)_(?!_)', r'<em>\1</em>', html)
     
     # Convert links
     html = re.sub(r'\[(.*?)\]\((.*?)\)', r'<a href="\2">\1</a>', html)
     
+    # Helper function to process lists
+    def process_lists(text: str, list_pattern: str, list_tag: str) -> str:
+        lines = text.split('\n')
+        in_list = False
+        result_lines = []
+        for line in lines:
+            if re.match(list_pattern, line):
+                if not in_list:
+                    result_lines.append(f'<{list_tag}>')
+                    in_list = True
+                # Remove the list marker and wrap in <li>
+                list_item = re.sub(list_pattern, '', line)
+                result_lines.append(f'<li>{list_item}</li>')
+            else:
+                if in_list:
+                    result_lines.append(f'</{list_tag}>')
+                    in_list = False
+                result_lines.append(line)
+        if in_list:
+            result_lines.append(f'</{list_tag}>')
+        return '\n'.join(result_lines)
+    
     # Convert unordered lists
-    lines = html.split('\n')
-    in_list = False
-    result_lines = []
-    for line in lines:
-        if re.match(r'^\s*[-*+]\s+', line):
-            if not in_list:
-                result_lines.append('<ul>')
-                in_list = True
-            # Remove the list marker and wrap in <li>
-            list_item = re.sub(r'^\s*[-*+]\s+', '', line)
-            result_lines.append(f'<li>{list_item}</li>')
-        else:
-            if in_list:
-                result_lines.append('</ul>')
-                in_list = False
-            result_lines.append(line)
-    if in_list:
-        result_lines.append('</ul>')
-    html = '\n'.join(result_lines)
+    html = process_lists(html, r'^\s*[-*+]\s+', 'ul')
     
     # Convert ordered lists
-    lines = html.split('\n')
-    in_list = False
-    result_lines = []
-    for line in lines:
-        if re.match(r'^\s*\d+\.\s+', line):
-            if not in_list:
-                result_lines.append('<ol>')
-                in_list = True
-            # Remove the list marker and wrap in <li>
-            list_item = re.sub(r'^\s*\d+\.\s+', '', line)
-            result_lines.append(f'<li>{list_item}</li>')
-        else:
-            if in_list:
-                result_lines.append('</ol>')
-                in_list = False
-            result_lines.append(line)
-    if in_list:
-        result_lines.append('</ol>')
-    html = '\n'.join(result_lines)
+    html = process_lists(html, r'^\s*\d+\.\s+', 'ol')
     
     # Convert code blocks
     html = re.sub(r'```(.*?)```', r'<pre><code>\1</code></pre>', html, flags=re.DOTALL)
