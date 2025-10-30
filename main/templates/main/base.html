@@ -202,7 +202,13 @@
     </div>
 
     <!-- Include Floating Action Dock on all pages -->
-    {% include 'main/items/_floating_action_dock.html' with dock_context='global' %}
+    {% if item %}
+        {% include 'main/items/_floating_action_dock.html' with dock_context='item' object_type='item' object_id=item.id %}
+    {% elif task %}
+        {% include 'main/items/_floating_action_dock.html' with dock_context='task' object_type='task' object_id=task.id %}
+    {% else %}
+        {% include 'main/items/_floating_action_dock.html' with dock_context='global' %}
+    {% endif %}
 
     <!-- Quick Task Entry Modal -->
     {% if request.session.user_id %}
