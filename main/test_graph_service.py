@@ -440,6 +440,36 @@ class GraphServiceTestCase(TestCase):
         
         self.assertTrue(result['success'])
     
+    @patch('core.services.graph_service.requests.post')
+    def test_send_mail_with_none_in_recipients_doesnt_break_validation(self, mock_post):
+        """Test that None values in recipients list don't cause AttributeError in validation"""
+        mock_post.return_value = Mock(
+            status_code=200,
+            json=lambda: {'access_token': 'test-token', 'expires_in': 3600}
+        )
+        
+        service = GraphService(self.settings)
+        
+        # Even with None in the list, our validation should not crash
+        # (the Graph API will handle the None values itself)
+        # We're testing that checking for self-send doesn't cause an AttributeError
+        try:
+            # This may fail at the Graph API level, but not in our validation
+            service._validate_no_self_send(
+                recipients=['user@example.com', None, 'test@example.com'],
+                subject='Test',
+                recipient_type='to'
+            )
+        except GraphServiceError as e:
+            # If it's a self-send error, that's expected (found test@example.com)
+            if "Self-sending not allowed" in str(e):
+                pass  # This is the expected behavior
+            else:
+                raise  # Other errors should fail the test
+        except AttributeError:
+            # This should NOT happen - fail the test if it does
+            self.fail("Validation should handle None values gracefully without AttributeError")
+    
     @patch('core.services.graph_service.requests.request')
     @patch('core.services.graph_service.requests.post')
     def test_send_system_mail(self, mock_post, mock_request):

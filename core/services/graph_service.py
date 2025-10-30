@@ -760,6 +760,10 @@ class GraphService:
         default_sender_lower = self.default_sender.lower()
         
         for recipient in recipients:
+            # Skip invalid recipients (None, empty string, non-string types)
+            if not recipient or not isinstance(recipient, str):
+                continue
+            
             if recipient.lower() == default_sender_lower:
                 logger.warning(
                     f"SELF-SEND BLOCKED: Attempted to {recipient_type.upper()} email to default_mail_sender "
