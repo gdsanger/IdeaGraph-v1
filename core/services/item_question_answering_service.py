@@ -45,11 +45,11 @@ class ItemQuestionAnsweringService:
     
     COLLECTION_NAME = 'KnowledgeObject'
     DEFAULT_SEARCH_LIMIT = 10
-    MIN_RELEVANCE_CERTAINTY = 0.5  # Lowered from 0.7 to allow more relevant results
+    MIN_RELEVANCE_CERTAINTY = 0.3  # Lowered from 0.5 to match Global Search behavior and allow more relevant results
     
     # Two-stage search configuration
-    SEMANTIC_SEARCH_MULTIPLIER = 2  # Get more results in semantic search for better coverage
-    DIRECT_RESULT_BOOST = 0.1  # Boost relevance score for directly linked objects
+    SEMANTIC_SEARCH_MULTIPLIER = 3  # Increased from 2 to get more results in semantic search for better coverage
+    DIRECT_RESULT_BOOST = 0.15  # Increased boost for directly linked objects (was 0.1)
     
     # Context preparation configuration
     MAX_DESCRIPTION_LENGTH = 1000  # Maximum characters to include from description in context

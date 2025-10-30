@@ -16,6 +16,19 @@ class ChatWidget {
      * @param {string} options.height - Container height (default: 500px)
      * @param {boolean} options.showHistory - Show question history (default: true)
      */
+    /**
+     * Validate if itemId is valid
+     * @private
+     */
+    _isValidItemId(itemId) {
+        return itemId && 
+               itemId !== undefined &&
+               typeof itemId === 'string' && 
+               itemId.trim() !== '' && 
+               itemId !== 'None' && 
+               itemId !== 'undefined';
+    }
+    
     constructor(options) {
         this.containerId = options.containerId;
         this.itemId = options.itemId;
@@ -25,8 +38,8 @@ class ChatWidget {
         this.showHistory = options.showHistory !== false;
         
         // Validate required parameters
-        if (!this.itemId || this.itemId.trim() === '') {
-            throw new Error('ChatWidget requires itemId parameter');
+        if (!this._isValidItemId(this.itemId)) {
+            throw new Error('ChatWidget requires valid itemId parameter');
         }
         
         // State
