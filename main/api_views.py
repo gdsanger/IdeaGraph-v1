@@ -6364,7 +6364,7 @@ def add_to_weaviate(request, object_type, object_id):
             try:
                 if object_type == 'item_file':
                     from core.services.item_file_service import ItemFileService
-                    from core.services.graph_service import GraphService
+                    from core.services.graph_service import GraphService, GraphServiceError
                     
                     file_obj = ItemFile.objects.get(id=object_id)
                     item = file_obj.item
