@@ -665,3 +665,100 @@ class TaskMoveNotificationTest(TestCase):
         
         # Verify send_mail was NOT called
         mock_graph_service_class.return_value.send_mail.assert_not_called()
+    
+    @patch('main.mail_utils.GraphService')
+    @patch('main.mail_utils.KiGateService')
+    @patch('main.models.Settings')
+    def test_send_task_moved_notification_converts_markdown_to_html(self, mock_settings_class, mock_kigate_service_class, mock_graph_service_class):
+        """Test that task description is converted from markdown to HTML"""
+        from main.mail_utils import send_task_moved_notification
+        
+        # Create task with markdown description
+        task_with_markdown = Task.objects.create(
+            title='Markdown Test Task',
+            description='**Bold text** and *italic text*\n\n- List item 1\n- List item 2',
+            status='new',
+            item=self.item1,
+            created_by=self.creator,
+            requester=self.requester
+        )
+        
+        # Mock Settings
+        mock_settings = MagicMock()
+        mock_settings.kigate_api_enabled = True
+        mock_settings_class.objects.first.return_value = mock_settings
+        
+        # Mock KiGateService
+        mock_kigate_service = MagicMock()
+        mock_kigate_service.execute_agent.return_value = {
+            'success': True,
+            'result': '<strong>Bold text</strong> and <em>italic text</em><br><br><ul><li>List item 1</li><li>List item 2</li></ul>'
+        }
+        mock_kigate_service_class.return_value = mock_kigate_service
+        
+        # Mock GraphService
+        mock_graph_service = MagicMock()
+        mock_graph_service.send_mail.return_value = {'success': True}
+        mock_graph_service_class.return_value = mock_graph_service
+        
+        success, message = send_task_moved_notification(
+            task_id=str(task_with_markdown.id),
+            source_item_title='Source Item',
+            target_item_title='Target Item'
+        )
+        
+        self.assertTrue(success)
+        
+        # Verify KiGate agent was called with markdown content
+        mock_kigate_service.execute_agent.assert_called_once()
+        call_args = mock_kigate_service.execute_agent.call_args
+        self.assertEqual(call_args[1]['agent_name'], 'markdown-to-html-converter')
+        self.assertIn('Bold text', call_args[1]['message'])
+        
+        # Verify email was sent with HTML content
+        mock_graph_service.send_mail.assert_called_once()
+        email_call_args = mock_graph_service.send_mail.call_args
+        email_body = email_call_args[1]['body']
+        # The HTML content should be in the email body
+        self.assertIn('strong', email_body.lower())
+    
+    @patch('main.mail_utils.GraphService')
+    @patch('main.models.Settings')
+    def test_send_task_moved_notification_fallback_markdown_conversion(self, mock_settings_class, mock_graph_service_class):
+        """Test that fallback markdown conversion works when KiGate is unavailable"""
+        from main.mail_utils import send_task_moved_notification
+        
+        # Create task with markdown description
+        task_with_markdown = Task.objects.create(
+            title='Fallback Test Task',
+            description='**Bold text** and *italic text*',
+            status='new',
+            item=self.item1,
+            created_by=self.creator,
+            requester=self.requester
+        )
+        
+        # Mock Settings to disable KiGate
+        mock_settings = MagicMock()
+        mock_settings.kigate_api_enabled = False
+        mock_settings_class.objects.first.return_value = mock_settings
+        
+        # Mock GraphService
+        mock_graph_service = MagicMock()
+        mock_graph_service.send_mail.return_value = {'success': True}
+        mock_graph_service_class.return_value = mock_graph_service
+        
+        success, message = send_task_moved_notification(
+            task_id=str(task_with_markdown.id),
+            source_item_title='Source Item',
+            target_item_title='Target Item'
+        )
+        
+        self.assertTrue(success)
+        
+        # Verify email was sent with basic HTML conversion (fallback)
+        mock_graph_service.send_mail.assert_called_once()
+        email_call_args = mock_graph_service.send_mail.call_args
+        email_body = email_call_args[1]['body']
+        # The fallback should convert markdown to HTML
+        self.assertIn('<strong>Bold text</strong>', email_body)
