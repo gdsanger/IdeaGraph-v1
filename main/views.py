@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.core.exceptions import ValidationError
-from django.db.models import Q
+from django.db.models import Q, Count
 from .auth_utils import validate_password
 from .models import Tag, Settings, Section, User, Item, Task, TaskTemplate, Client, Milestone
 import logging
@@ -901,7 +901,6 @@ def item_list(request):
     items = items.select_related('section', 'created_by').prefetch_related('tags')
     
     # Annotate with task counts
-    from django.db.models import Count, Q
     items = items.annotate(
         total_tasks=Count('tasks', distinct=True),
         open_tasks=Count('tasks', filter=~Q(tasks__status='done'), distinct=True),
@@ -965,7 +964,6 @@ def item_kanban(request):
     items = items.select_related('section', 'created_by').prefetch_related('tags')
     
     # Annotate with task counts
-    from django.db.models import Count, Q
     items = items.annotate(
         total_tasks=Count('tasks', distinct=True),
         open_tasks=Count('tasks', filter=~Q(tasks__status='done'), distinct=True),
@@ -2174,7 +2172,6 @@ def my_tasks_kanban(request):
     
     # Apply search filter
     if search_query:
-        from django.db.models import Q
         tasks = tasks.filter(
             Q(title__icontains=search_query) | 
             Q(description__icontains=search_query)
@@ -2220,7 +2217,6 @@ def my_requirements_kanban(request):
     search_query = request.GET.get('search', '').strip()
     
     # Base query - show tasks where current user is author (created_by) or requester
-    from django.db.models import Q
     tasks = Task.objects.filter(Q(created_by=user) | Q(requester=user))
     
     # Apply search filter
