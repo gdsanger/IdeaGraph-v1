@@ -156,3 +156,31 @@ class FloatingActionDockTest(TestCase):
         self.assertContains(response, 'id="filesModalContent"')
         self.assertContains(response, 'id="globalSearchResults"')
         self.assertContains(response, 'id="semanticNetworkModalContainer"')
+    
+    def test_chat_modal_has_object_id_in_item_view(self):
+        """Test that chat modal receives the correct object_id in item detail view"""
+        url = reverse('main:item_detail', args=[self.item.id])
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        # Verify the object_id is passed to the ChatWidget initialization
+        self.assertContains(response, f"const objectId = '{self.item.id}'")
+        self.assertContains(response, "const objectType = 'item'")
+        # Verify only one qaChatModal exists (no duplicates)
+        content = response.content.decode('utf-8')
+        modal_count = content.count('id="qaChatModal"')
+        self.assertEqual(modal_count, 1, f"Expected 1 qaChatModal, found {modal_count}")
+    
+    def test_chat_modal_has_object_id_in_task_view(self):
+        """Test that chat modal receives the correct object_id in task detail view"""
+        url = reverse('main:task_detail', args=[self.task.id])
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        # Verify the object_id is passed to the ChatWidget initialization
+        self.assertContains(response, f"const objectId = '{self.task.id}'")
+        self.assertContains(response, "const objectType = 'task'")
+        # Verify only one qaChatModal exists (no duplicates)
+        content = response.content.decode('utf-8')
+        modal_count = content.count('id="qaChatModal"')
+        self.assertEqual(modal_count, 1, f"Expected 1 qaChatModal, found {modal_count}")
