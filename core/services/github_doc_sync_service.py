@@ -549,30 +549,38 @@ class GitHubDocSyncService:
             import uuid
             doc_uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{repo_owner}/{repo_name}/{github_file_path}"))
             
-            # Check if already exists
+            # Check if already exists and update or create accordingly
             try:
+                # Try to fetch the object to check if it exists
                 existing_obj = collection.query.fetch_object_by_id(doc_uuid)
+                
+                # If we get here and have an object, it exists - update it
                 if existing_obj:
-                    # Update existing
                     logger.info(f"Updating existing KnowledgeObject: {doc_uuid}")
                     collection.data.update(
                         uuid=doc_uuid,
                         properties=properties
                     )
                 else:
-                    # Create new
+                    # Object doesn't exist, create it
                     logger.info(f"Creating new KnowledgeObject: {doc_uuid}")
                     collection.data.insert(
                         properties=properties,
                         uuid=doc_uuid
                     )
-            except:
-                # Object doesn't exist, create it
-                logger.info(f"Creating new KnowledgeObject: {doc_uuid}")
-                collection.data.insert(
-                    properties=properties,
-                    uuid=doc_uuid
-                )
+            except Exception as e:
+                # If fetch_object_by_id raises an exception, the object likely doesn't exist
+                # Try to create it
+                logger.info(f"Object not found, creating new KnowledgeObject: {doc_uuid}")
+                try:
+                    collection.data.insert(
+                        properties=properties,
+                        uuid=doc_uuid
+                    )
+                except Exception as insert_error:
+                    # If insert also fails, log the error with details
+                    logger.error(f"Failed to insert object {doc_uuid}: {str(insert_error)}")
+                    raise
             
             logger.info(f"Successfully synced {filename} to Weaviate")
             return {
