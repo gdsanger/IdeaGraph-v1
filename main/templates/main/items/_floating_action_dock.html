@@ -436,6 +436,7 @@ function isValidObjectId(objectId) {
                         const chatWidget = new ChatWidget({
                             containerId: 'ideagraph-chat-widget-modal',
                             itemId: objectId,
+                            contextType: objectType === 'item' ? 'Item' : 'Task',
                             apiBaseUrl: `/api/${objectType}s`,
                             theme: 'dark',
                             height: '500px',
