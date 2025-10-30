@@ -394,6 +394,15 @@
 </style>
 
 <script>
+// Helper function to validate object IDs for modal initialization
+function isValidObjectId(objectId) {
+    return objectId && 
+           objectId !== '' && 
+           objectId.trim() !== '' && 
+           objectId !== 'None' && 
+           objectId !== 'undefined';
+}
+
 // Initialize Chat Widget for Modal (lazy load when modal is shown)
 (function() {
     // Use a unique flag on the modal element to track initialization
@@ -407,7 +416,7 @@
                         const objectId = '{{ object_id|escapejs }}';
                         
                         // Only initialize if objectId is provided and valid
-                        if (!objectId || objectId === '' || objectId.trim() === '' || objectId === 'None') {
+                        if (!isValidObjectId(objectId)) {
                             console.warn('ChatWidget: Cannot initialize without object_id');
                             const container = document.getElementById('ideagraph-chat-widget-modal');
                             if (container) {
@@ -466,7 +475,7 @@
                         const objectId = '{{ object_id|escapejs }}';
                         
                         // Only initialize if objectId is provided and valid
-                        if (!objectId || objectId === '' || objectId.trim() === '' || objectId === 'None') {
+                        if (!isValidObjectId(objectId)) {
                             console.warn('SemanticGraph: Cannot initialize without object_id');
                             const container = document.getElementById('semanticNetworkModalContainer');
                             if (container) {
