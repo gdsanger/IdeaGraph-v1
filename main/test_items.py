@@ -66,12 +66,30 @@ class ItemViewsTest(TestCase):
         self.assertContains(response, 'Items - List View')
         self.assertContains(response, 'Test Item')
     
+    def test_item_list_view_without_search_query(self):
+        """Test item list view without search query (regression test for UnboundLocalError)"""
+        self.login_user(self.user)
+        # This should not raise UnboundLocalError even without search query
+        # because Q is imported at module level
+        response = self.client.get('/items/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Test Item')
+    
     def test_item_kanban_view(self):
         """Test item tile view (converted from kanban)"""
         self.login_user(self.user)
         response = self.client.get('/items/kanban/')
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Items - Tile View')
+        self.assertContains(response, 'Test Item')
+    
+    def test_item_kanban_view_without_search_query(self):
+        """Test item kanban view without search query (regression test for UnboundLocalError)"""
+        self.login_user(self.user)
+        # This should not raise UnboundLocalError even without search query
+        # because Q is imported at module level
+        response = self.client.get('/items/kanban/')
+        self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Test Item')
     
     def test_item_detail_view(self):
