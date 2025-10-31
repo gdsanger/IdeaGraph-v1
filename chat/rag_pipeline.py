@@ -139,7 +139,7 @@ class RAGPipeline:
             logger.error(f"Failed to initialize Weaviate client: {str(e)}")
             raise RAGPipelineError("Failed to initialize Weaviate client", details=str(e))
     
-    def optimize_question(self, question: str) -> Dict[str, Any]:
+    def optimize_question(self, question: str, user_id: str = "system") -> Dict[str, Any]:
         """
         Optimize question using question-optimization-agent (KiGate)
         
@@ -155,6 +155,7 @@ class RAGPipeline:
         
         Args:
             question: Original user question
+            user_id: User identifier (default: "system")
             
         Returns:
             Dictionary with optimization results
@@ -166,11 +167,31 @@ class RAGPipeline:
             return self._fallback_optimization(question)
         
         try:
-            # Call question-optimization-agent
+            # Build prompt for question-optimization-agent
+            prompt = f"""Analyze the following question and return a JSON object with:
+- language: detected language code (e.g., "de", "en")
+- core: simplified core question
+- synonyms: array of relevant synonyms
+- phrases: array of related phrases
+- entities: object with extracted entities
+- tags: array of relevant keywords/tags
+- ban: array of terms to exclude
+- followup_questions: array of suggested follow-up questions
+
+Question: {question}
+
+Return only valid JSON, no additional text."""
+            
+            # Call question-optimization-agent with proper parameters
             response = self.kigate.execute_agent(
                 agent_name="question-optimization-agent",
+                provider="openai",
+                model=self.settings.openai_default_model or "gpt-4",
+                message=prompt,
+                user_id=user_id,
                 parameters={
-                    "question": question
+                    "temperature": 0.3,
+                    "max_tokens": 1000
                 }
             )
             
@@ -591,7 +612,8 @@ class RAGPipeline:
     def send_to_answering_agent(
         self, 
         original_question: str, 
-        context: str
+        context: str,
+        user_id: str = "system"
     ) -> str:
         """
         Send question and context to question-answering-agent (KiGate)
@@ -599,6 +621,7 @@ class RAGPipeline:
         Args:
             original_question: Original user question
             context: Assembled context string
+            user_id: User identifier (default: "system")
             
         Returns:
             AI-generated answer
@@ -618,11 +641,16 @@ class RAGPipeline:
 INSTRUCTION: Antworte ausschließlich auf Basis des CONTEXT. Referenziere die Quellen mit ihren Markern (z.B. [#A1], [#B2]). 
 Wenn der Context keine passende Information enthält, sage es ehrlich."""
             
-            # Call question-answering-agent
+            # Call question-answering-agent with proper parameters
             response = self.kigate.execute_agent(
                 agent_name="question-answering-agent",
+                provider="openai",
+                model=self.settings.openai_default_model or "gpt-4",
+                message=prompt,
+                user_id=user_id,
                 parameters={
-                    "prompt": prompt
+                    "temperature": 0.7,
+                    "max_tokens": 2000
                 }
             )
             
@@ -642,7 +670,8 @@ Wenn der Context keine passende Information enthält, sage es ehrlich."""
         self,
         question: str,
         item_id: Optional[str] = None,
-        tenant: Optional[str] = None
+        tenant: Optional[str] = None,
+        user_id: str = "system"
     ) -> Dict[str, Any]:
         """
         Process a chat question through the complete RAG pipeline
@@ -651,6 +680,7 @@ Wenn der Context keine passende Information enthält, sage es ehrlich."""
             question: User question
             item_id: Optional item ID for context
             tenant: Optional tenant ID for filtering
+            user_id: User identifier for agent calls (default: "system")
             
         Returns:
             Dictionary with answer and metadata
@@ -660,7 +690,7 @@ Wenn der Context keine passende Information enthält, sage es ehrlich."""
         
         try:
             # Step 1: Optimize question
-            expanded = self.optimize_question(question)
+            expanded = self.optimize_question(question, user_id=user_id)
             
             # Step 2: Parallel retrieval
             results_sem = self.retrieve_semantic(expanded, item_id, tenant)
@@ -670,10 +700,11 @@ Wenn der Context keine passende Information enthält, sage es ehrlich."""
             final_results = self.fuse_and_rerank(results_sem, results_kw, expanded, item_id)
             
             # Step 4: Assemble context
-            context = self.assemble_context(final_results, item_id)
+            language = expanded.get('language', 'de')
+            context = self.assemble_context(final_results, item_id, language)
             
             # Step 5: Generate answer
-            answer = self.send_to_answering_agent(question, context)
+            answer = self.send_to_answering_agent(question, context, user_id=user_id)
             
             # Calculate metrics
             total_time = time.time() - start_time
