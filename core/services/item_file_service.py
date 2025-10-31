@@ -363,7 +363,7 @@ class ItemFileService:
                     chunk_seed = f"{item_file.id}_{i}"
                     chunk_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, chunk_seed))
                 
-                logger.debug(f"Adding chunk {i+1}/{len(text_chunks)} to Weaviate with UUID {chunk_uuid}")
+                logger.debug(f"Adding chunk {i+1}/{len(text_chunks)} to Weaviate with UUID {chunk_uuid}, itemId={properties['itemId']}")
                 
                 # Add to Weaviate collection
                 try:
@@ -371,14 +371,14 @@ class ItemFileService:
                         properties=properties,
                         uuid=chunk_uuid
                     )
-                    logger.debug(f"Successfully added chunk {i+1} to Weaviate")
+                    logger.debug(f"Successfully added chunk {i+1} to Weaviate with type='File' and itemId={properties['itemId']}")
                 except Exception as chunk_error:
                     logger.error(f"Failed to add chunk {i+1} to Weaviate: {str(chunk_error)}")
                     raise
             
             weaviate_service.close()
             
-            logger.info(f"Synced {len(text_chunks)} chunk(s) to Weaviate for file {filename}")
+            logger.info(f"Synced {len(text_chunks)} chunk(s) to Weaviate for file {filename} linked to item {properties['itemId']}")
             
             return {
                 'success': True,
