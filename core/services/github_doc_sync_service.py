@@ -534,7 +534,7 @@ class GitHubDocSyncService:
                 'file_url': file_url,
                 'itemId': str(item.id),
                 'tags': ['docs', 'documentation', 'github'],
-                'last_synced': datetime.now(timezone.utc).isoformat() + 'Z',
+                'last_synced': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
                 'github_url': github_url,
                 'github_path': github_file_path,
                 'github_repo': f"{repo_owner}/{repo_name}"
