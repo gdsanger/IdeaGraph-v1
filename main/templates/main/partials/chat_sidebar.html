@@ -45,7 +45,7 @@
     body.chat-sidebar-open main,
     body.chat-sidebar-open .container,
     body.chat-sidebar-open .container-fluid {
-        margin-right: 650px;  /* Push main content left by sidebar width */
+        margin-right: var(--chat-sidebar-width, 650px);  /* Use CSS custom property, fallback to 650px */
         transition: margin-right 0.3s ease-in-out;
     }
     
@@ -290,25 +290,9 @@ document.addEventListener('keydown', function(e) {
         // Apply to sidebar
         sidebar.style.width = `${width}px`;
         
-        // Update main content margin when sidebar is open
+        // Update main content margin when sidebar is open using CSS custom property
         if (document.body.classList.contains('chat-sidebar-open')) {
-            const style = document.createElement('style');
-            style.id = 'chat-sidebar-dynamic-width';
-            
-            // Remove existing dynamic style if present
-            const existingStyle = document.getElementById('chat-sidebar-dynamic-width');
-            if (existingStyle) {
-                existingStyle.remove();
-            }
-            
-            style.textContent = `
-                body.chat-sidebar-open main,
-                body.chat-sidebar-open .container,
-                body.chat-sidebar-open .container-fluid {
-                    margin-right: ${width}px !important;
-                }
-            `;
-            document.head.appendChild(style);
+            document.documentElement.style.setProperty('--chat-sidebar-width', `${width}px`);
         }
     }
     
@@ -323,6 +307,9 @@ document.addEventListener('keydown', function(e) {
         const savedWidth = loadSavedWidth();
         applyWidth(savedWidth);
         
+        // Throttle resize updates using requestAnimationFrame
+        let rafId = null;
+        
         // Mouse down on resize handle
         resizeHandle.addEventListener('mousedown', function(e) {
             isResizing = true;
@@ -331,13 +318,22 @@ document.addEventListener('keydown', function(e) {
             e.preventDefault();
         });
         
-        // Mouse move - resize sidebar
+        // Mouse move - resize sidebar (throttled with RAF)
         document.addEventListener('mousemove', function(e) {
             if (!isResizing) return;
             
-            // Calculate new width based on mouse position from right edge
-            const newWidth = window.innerWidth - e.clientX;
-            applyWidth(newWidth);
+            // Cancel previous frame if still pending
+            if (rafId) {
+                cancelAnimationFrame(rafId);
+            }
+            
+            // Schedule update for next frame
+            rafId = requestAnimationFrame(function() {
+                // Calculate new width based on mouse position from right edge
+                const newWidth = window.innerWidth - e.clientX;
+                applyWidth(newWidth);
+                rafId = null;
+            });
         });
         
         // Mouse up - stop resizing and save width
@@ -346,6 +342,13 @@ document.addEventListener('keydown', function(e) {
                 isResizing = false;
                 document.body.style.cursor = '';
                 document.body.style.userSelect = '';
+                
+                // Cancel any pending RAF
+                if (rafId) {
+                    cancelAnimationFrame(rafId);
+                    rafId = null;
+                }
+                
                 saveWidth(currentWidth);
             }
         });
