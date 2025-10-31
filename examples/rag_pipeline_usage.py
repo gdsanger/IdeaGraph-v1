@@ -10,7 +10,7 @@ import django
 
 # Setup Django environment
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-os.environ.setdefault('DJANGO_SETDEFAULT_SETTINGS_MODULE', 'ideagraph.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ideagraph.settings')
 django.setup()
 
 from chat.rag_pipeline import RAGPipeline, RAGPipelineError

@@ -74,10 +74,12 @@ class RAGPipeline:
     TIER_B_MAX = 3  # Item context snippets
     TIER_C_MAX = 2  # Global background snippets
     
-    # Fallback context
-    FALLBACK_CONTEXT = """
-[#FAQ] Keine spezifischen Informationen gefunden. Bitte formulieren Sie Ihre Frage präziser oder kontaktieren Sie den Support.
-"""
+    # Fallback messages by language
+    FALLBACK_MESSAGES = {
+        'de': '[#FAQ] Keine spezifischen Informationen gefunden. Bitte formulieren Sie Ihre Frage präziser oder kontaktieren Sie den Support.',
+        'en': '[#FAQ] No specific information found. Please rephrase your question more precisely or contact support.',
+    }
+    DEFAULT_FALLBACK_LANGUAGE = 'de'
     
     def __init__(self, settings=None):
         """
@@ -459,9 +461,10 @@ class RAGPipeline:
         query_tags = set(expanded.get('tags', []))
         
         for result in all_results:
-            # Calculate tag match score
+            # Calculate tag match score (only if both query and result have tags)
             result_tags = set(result.get('tags', []))
             if query_tags and result_tags:
+                # Safe division: both sets are non-empty
                 tag_match = len(query_tags & result_tags) / len(query_tags)
             else:
                 tag_match = 0.0
@@ -495,7 +498,8 @@ class RAGPipeline:
     def assemble_context(
         self, 
         results: List[Dict[str, Any]], 
-        item_id: Optional[str] = None
+        item_id: Optional[str] = None,
+        language: str = None
     ) -> str:
         """
         Assemble context with A/B/C layer structure
@@ -508,6 +512,7 @@ class RAGPipeline:
         Args:
             results: Reranked search results
             item_id: Current item ID for layer classification
+            language: Language for fallback message (default: 'de')
             
         Returns:
             Formatted context string with layer markers
@@ -516,7 +521,13 @@ class RAGPipeline:
         
         if not results:
             logger.warning("No results to assemble, using fallback context")
-            return self.FALLBACK_CONTEXT
+            if language is None:
+                language = self.DEFAULT_FALLBACK_LANGUAGE
+            fallback = self.FALLBACK_MESSAGES.get(
+                language, 
+                self.FALLBACK_MESSAGES[self.DEFAULT_FALLBACK_LANGUAGE]
+            )
+            return fallback
         
         # Classify results into layers
         tier_a = []  # Same item, high relevance
