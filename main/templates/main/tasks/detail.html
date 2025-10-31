@@ -742,6 +742,10 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Chat Widget Components -->
+<script src="{% static 'main/js/chat-widget/ChatMessage.js' %}"></script>
+<script src="{% static 'main/js/chat-widget/ChatWidget.js' %}"></script>
+
 <!-- Toast UI Editor JS -->
 {{ all_tags|json_script:"task-detail-all-tags" }}
 {{ selected_tags|json_script:"task-detail-selected-tags" }}

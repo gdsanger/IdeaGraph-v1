@@ -44,7 +44,11 @@ class ChatSidebarTest(TestCase):
         
         # Set up client and login
         self.client = Client()
-        self.client.login(username='testuser', password='testpass123')
+        # Set session data for custom authentication middleware
+        session = self.client.session
+        session['user_id'] = str(self.user.id)
+        session['user_role'] = self.user.role
+        session.save()
     
     def test_chat_sidebar_in_item_detail(self):
         """Test that chat sidebar is included in item detail view"""
@@ -150,3 +154,25 @@ class ChatSidebarTest(TestCase):
         # Check for JavaScript toggle function
         self.assertContains(response, 'function toggleChatSidebar()')
         self.assertContains(response, 'chatWidgetInstance')
+    
+    def test_chat_widget_scripts_loaded_in_item_detail(self):
+        """Test that ChatWidget and ChatMessage scripts are loaded in item detail"""
+        url = reverse('main:item_detail', args=[self.item.id])
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        # Check for ChatMessage.js
+        self.assertContains(response, 'chat-widget/ChatMessage.js')
+        # Check for ChatWidget.js
+        self.assertContains(response, 'chat-widget/ChatWidget.js')
+    
+    def test_chat_widget_scripts_loaded_in_task_detail(self):
+        """Test that ChatWidget and ChatMessage scripts are loaded in task detail"""
+        url = reverse('main:task_detail', args=[self.task.id])
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        # Check for ChatMessage.js
+        self.assertContains(response, 'chat-widget/ChatMessage.js')
+        # Check for ChatWidget.js
+        self.assertContains(response, 'chat-widget/ChatWidget.js')
