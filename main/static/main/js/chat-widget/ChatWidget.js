@@ -54,7 +54,7 @@ class ChatWidget {
         
         // Initialize components
         this.messageRenderer = new ChatMessage();
-        this.sourcesRenderer = new ChatSources();
+        // Note: ChatSources not needed - sources are embedded inline in AI responses
         
         // Initialize UI
         this.init();

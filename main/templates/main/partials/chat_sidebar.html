@@ -4,6 +4,8 @@
        id="chatSidebar" 
        data-object-type="{{ object_type }}" 
        data-object-id="{{ object_id }}">
+    <!-- Resize handle -->
+    <div class="chat-sidebar-resize-handle" id="chatSidebarResizeHandle" title="Breite anpassen"></div>
     <div class="chat-sidebar-header p-3 border-bottom border-secondary d-flex justify-content-between align-items-center">
         <h6 class="mb-0">
             <i class="bi bi-chat-dots"></i> Q&A Assistant
@@ -22,11 +24,15 @@
 
 <style>
     /* Chat Sidebar Styles */
+    :root {
+        --chat-sidebar-default-width: 650px;
+    }
+    
     .chat-sidebar {
         position: fixed;
         top: 0;
         right: 0;
-        width: 650px;  /* Increased from 450px to 650px */
+        width: var(--chat-sidebar-default-width);  /* Use CSS custom property */
         height: 100vh;
         z-index: 1040;
         transform: translateX(100%);
@@ -40,14 +46,36 @@
     }
     
     /* Main content adjustment when sidebar is open */
-    body.chat-sidebar-open .container-fluid,
-    body.chat-sidebar-open .main-content {
-        margin-right: 650px;  /* Push main content left by sidebar width */
+    body.chat-sidebar-open main,
+    body.chat-sidebar-open .container,
+    body.chat-sidebar-open .container-fluid {
+        margin-right: var(--chat-sidebar-width, var(--chat-sidebar-default-width));  /* Use dynamic width, fallback to default */
         transition: margin-right 0.3s ease-in-out;
     }
     
     .chat-sidebar-header {
         flex-shrink: 0;
+    }
+    
+    /* Resize handle */
+    .chat-sidebar-resize-handle {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 6px;
+        cursor: ew-resize;
+        background: rgba(229, 154, 40, 0.1);
+        transition: background 0.2s ease;
+        z-index: 10;
+    }
+    
+    .chat-sidebar-resize-handle:hover {
+        background: rgba(229, 154, 40, 0.3);
+    }
+    
+    .chat-sidebar-resize-handle:active {
+        background: rgba(229, 154, 40, 0.5);
     }
     
     .chat-sidebar-body {
@@ -138,8 +166,9 @@
         }
         
         /* On mobile, don't push content - use overlay instead */
-        body.chat-sidebar-open .container-fluid,
-        body.chat-sidebar-open .main-content {
+        body.chat-sidebar-open main,
+        body.chat-sidebar-open .container,
+        body.chat-sidebar-open .container-fluid {
             margin-right: 0;
         }
     }
@@ -163,6 +192,10 @@ function toggleChatSidebar() {
         sidebar.classList.add('show');
         document.body.classList.add('chat-sidebar-open');
         if (floatingBtn) floatingBtn.classList.add('hidden');
+        
+        // Apply saved width and set CSS custom property
+        const savedWidth = parseInt(localStorage.getItem('chatSidebarWidth') || '650', 10);
+        document.documentElement.style.setProperty('--chat-sidebar-width', `${savedWidth}px`);
         
         // Initialize chat widget if not already initialized
         if (!chatWidgetInstance) {
@@ -208,6 +241,9 @@ function toggleChatSidebar() {
         sidebar.classList.remove('show');
         document.body.classList.remove('chat-sidebar-open');
         if (floatingBtn) floatingBtn.classList.remove('hidden');
+        
+        // Clear CSS custom property when sidebar is closed
+        document.documentElement.style.removeProperty('--chat-sidebar-width');
     }
 }
 
@@ -217,4 +253,132 @@ document.addEventListener('keydown', function(e) {
         toggleChatSidebar();
     }
 });
+
+// Chat Sidebar Resize Functionality
+(function() {
+    const STORAGE_KEY = 'chatSidebarWidth';
+    const MIN_WIDTH = 400;  // Minimum sidebar width in pixels
+    const MAX_WIDTH = 1200; // Maximum sidebar width in pixels
+    const DEFAULT_WIDTH = 650; // Default width in pixels
+    
+    let isResizing = false;
+    let currentWidth = DEFAULT_WIDTH;
+    
+    // Load saved width from localStorage
+    function loadSavedWidth() {
+        try {
+            const savedWidth = localStorage.getItem(STORAGE_KEY);
+            if (savedWidth) {
+                const width = parseInt(savedWidth, 10);
+                if (width >= MIN_WIDTH && width <= MAX_WIDTH) {
+                    return width;
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to load saved sidebar width:', e);
+        }
+        return DEFAULT_WIDTH;
+    }
+    
+    // Save width to localStorage
+    function saveWidth(width) {
+        try {
+            localStorage.setItem(STORAGE_KEY, width.toString());
+        } catch (e) {
+            console.warn('Failed to save sidebar width:', e);
+        }
+    }
+    
+    // Apply width to sidebar and adjust content margin
+    function applyWidth(width, updateCSS = true) {
+        const sidebar = document.getElementById('chatSidebar');
+        if (!sidebar) return;
+        
+        // Clamp width to min/max bounds
+        width = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, width));
+        currentWidth = width;
+        
+        // Apply to sidebar
+        sidebar.style.width = `${width}px`;
+        
+        // Update or clear main content margin using CSS custom property
+        if (updateCSS) {
+            if (document.body.classList.contains('chat-sidebar-open')) {
+                document.documentElement.style.setProperty('--chat-sidebar-width', `${width}px`);
+            } else {
+                // Clear custom property when sidebar is closed
+                document.documentElement.style.removeProperty('--chat-sidebar-width');
+            }
+        }
+    }
+    
+    // Initialize resize functionality
+    function initResize() {
+        const resizeHandle = document.getElementById('chatSidebarResizeHandle');
+        const sidebar = document.getElementById('chatSidebar');
+        
+        if (!resizeHandle || !sidebar) return;
+        
+        // Load and apply saved width
+        const savedWidth = loadSavedWidth();
+        applyWidth(savedWidth);
+        
+        // Throttle resize updates using requestAnimationFrame
+        let rafId = null;
+        
+        // Mouse down on resize handle
+        resizeHandle.addEventListener('mousedown', function(e) {
+            isResizing = true;
+            document.body.style.cursor = 'ew-resize';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        });
+        
+        // Mouse move - resize sidebar (throttled with RAF)
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizing) return;
+            
+            // Cancel previous frame if still pending
+            if (rafId !== null) {
+                cancelAnimationFrame(rafId);
+            }
+            
+            // Schedule update for next frame
+            rafId = requestAnimationFrame(function() {
+                // Calculate new width based on mouse position from right edge
+                const newWidth = window.innerWidth - e.clientX;
+                
+                // Validate width is within reasonable bounds before applying
+                if (newWidth > 0 && newWidth < window.innerWidth) {
+                    applyWidth(newWidth, true);  // Update CSS during resize
+                }
+                rafId = null;
+            });
+        });
+        
+        // Mouse up - stop resizing and save width
+        document.addEventListener('mouseup', function() {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                
+                // Cancel any pending RAF
+                if (rafId !== null) {
+                    cancelAnimationFrame(rafId);
+                    rafId = null;
+                }
+                
+                saveWidth(currentWidth);
+            }
+        });
+    }
+    
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initResize);
+    } else {
+        initResize();
+    }
+})();
 </script>
