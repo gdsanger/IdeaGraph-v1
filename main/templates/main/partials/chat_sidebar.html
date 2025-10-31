@@ -347,7 +347,11 @@ document.addEventListener('keydown', function(e) {
             rafId = requestAnimationFrame(function() {
                 // Calculate new width based on mouse position from right edge
                 const newWidth = window.innerWidth - e.clientX;
-                applyWidth(newWidth, true);  // Update CSS during resize
+                
+                // Validate width is within reasonable bounds before applying
+                if (newWidth > 0 && newWidth < window.innerWidth) {
+                    applyWidth(newWidth, true);  // Update CSS during resize
+                }
                 rafId = null;
             });
         });
