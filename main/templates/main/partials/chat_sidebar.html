@@ -24,11 +24,15 @@
 
 <style>
     /* Chat Sidebar Styles */
+    :root {
+        --chat-sidebar-default-width: 650px;
+    }
+    
     .chat-sidebar {
         position: fixed;
         top: 0;
         right: 0;
-        width: 650px;  /* Increased from 450px to 650px */
+        width: var(--chat-sidebar-default-width);  /* Use CSS custom property */
         height: 100vh;
         z-index: 1040;
         transform: translateX(100%);
@@ -45,7 +49,7 @@
     body.chat-sidebar-open main,
     body.chat-sidebar-open .container,
     body.chat-sidebar-open .container-fluid {
-        margin-right: var(--chat-sidebar-width, 650px);  /* Use CSS custom property, fallback to 650px */
+        margin-right: var(--chat-sidebar-width, var(--chat-sidebar-default-width));  /* Use dynamic width, fallback to default */
         transition: margin-right 0.3s ease-in-out;
     }
     
@@ -189,6 +193,10 @@ function toggleChatSidebar() {
         document.body.classList.add('chat-sidebar-open');
         if (floatingBtn) floatingBtn.classList.add('hidden');
         
+        // Apply saved width and set CSS custom property
+        const savedWidth = parseInt(localStorage.getItem('chatSidebarWidth') || '650', 10);
+        document.documentElement.style.setProperty('--chat-sidebar-width', `${savedWidth}px`);
+        
         // Initialize chat widget if not already initialized
         if (!chatWidgetInstance) {
             try {
@@ -233,6 +241,9 @@ function toggleChatSidebar() {
         sidebar.classList.remove('show');
         document.body.classList.remove('chat-sidebar-open');
         if (floatingBtn) floatingBtn.classList.remove('hidden');
+        
+        // Clear CSS custom property when sidebar is closed
+        document.documentElement.style.removeProperty('--chat-sidebar-width');
     }
 }
 
@@ -279,7 +290,7 @@ document.addEventListener('keydown', function(e) {
     }
     
     // Apply width to sidebar and adjust content margin
-    function applyWidth(width) {
+    function applyWidth(width, updateCSS = true) {
         const sidebar = document.getElementById('chatSidebar');
         if (!sidebar) return;
         
@@ -290,9 +301,14 @@ document.addEventListener('keydown', function(e) {
         // Apply to sidebar
         sidebar.style.width = `${width}px`;
         
-        // Update main content margin when sidebar is open using CSS custom property
-        if (document.body.classList.contains('chat-sidebar-open')) {
-            document.documentElement.style.setProperty('--chat-sidebar-width', `${width}px`);
+        // Update or clear main content margin using CSS custom property
+        if (updateCSS) {
+            if (document.body.classList.contains('chat-sidebar-open')) {
+                document.documentElement.style.setProperty('--chat-sidebar-width', `${width}px`);
+            } else {
+                // Clear custom property when sidebar is closed
+                document.documentElement.style.removeProperty('--chat-sidebar-width');
+            }
         }
     }
     
@@ -325,13 +341,17 @@ document.addEventListener('keydown', function(e) {
             // Cancel previous frame if still pending
             if (rafId) {
                 cancelAnimationFrame(rafId);
+            
+            // Cancel previous frame if still pending
+            if (rafId !== null) {
+                cancelAnimationFrame(rafId);
             }
             
             // Schedule update for next frame
             rafId = requestAnimationFrame(function() {
                 // Calculate new width based on mouse position from right edge
                 const newWidth = window.innerWidth - e.clientX;
-                applyWidth(newWidth);
+                applyWidth(newWidth, true);  // Update CSS during resize
                 rafId = null;
             });
         });
@@ -344,7 +364,7 @@ document.addEventListener('keydown', function(e) {
                 document.body.style.userSelect = '';
                 
                 // Cancel any pending RAF
-                if (rafId) {
+                if (rafId !== null) {
                     cancelAnimationFrame(rafId);
                     rafId = null;
                 }
