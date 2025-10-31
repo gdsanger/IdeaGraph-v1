@@ -40,8 +40,9 @@
     }
     
     /* Main content adjustment when sidebar is open */
-    body.chat-sidebar-open .container-fluid,
-    body.chat-sidebar-open .main-content {
+    body.chat-sidebar-open main,
+    body.chat-sidebar-open .container,
+    body.chat-sidebar-open .container-fluid {
         margin-right: 650px;  /* Push main content left by sidebar width */
         transition: margin-right 0.3s ease-in-out;
     }
@@ -138,8 +139,9 @@
         }
         
         /* On mobile, don't push content - use overlay instead */
-        body.chat-sidebar-open .container-fluid,
-        body.chat-sidebar-open .main-content {
+        body.chat-sidebar-open main,
+        body.chat-sidebar-open .container,
+        body.chat-sidebar-open .container-fluid {
             margin-right: 0;
         }
     }
