@@ -27,6 +27,8 @@ class RAGPipelineTest(TestCase):
             kigate_api_token='test-token',
             kigate_api_base_url='http://localhost:8000',
             kigate_api_timeout=30,
+            kigate_max_tokens=10000,
+            openai_default_model='gpt-4',
             weaviate_cloud_enabled=False
         )
     
@@ -66,8 +68,21 @@ class RAGPipelineTest(TestCase):
         }
         mock_kigate_class.return_value = mock_kigate
         
+        # Update settings for default model
+        self.settings.openai_default_model = 'gpt-4'
+        self.settings.save()
+        
         pipeline = RAGPipeline(settings=self.settings)
         result = pipeline.optimize_question("Was ist RAG?")
+        
+        # Verify execute_agent was called with proper parameters
+        mock_kigate.execute_agent.assert_called_once()
+        call_args = mock_kigate.execute_agent.call_args
+        self.assertEqual(call_args[1]['agent_name'], 'question-optimization-agent')
+        self.assertEqual(call_args[1]['provider'], 'openai')
+        self.assertEqual(call_args[1]['model'], 'gpt-4')
+        self.assertEqual(call_args[1]['user_id'], 'system')
+        self.assertIn('message', call_args[1])
         
         # Validate structure
         self.assertIn('language', result)
@@ -325,6 +340,10 @@ class RAGPipelineTest(TestCase):
         }
         mock_kigate_class.return_value = mock_kigate
         
+        # Update settings for default model
+        self.settings.openai_default_model = 'gpt-4'
+        self.settings.save()
+        
         pipeline = RAGPipeline(settings=self.settings)
         
         context = """CONTEXT:
@@ -336,6 +355,15 @@ Content 2
 """
         
         answer = pipeline.send_to_answering_agent("Test question?", context)
+        
+        # Verify execute_agent was called with proper parameters
+        mock_kigate.execute_agent.assert_called_once()
+        call_args = mock_kigate.execute_agent.call_args
+        self.assertEqual(call_args[1]['agent_name'], 'question-answering-agent')
+        self.assertEqual(call_args[1]['provider'], 'openai')
+        self.assertEqual(call_args[1]['model'], 'gpt-4')
+        self.assertEqual(call_args[1]['user_id'], 'system')
+        self.assertIn('message', call_args[1])
         
         # Should contain markers
         self.assertIn('[#A1]', answer)
