@@ -339,10 +339,6 @@ document.addEventListener('keydown', function(e) {
             if (!isResizing) return;
             
             // Cancel previous frame if still pending
-            if (rafId) {
-                cancelAnimationFrame(rafId);
-            
-            // Cancel previous frame if still pending
             if (rafId !== null) {
                 cancelAnimationFrame(rafId);
             }
