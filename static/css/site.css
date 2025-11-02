@@ -718,3 +718,75 @@ html, body {
   width: 0; opacity: 0; transition: transform .25s ease,width .25s ease,opacity .2s ease;
 }
 
+/* Semantic Network Graph Styles */
+.semantic-network-wrapper {
+  width: 100%;
+  min-height: 600px;
+  position: relative;
+}
+
+.semantic-network-graph {
+  width: 100%;
+  min-height: 600px;
+  position: relative;
+  background: rgba(15, 23, 42, 0.8);
+  border-radius: 0.5rem;
+}
+
+.semantic-network-summary {
+  margin-bottom: 1rem;
+}
+
+.semantic-network-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 600px;
+}
+
+.semantic-network-legend {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  background: rgba(26, 29, 35, 0.95);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  z-index: 1000;
+  backdrop-filter: blur(8px);
+}
+
+.semantic-network-legend .legend-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.semantic-network-legend .legend-item:last-child {
+  margin-bottom: 0;
+}
+
+.semantic-network-legend .legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 0.5rem;
+  display: inline-block;
+}
+
+.semantic-network-legend .legend-line {
+  width: 20px;
+  display: inline-block;
+  margin-right: 0.5rem;
+}
+
+/* Container for semantic graph in detail pages */
+#milestoneSemanticNetworkContainer,
+#itemSemanticNetworkContainer,
+#taskSemanticNetworkContainer {
+  width: 100%;
+  min-height: 600px;
+}
+
