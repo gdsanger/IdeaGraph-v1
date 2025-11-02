@@ -43,8 +43,8 @@
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body" style="min-height: 600px; height: 650px;">
-                <div id="semanticNetworkModalContainer" style="width: 100%; height: 100%;"></div>
+            <div class="modal-body" style="overflow: hidden; display: flex; flex-direction: column;">
+                <div id="semanticNetworkModalContainer" style="width: 100%; height: 100%; flex: 1;"></div>
             </div>
             <!-- Resize handle -->
             <div class="resize-handle"></div>
@@ -62,7 +62,7 @@
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body" style="min-height: 400px;">
+            <div class="modal-body" style="overflow: auto;">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <p class="text-muted mb-0" style="font-size: 0.9rem;">
                         Alle Dateien dieses {{ object_type|default:'item' }}s
@@ -95,7 +95,7 @@
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body" style="min-height: 400px;">
+            <div class="modal-body" style="overflow: auto;">
                 <p class="text-muted mb-3" style="font-size: 0.9rem;">
                     Durchsuche alle Items, Tasks, Files und Knowledge Objects mit KI-gestützter Suche
                 </p>
@@ -281,6 +281,18 @@
         min-height: 300px;
     }
     
+    /* Ensure modal content takes full height */
+    .resizable-modal .modal-content {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .resizable-modal .modal-body {
+        flex: 1;
+        min-height: 0;
+    }
+    
     .resize-handle {
         position: absolute;
         bottom: 0;
@@ -436,8 +448,9 @@ function isValidObjectId(objectId) {
 // Draggable and Resizable Modal Functionality with localStorage
 (function() {
     const STORAGE_PREFIX = 'floatingModal_';
-    const DEFAULT_WIDTH = 1140; // Bootstrap modal-xl default
-    const DEFAULT_HEIGHT = 700;
+    // Calculate default size as 80% of viewport dimensions
+    const DEFAULT_WIDTH = Math.floor(window.innerWidth * 0.8);
+    const DEFAULT_HEIGHT = Math.floor(window.innerHeight * 0.8);
     const MIN_WIDTH = 400;
     const MIN_HEIGHT = 300;
     
