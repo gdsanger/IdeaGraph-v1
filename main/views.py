@@ -1564,11 +1564,16 @@ def task_detail(request, task_id):
     settings = Settings.objects.first()
     
     # Get items for task cloning - filter based on user permissions
+    # Exclude current item to prevent cloning to the same item
     if user.role in ['admin', 'developer']:
-        items = Item.objects.all().order_by('title')
+        items = Item.objects.exclude(
+            id=task.item.id if task.item else None
+        ).order_by('title')
     else:
         items = Item.objects.filter(
             Q(created_by=user) | Q(created_by__isnull=True)
+        ).exclude(
+            id=task.item.id if task.item else None
         ).order_by('title')
 
     context = {
