@@ -1567,7 +1567,9 @@ def task_detail(request, task_id):
     if user.role in ['admin', 'developer']:
         items = Item.objects.all().order_by('title')
     else:
-        items = Item.objects.filter(created_by=user).order_by('title')
+        items = Item.objects.filter(
+            Q(created_by=user) | Q(created_by__isnull=True)
+        ).order_by('title')
 
     context = {
         'task': task,
