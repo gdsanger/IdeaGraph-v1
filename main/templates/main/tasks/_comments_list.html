@@ -1,4 +1,5 @@
 {% load static %}
+{% load comment_extras %}
 
 {% if comments %}
 <div class="comments-container">
@@ -52,7 +53,7 @@
         </div>
         {% endif %}
         <div class="comment-body" data-comment-text="{{ comment.text|escapejs }}">
-            <div class="comment-text markdown-content collapsed">{{ comment.text }}</div>
+            <div class="comment-text markdown-content collapsed">{{ comment.text|render_comment }}</div>
             <button class="comment-expand-btn" style="display: none;">
                 <span class="expand-text">Mehr anzeigen</span>
                 <span class="collapse-text" style="display: none;">Weniger anzeigen</span>
@@ -252,6 +253,72 @@
 
 .markdown-content {
     line-height: 1.4;
+}
+
+/* Style for links in comments */
+.comment-text a {
+    color: #60a5fa;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.comment-text a:hover {
+    color: #93c5fd;
+    text-decoration: underline;
+}
+
+/* Style for HTML elements in comments */
+.comment-text code {
+    background-color: rgba(55, 65, 81, 0.5);
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875em;
+}
+
+.comment-text pre {
+    background-color: rgba(55, 65, 81, 0.5);
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    overflow-x: auto;
+    margin: 0.5rem 0;
+}
+
+.comment-text blockquote {
+    border-left: 3px solid #6b7280;
+    padding-left: 0.75rem;
+    margin: 0.5rem 0;
+    color: #9ca3af;
+}
+
+.comment-text img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.25rem;
+    margin: 0.5rem 0;
+}
+
+.comment-text ul, .comment-text ol {
+    margin-left: 1.5rem;
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+}
+
+.comment-text table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0.5rem 0;
+}
+
+.comment-text th, .comment-text td {
+    border: 1px solid #4b5563;
+    padding: 0.5rem;
+    text-align: left;
+}
+
+.comment-text th {
+    background-color: rgba(55, 65, 81, 0.5);
+    font-weight: bold;
 }
 
 /* Custom scrollbar */
