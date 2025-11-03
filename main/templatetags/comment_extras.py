@@ -86,7 +86,7 @@ def render_comment(text):
     linker = Linker(
         callbacks=[],
         skip_tags=['pre', 'code'],  # Don't linkify inside code blocks
-        parse_email=False,  # Don't try to parse emails (causes issues with IP addresses)
+        parse_email=False,  # Disable email parsing to use our custom URL regex that handles IP addresses
         url_re=URL_PATTERN  # Use our custom URL pattern
     )
     linkified = linker.linkify(cleaned)

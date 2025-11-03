@@ -80,16 +80,6 @@ Steinheilstraße 4 · 85737 Ismaning</p>
         
         # Verify existing mailto link is preserved
         self.assertIn('mailto:ca@angermeier.net', rendered)
-        
-        print("\n" + "="*80)
-        print("INTEGRATION TEST RESULT: Comment Rendering with HTML and Links")
-        print("="*80)
-        print("\nOriginal comment text:")
-        print(comment_text)
-        print("\n" + "-"*80)
-        print("Rendered HTML output:")
-        print(rendered)
-        print("="*80 + "\n")
     
     def test_plain_text_with_urls(self):
         """Test that plain text URLs are automatically converted to links"""
@@ -116,16 +106,6 @@ Danke!
         # Verify URLs are linkified
         self.assertIn('<a href="https://example.com/project"', rendered)
         self.assertIn('<a href="https://api.example.com/docs"', rendered)
-        
-        print("\n" + "="*80)
-        print("INTEGRATION TEST RESULT: Plain Text URL Auto-Linking")
-        print("="*80)
-        print("\nOriginal comment text:")
-        print(comment_text)
-        print("\n" + "-"*80)
-        print("Rendered HTML output:")
-        print(rendered)
-        print("="*80 + "\n")
     
     def test_mixed_formatting_with_code(self):
         """Test comment with code blocks and formatting"""
@@ -160,13 +140,3 @@ def render_comment(text):
         
         # Verify URL is linkified
         self.assertIn('<a href="https://github.com/example/repo/pull/123"', rendered)
-        
-        print("\n" + "="*80)
-        print("INTEGRATION TEST RESULT: Mixed Formatting with Code")
-        print("="*80)
-        print("\nOriginal comment text:")
-        print(comment_text)
-        print("\n" + "-"*80)
-        print("Rendered HTML output:")
-        print(rendered)
-        print("="*80 + "\n")
