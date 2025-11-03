@@ -354,12 +354,13 @@
                                     </select>
                                 </div>
 
-                                <!-- GitHub Issue ID (readonly) -->
+                                <!-- GitHub Issue ID -->
                                 <div class="mb-3">
-                                    <label for="github_issue_id" class="form-label">GitHub Issue</label>
-                                    <input type="text" class="form-control" id="github_issue_id" 
-                                           value="{% if task.github_issue_id %}#{{ task.github_issue_id }}{% else %}-{% endif %}" 
-                                           readonly>
+                                    <label for="github_issue_id" class="form-label">GitHub Issue ID</label>
+                                    <input type="number" class="form-control" id="github_issue_id" name="github_issue_id"
+                                           value="{{ task.github_issue_id|default:'' }}" 
+                                           placeholder="Enter GitHub Issue ID (e.g., 123)"
+                                           min="1">
                                     {% if task.github_issue_url %}
                                     <small class="text-muted">
                                         <a href="{{ task.github_issue_url }}" target="_blank" class="text-decoration-none">
