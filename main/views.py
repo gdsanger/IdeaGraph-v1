@@ -1562,6 +1562,12 @@ def task_detail(request, task_id):
     
     # Get settings for Google PSE configuration
     settings = Settings.objects.first()
+    
+    # Get items for task cloning - filter based on user permissions
+    if user.role in ['admin', 'developer']:
+        items = Item.objects.all().order_by('title')
+    else:
+        items = Item.objects.filter(created_by=user).order_by('title')
 
     context = {
         'task': task,
@@ -1572,6 +1578,7 @@ def task_detail(request, task_id):
         'milestones': milestones,
         'all_users': all_users,
         'settings': settings,
+        'items': items,
     }
 
     return render(request, 'main/tasks/detail.html', context)
