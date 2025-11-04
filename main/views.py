@@ -1476,6 +1476,7 @@ def task_detail(request, task_id):
         tag_values = request.POST.getlist('tags')
         assigned_to_id = request.POST.get('assigned_to')
         requester_id = request.POST.get('requester')
+        github_issue_id = request.POST.get('github_issue_id', '').strip()
 
         if not title:
             messages.error(request, 'Title is required.')
@@ -1505,6 +1506,15 @@ def task_detail(request, task_id):
                 task.type = type_value
                 task.assigned_to = assigned_to
                 task.requester = requester
+                
+                # Set GitHub Issue ID
+                if github_issue_id:
+                    try:
+                        task.github_issue_id = int(github_issue_id)
+                    except ValueError:
+                        messages.warning(request, 'Invalid GitHub Issue ID. It must be a number.')
+                else:
+                    task.github_issue_id = None
                 
                 # Set milestone
                 if milestone_id:
