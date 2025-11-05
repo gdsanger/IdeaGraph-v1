@@ -176,3 +176,21 @@ class ChatSidebarTest(TestCase):
         self.assertContains(response, 'chat-widget/ChatMessage.js')
         # Check for ChatWidget.js
         self.assertContains(response, 'chat-widget/ChatWidget.js')
+    
+    def test_chat_widget_css_loaded_in_item_detail(self):
+        """Test that chat-widget.css is loaded in item detail"""
+        url = reverse('main:item_detail', args=[self.item.id])
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        # Check for chat-widget.css
+        self.assertContains(response, 'chat-widget.css')
+    
+    def test_chat_widget_css_loaded_in_task_detail(self):
+        """Test that chat-widget.css is loaded in task detail"""
+        url = reverse('main:task_detail', args=[self.task.id])
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        # Check for chat-widget.css
+        self.assertContains(response, 'chat-widget.css')
