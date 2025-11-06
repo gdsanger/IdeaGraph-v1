@@ -896,6 +896,82 @@ def api_github_sync_issues_to_tasks(request, item_id):
         }, status=500)
 
 
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_github_sync_docs(request, item_id):
+    """
+    API endpoint to sync GitHub documentation to IdeaGraph for a specific item.
+    POST /api/github/sync-docs/<item_id>
+    
+    Response:
+    {
+        "success": true,
+        "item_title": "Item Name",
+        "files_processed": 10,
+        "files_synced": 8,
+        "errors": []
+    }
+    """
+    from core.services.github_doc_sync_service import GitHubDocSyncService, GitHubDocSyncServiceError
+    from .models import Item, User
+    
+    try:
+        # Get user from session
+        user_id = request.session.get('user_id')
+        if not user_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Authentication required'
+            }, status=401)
+        
+        user = User.objects.filter(id=user_id).first()
+        if not user:
+            return JsonResponse({
+                'success': False,
+                'error': 'User not found'
+            }, status=401)
+        
+        # Get the item
+        try:
+            item = Item.objects.get(id=item_id)
+        except Item.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Item not found'
+            }, status=404)
+        
+        # Check permissions (admin or item owner)
+        if user.role != 'admin' and item.created_by != user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=403)
+        
+        # Initialize sync service
+        sync_service = GitHubDocSyncService()
+        
+        # Perform synchronization
+        result = sync_service.sync_item(
+            item_id=str(item.id),
+            uploaded_by=user
+        )
+        
+        return JsonResponse(result)
+        
+    except GitHubDocSyncServiceError as e:
+        logger.error(f'GitHub doc sync error: {e.message}')
+        return JsonResponse({
+            'success': False,
+            'error': e.message
+        }, status=500)
+    except Exception as e:
+        logger.exception(f'Unexpected error in GitHub doc sync: {str(e)}')
+        return JsonResponse({
+            'success': False,
+            'error': 'An unexpected error occurred during synchronization'
+        }, status=500)
+
+
 # ==================== KiGate API Endpoints ====================
 
 @csrf_exempt
