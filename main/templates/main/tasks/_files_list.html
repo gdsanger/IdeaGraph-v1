@@ -195,10 +195,22 @@
 
 <!-- Initialize Weaviate indicators after htmx swap -->
 <script>
+    // Initialize indicators immediately on page load
+    (function() {
+        // Use setTimeout to ensure DOM is ready
+        setTimeout(function() {
+            if (typeof initAllWeaviateIndicators === 'function') {
+                initAllWeaviateIndicators();
+            }
+        }, 100);
+    })();
+    
     // Re-initialize indicators after htmx updates
     document.addEventListener('htmx:afterSwap', function(event) {
         if (event.target.id === 'taskFilesListContainer') {
-            initAllWeaviateIndicators();
+            if (typeof initAllWeaviateIndicators === 'function') {
+                initAllWeaviateIndicators();
+            }
         }
     });
     
