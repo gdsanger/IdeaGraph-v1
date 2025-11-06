@@ -461,7 +461,7 @@ class TaskFileService:
                 paginator = Paginator(list(files), per_page)
                 try:
                     files_page = paginator.page(page)
-                except:
+                except Exception:
                     files_page = paginator.page(1)
                 
                 # Build file list
