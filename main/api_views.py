@@ -3885,22 +3885,31 @@ def api_item_file_list(request, item_id):
                 'error': 'You do not have permission to view files for this item'
             }, status=403)
         
-        # Get pagination parameters
+        # Get pagination and search parameters
         page = request.GET.get('page', 1)
         try:
             page = int(page)
         except (ValueError, TypeError):
             page = 1
         
-        per_page = request.GET.get('per_page', 20)
+        per_page = request.GET.get('per_page', 10)
         try:
             per_page = int(per_page)
         except (ValueError, TypeError):
-            per_page = 20
+            per_page = 10
         
-        # List files with pagination
+        search = request.GET.get('search', '').strip()
+        use_weaviate = request.GET.get('use_weaviate', 'false').lower() == 'true'
+        
+        # List files with pagination and search
         service = ItemFileService()
-        result = service.list_files(str(item_id), page=page, per_page=per_page)
+        result = service.list_files(
+            str(item_id), 
+            page=page, 
+            per_page=per_page, 
+            search=search if search else None,
+            use_weaviate=use_weaviate
+        )
         
         # For htmx requests, return HTML partial
         if request.headers.get('HX-Request'):
@@ -3910,6 +3919,8 @@ def api_item_file_list(request, item_id):
                 'total_pages': result.get('total_pages', 1),
                 'total_count': result.get('total_count', 0),
                 'item_id': item_id,
+                'search': search,
+                'use_weaviate': use_weaviate,
             }
             return render(request, 'main/items/_files_list.html', context)
         
@@ -3961,6 +3972,10 @@ def api_item_file_delete(request, file_id):
         from core.services.item_file_service import ItemFileService, ItemFileServiceError
         from main.models import ItemFile
         from django.shortcuts import render
+        from core.cache_manager import CacheManager
+        
+        # Initialize cache manager for invalidating summary cache
+        cache_manager = CacheManager()
         
         # Get item_id before deleting the file (for htmx refresh)
         try:
@@ -3973,6 +3988,11 @@ def api_item_file_delete(request, file_id):
                 'success': False,
                 'error': 'File not found'
             }, status=404)
+        
+        # Invalidate cache for file summary
+        cache_key = f'file_summary:{file_id}'
+        cache_manager.delete(cache_key)
+        logger.info(f'Invalidated summary cache for file {file_id}')
         
         # Delete file
         service = ItemFileService()
@@ -4352,7 +4372,12 @@ def api_task_file_upload(request, task_id):
 @require_http_methods(["GET"])
 def api_task_file_list(request, task_id):
     """
-    List files for a task
+    List files for a task with pagination and search
+    
+    Query parameters:
+        - page: Page number (default: 1)
+        - per_page: Items per page (default: 10)
+        - search: Search query for filename filtering
     
     Returns:
         JSON response with list of files or HTML partial for htmx
@@ -4369,13 +4394,44 @@ def api_task_file_list(request, task_id):
         from core.services.task_file_service import TaskFileService, TaskFileServiceError
         from django.shortcuts import render
         
-        # List files
+        # Get pagination and search parameters
+        page = request.GET.get('page', 1)
+        try:
+            page = int(page)
+        except (ValueError, TypeError):
+            page = 1
+        
+        per_page = request.GET.get('per_page', 10)
+        try:
+            per_page = int(per_page)
+        except (ValueError, TypeError):
+            per_page = 10
+        
+        search = request.GET.get('search', '').strip()
+        use_weaviate = request.GET.get('use_weaviate', 'false').lower() == 'true'
+        
+        # List files with pagination and search
         service = TaskFileService()
-        result = service.list_files(task_id)
+        result = service.list_files(
+            task_id, 
+            page=page, 
+            per_page=per_page, 
+            search=search if search else None,
+            use_weaviate=use_weaviate
+        )
         
         # For htmx requests, return HTML partial
         if request.headers.get('HX-Request'):
-            return render(request, 'main/tasks/_files_list.html', {'files': result.get('files', [])})
+            context = {
+                'files': result.get('files', []),
+                'page': result.get('page', 1),
+                'total_pages': result.get('total_pages', 1),
+                'total_count': result.get('total_count', 0),
+                'task_id': task_id,
+                'search': search,
+                'use_weaviate': use_weaviate,
+            }
+            return render(request, 'main/tasks/_files_list.html', context)
         
         # For regular API requests, return JSON
         return JsonResponse(result)
@@ -4421,6 +4477,10 @@ def api_task_file_delete(request, file_id):
         from core.services.task_file_service import TaskFileService, TaskFileServiceError
         from main.models import TaskFile
         from django.shortcuts import render
+        from core.cache_manager import CacheManager
+        
+        # Initialize cache manager for invalidating summary cache
+        cache_manager = CacheManager()
         
         # Get task_id before deleting the file (for htmx refresh)
         try:
@@ -4433,6 +4493,11 @@ def api_task_file_delete(request, file_id):
                 'success': False,
                 'error': 'File not found'
             }, status=404)
+        
+        # Invalidate cache for file summary
+        cache_key = f'file_summary:{file_id}'
+        cache_manager.delete(cache_key)
+        logger.info(f'Invalidated summary cache for file {file_id}')
         
         # Delete file
         service = TaskFileService()
@@ -7265,9 +7330,11 @@ def api_file_summary(request, file_id):
     Get AI-generated summary of file content from Weaviate
     
     This endpoint:
-    1. Fetches file content from Weaviate database
-    2. Sends content to KIGate agent 'weaviate-data-summary-agent'
-    3. Returns markdown-formatted summary
+    1. Checks cache for existing summary
+    2. Fetches file content from Weaviate database
+    3. Sends content to KIGate agent 'weaviate-data-summary-agent'
+    4. Caches the summary for 24 hours
+    5. Returns markdown-formatted summary
     
     Args:
         file_id: UUID of the file (ItemFile or TaskFile)
@@ -7278,6 +7345,7 @@ def api_file_summary(request, file_id):
         - summary: markdown-formatted summary text
         - filename: name of the file
         - file_url: SharePoint URL to open the file
+        - cached: boolean (True if from cache)
         - error: error message (if failed)
     """
     # Check authentication
@@ -7291,6 +7359,18 @@ def api_file_summary(request, file_id):
     try:
         from main.models import ItemFile, TaskFile, Settings
         from core.services.weaviate_sync_service import WeaviateItemSyncService
+        from core.cache_manager import CacheManager
+        
+        # Initialize cache manager
+        cache_manager = CacheManager()
+        cache_key = f'file_summary:{file_id}'
+        
+        # Try to get from cache first
+        cached_result = cache_manager.get(cache_key)
+        if cached_result:
+            logger.info(f"Returning cached summary for file {file_id}")
+            cached_result['cached'] = True
+            return JsonResponse(cached_result)
         
         # Try to find the file in ItemFile or TaskFile
         file_obj = None
@@ -7393,12 +7473,20 @@ Content:
             logger.warning(f"KIGate service error: {e.message}, using fallback summary")
             summary = f"# {file_obj.filename}\n\n{full_content[:500]}...\n\n*AI summary service not available*"
         
-        return JsonResponse({
+        # Create response
+        result = {
             'success': True,
             'summary': summary,
             'filename': file_obj.filename,
-            'file_url': file_obj.sharepoint_url
-        })
+            'file_url': file_obj.sharepoint_url,
+            'cached': False
+        }
+        
+        # Cache the result for 24 hours (86400 seconds)
+        cache_manager.set(cache_key, result, timeout=86400)
+        logger.info(f"Cached summary for file {file_id} for 24 hours")
+        
+        return JsonResponse(result)
     
     except Exception as e:
         logger.error(f'Error generating file summary: {str(e)}')

@@ -567,24 +567,41 @@ class ItemFileService:
             logger.error(f"Error getting markdown content: {str(e)}")
             raise ItemFileServiceError(f"Failed to get markdown content: {str(e)}")
     
-    def list_files(self, item_id: str, page: int = 1, per_page: int = 20) -> Dict[str, Any]:
+    def list_files(self, item_id: str, page: int = 1, per_page: int = 10, search: str = None, use_weaviate: bool = False) -> Dict[str, Any]:
         """
-        List all files for an item with pagination
+        List all files for an item with pagination and search
         
         Args:
             item_id: UUID of Item
             page: Page number (default: 1)
-            per_page: Items per page (default: 20)
+            per_page: Items per page (default: 10)
+            search: Optional search query for filename filtering
+            use_weaviate: If True, uses semantic search in Weaviate for file content
             
         Returns:
             Dict with success status, list of files, and pagination info
         """
         from main.models import ItemFile, Item
         from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+        from django.db.models import Q
         
         try:
             item = Item.objects.get(id=item_id)
-            files = ItemFile.objects.filter(item=item).order_by('-created_at')
+            
+            # If Weaviate search is requested and search query exists
+            if use_weaviate and search:
+                return self._list_files_weaviate_search(item, search, page, per_page)
+            
+            # Regular database search
+            files = ItemFile.objects.filter(item=item)
+            
+            # Apply search filter if provided
+            if search:
+                files = files.filter(
+                    Q(filename__icontains=search)
+                )
+            
+            files = files.order_by('-created_at')
             
             # Paginate files
             paginator = Paginator(files, per_page)
@@ -633,3 +650,102 @@ class ItemFileService:
         except Exception as e:
             logger.error(f"Error listing files: {str(e)}")
             raise ItemFileServiceError(f"Failed to list files: {str(e)}")
+    
+    def _list_files_weaviate_search(self, item, query: str, page: int = 1, per_page: int = 10) -> Dict[str, Any]:
+        """
+        Search files using Weaviate semantic search
+        
+        Args:
+            item: Item object
+            query: Search query
+            page: Page number
+            per_page: Items per page
+            
+        Returns:
+            Dict with search results
+        """
+        try:
+            from main.models import ItemFile
+            from core.services.weaviate_search_service import WeaviateSearchService, WeaviateSearchServiceError
+            from django.core.paginator import Paginator
+            
+            # Use Weaviate search service
+            try:
+                search_service = WeaviateSearchService(self.settings)
+                # Search only for file types
+                search_result = search_service.search(
+                    query=query,
+                    limit=100,  # Get more results for filtering
+                    object_types=['ItemFile'],
+                    search_type='hybrid'
+                )
+                search_service.close()
+                
+                if not search_result.get('success'):
+                    logger.warning("Weaviate search failed, falling back to regular search")
+                    # Fall back to regular search
+                    return self.list_files(str(item.id), page, per_page, query, use_weaviate=False)
+                
+                # Extract file IDs from search results
+                file_ids = [result['id'] for result in search_result.get('results', [])]
+                
+                if not file_ids:
+                    return {
+                        'success': True,
+                        'files': [],
+                        'count': 0,
+                        'total_count': 0,
+                        'page': 1,
+                        'total_pages': 0,
+                        'has_next': False,
+                        'has_previous': False,
+                    }
+                
+                # Get files from database that match the search results and belong to this item
+                files = ItemFile.objects.filter(
+                    item=item,
+                    id__in=file_ids
+                ).order_by('-created_at')
+                
+                # Paginate the results
+                paginator = Paginator(list(files), per_page)
+                try:
+                    files_page = paginator.page(page)
+                except Exception:
+                    files_page = paginator.page(1)
+                
+                # Build file list
+                files_data = []
+                for f in files_page:
+                    files_data.append({
+                        'id': str(f.id),
+                        'filename': f.filename,
+                        'file_extension': self.get_file_extension(f.filename),
+                        'file_size': f.file_size,
+                        'file_size_mb': round(f.file_size / (1024 * 1024), 2),
+                        'content_type': f.content_type,
+                        'sharepoint_url': f.sharepoint_url,
+                        'weaviate_synced': f.weaviate_synced,
+                        'uploaded_by': f.uploaded_by.username if f.uploaded_by else 'Unknown',
+                        'created_at': f.created_at.isoformat(),
+                    })
+                
+                return {
+                    'success': True,
+                    'files': files_data,
+                    'count': len(files_data),
+                    'total_count': paginator.count,
+                    'page': files_page.number,
+                    'total_pages': paginator.num_pages,
+                    'has_next': files_page.has_next(),
+                    'has_previous': files_page.has_previous(),
+                }
+                
+            except WeaviateSearchServiceError as e:
+                logger.warning(f"Weaviate search error: {e.message}, falling back to regular search")
+                # Fall back to regular search
+                return self.list_files(str(item.id), page, per_page, query, use_weaviate=False)
+                
+        except Exception as e:
+            logger.error(f"Error in Weaviate file search: {str(e)}")
+            raise ItemFileServiceError("Failed to search files", details=str(e))

@@ -1,5 +1,45 @@
 {% load static %}
 
+<!-- Search bar -->
+<div class="mb-3">
+    <form hx-get="/api/tasks/{{ task_id }}/files" 
+          hx-target="#taskFilesListContainer" 
+          hx-swap="innerHTML"
+          hx-indicator="#uploadProgress">
+        <div class="input-group mb-2">
+            <span class="input-group-text">
+                <i class="bi bi-search"></i>
+            </span>
+            <input type="text" 
+                   class="form-control" 
+                   name="search" 
+                   placeholder="Search files by name..."
+                   value="{{ search|default:'' }}"
+                   autocomplete="off">
+            <button type="submit" class="btn btn-outline-primary">
+                Search
+            </button>
+            {% if search %}
+            <button type="button" 
+                    class="btn btn-outline-secondary"
+                    hx-get="/api/tasks/{{ task_id }}/files"
+                    hx-target="#taskFilesListContainer"
+                    hx-swap="innerHTML"
+                    hx-indicator="#uploadProgress"
+                    title="Clear search">
+                <i class="bi bi-x-circle"></i>
+            </button>
+            {% endif %}
+        </div>
+        <div class="form-check form-check-inline ms-2">
+            <input class="form-check-input" type="checkbox" name="use_weaviate" id="useWeaviateSearch" value="true" {% if use_weaviate %}checked{% endif %}>
+            <label class="form-check-label small text-muted" for="useWeaviateSearch">
+                <i class="bi bi-database"></i> Use AI semantic search (searches file content)
+            </label>
+        </div>
+    </form>
+</div>
+
 {% if success_message %}
 <div class="alert alert-success alert-dismissible fade show" role="alert">
     <i class="bi bi-check-circle"></i> {{ success_message }}
@@ -78,19 +118,105 @@
         </tbody>
     </table>
 </div>
+
+<!-- Pagination Controls -->
+{% if total_pages > 1 %}
+<nav aria-label="File pagination" class="mt-3">
+    <div class="d-flex justify-content-between align-items-center">
+        <div class="text-muted small">
+            Showing page {{ page }} of {{ total_pages }} ({{ total_count }} file{{ total_count|pluralize }} total)
+        </div>
+        <ul class="pagination pagination-sm mb-0">
+            {% if page > 1 %}
+            <li class="page-item">
+                <button class="page-link" 
+                        hx-get="/api/tasks/{{ task_id }}/files?page=1{% if search %}&search={{ search|urlencode }}{% endif %}{% if use_weaviate %}&use_weaviate=true{% endif %}"
+                        hx-target="#taskFilesListContainer"
+                        hx-swap="innerHTML"
+                        hx-indicator="#uploadProgress">
+                    <i class="bi bi-chevron-bar-left"></i>
+                </button>
+            </li>
+            <li class="page-item">
+                <button class="page-link" 
+                        hx-get="/api/tasks/{{ task_id }}/files?page={{ page|add:'-1' }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if use_weaviate %}&use_weaviate=true{% endif %}"
+                        hx-target="#taskFilesListContainer"
+                        hx-swap="innerHTML"
+                        hx-indicator="#uploadProgress">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+            </li>
+            {% else %}
+            <li class="page-item disabled">
+                <span class="page-link"><i class="bi bi-chevron-bar-left"></i></span>
+            </li>
+            <li class="page-item disabled">
+                <span class="page-link"><i class="bi bi-chevron-left"></i></span>
+            </li>
+            {% endif %}
+            
+            <!-- Show page numbers -->
+            <li class="page-item active">
+                <span class="page-link">{{ page }}</span>
+            </li>
+            
+            {% if page < total_pages %}
+            <li class="page-item">
+                <button class="page-link"
+                        hx-get="/api/tasks/{{ task_id }}/files?page={{ page|add:'1' }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if use_weaviate %}&use_weaviate=true{% endif %}"
+                        hx-target="#taskFilesListContainer"
+                        hx-swap="innerHTML"
+                        hx-indicator="#uploadProgress">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+            </li>
+            <li class="page-item">
+                <button class="page-link"
+                        hx-get="/api/tasks/{{ task_id }}/files?page={{ total_pages }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if use_weaviate %}&use_weaviate=true{% endif %}"
+                        hx-target="#taskFilesListContainer"
+                        hx-swap="innerHTML"
+                        hx-indicator="#uploadProgress">
+                    <i class="bi bi-chevron-bar-right"></i>
+                </button>
+            </li>
+            {% else %}
+            <li class="page-item disabled">
+                <span class="page-link"><i class="bi bi-chevron-right"></i></span>
+            </li>
+            <li class="page-item disabled">
+                <span class="page-link"><i class="bi bi-chevron-bar-right"></i></span>
+            </li>
+            {% endif %}
+        </ul>
+    </div>
+</nav>
+{% endif %}
+
 {% else %}
 <div class="text-center text-muted py-5">
     <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-    <p class="mt-3">No files uploaded yet</p>
+    <p class="mt-3">{% if search %}No files found matching "{{ search }}"{% else %}No files uploaded yet{% endif %}</p>
 </div>
 {% endif %}
 
 <!-- Initialize Weaviate indicators after htmx swap -->
 <script>
+    // Initialize indicators immediately on page load
+    (function() {
+        // Use setTimeout to ensure DOM is ready
+        setTimeout(function() {
+            if (typeof initAllWeaviateIndicators === 'function') {
+                initAllWeaviateIndicators();
+            }
+        }, 100);
+    })();
+    
     // Re-initialize indicators after htmx updates
     document.addEventListener('htmx:afterSwap', function(event) {
         if (event.target.id === 'taskFilesListContainer') {
-            initAllWeaviateIndicators();
+            if (typeof initAllWeaviateIndicators === 'function') {
+                initAllWeaviateIndicators();
+            }
         }
     });
     
