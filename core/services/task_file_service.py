@@ -317,7 +317,7 @@ class TaskFileService:
             logger.error(f"Error syncing to Weaviate: {str(e)}")
             return {'success': False, 'error': str(e)}
     
-    def list_files(self, task_id: str, page: int = 1, per_page: int = 10, search: str = None) -> Dict[str, Any]:
+    def list_files(self, task_id: str, page: int = 1, per_page: int = 10, search: str = None, use_weaviate: bool = False) -> Dict[str, Any]:
         """
         List all files for a task with pagination and search
         
@@ -326,6 +326,7 @@ class TaskFileService:
             page: Page number (default: 1)
             per_page: Items per page (default: 10)
             search: Optional search query for filename filtering
+            use_weaviate: If True, uses semantic search in Weaviate for file content
             
         Returns:
             Dict with success status, list of files, and pagination info
@@ -336,6 +337,12 @@ class TaskFileService:
             from django.db.models import Q
             
             task = Task.objects.get(id=task_id)
+            
+            # If Weaviate search is requested and search query exists
+            if use_weaviate and search:
+                return self._list_files_weaviate_search(task, search, page, per_page)
+            
+            # Regular database search
             files = TaskFile.objects.filter(task=task)
             
             # Apply search filter if provided
@@ -393,6 +400,105 @@ class TaskFileService:
         except Exception as e:
             logger.error(f"Error listing files: {str(e)}")
             raise TaskFileServiceError("Failed to list files", details=str(e))
+    
+    def _list_files_weaviate_search(self, task, query: str, page: int = 1, per_page: int = 10) -> Dict[str, Any]:
+        """
+        Search files using Weaviate semantic search
+        
+        Args:
+            task: Task object
+            query: Search query
+            page: Page number
+            per_page: Items per page
+            
+        Returns:
+            Dict with search results
+        """
+        try:
+            from main.models import TaskFile
+            from core.services.weaviate_search_service import WeaviateSearchService, WeaviateSearchServiceError
+            from django.core.paginator import Paginator
+            
+            # Use Weaviate search service
+            try:
+                search_service = WeaviateSearchService(self.settings)
+                # Search only for file types
+                search_result = search_service.search(
+                    query=query,
+                    limit=100,  # Get more results for filtering
+                    object_types=['TaskFile'],
+                    search_type='hybrid'
+                )
+                search_service.close()
+                
+                if not search_result.get('success'):
+                    logger.warning("Weaviate search failed, falling back to regular search")
+                    # Fall back to regular search
+                    return self.list_files(str(task.id), page, per_page, query, use_weaviate=False)
+                
+                # Extract file IDs from search results
+                file_ids = [result['id'] for result in search_result.get('results', [])]
+                
+                if not file_ids:
+                    return {
+                        'success': True,
+                        'files': [],
+                        'count': 0,
+                        'total_count': 0,
+                        'page': 1,
+                        'total_pages': 0,
+                        'has_next': False,
+                        'has_previous': False,
+                    }
+                
+                # Get files from database that match the search results and belong to this task
+                files = TaskFile.objects.filter(
+                    task=task,
+                    id__in=file_ids
+                ).order_by('-created_at')
+                
+                # Paginate the results
+                paginator = Paginator(list(files), per_page)
+                try:
+                    files_page = paginator.page(page)
+                except:
+                    files_page = paginator.page(1)
+                
+                # Build file list
+                file_list = []
+                for f in files_page:
+                    file_list.append({
+                        'id': str(f.id),
+                        'filename': f.filename,
+                        'file_extension': self.get_file_extension(f.filename),
+                        'file_size': f.file_size,
+                        'file_size_mb': round(f.file_size / (1024 * 1024), 2),
+                        'sharepoint_url': f.sharepoint_url,
+                        'content_type': f.content_type,
+                        'weaviate_synced': f.weaviate_synced,
+                        'uploaded_by': f.uploaded_by.username if f.uploaded_by else 'Unknown',
+                        'created_at': f.created_at.isoformat()
+                    })
+                
+                return {
+                    'success': True,
+                    'files': file_list,
+                    'count': len(file_list),
+                    'total_count': paginator.count,
+                    'page': files_page.number,
+                    'total_pages': paginator.num_pages,
+                    'has_next': files_page.has_next(),
+                    'has_previous': files_page.has_previous(),
+                }
+                
+            except WeaviateSearchServiceError as e:
+                logger.warning(f"Weaviate search error: {e.message}, falling back to regular search")
+                # Fall back to regular search
+                return self.list_files(str(task.id), page, per_page, query, use_weaviate=False)
+                
+        except Exception as e:
+            logger.error(f"Error in Weaviate file search: {str(e)}")
+            raise TaskFileServiceError("Failed to search files", details=str(e))
     
     def delete_file(self, file_id: str, user) -> Dict[str, Any]:
         """

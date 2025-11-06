@@ -3899,10 +3899,17 @@ def api_item_file_list(request, item_id):
             per_page = 10
         
         search = request.GET.get('search', '').strip()
+        use_weaviate = request.GET.get('use_weaviate', 'false').lower() == 'true'
         
         # List files with pagination and search
         service = ItemFileService()
-        result = service.list_files(str(item_id), page=page, per_page=per_page, search=search if search else None)
+        result = service.list_files(
+            str(item_id), 
+            page=page, 
+            per_page=per_page, 
+            search=search if search else None,
+            use_weaviate=use_weaviate
+        )
         
         # For htmx requests, return HTML partial
         if request.headers.get('HX-Request'):
@@ -3913,6 +3920,7 @@ def api_item_file_list(request, item_id):
                 'total_count': result.get('total_count', 0),
                 'item_id': item_id,
                 'search': search,
+                'use_weaviate': use_weaviate,
             }
             return render(request, 'main/items/_files_list.html', context)
         
@@ -4400,10 +4408,17 @@ def api_task_file_list(request, task_id):
             per_page = 10
         
         search = request.GET.get('search', '').strip()
+        use_weaviate = request.GET.get('use_weaviate', 'false').lower() == 'true'
         
         # List files with pagination and search
         service = TaskFileService()
-        result = service.list_files(task_id, page=page, per_page=per_page, search=search if search else None)
+        result = service.list_files(
+            task_id, 
+            page=page, 
+            per_page=per_page, 
+            search=search if search else None,
+            use_weaviate=use_weaviate
+        )
         
         # For htmx requests, return HTML partial
         if request.headers.get('HX-Request'):
@@ -4414,6 +4429,7 @@ def api_task_file_list(request, task_id):
                 'total_count': result.get('total_count', 0),
                 'task_id': task_id,
                 'search': search,
+                'use_weaviate': use_weaviate,
             }
             return render(request, 'main/tasks/_files_list.html', context)
         

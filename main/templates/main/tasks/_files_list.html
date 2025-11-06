@@ -6,7 +6,7 @@
           hx-target="#taskFilesListContainer" 
           hx-swap="innerHTML"
           hx-indicator="#uploadProgress">
-        <div class="input-group">
+        <div class="input-group mb-2">
             <span class="input-group-text">
                 <i class="bi bi-search"></i>
             </span>
@@ -30,6 +30,12 @@
                 <i class="bi bi-x-circle"></i>
             </button>
             {% endif %}
+        </div>
+        <div class="form-check form-check-inline ms-2">
+            <input class="form-check-input" type="checkbox" name="use_weaviate" id="useWeaviateSearch" value="true" {% if use_weaviate %}checked{% endif %}>
+            <label class="form-check-label small text-muted" for="useWeaviateSearch">
+                <i class="bi bi-database"></i> Use AI semantic search (searches file content)
+            </label>
         </div>
     </form>
 </div>
@@ -124,7 +130,7 @@
             {% if page > 1 %}
             <li class="page-item">
                 <button class="page-link" 
-                        hx-get="/api/tasks/{{ task_id }}/files?page=1{% if search %}&search={{ search|urlencode }}{% endif %}"
+                        hx-get="/api/tasks/{{ task_id }}/files?page=1{% if search %}&search={{ search|urlencode }}{% endif %}{% if use_weaviate %}&use_weaviate=true{% endif %}"
                         hx-target="#taskFilesListContainer"
                         hx-swap="innerHTML"
                         hx-indicator="#uploadProgress">
@@ -133,7 +139,7 @@
             </li>
             <li class="page-item">
                 <button class="page-link" 
-                        hx-get="/api/tasks/{{ task_id }}/files?page={{ page|add:'-1' }}{% if search %}&search={{ search|urlencode }}{% endif %}"
+                        hx-get="/api/tasks/{{ task_id }}/files?page={{ page|add:'-1' }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if use_weaviate %}&use_weaviate=true{% endif %}"
                         hx-target="#taskFilesListContainer"
                         hx-swap="innerHTML"
                         hx-indicator="#uploadProgress">
@@ -157,7 +163,7 @@
             {% if page < total_pages %}
             <li class="page-item">
                 <button class="page-link"
-                        hx-get="/api/tasks/{{ task_id }}/files?page={{ page|add:'1' }}{% if search %}&search={{ search|urlencode }}{% endif %}"
+                        hx-get="/api/tasks/{{ task_id }}/files?page={{ page|add:'1' }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if use_weaviate %}&use_weaviate=true{% endif %}"
                         hx-target="#taskFilesListContainer"
                         hx-swap="innerHTML"
                         hx-indicator="#uploadProgress">
@@ -166,7 +172,7 @@
             </li>
             <li class="page-item">
                 <button class="page-link"
-                        hx-get="/api/tasks/{{ task_id }}/files?page={{ total_pages }}{% if search %}&search={{ search|urlencode }}{% endif %}"
+                        hx-get="/api/tasks/{{ task_id }}/files?page={{ total_pages }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if use_weaviate %}&use_weaviate=true{% endif %}"
                         hx-target="#taskFilesListContainer"
                         hx-swap="innerHTML"
                         hx-indicator="#uploadProgress">
