@@ -546,6 +546,16 @@
                                             <span class="button-text"><i class="bi bi-github"></i> Sync GitHub Issues</span>
                                             <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
                                         </button>
+                                        <button type="button" class="btn btn-outline-info" id="syncGitHubDocsBtn" 
+                                                {% if not settings.github_api_enabled or not item.github_repo %}
+                                                disabled 
+                                                title="{% if not settings.github_api_enabled %}GitHub is not enabled{% elif not item.github_repo %}No GitHub repository set for this item{% endif %}"
+                                                {% else %}
+                                                title="Sync GitHub Documentation"
+                                                {% endif %}>
+                                            <span class="button-text"><i class="bi bi-file-earmark-text"></i> Sync GitHub Docs</span>
+                                            <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                                        </button>
                                         <button type="button" class="btn btn-secondary" id="sendEmailBtn" data-bs-toggle="modal" data-bs-target="#sendEmailModal">
                                             <i class="bi bi-envelope"></i> Send via Email
                                         </button>
@@ -1435,6 +1445,68 @@ document.querySelector('#syncGitHubIssuesBtn')?.addEventListener('click', async 
         spinner.style.display = 'none';
     }
 });
+
+// Sync GitHub Docs Button
+document.querySelector('#syncGitHubDocsBtn')?.addEventListener('click', async function() {
+    const btn = this;
+    const spinner = btn.querySelector('.spinner-border');
+    const buttonText = btn.querySelector('.button-text');
+    
+    // Show confirmation dialog
+    const confirmed = confirm(
+        'This will synchronize all markdown documentation files (.md) from the GitHub repository to this item.\n\n' +
+        'Files will be uploaded to SharePoint and indexed in Weaviate for AI-powered search.\n\n' +
+        'Do you want to continue?'
+    );
+    
+    if (!confirmed) {
+        return;
+    }
+    
+    btn.disabled = true;
+    spinner.style.display = 'inline-block';
+    
+    try {
+        const response = await fetch('/api/github/sync-docs/{{ item.id }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            let message = `GitHub documentation synchronization completed!\n\n`;
+            message += `Files processed: ${data.files_processed}\n`;
+            message += `Files synced: ${data.files_synced}`;
+            
+            if (data.errors && data.errors.length > 0) {
+                message += `\n\nErrors: ${data.errors.length}`;
+            }
+            
+            showAlert(message, 'success');
+            
+            // Reload the files tab to show new files
+            setTimeout(() => {
+                htmx.ajax('GET', '/api/items/{{ item.id }}/files', {
+                    target: '#filesListContainer',
+                    swap: 'innerHTML'
+                });
+            }, 2000);
+        } else {
+            showAlert(data.error || 'Failed to sync GitHub documentation', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+    }
+});
+
 
 // Send Email Button
 document.querySelector('#confirmSendEmailBtn').addEventListener('click', async function() {
