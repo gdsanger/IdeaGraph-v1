@@ -145,4 +145,9 @@
 
 .weaviate-indicator.status-changed {
     animation: statusChange 0.4s ease;
+    will-change: transform, opacity;
+}
+
+.weaviate-indicator.status-changed:not(.animating) {
+    will-change: auto;
 }
