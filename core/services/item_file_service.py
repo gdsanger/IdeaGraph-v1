@@ -567,24 +567,34 @@ class ItemFileService:
             logger.error(f"Error getting markdown content: {str(e)}")
             raise ItemFileServiceError(f"Failed to get markdown content: {str(e)}")
     
-    def list_files(self, item_id: str, page: int = 1, per_page: int = 20) -> Dict[str, Any]:
+    def list_files(self, item_id: str, page: int = 1, per_page: int = 10, search: str = None) -> Dict[str, Any]:
         """
-        List all files for an item with pagination
+        List all files for an item with pagination and search
         
         Args:
             item_id: UUID of Item
             page: Page number (default: 1)
-            per_page: Items per page (default: 20)
+            per_page: Items per page (default: 10)
+            search: Optional search query for filename filtering
             
         Returns:
             Dict with success status, list of files, and pagination info
         """
         from main.models import ItemFile, Item
         from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+        from django.db.models import Q
         
         try:
             item = Item.objects.get(id=item_id)
-            files = ItemFile.objects.filter(item=item).order_by('-created_at')
+            files = ItemFile.objects.filter(item=item)
+            
+            # Apply search filter if provided
+            if search:
+                files = files.filter(
+                    Q(filename__icontains=search)
+                )
+            
+            files = files.order_by('-created_at')
             
             # Paginate files
             paginator = Paginator(files, per_page)

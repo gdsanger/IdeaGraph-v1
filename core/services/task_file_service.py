@@ -317,30 +317,59 @@ class TaskFileService:
             logger.error(f"Error syncing to Weaviate: {str(e)}")
             return {'success': False, 'error': str(e)}
     
-    def list_files(self, task_id: str) -> Dict[str, Any]:
+    def list_files(self, task_id: str, page: int = 1, per_page: int = 10, search: str = None) -> Dict[str, Any]:
         """
-        List all files for a task
+        List all files for a task with pagination and search
         
         Args:
             task_id: Task ID
+            page: Page number (default: 1)
+            per_page: Items per page (default: 10)
+            search: Optional search query for filename filtering
             
         Returns:
-            Dict with success status and list of files
+            Dict with success status, list of files, and pagination info
         """
         try:
             from main.models import Task, TaskFile
+            from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+            from django.db.models import Q
             
             task = Task.objects.get(id=task_id)
-            files = TaskFile.objects.filter(task=task).order_by('-created_at')
+            files = TaskFile.objects.filter(task=task)
+            
+            # Apply search filter if provided
+            if search:
+                files = files.filter(
+                    Q(filename__icontains=search)
+                )
+            
+            files = files.order_by('-created_at')
+            
+            # Paginate files
+            paginator = Paginator(files, per_page)
+            
+            # Handle page number
+            try:
+                page_number = int(page)
+            except (ValueError, TypeError):
+                page_number = 1
+            
+            try:
+                files_page = paginator.page(page_number)
+            except PageNotAnInteger:
+                files_page = paginator.page(1)
+            except EmptyPage:
+                files_page = paginator.page(paginator.num_pages)
             
             file_list = []
-            for f in files:
+            for f in files_page:
                 file_list.append({
                     'id': str(f.id),
                     'filename': f.filename,
                     'file_extension': self.get_file_extension(f.filename),
                     'file_size': f.file_size,
-                    'file_size_mb': f.file_size / (1024 * 1024),
+                    'file_size_mb': round(f.file_size / (1024 * 1024), 2),
                     'sharepoint_url': f.sharepoint_url,
                     'content_type': f.content_type,
                     'weaviate_synced': f.weaviate_synced,
@@ -351,7 +380,12 @@ class TaskFileService:
             return {
                 'success': True,
                 'files': file_list,
-                'count': len(file_list)
+                'count': len(file_list),
+                'total_count': paginator.count,
+                'page': files_page.number,
+                'total_pages': paginator.num_pages,
+                'has_next': files_page.has_next(),
+                'has_previous': files_page.has_previous(),
             }
             
         except Task.DoesNotExist:
