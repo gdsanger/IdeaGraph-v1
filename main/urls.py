@@ -77,6 +77,7 @@ urlpatterns = [
     path('api/items/<uuid:item_id>/check-similarity', api_views.api_item_check_similarity, name='api_item_check_similarity'),
     path('api/items/<uuid:item_id>/send-email', api_views.api_send_item_email, name='api_send_item_email'),
     path('api/items/<uuid:item_id>/create-teams-channel', api_views.create_teams_channel, name='api_create_teams_channel'),
+    path('api/items/<uuid:item_id>/fetch-sentry-errors', api_views.api_fetch_sentry_errors, name='api_fetch_sentry_errors'),
     
     # Item Question Answering API Endpoints
     path('api/items/<uuid:item_id>/ask', api_views.api_item_ask_question, name='api_item_ask_question'),

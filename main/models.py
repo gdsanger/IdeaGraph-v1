@@ -252,6 +252,27 @@ class Item(models.Model):
         help_text='Channel ID aus dem Teams Workspace'
     )
     
+    # Sentry Integration
+    sentry_dsn = models.CharField(
+        max_length=500,
+        blank=True,
+        default='',
+        verbose_name='Sentry DSN',
+        help_text='Sentry DSN for error tracking integration'
+    )
+    sentry_project_slug = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='Sentry Project Slug',
+        help_text='Sentry project slug (e.g., ideagraph-v1)'
+    )
+    enable_sentry_fetch = models.BooleanField(
+        default=False,
+        verbose_name='Enable Sentry Fetch',
+        help_text='Enable automatic fetching of errors from Sentry'
+    )
+    
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'Item'
@@ -1080,6 +1101,15 @@ class Settings(models.Model):
         default='',
         verbose_name='Delegated User ID',
         help_text='User ID (UPN or email) for delegated authentication'
+    )
+    
+    # Sentry Configuration
+    sentry_auth_token = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='Sentry Auth Token',
+        help_text='Sentry API authentication token for fetching errors'
     )
     
     created_at = models.DateTimeField(auto_now_add=True)

@@ -58,6 +58,42 @@
                             <small class="text-muted">Optional: Link to a GitHub repository</small>
                         </div>
 
+                        <!-- Sentry Integration -->
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="sentry_dsn" class="form-label">
+                                    <i class="bi bi-bug"></i> Sentry DSN
+                                </label>
+                                <input type="text" class="form-control" id="sentry_dsn" name="sentry_dsn" 
+                                       value="{% if item %}{{ item.sentry_dsn }}{% endif %}" 
+                                       placeholder="https://...@o...ingest.sentry.io/...">
+                                <small class="text-muted">Optional: Sentry DSN for error tracking integration</small>
+                            </div>
+
+                            <div class="col-md-3 mb-3">
+                                <label for="sentry_project_slug" class="form-label">
+                                    <i class="bi bi-folder"></i> Project Slug
+                                </label>
+                                <input type="text" class="form-control" id="sentry_project_slug" name="sentry_project_slug" 
+                                       value="{% if item %}{{ item.sentry_project_slug }}{% endif %}" 
+                                       placeholder="my-project">
+                                <small class="text-muted">Sentry project slug</small>
+                            </div>
+
+                            <div class="col-md-3 mb-3">
+                                <label for="enable_sentry_fetch" class="form-label">
+                                    <i class="bi bi-arrow-repeat"></i> Auto-Fetch
+                                </label>
+                                <div class="form-check form-switch mt-2">
+                                    <input class="form-check-input" type="checkbox" id="enable_sentry_fetch" name="enable_sentry_fetch" 
+                                           {% if item and item.enable_sentry_fetch %}checked{% endif %}>
+                                    <label class="form-check-label" for="enable_sentry_fetch">
+                                        Enable auto-fetch
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="row">
                             <!-- Section -->
                             <div class="col-md-4 mb-3">
