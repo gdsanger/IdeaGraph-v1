@@ -133,7 +133,7 @@ class HomeViewTest(TestCase):
         response = self.client.get(reverse('main:home'))
         
         # Check that counts are present in the HTML
-        self.assertContains(response, 'Ideas Created')
+        self.assertContains(response, 'Items Created')
         self.assertContains(response, 'Tasks Generated')
         self.assertContains(response, 'Issues Created')
         self.assertContains(response, 'Completed')
