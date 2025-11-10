@@ -115,6 +115,77 @@ class SupportAuthServiceTest(TestCase):
         
         self.assertFalse(result['valid'])
         self.assertIn('signature', result['error'].lower())
+    
+    def test_generate_and_verify_refresh_token(self):
+        """Test refresh token generation and verification"""
+        # Generate refresh token
+        refresh_token = self.auth_service.generate_refresh_token(self.test_item_id)
+        
+        # Verify refresh token
+        result = self.auth_service.verify_refresh_token(refresh_token)
+        
+        self.assertTrue(result['valid'])
+        self.assertEqual(result['item_id'], self.test_item_id)
+        self.assertEqual(result['payload']['type'], 'refresh')
+    
+    def test_verify_refresh_token_expired(self):
+        """Test expired refresh token"""
+        # Generate refresh token with 0 second expiry (immediately expired)
+        refresh_token = self.auth_service.generate_refresh_token(self.test_item_id, expires_in=-1)
+        
+        # Verify token
+        result = self.auth_service.verify_refresh_token(refresh_token)
+        
+        self.assertFalse(result['valid'])
+        self.assertIn('expired', result['error'].lower())
+        self.assertTrue(result.get('expired', False))
+    
+    def test_verify_access_token_as_refresh_token(self):
+        """Test that access tokens cannot be used as refresh tokens"""
+        # Generate regular access token
+        access_token = self.auth_service.generate_jwt(self.test_item_id)
+        
+        # Try to verify as refresh token
+        result = self.auth_service.verify_refresh_token(access_token)
+        
+        self.assertFalse(result['valid'])
+        self.assertIn('audience', result['error'].lower())
+    
+    def test_refresh_access_token(self):
+        """Test refreshing access token using refresh token"""
+        # Generate refresh token
+        refresh_token = self.auth_service.generate_refresh_token(self.test_item_id)
+        
+        # Refresh access token
+        result = self.auth_service.refresh_access_token(refresh_token)
+        
+        self.assertTrue(result['success'])
+        self.assertIn('access_token', result)
+        self.assertEqual(result['expires_in'], self.auth_service.JWT_MAX_AGE_SECONDS)
+        
+        # Verify the new access token works
+        verify_result = self.auth_service.verify_jwt(result['access_token'])
+        self.assertTrue(verify_result['valid'])
+        self.assertEqual(verify_result['item_id'], self.test_item_id)
+    
+    def test_refresh_access_token_with_expired_refresh_token(self):
+        """Test that expired refresh tokens cannot be used"""
+        # Generate expired refresh token
+        refresh_token = self.auth_service.generate_refresh_token(self.test_item_id, expires_in=-1)
+        
+        # Try to refresh access token
+        result = self.auth_service.refresh_access_token(refresh_token)
+        
+        self.assertFalse(result['success'])
+        self.assertIn('error', result)
+    
+    def test_refresh_access_token_with_invalid_token(self):
+        """Test that invalid tokens cannot be used for refresh"""
+        # Try to refresh with invalid token
+        result = self.auth_service.refresh_access_token('invalid_token')
+        
+        self.assertFalse(result['success'])
+        self.assertIn('error', result)
 
 
 class SupportRateLimiterTest(TestCase):
@@ -573,3 +644,83 @@ class SupportEmbedViewTest(TestCase):
         
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'data-theme="dark"')
+    
+    def test_token_refresh_endpoint_success(self):
+        """Test token refresh endpoint with valid refresh token"""
+        # Generate refresh token
+        refresh_token = self.auth_service.generate_refresh_token(str(self.item.id))
+        
+        # Call refresh endpoint
+        response = self.client.post(
+            '/api/support/token/refresh',
+            data=json.dumps({
+                'refresh_token': refresh_token
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertIn('access_token', data)
+        self.assertEqual(data['expires_in'], 1800)
+        
+        # Verify the new access token works
+        verify_result = self.auth_service.verify_jwt(data['access_token'])
+        self.assertTrue(verify_result['valid'])
+    
+    def test_token_refresh_endpoint_expired_token(self):
+        """Test token refresh endpoint with expired refresh token"""
+        # Generate expired refresh token
+        refresh_token = self.auth_service.generate_refresh_token(str(self.item.id), expires_in=-1)
+        
+        # Call refresh endpoint
+        response = self.client.post(
+            '/api/support/token/refresh',
+            data=json.dumps({
+                'refresh_token': refresh_token
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 401)
+        data = response.json()
+        self.assertFalse(data['success'])
+        self.assertIn('error', data)
+    
+    def test_token_refresh_endpoint_invalid_token(self):
+        """Test token refresh endpoint with invalid token"""
+        response = self.client.post(
+            '/api/support/token/refresh',
+            data=json.dumps({
+                'refresh_token': 'invalid_token'
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 401)
+        data = response.json()
+        self.assertFalse(data['success'])
+    
+    def test_token_refresh_endpoint_missing_token(self):
+        """Test token refresh endpoint without token"""
+        response = self.client.post(
+            '/api/support/token/refresh',
+            data=json.dumps({}),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertFalse(data['success'])
+    
+    def test_embed_view_with_refresh_token(self):
+        """Test embed view accepts refresh token parameter"""
+        refresh_token = self.auth_service.generate_refresh_token(str(self.item.id))
+        
+        response = self.client.get(
+            f'/embed/support?itemId={self.item.id}&t={self.token}&r={refresh_token}'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, refresh_token)
