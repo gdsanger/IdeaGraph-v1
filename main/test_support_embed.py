@@ -901,3 +901,157 @@ class SupportEmbedKeyTest(TestCase):
         
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, raw_key)
+
+
+class SupportEmbedKeyUITest(TestCase):
+    """Test Support Embed Key UI API Endpoints"""
+    
+    def setUp(self):
+        """Set up test data"""
+        # Create test user
+        self.user = User.objects.create(
+            username='testuser',
+            email='test@example.com',
+            role='user'
+        )
+        self.user.set_password('testpass')
+        self.user.save()
+        
+        # Create test section
+        self.section = Section.objects.create(
+            name='Test Section'
+        )
+        
+        # Create test item
+        self.item = Item.objects.create(
+            title='Test Item',
+            description='Test Description',
+            section=self.section,
+            created_by=self.user
+        )
+        
+        # Login
+        self.client = Client()
+        self.client.login(username='testuser', password='testpass')
+    
+    def test_generate_embed_key_api(self):
+        """Test generating an embed key via API"""
+        response = self.client.post(
+            f'/api/items/{self.item.id}/embed-keys/generate',
+            data=json.dumps({
+                'name': 'Test Website',
+                'reference_url': 'https://example.com',
+                'expires_in_days': 730
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertIn('key', data)
+        self.assertIn('key_id', data)
+        self.assertIn('key_prefix', data)
+        self.assertIn('expires_at', data)
+        
+        # Verify key was created in database
+        from main.models import SupportEmbedKey
+        key = SupportEmbedKey.objects.get(id=data['key_id'])
+        self.assertEqual(key.name, 'Test Website')
+        self.assertEqual(key.item, self.item)
+    
+    def test_generate_embed_key_missing_name(self):
+        """Test generating key without name returns error"""
+        response = self.client.post(
+            f'/api/items/{self.item.id}/embed-keys/generate',
+            data=json.dumps({
+                'expires_in_days': 730
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertFalse(data['success'])
+        self.assertIn('Name is required', data['error'])
+    
+    def test_list_embed_keys_api(self):
+        """Test listing embed keys via API"""
+        # Create some keys
+        from core.services.support_embed_key_service import SupportEmbedKeyService
+        key_service = SupportEmbedKeyService()
+        
+        key_service.generate_key(
+            item_id=str(self.item.id),
+            name='Key 1',
+            created_by_user=self.user
+        )
+        
+        key_service.generate_key(
+            item_id=str(self.item.id),
+            name='Key 2',
+            created_by_user=self.user
+        )
+        
+        # List keys
+        response = self.client.get(
+            f'/api/items/{self.item.id}/embed-keys/list'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertEqual(len(data['keys']), 2)
+        
+        # Verify key data
+        key_names = [key['name'] for key in data['keys']]
+        self.assertIn('Key 1', key_names)
+        self.assertIn('Key 2', key_names)
+    
+    def test_delete_embed_key_api(self):
+        """Test deleting an embed key via API"""
+        # Create a key
+        from core.services.support_embed_key_service import SupportEmbedKeyService
+        key_service = SupportEmbedKeyService()
+        
+        result = key_service.generate_key(
+            item_id=str(self.item.id),
+            name='Key to Delete',
+            created_by_user=self.user
+        )
+        key_id = result['key_id']
+        
+        # Delete the key
+        response = self.client.delete(
+            f'/api/items/{self.item.id}/embed-keys/{key_id}/delete'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        
+        # Verify key was revoked
+        from main.models import SupportEmbedKey
+        key = SupportEmbedKey.objects.get(id=key_id)
+        self.assertIsNotNone(key.revoked_at)
+        self.assertFalse(key.is_valid())
+    
+    def test_delete_nonexistent_key(self):
+        """Test deleting a non-existent key returns 404"""
+        response = self.client.delete(
+            f'/api/items/{self.item.id}/embed-keys/{NON_EXISTENT_UUID}/delete'
+        )
+        
+        self.assertEqual(response.status_code, 404)
+        data = response.json()
+        self.assertFalse(data['success'])
+    
+    def test_list_keys_for_nonexistent_item(self):
+        """Test listing keys for non-existent item returns 404"""
+        response = self.client.get(
+            f'/api/items/{NON_EXISTENT_UUID}/embed-keys/list'
+        )
+        
+        self.assertEqual(response.status_code, 404)
+        data = response.json()
+        self.assertFalse(data['success'])

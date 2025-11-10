@@ -79,6 +79,11 @@ urlpatterns = [
     path('api/items/<uuid:item_id>/create-teams-channel', api_views.create_teams_channel, name='api_create_teams_channel'),
     path('api/items/<uuid:item_id>/fetch-sentry-errors', api_views.api_fetch_sentry_errors, name='api_fetch_sentry_errors'),
     
+    # Item Embed Key Management API Endpoints
+    path('api/items/<uuid:item_id>/embed-keys/generate', api_views.api_item_embed_key_generate, name='api_item_embed_key_generate'),
+    path('api/items/<uuid:item_id>/embed-keys/list', api_views.api_item_embed_key_list, name='api_item_embed_key_list'),
+    path('api/items/<uuid:item_id>/embed-keys/<uuid:key_id>/delete', api_views.api_item_embed_key_delete, name='api_item_embed_key_delete'),
+    
     # Item Question Answering API Endpoints
     path('api/items/<uuid:item_id>/ask', api_views.api_item_ask_question, name='api_item_ask_question'),
     path('api/items/<uuid:item_id>/questions/history', api_views.api_item_questions_history, name='api_item_questions_history'),
