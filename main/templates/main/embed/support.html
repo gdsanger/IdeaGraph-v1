@@ -84,9 +84,10 @@
         
         body {
             font-family: system-ui, -apple-system, sans-serif;
-            max-width: 420px;
+            width: 100%;
             margin: 0;
             padding: 1rem;
+            box-sizing: border-box;
         }
         
         .btn-primary {
@@ -119,31 +120,61 @@
         
         .message {
             margin-bottom: 1rem;
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
         }
         
         .message-user {
-            text-align: right;
+            flex-direction: row-reverse;
+            justify-content: flex-start;
         }
         
         .message-assistant {
-            text-align: left;
+            flex-direction: row;
+            justify-content: flex-start;
+        }
+        
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-size: 1.125rem;
+            flex-shrink: 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        
+        .message-user .message-avatar {
+            background: linear-gradient(135deg, #475569, #64748b);
+        }
+        
+        .message-assistant .message-avatar {
+            background: linear-gradient(135deg, #9333ea, #7c3aed);
         }
         
         .message-content {
             display: inline-block;
-            padding: 0.5rem 1rem;
-            border-radius: 0.5rem;
-            max-width: 80%;
+            padding: 0.875rem 1.125rem;
+            border-radius: 1rem;
+            max-width: 75%;
+            word-wrap: break-word;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
         }
         
         .message-user .message-content {
             background-color: var(--primary-orange);
             color: white;
+            border-bottom-right-radius: 0.25rem;
         }
         
         .message-assistant .message-content {
             background-color: var(--secondary-cyan);
             color: #1a1a1a;
+            border-bottom-left-radius: 0.25rem;
         }
         
         .duplicate-item {
@@ -162,9 +193,20 @@
         
         .thinking-indicator {
             display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+            padding: 0.5rem 0;
+        }
+        
+        .thinking-animation {
+            display: flex;
             gap: 0.25rem;
             align-items: center;
-            padding: 0.5rem;
+            padding: 0.875rem 1.125rem;
+            background-color: var(--secondary-cyan);
+            border-radius: 1rem;
+            border-bottom-left-radius: 0.25rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
         }
         
         .thinking-dot {
@@ -195,12 +237,12 @@
         <ul class="nav nav-tabs mb-3" role="tablist">
             <li class="nav-item" role="presentation">
                 <button class="nav-link active" id="chat-tab" data-bs-toggle="tab" data-bs-target="#chat" type="button" role="tab">
-                    <i class="bi bi-chat-dots"></i> Chat
+                    <i class="bi bi-robot"></i> Q&A Assistant
                 </button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="submit-tab" data-bs-toggle="tab" data-bs-target="#submit" type="button" role="tab">
-                    <i class="bi bi-pencil-square"></i> Frage stellen
+                    <i class="bi bi-pencil-square"></i> Support-Anfrage stellen
                 </button>
             </li>
         </ul>
@@ -244,8 +286,8 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label for="reporterEmail" class="form-label">E-Mail (optional)</label>
-                        <input type="email" class="form-control" id="reporterEmail">
+                        <label for="reporterEmail" class="form-label">E-Mail <span class="text-danger">*</span></label>
+                        <input type="email" class="form-control" id="reporterEmail" required>
                     </div>
                     
                     <button type="button" class="btn btn-secondary w-100 mb-2" id="precheckBtn">
@@ -437,10 +479,20 @@
             const messageDiv = document.createElement('div');
             messageDiv.className = `message message-${role}`;
             
+            // Add avatar
+            const avatarDiv = document.createElement('div');
+            avatarDiv.className = 'message-avatar';
+            if (role === 'user') {
+                avatarDiv.innerHTML = '<i class="bi bi-person-fill"></i>';
+            } else {
+                avatarDiv.innerHTML = '<i class="bi bi-robot"></i>';
+            }
+            
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
             contentDiv.textContent = content;
             
+            messageDiv.appendChild(avatarDiv);
             messageDiv.appendChild(contentDiv);
             chatMessages.appendChild(messageDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -454,9 +506,14 @@
             thinkingDiv.className = 'thinking-indicator';
             thinkingDiv.id = 'thinkingIndicator';
             thinkingDiv.innerHTML = `
-                <div class="thinking-dot"></div>
-                <div class="thinking-dot"></div>
-                <div class="thinking-dot"></div>
+                <div class="message-avatar">
+                    <i class="bi bi-robot"></i>
+                </div>
+                <div class="thinking-animation">
+                    <div class="thinking-dot"></div>
+                    <div class="thinking-dot"></div>
+                    <div class="thinking-dot"></div>
+                </div>
             `;
             chatMessages.appendChild(thinkingDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -650,6 +707,11 @@
             
             if (!title) {
                 alert('Bitte geben Sie einen Titel ein.');
+                return;
+            }
+            
+            if (!email) {
+                alert('Bitte geben Sie Ihre E-Mail-Adresse ein.');
                 return;
             }
             

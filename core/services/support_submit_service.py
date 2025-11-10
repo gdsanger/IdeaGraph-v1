@@ -43,12 +43,17 @@ class SupportSubmitService:
         """
         Submit a support request as a task
         
+        Processes the request like an incoming email:
+        - Creates/identifies user by email
+        - Assigns user as requester
+        - Creates task that can be replied to via email
+        
         Args:
             item_id: UUID of the item
             title: Task title
             description: Task description
             task_type: Type of task (support, bug, feature, etc.)
-            reporter_email: Email of reporter (optional)
+            reporter_email: Email of reporter (required for email-like processing)
             reporter_referrer: Referrer URL (optional)
             auto_answer: Dict with 'offered', 'accepted', 'summary' (optional)
             duplicate_of_task_id: UUID of potential duplicate task (optional)
@@ -63,7 +68,7 @@ class SupportSubmitService:
                 'error': str (if success=False)
             }
         """
-        from main.models import Item, Task
+        from main.models import Item, Task, User
         
         try:
             # Get the item
@@ -76,6 +81,12 @@ class SupportSubmitService:
                     'error': 'Item not found'
                 }
             
+            # Get or create user by email (like email processing)
+            requester_user = None
+            if reporter_email:
+                requester_user = self._get_or_create_user_by_email(reporter_email)
+                logger.info(f"Identified/created user for email {reporter_email}: {requester_user.id}")
+            
             # Enrich description with metadata
             enriched_description = self._enrich_description(
                 description=description,
@@ -84,7 +95,7 @@ class SupportSubmitService:
                 duplicate_of_task_id=duplicate_of_task_id
             )
             
-            # Create task
+            # Create task (like an email-created task)
             task = Task.objects.create(
                 item=item,
                 title=title,
@@ -94,6 +105,7 @@ class SupportSubmitService:
                 source='support',
                 reporter_email=reporter_email or '',
                 reporter_referrer=reporter_referrer or '',
+                requester=requester_user,  # Link to user for email replies
                 auto_answer_offered=auto_answer is not None and auto_answer.get('offered', False),
                 auto_answer_accepted=auto_answer is not None and auto_answer.get('accepted', False),
                 auto_answer_text=auto_answer.get('summary', '') if auto_answer else '',
@@ -101,7 +113,11 @@ class SupportSubmitService:
                 client_fingerprint=client_fingerprint or ''
             )
             
-            logger.info(f"Created support task {task.id} for item {item_id}")
+            logger.info(f"Created support task {task.id} for item {item_id} (like email processing)")
+            
+            # Send confirmation email to requester if email provided
+            if reporter_email and requester_user:
+                self._send_confirmation_email(task, requester_user, reporter_email)
             
             return {
                 'success': True,
@@ -175,3 +191,94 @@ class SupportSubmitService:
         parts.append("\n\n---\n*Erstellt via Support-Formular*")
         
         return '\n'.join(parts)
+    
+    def _get_or_create_user_by_email(self, email: str):
+        """
+        Get or create a user by email address (like email processing)
+        
+        Args:
+            email: Email address of the user
+            
+        Returns:
+            User object
+        """
+        from main.models import User
+        
+        # Try to find existing user by email
+        try:
+            user = User.objects.get(email=email)
+            logger.info(f"Found existing user for email {email}")
+            return user
+        except User.DoesNotExist:
+            pass
+        
+        # Create new user
+        # Extract username from email (part before @)
+        username = email.split('@')[0]
+        
+        # Make username unique if needed
+        base_username = username
+        counter = 1
+        while User.objects.filter(username=username).exists():
+            username = f"{base_username}{counter}"
+            counter += 1
+        
+        # Create user with email
+        user = User.objects.create(
+            username=username,
+            email=email,
+            first_name='',
+            last_name='',
+            is_active=True
+        )
+        
+        logger.info(f"Created new user {user.username} for email {email}")
+        return user
+    
+    def _send_confirmation_email(self, task, user, email: str):
+        """
+        Send confirmation email to the requester
+        
+        Args:
+            task: Task object
+            user: User object
+            email: Email address
+        """
+        try:
+            # Use the email conversation service to send confirmation
+            from core.services.email_conversation_service import EmailConversationService
+            
+            email_service = EmailConversationService()
+            
+            # Create confirmation message
+            subject = f"Ihre Anfrage wurde erfasst: {task.title}"
+            body = f"""Guten Tag,
+
+vielen Dank für Ihre Anfrage. Wir haben Ihre Support-Anfrage erfolgreich erfasst.
+
+**Titel:** {task.title}
+**Typ:** {task.get_type_display()}
+**Referenz:** {task.short_id}
+
+Sie erhalten eine Antwort, sobald ein Agent Ihre Anfrage bearbeitet hat.
+
+Mit freundlichen Grüßen
+Ihr IdeaGraph Support-Team
+"""
+            
+            # Send email using Graph API
+            result = email_service.send_task_reply_email(
+                task=task,
+                recipient_email=email,
+                subject=subject,
+                body_text=body
+            )
+            
+            if result.get('success'):
+                logger.info(f"Confirmation email sent to {email} for task {task.id}")
+            else:
+                logger.warning(f"Failed to send confirmation email: {result.get('error')}")
+        
+        except Exception as e:
+            # Don't fail task creation if email fails
+            logger.error(f"Error sending confirmation email: {str(e)}", exc_info=True)
