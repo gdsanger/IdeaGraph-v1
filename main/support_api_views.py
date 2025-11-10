@@ -14,6 +14,30 @@ from django.views.decorators.http import require_http_methods
 logger = logging.getLogger('support_api_views')
 
 
+# Telemetry counters (in-memory for MVP, could be exported to Prometheus/StatsD)
+_telemetry = {
+    'support_chat_send_total': 0,
+    'support_chat_send_success': 0,
+    'support_chat_send_error': 0,
+    'support_precheck_total': 0,
+    'support_precheck_resolved_total': 0,
+    'support_submit_total': 0,
+    'support_submit_success': 0,
+    'support_submit_despite_duplicate_total': 0,
+    'support_auth_failure_total': 0,
+    'support_rate_limit_exceeded_total': 0,
+}
+
+
+def _increment_telemetry(counter: str):
+    """Increment a telemetry counter"""
+    global _telemetry
+    if counter in _telemetry:
+        _telemetry[counter] += 1
+        if _telemetry[counter] % 10 == 0:  # Log every 10th event
+            logger.info(f"Telemetry: {counter}={_telemetry[counter]}")
+
+
 def _authenticate_request(request, item_id):
     """
     Authenticate support embed request
@@ -200,7 +224,10 @@ def api_support_chat_send(request, item_id):
     # Check rate limit
     allowed, fingerprint = _check_rate_limit(request, item_id)
     if not allowed:
+        _increment_telemetry('support_rate_limit_exceeded_total')
         return fingerprint  # This is actually the error response
+    
+    _increment_telemetry('support_chat_send_total')
     
     # Parse request
     try:
@@ -237,6 +264,7 @@ def api_support_chat_send(request, item_id):
         
         if result.get('success'):
             logger.info(f"Support chat answer generated for item {item_id}")
+            _increment_telemetry('support_chat_send_success')
             return JsonResponse({
                 'success': True,
                 'answer': result.get('answer', ''),
@@ -248,6 +276,7 @@ def api_support_chat_send(request, item_id):
             })
         else:
             logger.error(f"Q&A service error: {result.get('error')}")
+            _increment_telemetry('support_chat_send_error')
             return JsonResponse({
                 'success': False,
                 'error': result.get('error', 'Failed to generate answer')
@@ -255,12 +284,14 @@ def api_support_chat_send(request, item_id):
     
     except ItemQuestionAnsweringServiceError as e:
         logger.error(f"Q&A service error: {str(e)}")
+        _increment_telemetry('support_chat_send_error')
         return JsonResponse({
             'success': False,
             'error': str(e)
         }, status=500)
     except Exception as e:
         logger.error(f"Unexpected error in chat send: {str(e)}", exc_info=True)
+        _increment_telemetry('support_chat_send_error')
         return JsonResponse({
             'success': False,
             'error': 'Internal server error'
@@ -335,6 +366,10 @@ def api_support_precheck(request, item_id):
         )
         
         logger.info(f"Support precheck complete for item {item_id}: {result['recommendation']}")
+        
+        # Track if issue was resolved by precheck
+        if result['recommendation'] == 'resolve':
+            _increment_telemetry('support_precheck_resolved_total')
         
         return JsonResponse({
             'success': True,
@@ -433,6 +468,12 @@ def api_support_submit(request, item_id):
         
         if result['success']:
             logger.info(f"Support task submitted for item {item_id}: {result['task_id']}")
+            _increment_telemetry('support_submit_success')
+            
+            # Track if submitted despite duplicate
+            if duplicate_of_task_id:
+                _increment_telemetry('support_submit_despite_duplicate_total')
+            
             return JsonResponse({
                 'success': True,
                 'taskId': result['task_id'],
