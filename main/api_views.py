@@ -8731,3 +8731,116 @@ def api_comment_ai_reply_send(request, comment_id):
             'details': str(e)
         }, status=500)
 
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_fetch_sentry_errors(request, item_id):
+    """
+    API endpoint to manually fetch Sentry errors and create tasks for an item
+    
+    POST /api/items/<item_id>/fetch-sentry-errors
+    
+    Request body (JSON):
+    {
+        "hours_back": 24  // Optional, defaults to 24
+    }
+    
+    Response:
+    {
+        "success": true,
+        "issues_fetched": 5,
+        "tasks_created": 3,
+        "duplicates_skipped": 2,
+        "message": "Successfully fetched 5 issues and created 3 tasks"
+    }
+    """
+    try:
+        # Get user from JWT token or session
+        user = None
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+            payload = decode_jwt_token(token)
+            if payload:
+                user = User.objects.filter(id=payload['user_id']).first()
+        
+        if not user:
+            # Try session
+            user_id = request.session.get('user_id')
+            if user_id:
+                user = User.objects.filter(id=user_id).first()
+        
+        if not user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Authentication required'
+            }, status=401)
+        
+        # Get item
+        from main.models import Item
+        try:
+            item = Item.objects.get(id=item_id)
+        except Item.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Item not found'
+            }, status=404)
+        
+        # Check if Sentry is configured
+        if not item.sentry_dsn:
+            return JsonResponse({
+                'success': False,
+                'error': 'Sentry DSN not configured for this item'
+            }, status=400)
+        
+        if not item.enable_sentry_fetch:
+            return JsonResponse({
+                'success': False,
+                'error': 'Sentry fetch is disabled for this item'
+            }, status=400)
+        
+        # Parse request body
+        try:
+            data = json.loads(request.body) if request.body else {}
+        except json.JSONDecodeError:
+            data = {}
+        
+        hours_back = data.get('hours_back', 24)
+        
+        # Initialize sync service
+        from core.services.sentry_task_sync_service import SentryTaskSyncService
+        sync_service = SentryTaskSyncService()
+        
+        # Fetch and create tasks
+        result = sync_service.fetch_and_create_tasks(item, hours_back=hours_back)
+        
+        if result['success']:
+            message = (
+                f"Successfully fetched {result['issues_fetched']} issues "
+                f"and created {result['tasks_created']} tasks"
+            )
+            return JsonResponse({
+                'success': True,
+                'issues_fetched': result['issues_fetched'],
+                'tasks_created': result['tasks_created'],
+                'duplicates_skipped': result['duplicates_skipped'],
+                'message': message
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': result.get('error', 'Unknown error'),
+                'issues_fetched': result['issues_fetched'],
+                'tasks_created': result['tasks_created'],
+                'duplicates_skipped': result['duplicates_skipped']
+            }, status=500)
+        
+    except Exception as e:
+        logger.error(f'Sentry fetch error: {str(e)}')
+        logger.error(traceback.format_exc())
+        # Don't expose internal error details to users for security reasons
+        return JsonResponse({
+            'success': False,
+            'error': 'Unexpected error fetching Sentry errors. Please check the logs for details.'
+        }, status=500)
+

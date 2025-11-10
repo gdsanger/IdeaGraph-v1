@@ -1186,6 +1186,8 @@ def item_create(request):
         parent_id = request.POST.get('parent')
         is_template = request.POST.get('is_template') == 'on'
         inherit_context = request.POST.get('inherit_context') == 'on'
+        sentry_dsn = request.POST.get('sentry_dsn', '').strip()
+        enable_sentry_fetch = request.POST.get('enable_sentry_fetch') == 'on'
 
         if not title:
             messages.error(request, 'Title is required.')
@@ -1201,7 +1203,10 @@ def item_create(request):
                     status=status,
                     created_by=user,
                     is_template=is_template,
-                    inherit_context=inherit_context
+                    inherit_context=inherit_context,
+                    sentry_dsn=sentry_dsn,
+                    sentry_project_slug=sentry_project_slug,
+                    enable_sentry_fetch=enable_sentry_fetch
                 )
 
                 if section_id:
@@ -1291,6 +1296,9 @@ def item_edit(request, item_id):
         parent_id = request.POST.get('parent')
         is_template = request.POST.get('is_template') == 'on'
         inherit_context = request.POST.get('inherit_context') == 'on'
+        sentry_dsn = request.POST.get('sentry_dsn', '').strip()
+        sentry_project_slug = request.POST.get('sentry_project_slug', '').strip()
+        enable_sentry_fetch = request.POST.get('enable_sentry_fetch') == 'on'
 
         if not title:
             messages.error(request, 'Title is required.')
@@ -1304,6 +1312,9 @@ def item_edit(request, item_id):
                 item.status = status
                 item.is_template = is_template
                 item.inherit_context = inherit_context
+                item.sentry_dsn = sentry_dsn
+                item.sentry_project_slug = sentry_project_slug
+                item.enable_sentry_fetch = enable_sentry_fetch
 
                 if section_id:
                     item.section_id = section_id
