@@ -251,6 +251,7 @@ def api_support_chat_send(request, item_id):
         }, status=400)
     
     # Use existing Q&A service
+    qa_service = None
     try:
         from core.services.item_question_answering_service import (
             ItemQuestionAnsweringService,
@@ -298,6 +299,10 @@ def api_support_chat_send(request, item_id):
             'success': False,
             'error': 'Internal server error'
         }, status=500)
+    finally:
+        # Ensure Weaviate connection is closed
+        if qa_service:
+            qa_service.close()
 
 
 @csrf_exempt

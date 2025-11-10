@@ -531,6 +531,107 @@ Inhalt: {description_text}
                 details=str(e)
             )
     
+    def answer_question(
+        self,
+        item_id: str,
+        question: str,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
+        user_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Answer a question about an item by searching for relevant knowledge
+        and generating an AI answer.
+        
+        This is a convenience method that combines search_related_knowledge
+        and generate_answer_with_kigate into a single call.
+        
+        Args:
+            item_id: UUID of the item (as string)
+            question: User's question text
+            conversation_history: Optional list of previous messages
+            user_id: Optional user ID for KIGate request (defaults to 'anonymous')
+        
+        Returns:
+            Dictionary containing:
+                - success: bool
+                - answer: Generated answer in markdown format
+                - sources: List of source objects
+                - relevance_score: Average relevance of sources used
+                - qa_id: Empty string (for compatibility with support API)
+        
+        Raises:
+            ItemQuestionAnsweringServiceError: If search or answer generation fails
+        """
+        try:
+            logger.info(f"Processing question for item {item_id}: {question[:100]}")
+            
+            # Get the item for context
+            from main.models import Item
+            try:
+                item = Item.objects.get(id=item_id)
+                item_title = item.title
+            except Item.DoesNotExist:
+                raise ItemQuestionAnsweringServiceError(
+                    "Item not found",
+                    details=f"Item with ID {item_id} does not exist"
+                )
+            
+            # Step 1: Search for related knowledge
+            search_results = self.search_related_knowledge(
+                item_id=item_id,
+                question=question,
+                limit=10
+            )
+            
+            if not search_results.get('success'):
+                raise ItemQuestionAnsweringServiceError(
+                    "Failed to search related knowledge",
+                    details="Search operation did not complete successfully"
+                )
+            
+            results = search_results.get('results', [])
+            
+            # Step 2: Generate answer using KIGate
+            answer_result = self.generate_answer_with_kigate(
+                question=question,
+                search_results=results,
+                item_title=item_title,
+                user_id=user_id or 'anonymous',
+                conversation_history=conversation_history
+            )
+            
+            if not answer_result.get('success'):
+                raise ItemQuestionAnsweringServiceError(
+                    "Failed to generate answer",
+                    details="Answer generation did not complete successfully"
+                )
+            
+            answer = answer_result.get('answer', '')
+            sources = answer_result.get('sources_used', [])
+            
+            # Calculate average relevance score
+            avg_relevance = sum(s.get('relevance', 0) for s in sources) / len(sources) if sources else 0.0
+            
+            logger.info(f"Successfully answered question for item {item_id}")
+            
+            return {
+                'success': True,
+                'answer': answer,
+                'sources': sources,
+                'relevance_score': round(avg_relevance, 2),
+                'qa_id': ''  # Not saved to database in this flow
+            }
+            
+        except ItemQuestionAnsweringServiceError:
+            # Re-raise service errors as-is
+            raise
+        except Exception as e:
+            logger.error(f"Failed to answer question: {str(e)}", exc_info=True)
+            raise ItemQuestionAnsweringServiceError(
+                "Failed to answer question",
+                details=str(e)
+            )
+    
     def close(self):
         """Close the Weaviate client connection"""
         if self._client:
