@@ -8838,9 +8838,9 @@ def api_fetch_sentry_errors(request, item_id):
     except Exception as e:
         logger.error(f'Sentry fetch error: {str(e)}')
         logger.error(traceback.format_exc())
+        # Don't expose internal error details to users for security reasons
         return JsonResponse({
             'success': False,
-            'error': 'Unexpected error fetching Sentry errors',
-            'details': str(e)
+            'error': 'Unexpected error fetching Sentry errors. Please check the logs for details.'
         }, status=500)
 

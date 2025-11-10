@@ -42,12 +42,31 @@ class SentryTaskSyncService:
         Returns:
             Tuple of (organization, project_id)
         """
+        from urllib.parse import urlparse
+        
         try:
-            if '@' in dsn and '.ingest.sentry.io' in dsn:
-                parts = dsn.split('@')[1].split('.ingest.sentry.io')
-                org = parts[0]
-                project_id = dsn.split('/')[-1] if '/' in dsn else None
-                return org, project_id
+            # Parse the DSN URL
+            parsed = urlparse(dsn)
+            
+            # Validate it's a Sentry URL
+            if not parsed.hostname or not parsed.hostname.endswith('.ingest.sentry.io'):
+                logger.warning(f"Invalid Sentry DSN hostname: {parsed.hostname}")
+                return None, None
+            
+            # Extract organization from hostname (e.g., 'o123456.ingest.sentry.io' -> 'o123456')
+            hostname_parts = parsed.hostname.split('.')
+            if len(hostname_parts) >= 3 and hostname_parts[-3:] == ['ingest', 'sentry', 'io']:
+                org = hostname_parts[0]
+            else:
+                logger.warning(f"Could not extract organization from hostname: {parsed.hostname}")
+                return None, None
+            
+            # Extract project ID from path
+            path_parts = parsed.path.strip('/').split('/')
+            project_id = path_parts[0] if path_parts and path_parts[0] else None
+            
+            return org, project_id
+            
         except Exception as e:
             logger.error(f"Error parsing DSN: {e}", exc_info=True)
         return None, None
