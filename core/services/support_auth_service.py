@@ -23,11 +23,17 @@ class SupportAuthService:
     Supports two authentication methods:
     1. JWT tokens (recommended) - short-lived tokens with aud='embed'
     2. HMAC signatures - timestamp-based signatures with replay protection
+    
+    Token Types:
+    - Access Token: Short-lived (30 min), used for API requests
+    - Refresh Token: Long-lived (24h), used to obtain new access tokens
     """
     
     JWT_ALGORITHM = 'HS256'
     JWT_AUDIENCE = 'embed'
-    JWT_MAX_AGE_SECONDS = 1800  # 30 minutes
+    JWT_REFRESH_AUDIENCE = 'embed-refresh'
+    JWT_MAX_AGE_SECONDS = 1800  # 30 minutes (access token)
+    JWT_REFRESH_MAX_AGE_SECONDS = 86400  # 24 hours (refresh token)
     
     HMAC_ALGORITHM = 'sha256'
     HMAC_MAX_AGE_SECONDS = 300  # 5 minutes
@@ -217,4 +223,182 @@ class SupportAuthService:
         return {
             'signature': signature,
             'timestamp': timestamp
+        }
+    
+    def generate_refresh_token(self, item_id: str, expires_in: int = JWT_REFRESH_MAX_AGE_SECONDS) -> str:
+        """
+        Generate refresh token for long-lived sessions
+        
+        Args:
+            item_id: UUID of the item
+            expires_in: Expiration time in seconds (default: 24 hours)
+        
+        Returns:
+            Refresh token string
+        """
+        payload = {
+            'item_id': item_id,
+            'aud': self.JWT_REFRESH_AUDIENCE,
+            'exp': int(time.time()) + expires_in,
+            'iat': int(time.time()),
+            'type': 'refresh'
+        }
+        
+        token = jwt.encode(payload, self.jwt_secret, algorithm=self.JWT_ALGORITHM)
+        logger.info(f"Refresh token generated for item {item_id}")
+        return token
+    
+    def verify_refresh_token(self, token: str) -> Dict[str, Any]:
+        """
+        Verify refresh token
+        
+        Args:
+            token: Refresh token string
+        
+        Returns:
+            {
+                'valid': bool,
+                'item_id': str (if valid),
+                'error': str (if invalid)
+            }
+        """
+        try:
+            payload = jwt.decode(
+                token,
+                self.jwt_secret,
+                algorithms=[self.JWT_ALGORITHM],
+                audience=self.JWT_REFRESH_AUDIENCE
+            )
+            
+            # Extract item_id from payload
+            item_id = payload.get('item_id')
+            if not item_id:
+                return {
+                    'valid': False,
+                    'error': 'Missing item_id in token'
+                }
+            
+            # Verify this is a refresh token
+            if payload.get('type') != 'refresh':
+                return {
+                    'valid': False,
+                    'error': 'Not a refresh token'
+                }
+            
+            logger.info(f"Refresh token verified for item {item_id}")
+            return {
+                'valid': True,
+                'item_id': item_id,
+                'payload': payload
+            }
+        
+        except jwt.ExpiredSignatureError:
+            logger.warning("Refresh token expired")
+            return {
+                'valid': False,
+                'error': 'Token expired',
+                'expired': True
+            }
+        except jwt.InvalidAudienceError:
+            logger.warning("Refresh token has invalid audience")
+            return {
+                'valid': False,
+                'error': 'Invalid token audience'
+            }
+        except jwt.InvalidTokenError as e:
+            logger.warning(f"Invalid refresh token: {str(e)}")
+            return {
+                'valid': False,
+                'error': 'Invalid token'
+            }
+    
+    def refresh_access_token(self, refresh_token: str) -> Dict[str, Any]:
+        """
+        Generate new access token using refresh token
+        
+        Args:
+            refresh_token: Valid refresh token
+        
+        Returns:
+            {
+                'success': bool,
+                'access_token': str (if success),
+                'expires_in': int (if success),
+                'error': str (if failure)
+            }
+        """
+        # Verify refresh token
+        result = self.verify_refresh_token(refresh_token)
+        
+        if not result['valid']:
+            return {
+                'success': False,
+                'error': result['error']
+            }
+        
+        # Generate new access token
+        item_id = result['item_id']
+        access_token = self.generate_jwt(item_id)
+        
+        logger.info(f"Access token refreshed for item {item_id}")
+        return {
+            'success': True,
+            'access_token': access_token,
+            'expires_in': self.JWT_MAX_AGE_SECONDS
+        }
+    
+    def verify_embed_key(self, embed_key: str) -> Dict[str, Any]:
+        """
+        Verify a long-lived embed API key
+        
+        Args:
+            embed_key: The embed API key to verify
+        
+        Returns:
+            {
+                'valid': bool,
+                'item_id': str (if valid),
+                'error': str (if invalid)
+            }
+        """
+        from core.services.support_embed_key_service import SupportEmbedKeyService
+        
+        key_service = SupportEmbedKeyService()
+        result = key_service.verify_key(embed_key)
+        
+        return result
+    
+    def exchange_embed_key_for_token(self, embed_key: str) -> Dict[str, Any]:
+        """
+        Exchange a long-lived embed API key for a short-lived access token
+        
+        Args:
+            embed_key: The embed API key
+        
+        Returns:
+            {
+                'success': bool,
+                'access_token': str (if success),
+                'expires_in': int (if success),
+                'error': str (if failure)
+            }
+        """
+        # Verify the embed key
+        result = self.verify_embed_key(embed_key)
+        
+        if not result['valid']:
+            return {
+                'success': False,
+                'error': result['error']
+            }
+        
+        # Generate access token
+        item_id = result['item_id']
+        access_token = self.generate_jwt(item_id)
+        
+        logger.info(f"Access token generated from embed key for item {item_id}")
+        return {
+            'success': True,
+            'access_token': access_token,
+            'expires_in': self.JWT_MAX_AGE_SECONDS
         }

@@ -299,7 +299,9 @@
         // Configuration from URL params
         const urlParams = new URLSearchParams(window.location.search);
         const itemId = urlParams.get('itemId') || '{{ item_id }}';
-        const token = urlParams.get('t') || '{{ token }}';
+        const embedKey = urlParams.get('key') || '{{ embed_key }}';
+        let currentToken = urlParams.get('t') || '{{ token }}';
+        const refreshToken = urlParams.get('r') || '{{ refresh_token }}';
         const locale = urlParams.get('locale') || '{{ locale }}' || 'de';
         const theme = urlParams.get('theme') || '{{ theme }}' || 'auto';
         
@@ -315,6 +317,116 @@
         let chatHistory = [];
         let precheckResult = null;
         let autoAnswerAccepted = false;
+        let tokenRefreshTimer = null;
+        
+        // Exchange embed key for access token
+        async function exchangeEmbedKey() {
+            if (!embedKey) {
+                console.warn('No embed key available');
+                return false;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/token/exchange`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        embed_key: embedKey
+                    })
+                });
+                
+                if (!response.ok) {
+                    console.error('Embed key exchange failed:', response.status);
+                    return false;
+                }
+                
+                const data = await response.json();
+                if (data.success) {
+                    currentToken = data.access_token;
+                    console.log('Access token obtained from embed key');
+                    
+                    // Schedule next exchange (5 minutes before expiry)
+                    const refreshIn = (data.expires_in - 300) * 1000;
+                    if (tokenRefreshTimer) {
+                        clearTimeout(tokenRefreshTimer);
+                    }
+                    tokenRefreshTimer = setTimeout(exchangeEmbedKey, refreshIn);
+                    
+                    return true;
+                } else {
+                    console.error('Embed key exchange failed:', data.error);
+                    return false;
+                }
+            } catch (error) {
+                console.error('Embed key exchange error:', error);
+                return false;
+            }
+        }
+        
+        // Token refresh functionality (for refresh token mode)
+        async function refreshAccessToken() {
+            if (!refreshToken) {
+                console.warn('No refresh token available');
+                return false;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/token/refresh`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        refresh_token: refreshToken
+                    })
+                });
+                
+                if (!response.ok) {
+                    console.error('Token refresh failed:', response.status);
+                    return false;
+                }
+                
+                const data = await response.json();
+                if (data.success) {
+                    currentToken = data.access_token;
+                    console.log('Access token refreshed successfully');
+                    
+                    // Schedule next refresh (5 minutes before expiry)
+                    const refreshIn = (data.expires_in - 300) * 1000;
+                    if (tokenRefreshTimer) {
+                        clearTimeout(tokenRefreshTimer);
+                    }
+                    tokenRefreshTimer = setTimeout(refreshAccessToken, refreshIn);
+                    
+                    return true;
+                } else {
+                    console.error('Token refresh failed:', data.error);
+                    return false;
+                }
+            } catch (error) {
+                console.error('Token refresh error:', error);
+                return false;
+            }
+        }
+        
+        // Initialize authentication mode
+        if (embedKey) {
+            // Embed key mode: exchange for access token immediately
+            exchangeEmbedKey().then(success => {
+                if (!success) {
+                    console.error('Failed to obtain initial access token from embed key');
+                }
+            });
+            console.log('Embed key mode: automatic token exchange enabled');
+        } else if (refreshToken) {
+            // Refresh token mode: schedule refresh before expiry
+            tokenRefreshTimer = setTimeout(refreshAccessToken, 25 * 60 * 1000);
+            console.log('Refresh token mode: automatic token refresh enabled');
+        } else if (currentToken) {
+            console.log('Access token mode: no automatic refresh (token expires in 30 min)');
+        }
         
         // Chat functionality
         const chatMessages = document.getElementById('chatMessages');
@@ -370,7 +482,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': `Bearer ${currentToken}`
                     },
                     body: JSON.stringify({
                         message,
@@ -379,6 +491,20 @@
                 });
                 
                 hideThinking();
+                
+                // Check if token expired and try to refresh/exchange
+                if (response.status === 401) {
+                    let refreshed = false;
+                    if (embedKey) {
+                        refreshed = await exchangeEmbedKey();
+                    } else if (refreshToken) {
+                        refreshed = await refreshAccessToken();
+                    }
+                    if (refreshed) {
+                        // Retry the request with new token
+                        return sendChatMessage();
+                    }
+                }
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
@@ -428,10 +554,26 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': `Bearer ${currentToken}`
                     },
                     body: JSON.stringify({ type, title, description })
                 });
+                
+                // Check if token expired and try to refresh/exchange
+                if (response.status === 401) {
+                    let refreshed = false;
+                    if (embedKey) {
+                        refreshed = await exchangeEmbedKey();
+                    } else if (refreshToken) {
+                        refreshed = await refreshAccessToken();
+                    }
+                    if (refreshed) {
+                        // Retry the request with new token
+                        precheckBtn.disabled = false;
+                        precheckBtn.innerHTML = '<i class="bi bi-search"></i> Vorab prüfen';
+                        return precheckBtn.click();
+                    }
+                }
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
@@ -539,10 +681,26 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': `Bearer ${currentToken}`
                     },
                     body: JSON.stringify(payload)
                 });
+                
+                // Check if token expired and try to refresh/exchange
+                if (response.status === 401) {
+                    let refreshed = false;
+                    if (embedKey) {
+                        refreshed = await exchangeEmbedKey();
+                    } else if (refreshToken) {
+                        refreshed = await refreshAccessToken();
+                    }
+                    if (refreshed) {
+                        // Retry the request with new token
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '<i class="bi bi-send"></i> Absenden';
+                        return supportForm.dispatchEvent(new Event('submit'));
+                    }
+                }
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
