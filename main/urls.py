@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, api_views, auth_views, views_activity
+from . import views, api_views, auth_views, views_activity, support_views, support_api_views
 
 app_name = 'main'
 
@@ -251,4 +251,12 @@ urlpatterns = [
     
     # Activity Sidebar
     path('activity/sidebar', views_activity.activity_sidebar, name='activity_sidebar'),
+    
+    # Support Embed URLs
+    path('embed/support', support_views.embed_support_view, name='embed_support'),
+    
+    # Support API Endpoints
+    path('api/support/chat/send/<uuid:item_id>', support_api_views.api_support_chat_send, name='api_support_chat_send'),
+    path('api/support/precheck/<uuid:item_id>', support_api_views.api_support_precheck, name='api_support_precheck'),
+    path('api/support/submit/<uuid:item_id>', support_api_views.api_support_submit, name='api_support_submit'),
 ]

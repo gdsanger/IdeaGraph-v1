@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="{{ locale }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-orange: #E59A28;
+            --secondary-cyan: #6ECADC;
+            --dark-bg: #1a1a1a;
+            --dark-surface: #2d2d2d;
+            --light-bg: #ffffff;
+            --light-surface: #f8f9fa;
+        }
+        
+        /* Theme support via media query */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: var(--dark-bg);
+                color: #e0e0e0;
+            }
+            .card {
+                background-color: var(--dark-surface);
+                border-color: #444;
+            }
+            .form-control, .form-select {
+                background-color: var(--dark-surface);
+                color: #e0e0e0;
+                border-color: #444;
+            }
+            .form-control:focus, .form-select:focus {
+                background-color: var(--dark-surface);
+                color: #e0e0e0;
+                border-color: var(--primary-orange);
+            }
+            .nav-tabs .nav-link {
+                color: #aaa;
+            }
+            .nav-tabs .nav-link.active {
+                background-color: var(--dark-surface);
+                border-color: #444;
+                color: #e0e0e0;
+            }
+        }
+        
+        @media (prefers-color-scheme: light) {
+            body {
+                background-color: var(--light-bg);
+                color: #212529;
+            }
+            .card {
+                background-color: var(--light-surface);
+            }
+        }
+        
+        /* Override for explicit theme parameter */
+        body[data-theme="dark"] {
+            background-color: var(--dark-bg) !important;
+            color: #e0e0e0 !important;
+        }
+        body[data-theme="dark"] .card {
+            background-color: var(--dark-surface) !important;
+            border-color: #444 !important;
+        }
+        body[data-theme="dark"] .form-control, body[data-theme="dark"] .form-select {
+            background-color: var(--dark-surface) !important;
+            color: #e0e0e0 !important;
+            border-color: #444 !important;
+        }
+        
+        body[data-theme="light"] {
+            background-color: var(--light-bg) !important;
+            color: #212529 !important;
+        }
+        body[data-theme="light"] .card {
+            background-color: var(--light-surface) !important;
+        }
+        
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 420px;
+            margin: 0;
+            padding: 1rem;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-orange);
+            border-color: var(--primary-orange);
+        }
+        .btn-primary:hover {
+            background-color: #d48a1f;
+            border-color: #d48a1f;
+        }
+        
+        .nav-tabs .nav-link.active {
+            color: var(--primary-orange);
+        }
+        
+        #chatContainer {
+            height: 500px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #chatMessages {
+            flex: 1;
+            overflow-y: auto;
+            border: 1px solid #444;
+            border-radius: 0.25rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .message {
+            margin-bottom: 1rem;
+        }
+        
+        .message-user {
+            text-align: right;
+        }
+        
+        .message-assistant {
+            text-align: left;
+        }
+        
+        .message-content {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            max-width: 80%;
+        }
+        
+        .message-user .message-content {
+            background-color: var(--primary-orange);
+            color: white;
+        }
+        
+        .message-assistant .message-content {
+            background-color: var(--secondary-cyan);
+            color: #1a1a1a;
+        }
+        
+        .duplicate-item {
+            border-left: 3px solid var(--primary-orange);
+            padding-left: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .duplicate-high {
+            border-left-color: #dc3545;
+        }
+        
+        .duplicate-medium {
+            border-left-color: #ffc107;
+        }
+        
+        .thinking-indicator {
+            display: flex;
+            gap: 0.25rem;
+            align-items: center;
+            padding: 0.5rem;
+        }
+        
+        .thinking-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--secondary-cyan);
+            animation: pulse 1.4s infinite ease-in-out;
+        }
+        
+        .thinking-dot:nth-child(1) { animation-delay: 0s; }
+        .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+        .thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes pulse {
+            0%, 60%, 100% { transform: scale(0.8); opacity: 0.5; }
+            30% { transform: scale(1.2); opacity: 1; }
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body data-theme="{{ theme }}">
+    <div class="container-fluid">
+        <!-- Tabs -->
+        <ul class="nav nav-tabs mb-3" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="chat-tab" data-bs-toggle="tab" data-bs-target="#chat" type="button" role="tab">
+                    <i class="bi bi-chat-dots"></i> Chat
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="submit-tab" data-bs-toggle="tab" data-bs-target="#submit" type="button" role="tab">
+                    <i class="bi bi-pencil-square"></i> Frage stellen
+                </button>
+            </li>
+        </ul>
+        
+        <!-- Tab Content -->
+        <div class="tab-content">
+            <!-- Chat Tab -->
+            <div class="tab-pane fade show active" id="chat" role="tabpanel">
+                <div id="chatContainer">
+                    <div id="chatMessages"></div>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="chatInput" placeholder="Stellen Sie eine Frage...">
+                        <button class="btn btn-primary" id="chatSend">
+                            <i class="bi bi-send"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Submit Form Tab -->
+            <div class="tab-pane fade" id="submit" role="tabpanel">
+                <form id="supportForm">
+                    <div class="mb-3">
+                        <label for="taskType" class="form-label">Typ</label>
+                        <select class="form-select" id="taskType" required>
+                            <option value="support">Support</option>
+                            <option value="bug">Bug</option>
+                            <option value="feature">Feature</option>
+                            <option value="frage">Frage</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="taskTitle" class="form-label">Titel</label>
+                        <input type="text" class="form-control" id="taskTitle" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="taskDescription" class="form-label">Beschreibung</label>
+                        <textarea class="form-control" id="taskDescription" rows="4"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="reporterEmail" class="form-label">E-Mail (optional)</label>
+                        <input type="email" class="form-control" id="reporterEmail">
+                    </div>
+                    
+                    <button type="button" class="btn btn-secondary w-100 mb-2" id="precheckBtn">
+                        <i class="bi bi-search"></i> Vorab prüfen
+                    </button>
+                    
+                    <!-- Precheck Results -->
+                    <div id="precheckResults" class="hidden">
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h6 class="card-title">Automatische Antwort</h6>
+                                <div id="autoAnswerContent"></div>
+                                <div class="mt-2">
+                                    <strong>Hilft Ihnen das?</strong>
+                                    <div class="btn-group w-100 mt-2" role="group">
+                                        <button type="button" class="btn btn-success" id="helpfulYes">
+                                            <i class="bi bi-check-lg"></i> Ja
+                                        </button>
+                                        <button type="button" class="btn btn-danger" id="helpfulNo">
+                                            <i class="bi bi-x-lg"></i> Nein
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="duplicatesSection" class="hidden">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-title">Ähnliche Anfragen</h6>
+                                    <div id="duplicatesList"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100" id="submitBtn">
+                        <i class="bi bi-send"></i> Absenden
+                    </button>
+                    
+                    <div id="submitMessage" class="alert mt-3 hidden"></div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Configuration from URL params
+        const urlParams = new URLSearchParams(window.location.search);
+        const itemId = urlParams.get('itemId') || '{{ item_id }}';
+        const token = urlParams.get('t') || '{{ token }}';
+        const locale = urlParams.get('locale') || '{{ locale }}' || 'de';
+        const theme = urlParams.get('theme') || '{{ theme }}' || 'auto';
+        
+        // Apply theme
+        if (theme !== 'auto') {
+            document.body.setAttribute('data-theme', theme);
+        }
+        
+        // API Base URL
+        const API_BASE = `/api/support`;
+        
+        // Chat state
+        let chatHistory = [];
+        let precheckResult = null;
+        let autoAnswerAccepted = false;
+        
+        // Chat functionality
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const chatSend = document.getElementById('chatSend');
+        
+        function addMessage(role, content) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message message-${role}`;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = content;
+            
+            messageDiv.appendChild(contentDiv);
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            // Add to history
+            chatHistory.push({ role, content });
+        }
+        
+        function showThinking() {
+            const thinkingDiv = document.createElement('div');
+            thinkingDiv.className = 'thinking-indicator';
+            thinkingDiv.id = 'thinkingIndicator';
+            thinkingDiv.innerHTML = `
+                <div class="thinking-dot"></div>
+                <div class="thinking-dot"></div>
+                <div class="thinking-dot"></div>
+            `;
+            chatMessages.appendChild(thinkingDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        function hideThinking() {
+            const thinkingDiv = document.getElementById('thinkingIndicator');
+            if (thinkingDiv) {
+                thinkingDiv.remove();
+            }
+        }
+        
+        async function sendChatMessage() {
+            const message = chatInput.value.trim();
+            if (!message) return;
+            
+            addMessage('user', message);
+            chatInput.value = '';
+            showThinking();
+            
+            try {
+                const response = await fetch(`${API_BASE}/chat/send/${itemId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        message,
+                        conversation_history: chatHistory.slice(-6)  // Last 3 exchanges
+                    })
+                });
+                
+                hideThinking();
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                if (data.success) {
+                    addMessage('assistant', data.answer);
+                } else {
+                    addMessage('assistant', 'Entschuldigung, ich konnte keine Antwort generieren.');
+                }
+            } catch (error) {
+                hideThinking();
+                console.error('Chat error:', error);
+                addMessage('assistant', 'Fehler beim Senden der Nachricht.');
+            }
+        }
+        
+        chatSend.addEventListener('click', sendChatMessage);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendChatMessage();
+            }
+        });
+        
+        // Form functionality
+        const precheckBtn = document.getElementById('precheckBtn');
+        const precheckResults = document.getElementById('precheckResults');
+        const submitBtn = document.getElementById('submitBtn');
+        const supportForm = document.getElementById('supportForm');
+        
+        precheckBtn.addEventListener('click', async () => {
+            const type = document.getElementById('taskType').value;
+            const title = document.getElementById('taskTitle').value.trim();
+            const description = document.getElementById('taskDescription').value.trim();
+            
+            if (!title) {
+                alert('Bitte geben Sie einen Titel ein.');
+                return;
+            }
+            
+            precheckBtn.disabled = true;
+            precheckBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Prüfe...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/precheck/${itemId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ type, title, description })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                if (data.success) {
+                    precheckResult = data;
+                    displayPrecheckResults(data);
+                } else {
+                    alert('Fehler bei der Prüfung: ' + (data.error || 'Unbekannter Fehler'));
+                }
+            } catch (error) {
+                console.error('Precheck error:', error);
+                alert('Fehler beim Prüfen der Anfrage.');
+            } finally {
+                precheckBtn.disabled = false;
+                precheckBtn.innerHTML = '<i class="bi bi-search"></i> Vorab prüfen';
+            }
+        });
+        
+        function displayPrecheckResults(data) {
+            // Show results section
+            precheckResults.classList.remove('hidden');
+            
+            // Display auto-answer
+            const autoAnswerContent = document.getElementById('autoAnswerContent');
+            if (data.autoAnswer && data.autoAnswer.summary) {
+                autoAnswerContent.innerHTML = `
+                    <p>${data.autoAnswer.summary}</p>
+                    <small class="text-muted">Konfidenz: ${(data.autoAnswer.confidence * 100).toFixed(0)}%</small>
+                `;
+            } else {
+                autoAnswerContent.innerHTML = '<p class="text-muted">Keine automatische Antwort verfügbar.</p>';
+            }
+            
+            // Display duplicates
+            if (data.duplicates && data.duplicates.length > 0) {
+                const duplicatesSection = document.getElementById('duplicatesSection');
+                const duplicatesList = document.getElementById('duplicatesList');
+                
+                duplicatesSection.classList.remove('hidden');
+                duplicatesList.innerHTML = data.duplicates.map(dup => {
+                    const category = dup.similarity >= 0.9 ? 'high' : (dup.similarity >= 0.8 ? 'medium' : 'low');
+                    return `
+                        <div class="duplicate-item duplicate-${category}">
+                            <strong>${dup.title}</strong><br>
+                            <small>Ähnlichkeit: ${(dup.similarity * 100).toFixed(0)}% | Status: ${dup.status}</small>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+        
+        document.getElementById('helpfulYes').addEventListener('click', () => {
+            autoAnswerAccepted = true;
+            alert('Vielen Dank! Ihre Anfrage wird als gelöst markiert.');
+            supportForm.reset();
+            precheckResults.classList.add('hidden');
+        });
+        
+        document.getElementById('helpfulNo').addEventListener('click', () => {
+            autoAnswerAccepted = false;
+            alert('Die Anfrage wird trotzdem abgesendet.');
+        });
+        
+        supportForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const type = document.getElementById('taskType').value;
+            const title = document.getElementById('taskTitle').value.trim();
+            const description = document.getElementById('taskDescription').value.trim();
+            const email = document.getElementById('reporterEmail').value.trim();
+            
+            if (!title) {
+                alert('Bitte geben Sie einen Titel ein.');
+                return;
+            }
+            
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Wird gesendet...';
+            
+            const payload = {
+                type,
+                title,
+                description,
+                reporter: { email },
+                chatHistory: chatHistory.length > 0 ? chatHistory.slice(-6) : undefined
+            };
+            
+            if (precheckResult) {
+                payload.autoAnswer = {
+                    offered: true,
+                    accepted: autoAnswerAccepted,
+                    summary: precheckResult.autoAnswer?.summary || ''
+                };
+                
+                if (precheckResult.duplicates && precheckResult.duplicates.length > 0) {
+                    payload.duplicateOfTaskId = precheckResult.duplicates[0].task_id;
+                }
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/submit/${itemId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                if (data.success) {
+                    const messageDiv = document.getElementById('submitMessage');
+                    messageDiv.className = 'alert alert-success mt-3';
+                    messageDiv.textContent = 'Ihre Anfrage wurde erfolgreich abgesendet!';
+                    messageDiv.classList.remove('hidden');
+                    
+                    supportForm.reset();
+                    precheckResults.classList.add('hidden');
+                    precheckResult = null;
+                } else {
+                    throw new Error(data.error || 'Unbekannter Fehler');
+                }
+            } catch (error) {
+                console.error('Submit error:', error);
+                const messageDiv = document.getElementById('submitMessage');
+                messageDiv.className = 'alert alert-danger mt-3';
+                messageDiv.textContent = 'Fehler beim Absenden: ' + error.message;
+                messageDiv.classList.remove('hidden');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-send"></i> Absenden';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -594,6 +594,16 @@ class Task(models.Model):
     ai_enhanced = models.BooleanField(default=False)
     ai_generated = models.BooleanField(default=False)
     
+    # Support Embed fields (for embeddable support chat/form)
+    source = models.CharField(max_length=50, blank=True, default='', help_text='Source of task creation (e.g., "support", "internal")')
+    reporter_email = models.EmailField(max_length=255, blank=True, default='', help_text='Email of external reporter (for support forms)')
+    reporter_referrer = models.CharField(max_length=500, blank=True, default='', help_text='Referrer URL of external reporter')
+    auto_answer_offered = models.BooleanField(default=False, help_text='Whether an auto-answer was offered during submission')
+    auto_answer_accepted = models.BooleanField(default=False, help_text='Whether the user accepted the auto-answer')
+    auto_answer_text = models.TextField(blank=True, default='', help_text='Text of the auto-answer that was offered')
+    duplicate_of_task_id = models.UUIDField(null=True, blank=True, help_text='UUID of task this might be a duplicate of')
+    client_fingerprint = models.CharField(max_length=255, blank=True, default='', help_text='Hash of referrer+UA for rate limiting')
+    
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

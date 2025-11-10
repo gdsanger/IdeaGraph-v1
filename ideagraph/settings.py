@@ -49,6 +49,11 @@ CSRF_TRUSTED_ORIGINS = [
 # In production, consider setting to 'same-origin' if using HTTPS
 SECURE_CROSS_ORIGIN_OPENER_POLICY = None
 
+# Support Embed Configuration
+# Allowlist of domains that can embed the support widget
+SUPPORT_EMBED_ALLOWLIST = os.getenv('SUPPORT_EMBED_ALLOWLIST', '').split(',')
+SUPPORT_EMBED_SECRET = os.getenv('SUPPORT_EMBED_SECRET', SECRET_KEY)
+
 
 # Application definition
 
