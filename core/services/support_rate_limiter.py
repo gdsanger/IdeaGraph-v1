@@ -74,7 +74,13 @@ class SupportRateLimiter:
         
         if current >= self.limit:
             # Rate limit exceeded
-            ttl = cache.ttl(cache_key) or self.window
+            # Try to get TTL (only works with Redis)
+            try:
+                ttl = cache.ttl(cache_key) or self.window
+            except (AttributeError, NotImplementedError):
+                # LocMemCache doesn't support ttl()
+                ttl = self.window
+            
             logger.warning(f"Rate limit exceeded for {cache_key}: {current}/{self.limit}")
             return {
                 'allowed': False,
@@ -94,7 +100,12 @@ class SupportRateLimiter:
             try:
                 cache.incr(cache_key)
                 remaining = self.limit - (current + 1)
-                reset_in = cache.ttl(cache_key) or self.window
+                # Try to get TTL (only works with Redis)
+                try:
+                    reset_in = cache.ttl(cache_key) or self.window
+                except (AttributeError, NotImplementedError):
+                    # LocMemCache doesn't support ttl()
+                    reset_in = self.window
             except ValueError:
                 # Key expired between get and incr, start fresh
                 cache.set(cache_key, 1, self.window)

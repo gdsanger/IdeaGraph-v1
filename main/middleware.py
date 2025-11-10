@@ -17,6 +17,7 @@ class AuthenticationMiddleware:
         '/forgot-password/',
         '/reset-password/',
         '/api/',  # API uses JWT auth
+        '/embed/',  # Embed endpoints use their own auth
         '/static/',  # Static files should be publicly accessible
     ]
     

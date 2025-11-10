@@ -7,11 +7,21 @@ Views for embeddable support chat and form.
 import logging
 from django.shortcuts import render
 from django.views.decorators.clickjacking import xframe_options_exempt
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 
 logger = logging.getLogger('support_views')
 
 
+# Exempt from authentication middleware
+def exempt_from_auth(view_func):
+    """Mark view as exempt from authentication middleware"""
+    view_func.exempt_from_auth = True
+    return view_func
+
+
 @xframe_options_exempt
+@exempt_from_auth
 def embed_support_view(request):
     """
     GET /embed/support
