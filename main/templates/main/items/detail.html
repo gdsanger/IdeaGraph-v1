@@ -559,6 +559,9 @@
                                         <button type="button" class="btn btn-secondary" id="sendEmailBtn" data-bs-toggle="modal" data-bs-target="#sendEmailModal">
                                             <i class="bi bi-envelope"></i> Send via Email
                                         </button>
+                                        <button type="button" class="btn btn-outline-warning" id="embedSupportBtn" data-bs-toggle="modal" data-bs-target="#embedSupportModal">
+                                            <i class="bi bi-code-square"></i> Embed Support
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -884,6 +887,114 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Embed Support Modal -->
+    <div class="modal fade" id="embedSupportModal" tabindex="-1" aria-labelledby="embedSupportModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="embedSupportModalLabel">
+                        <i class="bi bi-code-square"></i> Embed Support Client
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Nav Tabs -->
+                    <ul class="nav nav-tabs mb-3" id="embedSupportTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="create-key-tab" data-bs-toggle="tab" data-bs-target="#create-key-pane" type="button" role="tab">
+                                <i class="bi bi-plus-circle"></i> Neuen Key erstellen
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="manage-keys-tab" data-bs-toggle="tab" data-bs-target="#manage-keys-pane" type="button" role="tab">
+                                <i class="bi bi-key"></i> Keys verwalten
+                            </button>
+                        </li>
+                    </ul>
+
+                    <!-- Tab Content -->
+                    <div class="tab-content" id="embedSupportTabsContent">
+                        <!-- Create Key Tab -->
+                        <div class="tab-pane fade show active" id="create-key-pane" role="tabpanel">
+                            <form id="createEmbedKeyForm">
+                                <div class="mb-3">
+                                    <label for="embedKeyName" class="form-label">Name <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="embedKeyName" name="name" required 
+                                           placeholder="z.B. Produktions-Website">
+                                    <div class="form-text">Beschreibender Name für diesen Key (z.B. wo er eingesetzt wird)</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="embedKeyReferenceUrl" class="form-label">Referenz-URL (optional)</label>
+                                    <input type="url" class="form-control" id="embedKeyReferenceUrl" name="reference_url" 
+                                           placeholder="https://example.com">
+                                    <div class="form-text">URL der Website, auf der der Support eingebunden werden soll (nur zur Dokumentation)</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="embedKeyExpiry" class="form-label">Gültigkeitsdauer</label>
+                                    <select class="form-select" id="embedKeyExpiry" name="expires_in_days">
+                                        <option value="365">1 Jahr</option>
+                                        <option value="730" selected>2 Jahre</option>
+                                        <option value="1095">3 Jahre</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="bi bi-key"></i> Key generieren
+                                </button>
+                            </form>
+
+                            <!-- Generated Key Display -->
+                            <div id="generatedKeyDisplay" style="display: none;" class="mt-4">
+                                <div class="alert alert-success">
+                                    <h6><i class="bi bi-check-circle"></i> Key erfolgreich generiert!</h6>
+                                    <p class="mb-2"><strong>Wichtig:</strong> Der Key wird nur einmal angezeigt. Bitte kopieren Sie ihn jetzt.</p>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">API Key</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control font-monospace" id="generatedKeyValue" readonly>
+                                        <button class="btn btn-outline-secondary" type="button" id="copyKeyBtn">
+                                            <i class="bi bi-clipboard"></i> Kopieren
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">IFrame Code</label>
+                                    <textarea class="form-control font-monospace" id="generatedIframeCode" rows="6" readonly></textarea>
+                                    <button class="btn btn-outline-secondary mt-2 w-100" type="button" id="copyIframeBtn">
+                                        <i class="bi bi-clipboard"></i> IFrame Code kopieren
+                                    </button>
+                                </div>
+
+                                <div class="alert alert-info">
+                                    <i class="bi bi-info-circle"></i> Der Key ist gültig bis: <strong id="keyExpiryDate"></strong>
+                                </div>
+
+                                <button type="button" class="btn btn-secondary w-100" onclick="location.reload()">
+                                    <i class="bi bi-arrow-clockwise"></i> Fertig (Seite neu laden)
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Manage Keys Tab -->
+                        <div class="tab-pane fade" id="manage-keys-pane" role="tabpanel">
+                            <div id="embedKeysList">
+                                <div class="text-center text-muted py-4">
+                                    <div class="spinner-border" role="status">
+                                        <span class="visually-hidden">Lädt...</span>
+                                    </div>
+                                    <p class="mt-2">Lade Keys...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
 {% endblock %}
 
@@ -1851,6 +1962,275 @@ if (showCompletedSwitch) {
             }
         }
         return cookieValue;
+    }
+})();
+
+// ===========================
+// Embed Support Functionality
+// ===========================
+(function() {
+    const itemId = '{{ item.id }}';
+    const embedSupportModal = document.getElementById('embedSupportModal');
+    
+    // Load keys when modal is shown and manage tab is clicked
+    if (embedSupportModal) {
+        embedSupportModal.addEventListener('shown.bs.modal', function() {
+            // Load keys if manage tab is active
+            const manageTab = document.getElementById('manage-keys-tab');
+            if (manageTab && manageTab.classList.contains('active')) {
+                loadEmbedKeys();
+            }
+        });
+        
+        // Load keys when switching to manage tab
+        document.getElementById('manage-keys-tab')?.addEventListener('click', function() {
+            loadEmbedKeys();
+        });
+    }
+    
+    // Handle create key form submission
+    const createKeyForm = document.getElementById('createEmbedKeyForm');
+    if (createKeyForm) {
+        createKeyForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                name: document.getElementById('embedKeyName').value.trim(),
+                reference_url: document.getElementById('embedKeyReferenceUrl').value.trim(),
+                expires_in_days: parseInt(document.getElementById('embedKeyExpiry').value)
+            };
+            
+            try {
+                const response = await fetch(`/api/items/${itemId}/embed-keys/generate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Hide form
+                    createKeyForm.style.display = 'none';
+                    
+                    // Show generated key
+                    const display = document.getElementById('generatedKeyDisplay');
+                    display.style.display = 'block';
+                    
+                    // Set key value
+                    document.getElementById('generatedKeyValue').value = result.key;
+                    
+                    // Generate iframe code
+                    const baseUrl = window.location.origin;
+                    const iframeCode = `<iframe 
+    src="${baseUrl}/embed/support?itemId=${itemId}&key=${result.key}"
+    width="420"
+    height="650"
+    frameborder="0"
+    style="border: 1px solid #ddd; border-radius: 8px;">
+</iframe>`;
+                    document.getElementById('generatedIframeCode').value = iframeCode;
+                    
+                    // Set expiry date
+                    const expiryDate = new Date(result.expires_at);
+                    document.getElementById('keyExpiryDate').textContent = expiryDate.toLocaleDateString('de-DE', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    });
+                    
+                    // Setup copy buttons
+                    document.getElementById('copyKeyBtn').addEventListener('click', function() {
+                        copyToClipboard(result.key, this);
+                    });
+                    
+                    document.getElementById('copyIframeBtn').addEventListener('click', function() {
+                        copyToClipboard(iframeCode, this);
+                    });
+                } else {
+                    alert('Fehler beim Generieren des Keys: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error generating key:', error);
+                alert('Fehler beim Generieren des Keys. Bitte versuchen Sie es erneut.');
+            }
+        });
+    }
+    
+    // Load embed keys
+    async function loadEmbedKeys() {
+        const listContainer = document.getElementById('embedKeysList');
+        if (!listContainer) return;
+        
+        // Show loading
+        listContainer.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Lädt...</span>
+                </div>
+                <p class="mt-2">Lade Keys...</p>
+            </div>
+        `;
+        
+        try {
+            const response = await fetch(`/api/items/${itemId}/embed-keys/list`, {
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                if (result.keys.length === 0) {
+                    listContainer.innerHTML = `
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-key" style="font-size: 3rem;"></i>
+                            <p class="mt-2">Noch keine Keys erstellt.</p>
+                            <p>Erstellen Sie einen neuen Key im Tab "Neuen Key erstellen".</p>
+                        </div>
+                    `;
+                } else {
+                    listContainer.innerHTML = renderKeysList(result.keys);
+                    
+                    // Setup delete buttons
+                    result.keys.forEach(key => {
+                        const deleteBtn = document.getElementById(`delete-key-${key.id}`);
+                        if (deleteBtn) {
+                            deleteBtn.addEventListener('click', function() {
+                                deleteEmbedKey(key.id, key.name);
+                            });
+                        }
+                    });
+                }
+            } else {
+                listContainer.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        Fehler beim Laden der Keys: ${result.error}
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Error loading keys:', error);
+            listContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i> 
+                    Fehler beim Laden der Keys. Bitte versuchen Sie es erneut.
+                </div>
+            `;
+        }
+    }
+    
+    // Render keys list HTML
+    function renderKeysList(keys) {
+        return keys.map(key => {
+            const createdDate = new Date(key.created_at).toLocaleDateString('de-DE', {
+                year: 'numeric', month: 'short', day: 'numeric'
+            });
+            const expiresDate = new Date(key.expires_at).toLocaleDateString('de-DE', {
+                year: 'numeric', month: 'short', day: 'numeric'
+            });
+            const lastUsed = key.last_used_at 
+                ? new Date(key.last_used_at).toLocaleDateString('de-DE', {
+                    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                })
+                : 'Noch nicht verwendet';
+            
+            const statusBadge = key.is_valid 
+                ? '<span class="badge bg-success">Aktiv</span>'
+                : '<span class="badge bg-danger">Abgelaufen</span>';
+            
+            return `
+                <div class="card mb-3 bg-secondary">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <h6 class="card-title mb-1">
+                                    <i class="bi bi-key"></i> ${escapeHtml(key.name)}
+                                    ${statusBadge}
+                                </h6>
+                                <p class="text-muted small mb-2">
+                                    Key-Prefix: <code>${escapeHtml(key.key_prefix)}...</code>
+                                </p>
+                                <div class="row small">
+                                    <div class="col-md-6">
+                                        <i class="bi bi-calendar-plus"></i> Erstellt: ${createdDate}<br>
+                                        <i class="bi bi-calendar-x"></i> Läuft ab: ${expiresDate}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <i class="bi bi-clock-history"></i> Zuletzt verwendet: ${lastUsed}<br>
+                                        <i class="bi bi-graph-up"></i> Verwendungen: ${key.usage_count}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="ms-3">
+                                <button type="button" class="btn btn-danger btn-sm" id="delete-key-${key.id}">
+                                    <i class="bi bi-trash"></i> Löschen
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    // Delete embed key
+    async function deleteEmbedKey(keyId, keyName) {
+        if (!confirm(`Möchten Sie den Key "${keyName}" wirklich löschen?\n\nDieser Key kann danach nicht mehr verwendet werden.`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/items/${itemId}/embed-keys/${keyId}/delete`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                // Reload keys list
+                loadEmbedKeys();
+            } else {
+                alert('Fehler beim Löschen des Keys: ' + result.error);
+            }
+        } catch (error) {
+            console.error('Error deleting key:', error);
+            alert('Fehler beim Löschen des Keys. Bitte versuchen Sie es erneut.');
+        }
+    }
+    
+    // Copy to clipboard helper
+    function copyToClipboard(text, button) {
+        navigator.clipboard.writeText(text).then(function() {
+            const originalHtml = button.innerHTML;
+            button.innerHTML = '<i class="bi bi-check"></i> Kopiert!';
+            button.classList.add('btn-success');
+            button.classList.remove('btn-outline-secondary');
+            
+            setTimeout(function() {
+                button.innerHTML = originalHtml;
+                button.classList.remove('btn-success');
+                button.classList.add('btn-outline-secondary');
+            }, 2000);
+        }).catch(function(err) {
+            console.error('Failed to copy:', err);
+            alert('Fehler beim Kopieren. Bitte manuell kopieren.');
+        });
+    }
+    
+    // Escape HTML helper
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 })();
 

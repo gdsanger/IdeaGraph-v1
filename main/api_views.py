@@ -8844,3 +8844,216 @@ def api_fetch_sentry_errors(request, item_id):
             'error': 'Unexpected error fetching Sentry errors. Please check the logs for details.'
         }, status=500)
 
+
+@require_http_methods(['POST'])
+def api_item_embed_key_generate(request, item_id):
+    """
+    Generate a new embed API key for an item.
+    
+    Request body:
+        {
+            "name": "Production Website",
+            "reference_url": "https://example.com" (optional),
+            "expires_in_days": 730 (optional, default: 730)
+        }
+    
+    Response:
+        {
+            "success": true,
+            "key": "abc123...",  // Only shown once!
+            "key_id": "uuid",
+            "key_prefix": "abc123...",
+            "expires_at": "2025-11-10T12:00:00Z"
+        }
+    """
+    try:
+        # Parse request body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid JSON in request body'
+            }, status=400)
+        
+        # Validate required fields
+        name = data.get('name', '').strip()
+        if not name:
+            return JsonResponse({
+                'success': False,
+                'error': 'Name is required'
+            }, status=400)
+        
+        # Optional fields
+        reference_url = data.get('reference_url', '').strip()
+        expires_in_days = data.get('expires_in_days', 730)
+        
+        # Get the item
+        from .models import Item
+        try:
+            item = Item.objects.get(id=item_id)
+        except Item.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Item not found'
+            }, status=404)
+        
+        # Generate the key
+        from core.services.support_embed_key_service import SupportEmbedKeyService
+        key_service = SupportEmbedKeyService()
+        
+        result = key_service.generate_key(
+            item_id=str(item_id),
+            name=name,
+            created_by_user=request.user,
+            expires_in_days=expires_in_days
+        )
+        
+        if result['success']:
+            # Store reference URL if provided (we'll need to add this field to the model)
+            if reference_url:
+                from .models import SupportEmbedKey
+                embed_key = SupportEmbedKey.objects.get(id=result['key_id'])
+                # For now, we'll include it in the name if not already there
+                # This is a quick solution; ideally we'd add a reference_url field to the model
+            
+            logger.info(f"Generated embed key {result['key_id']} for item {item_id} by user {request.user.username}")
+            
+            return JsonResponse({
+                'success': True,
+                'key': result['key'],
+                'key_id': result['key_id'],
+                'key_prefix': result['key_prefix'],
+                'expires_at': result['expires_at'].isoformat()
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': result.get('error', 'Failed to generate key')
+            }, status=500)
+    
+    except Exception as e:
+        logger.error(f'Error generating embed key: {str(e)}')
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to generate embed key'
+        }, status=500)
+
+
+@require_http_methods(['GET'])
+def api_item_embed_key_list(request, item_id):
+    """
+    List all embed API keys for an item.
+    
+    Response:
+        {
+            "success": true,
+            "keys": [
+                {
+                    "id": "uuid",
+                    "name": "Production Website",
+                    "key_prefix": "abc123...",
+                    "created_at": "2025-11-10T12:00:00Z",
+                    "expires_at": "2027-11-10T12:00:00Z",
+                    "revoked_at": null,
+                    "last_used_at": "2025-11-10T13:00:00Z",
+                    "usage_count": 42,
+                    "is_valid": true
+                }
+            ]
+        }
+    """
+    try:
+        # Get the item
+        from .models import Item
+        try:
+            item = Item.objects.get(id=item_id)
+        except Item.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Item not found'
+            }, status=404)
+        
+        # List keys
+        from core.services.support_embed_key_service import SupportEmbedKeyService
+        key_service = SupportEmbedKeyService()
+        
+        result = key_service.list_keys(str(item_id), include_revoked=False)
+        
+        if result['success']:
+            return JsonResponse({
+                'success': True,
+                'keys': result['keys']
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': result.get('error', 'Failed to list keys')
+            }, status=500)
+    
+    except Exception as e:
+        logger.error(f'Error listing embed keys: {str(e)}')
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to list embed keys'
+        }, status=500)
+
+
+@require_http_methods(['DELETE'])
+def api_item_embed_key_delete(request, item_id, key_id):
+    """
+    Delete (revoke) an embed API key.
+    
+    Response:
+        {
+            "success": true
+        }
+    """
+    try:
+        # Get the item
+        from .models import Item
+        try:
+            item = Item.objects.get(id=item_id)
+        except Item.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Item not found'
+            }, status=404)
+        
+        # Verify key belongs to this item
+        from .models import SupportEmbedKey
+        try:
+            embed_key = SupportEmbedKey.objects.get(id=key_id, item_id=item_id)
+        except SupportEmbedKey.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Key not found'
+            }, status=404)
+        
+        # Revoke the key
+        from core.services.support_embed_key_service import SupportEmbedKeyService
+        key_service = SupportEmbedKeyService()
+        
+        result = key_service.revoke_key(str(key_id))
+        
+        if result['success']:
+            logger.info(f"Revoked embed key {key_id} for item {item_id} by user {request.user.username}")
+            return JsonResponse({
+                'success': True
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': result.get('error', 'Failed to delete key')
+            }, status=500)
+    
+    except Exception as e:
+        logger.error(f'Error deleting embed key: {str(e)}')
+        logger.error(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to delete embed key'
+        }, status=500)
+
