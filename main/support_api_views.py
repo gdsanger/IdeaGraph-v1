@@ -26,6 +26,8 @@ _telemetry = {
     'support_submit_despite_duplicate_total': 0,
     'support_auth_failure_total': 0,
     'support_rate_limit_exceeded_total': 0,
+    'support_token_refresh_total': 0,
+    'support_token_refresh_success': 0,
 }
 
 
@@ -490,4 +492,135 @@ def api_support_submit(request, item_id):
         return JsonResponse({
             'success': False,
             'error': 'Submission failed'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_support_token_refresh(request):
+    """
+    POST /api/support/token/refresh
+    
+    Refresh access token using refresh token
+    
+    Body: {
+        "refresh_token": "string"
+    }
+    
+    Returns: {
+        "success": true,
+        "access_token": "string",
+        "expires_in": 1800
+    }
+    """
+    _increment_telemetry('support_token_refresh_total')
+    
+    # Parse request
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    
+    refresh_token = data.get('refresh_token', '').strip()
+    
+    if not refresh_token:
+        return JsonResponse({
+            'success': False,
+            'error': 'Refresh token is required'
+        }, status=400)
+    
+    # Refresh the token
+    try:
+        from core.services.support_auth_service import SupportAuthService
+        
+        auth_service = SupportAuthService()
+        result = auth_service.refresh_access_token(refresh_token)
+        
+        if result['success']:
+            logger.info("Access token refreshed successfully")
+            _increment_telemetry('support_token_refresh_success')
+            return JsonResponse({
+                'success': True,
+                'access_token': result['access_token'],
+                'expires_in': result['expires_in']
+            })
+        else:
+            logger.warning(f"Token refresh failed: {result.get('error')}")
+            return JsonResponse({
+                'success': False,
+                'error': result.get('error', 'Token refresh failed')
+            }, status=401)
+    
+    except Exception as e:
+        logger.error(f"Error in token refresh: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'Token refresh failed'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_support_exchange_key(request):
+    """
+    POST /api/support/token/exchange
+    
+    Exchange a long-lived embed API key for a short-lived access token
+    
+    Body: {
+        "embed_key": "string"
+    }
+    
+    Returns: {
+        "success": true,
+        "access_token": "string",
+        "expires_in": 1800
+    }
+    """
+    # Parse request
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    
+    embed_key = data.get('embed_key', '').strip()
+    
+    if not embed_key:
+        return JsonResponse({
+            'success': False,
+            'error': 'Embed key is required'
+        }, status=400)
+    
+    # Exchange the key for an access token
+    try:
+        from core.services.support_auth_service import SupportAuthService
+        
+        auth_service = SupportAuthService()
+        result = auth_service.exchange_embed_key_for_token(embed_key)
+        
+        if result['success']:
+            logger.info("Access token generated from embed key")
+            return JsonResponse({
+                'success': True,
+                'access_token': result['access_token'],
+                'expires_in': result['expires_in']
+            })
+        else:
+            logger.warning(f"Embed key exchange failed: {result.get('error')}")
+            return JsonResponse({
+                'success': False,
+                'error': result.get('error', 'Key exchange failed')
+            }, status=401)
+    
+    except Exception as e:
+        logger.error(f"Error in key exchange: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'Key exchange failed'
         }, status=500)

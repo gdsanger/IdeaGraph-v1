@@ -30,13 +30,17 @@ def embed_support_view(request):
     
     Query params:
         - itemId: UUID of the item (required)
-        - t: JWT token or sig+ts for HMAC (required)
+        - key: Long-lived embed API key (recommended for static embeds)
+        - t: JWT access token or sig+ts for HMAC (alternative)
+        - r: JWT refresh token (optional, for automatic token refresh with t)
         - locale: Language (de|en, default: de)
         - theme: Theme (auto|light|dark, default: auto)
     """
     # Get parameters from query string
     item_id = request.GET.get('itemId', '')
+    embed_key = request.GET.get('key', '')
     token = request.GET.get('t', '')
+    refresh_token = request.GET.get('r', '')
     locale = request.GET.get('locale', 'de')
     theme = request.GET.get('theme', 'auto')
     
@@ -46,18 +50,21 @@ def embed_support_view(request):
             'error': 'Missing itemId parameter'
         }, status=400)
     
-    if not token:
+    # Check authentication: embed key, access token, or HMAC
+    if not embed_key and not token:
         # Check for HMAC params
         sig = request.GET.get('sig', '')
         ts = request.GET.get('ts', '')
         if not sig or not ts:
             return render(request, 'main/embed/support_error.html', {
-                'error': 'Missing authentication (t or sig+ts)'
+                'error': 'Missing authentication (key, t, or sig+ts)'
             }, status=401)
     
     context = {
         'item_id': item_id,
+        'embed_key': embed_key,
         'token': token,
+        'refresh_token': refresh_token,
         'locale': locale,
         'theme': theme,
     }

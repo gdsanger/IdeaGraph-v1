@@ -115,6 +115,77 @@ class SupportAuthServiceTest(TestCase):
         
         self.assertFalse(result['valid'])
         self.assertIn('signature', result['error'].lower())
+    
+    def test_generate_and_verify_refresh_token(self):
+        """Test refresh token generation and verification"""
+        # Generate refresh token
+        refresh_token = self.auth_service.generate_refresh_token(self.test_item_id)
+        
+        # Verify refresh token
+        result = self.auth_service.verify_refresh_token(refresh_token)
+        
+        self.assertTrue(result['valid'])
+        self.assertEqual(result['item_id'], self.test_item_id)
+        self.assertEqual(result['payload']['type'], 'refresh')
+    
+    def test_verify_refresh_token_expired(self):
+        """Test expired refresh token"""
+        # Generate refresh token with 0 second expiry (immediately expired)
+        refresh_token = self.auth_service.generate_refresh_token(self.test_item_id, expires_in=-1)
+        
+        # Verify token
+        result = self.auth_service.verify_refresh_token(refresh_token)
+        
+        self.assertFalse(result['valid'])
+        self.assertIn('expired', result['error'].lower())
+        self.assertTrue(result.get('expired', False))
+    
+    def test_verify_access_token_as_refresh_token(self):
+        """Test that access tokens cannot be used as refresh tokens"""
+        # Generate regular access token
+        access_token = self.auth_service.generate_jwt(self.test_item_id)
+        
+        # Try to verify as refresh token
+        result = self.auth_service.verify_refresh_token(access_token)
+        
+        self.assertFalse(result['valid'])
+        self.assertIn('audience', result['error'].lower())
+    
+    def test_refresh_access_token(self):
+        """Test refreshing access token using refresh token"""
+        # Generate refresh token
+        refresh_token = self.auth_service.generate_refresh_token(self.test_item_id)
+        
+        # Refresh access token
+        result = self.auth_service.refresh_access_token(refresh_token)
+        
+        self.assertTrue(result['success'])
+        self.assertIn('access_token', result)
+        self.assertEqual(result['expires_in'], self.auth_service.JWT_MAX_AGE_SECONDS)
+        
+        # Verify the new access token works
+        verify_result = self.auth_service.verify_jwt(result['access_token'])
+        self.assertTrue(verify_result['valid'])
+        self.assertEqual(verify_result['item_id'], self.test_item_id)
+    
+    def test_refresh_access_token_with_expired_refresh_token(self):
+        """Test that expired refresh tokens cannot be used"""
+        # Generate expired refresh token
+        refresh_token = self.auth_service.generate_refresh_token(self.test_item_id, expires_in=-1)
+        
+        # Try to refresh access token
+        result = self.auth_service.refresh_access_token(refresh_token)
+        
+        self.assertFalse(result['success'])
+        self.assertIn('error', result)
+    
+    def test_refresh_access_token_with_invalid_token(self):
+        """Test that invalid tokens cannot be used for refresh"""
+        # Try to refresh with invalid token
+        result = self.auth_service.refresh_access_token('invalid_token')
+        
+        self.assertFalse(result['success'])
+        self.assertIn('error', result)
 
 
 class SupportRateLimiterTest(TestCase):
@@ -573,3 +644,260 @@ class SupportEmbedViewTest(TestCase):
         
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'data-theme="dark"')
+    
+    def test_token_refresh_endpoint_success(self):
+        """Test token refresh endpoint with valid refresh token"""
+        # Generate refresh token
+        refresh_token = self.auth_service.generate_refresh_token(str(self.item.id))
+        
+        # Call refresh endpoint
+        response = self.client.post(
+            '/api/support/token/refresh',
+            data=json.dumps({
+                'refresh_token': refresh_token
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertIn('access_token', data)
+        self.assertEqual(data['expires_in'], 1800)
+        
+        # Verify the new access token works
+        verify_result = self.auth_service.verify_jwt(data['access_token'])
+        self.assertTrue(verify_result['valid'])
+    
+    def test_token_refresh_endpoint_expired_token(self):
+        """Test token refresh endpoint with expired refresh token"""
+        # Generate expired refresh token
+        refresh_token = self.auth_service.generate_refresh_token(str(self.item.id), expires_in=-1)
+        
+        # Call refresh endpoint
+        response = self.client.post(
+            '/api/support/token/refresh',
+            data=json.dumps({
+                'refresh_token': refresh_token
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 401)
+        data = response.json()
+        self.assertFalse(data['success'])
+        self.assertIn('error', data)
+    
+    def test_token_refresh_endpoint_invalid_token(self):
+        """Test token refresh endpoint with invalid token"""
+        response = self.client.post(
+            '/api/support/token/refresh',
+            data=json.dumps({
+                'refresh_token': 'invalid_token'
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 401)
+        data = response.json()
+        self.assertFalse(data['success'])
+    
+    def test_token_refresh_endpoint_missing_token(self):
+        """Test token refresh endpoint without token"""
+        response = self.client.post(
+            '/api/support/token/refresh',
+            data=json.dumps({}),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertFalse(data['success'])
+    
+    def test_embed_view_with_refresh_token(self):
+        """Test embed view accepts refresh token parameter"""
+        refresh_token = self.auth_service.generate_refresh_token(str(self.item.id))
+        
+        response = self.client.get(
+            f'/embed/support?itemId={self.item.id}&t={self.token}&r={refresh_token}'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, refresh_token)
+
+
+class SupportEmbedKeyTest(TestCase):
+    """Test Support Embed Key functionality"""
+    
+    def setUp(self):
+        """Set up test data"""
+        # Create test user
+        self.user = User.objects.create(
+            username='testuser',
+            email='test@example.com',
+            role='user'
+        )
+        
+        # Create section
+        self.section = Section.objects.create(name='Test Section')
+        
+        # Create test item
+        self.item = Item.objects.create(
+            title='Test Item',
+            description='Test description',
+            status='new',
+            section=self.section,
+            created_by=self.user
+        )
+        
+        self.client = Client()
+    
+    def test_generate_embed_key(self):
+        """Test generating an embed key"""
+        from core.services.support_embed_key_service import SupportEmbedKeyService
+        
+        key_service = SupportEmbedKeyService()
+        result = key_service.generate_key(
+            item_id=str(self.item.id),
+            name='Test Key',
+            created_by_user=self.user,
+            expires_in_days=730
+        )
+        
+        self.assertTrue(result['success'])
+        self.assertIn('key', result)
+        self.assertIn('key_id', result)
+        self.assertIn('key_prefix', result)
+        self.assertIn('expires_at', result)
+    
+    def test_verify_embed_key(self):
+        """Test verifying a valid embed key"""
+        from core.services.support_embed_key_service import SupportEmbedKeyService
+        
+        key_service = SupportEmbedKeyService()
+        
+        # Generate key
+        gen_result = key_service.generate_key(
+            item_id=str(self.item.id),
+            name='Test Key',
+            created_by_user=self.user
+        )
+        raw_key = gen_result['key']
+        
+        # Verify key
+        verify_result = key_service.verify_key(raw_key)
+        
+        self.assertTrue(verify_result['valid'])
+        self.assertEqual(verify_result['item_id'], str(self.item.id))
+    
+    def test_verify_invalid_embed_key(self):
+        """Test verifying an invalid embed key"""
+        from core.services.support_embed_key_service import SupportEmbedKeyService
+        
+        key_service = SupportEmbedKeyService()
+        result = key_service.verify_key('invalid_key')
+        
+        self.assertFalse(result['valid'])
+        self.assertIn('error', result)
+    
+    def test_revoke_embed_key(self):
+        """Test revoking an embed key"""
+        from core.services.support_embed_key_service import SupportEmbedKeyService
+        
+        key_service = SupportEmbedKeyService()
+        
+        # Generate key
+        gen_result = key_service.generate_key(
+            item_id=str(self.item.id),
+            name='Test Key',
+            created_by_user=self.user
+        )
+        raw_key = gen_result['key']
+        key_id = gen_result['key_id']
+        
+        # Revoke key
+        revoke_result = key_service.revoke_key(key_id)
+        self.assertTrue(revoke_result['success'])
+        
+        # Verify key is no longer valid
+        verify_result = key_service.verify_key(raw_key)
+        self.assertFalse(verify_result['valid'])
+        self.assertIn('revoked', verify_result['error'].lower())
+    
+    def test_exchange_embed_key_for_token(self):
+        """Test exchanging embed key for access token"""
+        from core.services.support_embed_key_service import SupportEmbedKeyService
+        from core.services.support_auth_service import SupportAuthService
+        
+        key_service = SupportEmbedKeyService()
+        auth_service = SupportAuthService()
+        
+        # Generate key
+        gen_result = key_service.generate_key(
+            item_id=str(self.item.id),
+            name='Test Key',
+            created_by_user=self.user
+        )
+        raw_key = gen_result['key']
+        
+        # Exchange for token
+        token_result = auth_service.exchange_embed_key_for_token(raw_key)
+        
+        self.assertTrue(token_result['success'])
+        self.assertIn('access_token', token_result)
+        self.assertEqual(token_result['expires_in'], 1800)
+        
+        # Verify the access token works
+        verify_result = auth_service.verify_jwt(token_result['access_token'])
+        self.assertTrue(verify_result['valid'])
+        self.assertEqual(verify_result['item_id'], str(self.item.id))
+    
+    def test_embed_key_exchange_endpoint(self):
+        """Test the embed key exchange API endpoint"""
+        from core.services.support_embed_key_service import SupportEmbedKeyService
+        
+        key_service = SupportEmbedKeyService()
+        
+        # Generate key
+        gen_result = key_service.generate_key(
+            item_id=str(self.item.id),
+            name='Test Key',
+            created_by_user=self.user
+        )
+        raw_key = gen_result['key']
+        
+        # Call exchange endpoint
+        response = self.client.post(
+            '/api/support/token/exchange',
+            data=json.dumps({
+                'embed_key': raw_key
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertIn('access_token', data)
+        self.assertEqual(data['expires_in'], 1800)
+    
+    def test_embed_view_with_embed_key(self):
+        """Test embed view accepts embed key parameter"""
+        from core.services.support_embed_key_service import SupportEmbedKeyService
+        
+        key_service = SupportEmbedKeyService()
+        
+        # Generate key
+        gen_result = key_service.generate_key(
+            item_id=str(self.item.id),
+            name='Test Key',
+            created_by_user=self.user
+        )
+        raw_key = gen_result['key']
+        
+        response = self.client.get(
+            f'/embed/support?itemId={self.item.id}&key={raw_key}'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, raw_key)
