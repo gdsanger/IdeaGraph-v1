@@ -28,29 +28,58 @@ The Support Embed feature allows you to integrate an embeddable support chat and
 
 ## Quick Start
 
-### 1. Generate Authentication Tokens
+### Method 1: Embed API Key (Recommended for Static HTML) ⭐ NEW
 
-You need to generate JWT tokens for the item you want to provide support for:
+**Best for:** Static HTML pages, WordPress, CMS, long-term embeds
+
+Generate a long-lived API key once and embed it:
+
+```python
+from core.services.support_embed_key_service import SupportEmbedKeyService
+
+key_service = SupportEmbedKeyService()
+result = key_service.generate_key(
+    item_id="12345678-1234-1234-1234-123456789012",
+    name="Production Website",
+    created_by_user=user,
+    expires_in_days=730  # 2 years
+)
+
+embed_key = result['key']  # Save this for your HTML
+print(f"Embed Key: {embed_key}")
+print(f"Expires: {result['expires_at']}")
+```
+
+Embed in static HTML (works for 2 years!):
+
+```html
+<iframe 
+    src="https://your-ideagraph-instance.com/embed/support?itemId=12345678-1234-1234-1234-123456789012&key=YOUR_EMBED_KEY"
+    width="420"
+    height="650"
+    frameborder="0"
+    style="border: 1px solid #ddd; border-radius: 8px;"
+></iframe>
+```
+
+**No additional JavaScript required!** The widget automatically exchanges the key for short-lived access tokens.
+
+### Method 2: Refresh Token (For Dynamic Applications)
+
+**Best for:** Applications that generate tokens on page load
 
 ```python
 from core.services.support_auth_service import SupportAuthService
 
 auth_service = SupportAuthService()
-item_id = "12345678-1234-1234-1234-123456789012"  # Your item UUID
+item_id = "12345678-1234-1234-1234-123456789012"
 
-# Generate access token (valid for 30 minutes)
+# Generate tokens
 access_token = auth_service.generate_jwt(item_id)
-
-# Generate refresh token (valid for 24 hours) - for long-running sessions
 refresh_token = auth_service.generate_refresh_token(item_id)
-
-print(f"Access Token: {access_token}")
-print(f"Refresh Token: {refresh_token}")
 ```
 
-### 2. Embed the Widget
-
-**Option A: With Automatic Token Refresh (Recommended for long-running sessions)**
+Embed with automatic refresh (24h sessions):
 
 ```html
 <iframe 
@@ -62,7 +91,9 @@ print(f"Refresh Token: {refresh_token}")
 ></iframe>
 ```
 
-**Option B: Simple Embed (No automatic refresh, token expires after 30 minutes)**
+### Method 3: Access Token Only (Legacy)
+
+**Best for:** Short sessions (30 minutes)
 
 ```html
 <iframe 
@@ -74,21 +105,89 @@ print(f"Refresh Token: {refresh_token}")
 ></iframe>
 ```
 
-### 3. Optional Parameters
+### URL Parameters
 
 You can customize the embed with URL parameters:
 
 ```
 ?itemId=<uuid>          # Required: Item UUID
-&t=<token>              # Required: JWT access token
-&r=<refresh_token>      # Optional: JWT refresh token for auto-refresh
+&key=<embed_key>        # Option A: Long-lived embed API key (recommended for static HTML)
+&t=<token>              # Option B: JWT access token
+&r=<refresh_token>      # Optional: JWT refresh token for auto-refresh (with t)
 &locale=de|en           # Optional: Language (default: de)
 &theme=auto|light|dark  # Optional: Theme (default: auto)
 ```
 
-## Authentication
+## Authentication Methods
 
-### Option A: JWT with Token Refresh (Recommended)
+### Method A: Embed API Key (Recommended for Static HTML) ⭐ NEW
+
+**Best for:** Static websites, WordPress, CMS systems, any scenario where you can't regenerate tokens dynamically.
+
+Embed API keys are long-lived (1-2 years) and can be embedded in static HTML. The widget automatically exchanges them for short-lived access tokens.
+
+**Features:**
+- ✅ Valid for 1-2 years (configurable)
+- ✅ Can be embedded in static HTML
+- ✅ Automatic token exchange and refresh
+- ✅ Can be revoked if compromised
+- ✅ Usage tracking (count, last used)
+- ✅ No additional JavaScript required
+
+**Generate Key:**
+```python
+from core.services.support_embed_key_service import SupportEmbedKeyService
+
+key_service = SupportEmbedKeyService()
+result = key_service.generate_key(
+    item_id="your-item-uuid",
+    name="Production Website",  # Descriptive name
+    created_by_user=user,
+    expires_in_days=730  # 2 years (configurable)
+)
+
+embed_key = result['key']  # IMPORTANT: Save this securely, shown only once!
+key_id = result['key_id']  # For management/revocation
+```
+
+**Use Key:**
+```html
+<iframe src="https://your-instance.com/embed/support?itemId=<uuid>&key=<embed_key>"></iframe>
+```
+
+**How it works:**
+1. Widget loads with embed key in URL
+2. On load, widget exchanges key for access token (30 min)
+3. Widget automatically refreshes access token every 25 minutes
+4. Works continuously for up to 2 years (or until key expires/revoked)
+
+**Key Management:**
+```python
+# List all keys for an item
+result = key_service.list_keys(item_id="your-item-uuid")
+for key in result['keys']:
+    print(f"{key['name']}: {key['key_prefix']}... (expires: {key['expires_at']})")
+
+# Revoke a key (immediate effect)
+key_service.revoke_key(key_id="key-uuid")
+
+# Check key validity
+result = key_service.verify_key(embed_key)
+if result['valid']:
+    print(f"Key is valid for item {result['item_id']}")
+```
+
+**Security:**
+- Keys are hashed (SHA-256) in the database
+- Only the first 8 characters stored as prefix for identification
+- Keys can be revoked immediately
+- Usage is tracked (count, last used timestamp)
+- Keys have expiration dates
+
+**Client Integration Guide:**
+See `SUPPORT_EMBED_CLIENT_GUIDE_DE.md` for detailed client-side integration examples.
+
+### Method B: JWT with Token Refresh
 
 JWT tokens provide secure, automatic token rotation for long-running sessions:
 
@@ -150,9 +249,50 @@ print(f"sig={hmac_data['signature']}&ts={hmac_data['timestamp']}")
 
 ## API Endpoints
 
-The embed widget uses four API endpoints:
+The embed widget uses five API endpoints:
 
-### 1. Token Refresh
+### 1. Embed Key Exchange ⭐ NEW
+
+**Endpoint:** `POST /api/support/token/exchange`
+
+**Purpose:** Exchange a long-lived embed API key for a short-lived access token
+
+**Headers:**
+```
+Content-Type: application/json
+```
+
+**Request:**
+```json
+{
+  "embed_key": "abc123xyz..."
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expires_in": 1800
+}
+```
+
+**Error Response (401):**
+```json
+{
+  "success": false,
+  "error": "Invalid key"  // or "Key expired" or "Key revoked"
+}
+```
+
+**Notes:**
+- No authentication required (embed key is validated in request body)
+- Embed keys are valid for 1-2 years (configurable)
+- Access tokens are valid for 30 minutes
+- The widget automatically calls this endpoint on load and every 25 minutes
+
+### 2. Token Refresh
 
 **Endpoint:** `POST /api/support/token/refresh`
 
@@ -193,7 +333,7 @@ Content-Type: application/json
 - Access tokens are valid for 30 minutes
 - The widget automatically calls this endpoint before token expiry
 
-### 2. Chat Send
+### 3. Chat Send
 
 **Endpoint:** `POST /api/support/chat/send/<item_id>`
 
@@ -233,7 +373,7 @@ Content-Type: application/json
 }
 ```
 
-### 3. Precheck
+### 4. Precheck
 
 **Endpoint:** `POST /api/support/precheck/<item_id>`
 
@@ -272,7 +412,7 @@ Content-Type: application/json
 - `ask_user`: Medium confidence → show answer and ask user
 - `submit`: Low confidence → proceed with submission
 
-### 4. Submit
+### 5. Submit
 
 **Endpoint:** `POST /api/support/submit/<item_id>`
 
