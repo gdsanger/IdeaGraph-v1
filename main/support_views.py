@@ -30,13 +30,15 @@ def embed_support_view(request):
     
     Query params:
         - itemId: UUID of the item (required)
-        - t: JWT token or sig+ts for HMAC (required)
+        - t: JWT access token or sig+ts for HMAC (required)
+        - r: JWT refresh token (optional, for automatic token refresh)
         - locale: Language (de|en, default: de)
         - theme: Theme (auto|light|dark, default: auto)
     """
     # Get parameters from query string
     item_id = request.GET.get('itemId', '')
     token = request.GET.get('t', '')
+    refresh_token = request.GET.get('r', '')
     locale = request.GET.get('locale', 'de')
     theme = request.GET.get('theme', 'auto')
     
@@ -58,6 +60,7 @@ def embed_support_view(request):
     context = {
         'item_id': item_id,
         'token': token,
+        'refresh_token': refresh_token,
         'locale': locale,
         'theme': theme,
     }

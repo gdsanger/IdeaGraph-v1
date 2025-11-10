@@ -299,7 +299,8 @@
         // Configuration from URL params
         const urlParams = new URLSearchParams(window.location.search);
         const itemId = urlParams.get('itemId') || '{{ item_id }}';
-        const token = urlParams.get('t') || '{{ token }}';
+        let currentToken = urlParams.get('t') || '{{ token }}';
+        const refreshToken = urlParams.get('r') || '{{ refresh_token }}';
         const locale = urlParams.get('locale') || '{{ locale }}' || 'de';
         const theme = urlParams.get('theme') || '{{ theme }}' || 'auto';
         
@@ -315,6 +316,60 @@
         let chatHistory = [];
         let precheckResult = null;
         let autoAnswerAccepted = false;
+        let tokenRefreshTimer = null;
+        
+        // Token refresh functionality
+        async function refreshAccessToken() {
+            if (!refreshToken) {
+                console.warn('No refresh token available');
+                return false;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/token/refresh`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        refresh_token: refreshToken
+                    })
+                });
+                
+                if (!response.ok) {
+                    console.error('Token refresh failed:', response.status);
+                    return false;
+                }
+                
+                const data = await response.json();
+                if (data.success) {
+                    currentToken = data.access_token;
+                    console.log('Access token refreshed successfully');
+                    
+                    // Schedule next refresh (5 minutes before expiry)
+                    const refreshIn = (data.expires_in - 300) * 1000;
+                    if (tokenRefreshTimer) {
+                        clearTimeout(tokenRefreshTimer);
+                    }
+                    tokenRefreshTimer = setTimeout(refreshAccessToken, refreshIn);
+                    
+                    return true;
+                } else {
+                    console.error('Token refresh failed:', data.error);
+                    return false;
+                }
+            } catch (error) {
+                console.error('Token refresh error:', error);
+                return false;
+            }
+        }
+        
+        // Initialize automatic token refresh if refresh token is available
+        if (refreshToken) {
+            // Refresh token 5 minutes before expiry (25 minutes from now for 30-min tokens)
+            tokenRefreshTimer = setTimeout(refreshAccessToken, 25 * 60 * 1000);
+            console.log('Automatic token refresh enabled');
+        }
         
         // Chat functionality
         const chatMessages = document.getElementById('chatMessages');
@@ -370,7 +425,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': `Bearer ${currentToken}`
                     },
                     body: JSON.stringify({
                         message,
@@ -379,6 +434,15 @@
                 });
                 
                 hideThinking();
+                
+                // Check if token expired and try to refresh
+                if (response.status === 401 && refreshToken) {
+                    const refreshed = await refreshAccessToken();
+                    if (refreshed) {
+                        // Retry the request with new token
+                        return sendChatMessage();
+                    }
+                }
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
@@ -428,10 +492,21 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': `Bearer ${currentToken}`
                     },
                     body: JSON.stringify({ type, title, description })
                 });
+                
+                // Check if token expired and try to refresh
+                if (response.status === 401 && refreshToken) {
+                    const refreshed = await refreshAccessToken();
+                    if (refreshed) {
+                        // Retry the request with new token
+                        precheckBtn.disabled = false;
+                        precheckBtn.innerHTML = '<i class="bi bi-search"></i> Vorab prüfen';
+                        return precheckBtn.click();
+                    }
+                }
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
@@ -539,10 +614,21 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': `Bearer ${currentToken}`
                     },
                     body: JSON.stringify(payload)
                 });
+                
+                // Check if token expired and try to refresh
+                if (response.status === 401 && refreshToken) {
+                    const refreshed = await refreshAccessToken();
+                    if (refreshed) {
+                        // Retry the request with new token
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '<i class="bi bi-send"></i> Absenden';
+                        return supportForm.dispatchEvent(new Event('submit'));
+                    }
+                }
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
