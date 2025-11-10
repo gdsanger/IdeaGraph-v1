@@ -346,3 +346,59 @@ class SupportAuthService:
             'access_token': access_token,
             'expires_in': self.JWT_MAX_AGE_SECONDS
         }
+    
+    def verify_embed_key(self, embed_key: str) -> Dict[str, Any]:
+        """
+        Verify a long-lived embed API key
+        
+        Args:
+            embed_key: The embed API key to verify
+        
+        Returns:
+            {
+                'valid': bool,
+                'item_id': str (if valid),
+                'error': str (if invalid)
+            }
+        """
+        from core.services.support_embed_key_service import SupportEmbedKeyService
+        
+        key_service = SupportEmbedKeyService()
+        result = key_service.verify_key(embed_key)
+        
+        return result
+    
+    def exchange_embed_key_for_token(self, embed_key: str) -> Dict[str, Any]:
+        """
+        Exchange a long-lived embed API key for a short-lived access token
+        
+        Args:
+            embed_key: The embed API key
+        
+        Returns:
+            {
+                'success': bool,
+                'access_token': str (if success),
+                'expires_in': int (if success),
+                'error': str (if failure)
+            }
+        """
+        # Verify the embed key
+        result = self.verify_embed_key(embed_key)
+        
+        if not result['valid']:
+            return {
+                'success': False,
+                'error': result['error']
+            }
+        
+        # Generate access token
+        item_id = result['item_id']
+        access_token = self.generate_jwt(item_id)
+        
+        logger.info(f"Access token generated from embed key for item {item_id}")
+        return {
+            'success': True,
+            'access_token': access_token,
+            'expires_in': self.JWT_MAX_AGE_SECONDS
+        }

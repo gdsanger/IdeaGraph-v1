@@ -1291,3 +1291,57 @@ class ItemQuestionAnswer(models.Model):
     
     def __str__(self):
         return f"Q: {self.question[:50]}... (Item: {self.item.title})"
+
+
+class SupportEmbedKey(models.Model):
+    """
+    Long-lived API keys for support embed widgets.
+    These keys can be embedded in static HTML and work for extended periods (1-2 years).
+    """
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='embed_keys')
+    
+    # The actual key value (hashed for security)
+    key_hash = models.CharField(max_length=128, unique=True, db_index=True)
+    key_prefix = models.CharField(max_length=16, help_text='First 8 chars of key for identification')
+    
+    # Metadata
+    name = models.CharField(max_length=255, help_text='Human-readable name for this key')
+    created_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, related_name='created_embed_keys')
+    
+    # Lifecycle
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(help_text='When this key expires')
+    revoked_at = models.DateTimeField(null=True, blank=True, help_text='When this key was revoked')
+    last_used_at = models.DateTimeField(null=True, blank=True, help_text='Last time this key was used')
+    
+    # Usage tracking
+    usage_count = models.IntegerField(default=0, help_text='Number of times this key has been used')
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Support Embed Key'
+        verbose_name_plural = 'Support Embed Keys'
+        indexes = [
+            models.Index(fields=['item', 'revoked_at', 'expires_at']),
+            models.Index(fields=['key_hash']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} ({self.key_prefix}...) for {self.item.title}"
+    
+    def is_valid(self):
+        """Check if this key is currently valid"""
+        from django.utils import timezone
+        now = timezone.now()
+        return (
+            self.revoked_at is None and
+            self.expires_at > now
+        )
+    
+    def revoke(self):
+        """Revoke this key"""
+        from django.utils import timezone
+        self.revoked_at = timezone.now()
+        self.save(update_fields=['revoked_at'])

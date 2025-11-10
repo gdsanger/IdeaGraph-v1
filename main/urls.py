@@ -260,4 +260,5 @@ urlpatterns = [
     path('api/support/precheck/<uuid:item_id>', support_api_views.api_support_precheck, name='api_support_precheck'),
     path('api/support/submit/<uuid:item_id>', support_api_views.api_support_submit, name='api_support_submit'),
     path('api/support/token/refresh', support_api_views.api_support_token_refresh, name='api_support_token_refresh'),
+    path('api/support/token/exchange', support_api_views.api_support_exchange_key, name='api_support_exchange_key'),
 ]
