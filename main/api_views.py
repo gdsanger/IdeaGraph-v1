@@ -8845,6 +8845,7 @@ def api_fetch_sentry_errors(request, item_id):
         }, status=500)
 
 
+@csrf_exempt
 @require_http_methods(['POST'])
 def api_item_embed_key_generate(request, item_id):
     """
@@ -8898,6 +8899,9 @@ def api_item_embed_key_generate(request, item_id):
                 'error': 'Item not found'
             }, status=404)
         
+        # Check if user is authenticated
+        user = request.user if request.user.is_authenticated else None
+        
         # Generate the key
         from core.services.support_embed_key_service import SupportEmbedKeyService
         key_service = SupportEmbedKeyService()
@@ -8905,7 +8909,7 @@ def api_item_embed_key_generate(request, item_id):
         result = key_service.generate_key(
             item_id=str(item_id),
             name=name,
-            created_by_user=request.user,
+            created_by_user=user,
             expires_in_days=expires_in_days
         )
         
@@ -8941,6 +8945,7 @@ def api_item_embed_key_generate(request, item_id):
         }, status=500)
 
 
+@csrf_exempt
 @require_http_methods(['GET'])
 def api_item_embed_key_list(request, item_id):
     """
@@ -9001,6 +9006,7 @@ def api_item_embed_key_list(request, item_id):
         }, status=500)
 
 
+@csrf_exempt
 @require_http_methods(['DELETE'])
 def api_item_embed_key_delete(request, item_id, key_id):
     """
