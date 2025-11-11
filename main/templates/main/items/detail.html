@@ -444,6 +444,14 @@
                                     </div>
 
                                     <div class="mb-2">
+                                        <label for="sentry_auth_token" class="form-label">
+                                            <i class="bi bi-key"></i> Sentry Auth Token
+                                        </label>
+                                        <input type="password" class="form-control" id="sentry_auth_token" name="sentry_auth_token" value="{{ item.sentry_auth_token }}" placeholder="sntrys_...">
+                                        <small class="text-muted" style="font-size: 0.75rem;">Required for fetching errors from Sentry</small>
+                                    </div>
+
+                                    <div class="mb-2">
                                         <label for="enable_sentry_fetch" class="form-label">
                                             <i class="bi bi-arrow-repeat"></i> Sentry Auto-Fetch
                                         </label>

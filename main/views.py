@@ -150,13 +150,14 @@ def _resolve_client_values(client_values):
     return resolved_clients
 
 
-def _auto_fetch_sentry_project_slug(sentry_dsn, current_slug=None):
+def _auto_fetch_sentry_project_slug(sentry_dsn, current_slug=None, sentry_auth_token=None):
     """
     Automatically fetch the Sentry project slug from the DSN if needed.
     
     Args:
         sentry_dsn: The Sentry DSN string
         current_slug: The current project slug value (if any)
+        sentry_auth_token: The Sentry API auth token (required for auto-fetch)
         
     Returns:
         Project slug string, or the current_slug if auto-fetch fails
@@ -169,17 +170,23 @@ def _auto_fetch_sentry_project_slug(sentry_dsn, current_slug=None):
     if not sentry_dsn or not sentry_dsn.strip():
         return current_slug or ''
     
+    # If no auth token, cannot auto-fetch
+    if not sentry_auth_token or not sentry_auth_token.strip():
+        logger.warning("Cannot auto-fetch Sentry project slug without auth token")
+        return current_slug or ''
+    
     try:
         from core.services.sentry_task_sync_service import SentryTaskSyncService
         
         # Create a temporary Item object to use with the service
-        # We only need the DSN field for the auto-fetch
+        # We need the DSN and auth token fields for the auto-fetch
         class TempItem:
-            def __init__(self, dsn):
+            def __init__(self, dsn, auth_token):
                 self.sentry_dsn = dsn
+                self.sentry_auth_token = auth_token
                 self.id = 'temp'
         
-        temp_item = TempItem(sentry_dsn)
+        temp_item = TempItem(sentry_dsn, sentry_auth_token)
         sync_service = SentryTaskSyncService()
         
         # Try to auto-fetch the project slug
@@ -1074,11 +1081,12 @@ def item_detail(request, item_id):
         inherit_context = request.POST.get('inherit_context') == 'on'
         sentry_dsn = request.POST.get('sentry_dsn', '').strip()
         sentry_project_slug = request.POST.get('sentry_project_slug', '').strip()
+        sentry_auth_token = request.POST.get('sentry_auth_token', '').strip()
         enable_sentry_fetch = request.POST.get('enable_sentry_fetch') == 'on'
         
         # Auto-fetch project slug if DSN is provided/changed but slug is not
         if sentry_dsn and not sentry_project_slug:
-            sentry_project_slug = _auto_fetch_sentry_project_slug(sentry_dsn, sentry_project_slug)
+            sentry_project_slug = _auto_fetch_sentry_project_slug(sentry_dsn, sentry_project_slug, sentry_auth_token)
             if sentry_project_slug:
                 messages.info(request, f'Auto-detected Sentry project slug: {sentry_project_slug}')
 
@@ -1096,6 +1104,7 @@ def item_detail(request, item_id):
                 item.inherit_context = inherit_context
                 item.sentry_dsn = sentry_dsn
                 item.sentry_project_slug = sentry_project_slug
+                item.sentry_auth_token = sentry_auth_token
                 item.enable_sentry_fetch = enable_sentry_fetch
 
                 if section_id:
@@ -1247,11 +1256,12 @@ def item_create(request):
         inherit_context = request.POST.get('inherit_context') == 'on'
         sentry_dsn = request.POST.get('sentry_dsn', '').strip()
         sentry_project_slug = request.POST.get('sentry_project_slug', '').strip()
+        sentry_auth_token = request.POST.get('sentry_auth_token', '').strip()
         enable_sentry_fetch = request.POST.get('enable_sentry_fetch') == 'on'
         
         # Auto-fetch project slug if DSN is provided but slug is not
         if sentry_dsn and not sentry_project_slug:
-            sentry_project_slug = _auto_fetch_sentry_project_slug(sentry_dsn, sentry_project_slug)
+            sentry_project_slug = _auto_fetch_sentry_project_slug(sentry_dsn, sentry_project_slug, sentry_auth_token)
             if sentry_project_slug:
                 messages.info(request, f'Auto-detected Sentry project slug: {sentry_project_slug}')
 
@@ -1272,6 +1282,7 @@ def item_create(request):
                     inherit_context=inherit_context,
                     sentry_dsn=sentry_dsn,
                     sentry_project_slug=sentry_project_slug,
+                    sentry_auth_token=sentry_auth_token,
                     enable_sentry_fetch=enable_sentry_fetch
                 )
 
@@ -1364,11 +1375,12 @@ def item_edit(request, item_id):
         inherit_context = request.POST.get('inherit_context') == 'on'
         sentry_dsn = request.POST.get('sentry_dsn', '').strip()
         sentry_project_slug = request.POST.get('sentry_project_slug', '').strip()
+        sentry_auth_token = request.POST.get('sentry_auth_token', '').strip()
         enable_sentry_fetch = request.POST.get('enable_sentry_fetch') == 'on'
         
         # Auto-fetch project slug if DSN is provided/changed but slug is not
         if sentry_dsn and not sentry_project_slug:
-            sentry_project_slug = _auto_fetch_sentry_project_slug(sentry_dsn, sentry_project_slug)
+            sentry_project_slug = _auto_fetch_sentry_project_slug(sentry_dsn, sentry_project_slug, sentry_auth_token)
             if sentry_project_slug:
                 messages.info(request, f'Auto-detected Sentry project slug: {sentry_project_slug}')
 
@@ -1386,6 +1398,7 @@ def item_edit(request, item_id):
                 item.inherit_context = inherit_context
                 item.sentry_dsn = sentry_dsn
                 item.sentry_project_slug = sentry_project_slug
+                item.sentry_auth_token = sentry_auth_token
                 item.enable_sentry_fetch = enable_sentry_fetch
 
                 if section_id:

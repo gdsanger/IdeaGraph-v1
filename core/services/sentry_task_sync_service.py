@@ -85,14 +85,10 @@ class SentryTaskSyncService:
             logger.warning(f"Item {item.id} has no Sentry DSN configured")
             return None
         
-        # Get auth token
-        if not self.settings:
-            logger.error("No settings found - cannot fetch project slug")
-            return None
-        
-        sentry_auth_token = getattr(self.settings, 'sentry_auth_token', None)
+        # Get auth token from item
+        sentry_auth_token = getattr(item, 'sentry_auth_token', None)
         if not sentry_auth_token:
-            logger.error("Sentry auth token not configured in settings")
+            logger.error(f"Sentry auth token not configured for item {item.id}")
             return None
         
         # Parse DSN
@@ -157,25 +153,13 @@ class SentryTaskSyncService:
                 'duplicates_skipped': 0
             }
         
-        # Get Sentry auth token from settings
-        if not self.settings:
-            logger.error("No settings found - cannot fetch Sentry errors")
-            return {
-                'success': False,
-                'error': 'Settings not configured',
-                'issues_fetched': 0,
-                'tasks_created': 0,
-                'duplicates_skipped': 0
-            }
-        
-        # Note: We'll need to add sentry_auth_token to Settings model
-        # For now, we'll use a placeholder
-        sentry_auth_token = getattr(self.settings, 'sentry_auth_token', None)
+        # Get Sentry auth token from item
+        sentry_auth_token = getattr(item, 'sentry_auth_token', None)
         if not sentry_auth_token:
-            logger.error("Sentry auth token not configured in settings")
+            logger.error(f"Sentry auth token not configured for item {item.id}")
             return {
                 'success': False,
-                'error': 'Sentry auth token not configured',
+                'error': 'Sentry auth token not configured for this item',
                 'issues_fetched': 0,
                 'tasks_created': 0,
                 'duplicates_skipped': 0

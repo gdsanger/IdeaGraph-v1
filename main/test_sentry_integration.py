@@ -21,11 +21,6 @@ class SentryIntegrationTest(TestCase):
         self.user.set_password('Test@123')
         self.user.save()
         
-        # Create settings with Sentry token
-        self.settings = Settings.objects.create(
-            sentry_auth_token='test_sentry_token_123'
-        )
-        
         # Create test item with Sentry configured
         self.item = Item.objects.create(
             title='Test Item with Sentry',
@@ -33,6 +28,7 @@ class SentryIntegrationTest(TestCase):
             status='new',
             sentry_dsn='https://key@org123.ingest.sentry.io/12345',
             sentry_project_slug='test-project',
+            sentry_auth_token='test_sentry_token_123',
             enable_sentry_fetch=True,
             created_by=self.user
         )
@@ -73,6 +69,7 @@ class SentryIntegrationTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'sentry_dsn')
         self.assertContains(response, 'sentry_project_slug')
+        self.assertContains(response, 'sentry_auth_token')
         self.assertContains(response, 'enable_sentry_fetch')
     
     def test_item_create_with_sentry_fields(self):
@@ -84,6 +81,7 @@ class SentryIntegrationTest(TestCase):
             'status': 'new',
             'sentry_dsn': 'https://key@test.ingest.sentry.io/99999',
             'sentry_project_slug': 'new-project',
+            'sentry_auth_token': 'test_token_123',
             'enable_sentry_fetch': 'on'
         })
         
@@ -94,6 +92,7 @@ class SentryIntegrationTest(TestCase):
         item = Item.objects.get(title='New Item with Sentry')
         self.assertEqual(item.sentry_dsn, 'https://key@test.ingest.sentry.io/99999')
         self.assertEqual(item.sentry_project_slug, 'new-project')
+        self.assertEqual(item.sentry_auth_token, 'test_token_123')
         self.assertTrue(item.enable_sentry_fetch)
     
     def test_item_update_sentry_fields(self):
@@ -105,6 +104,7 @@ class SentryIntegrationTest(TestCase):
             'status': 'new',
             'sentry_dsn': 'https://key@updated.ingest.sentry.io/88888',
             'sentry_project_slug': 'updated-project',
+            'sentry_auth_token': 'updated_token',
             'enable_sentry_fetch': 'on'
         })
         
@@ -115,12 +115,13 @@ class SentryIntegrationTest(TestCase):
         item = Item.objects.get(id=self.item_no_sentry.id)
         self.assertEqual(item.sentry_dsn, 'https://key@updated.ingest.sentry.io/88888')
         self.assertEqual(item.sentry_project_slug, 'updated-project')
+        self.assertEqual(item.sentry_auth_token, 'updated_token')
         self.assertTrue(item.enable_sentry_fetch)
     
-    def test_settings_model_has_sentry_auth_token(self):
-        """Test that Settings model has Sentry auth token field"""
-        self.assertTrue(hasattr(self.settings, 'sentry_auth_token'))
-        self.assertEqual(self.settings.sentry_auth_token, 'test_sentry_token_123')
+    def test_item_model_has_sentry_auth_token(self):
+        """Test that Item model has Sentry auth token field"""
+        self.assertTrue(hasattr(self.item, 'sentry_auth_token'))
+        self.assertEqual(self.item.sentry_auth_token, 'test_sentry_token_123')
 
 
 class SentryTaskSyncServiceTest(TestCase):
@@ -135,11 +136,6 @@ class SentryTaskSyncServiceTest(TestCase):
             role='user'
         )
         
-        # Create settings with Sentry token
-        self.settings = Settings.objects.create(
-            sentry_auth_token='test_sentry_token_123'
-        )
-        
         # Create test item with Sentry configured
         self.item = Item.objects.create(
             title='Test Item',
@@ -147,6 +143,7 @@ class SentryTaskSyncServiceTest(TestCase):
             status='new',
             sentry_dsn='https://key@org123.ingest.sentry.io/12345',
             sentry_project_slug='test-project',
+            sentry_auth_token='test_sentry_token_123',
             enable_sentry_fetch=True,
             created_by=self.user
         )
@@ -355,11 +352,6 @@ class SentryAPIEndpointTest(TestCase):
         self.user.set_password('Test@123')
         self.user.save()
         
-        # Create settings with Sentry token
-        self.settings = Settings.objects.create(
-            sentry_auth_token='test_sentry_token_123'
-        )
-        
         # Create test item with Sentry configured
         self.item = Item.objects.create(
             title='Test Item',
@@ -367,6 +359,7 @@ class SentryAPIEndpointTest(TestCase):
             status='new',
             sentry_dsn='https://key@org123.ingest.sentry.io/12345',
             sentry_project_slug='test-project',
+            sentry_auth_token='test_sentry_token_123',
             enable_sentry_fetch=True,
             created_by=self.user
         )
@@ -433,11 +426,6 @@ class SentryAutoFetchProjectSlugTest(TestCase):
         self.user.set_password('Test@123')
         self.user.save()
         
-        # Create settings with Sentry token
-        self.settings = Settings.objects.create(
-            sentry_auth_token='test_sentry_token_123'
-        )
-        
         self.service = SentryTaskSyncService()
     
     @patch('core.services.sentry_service.SentryService.get_projects')
@@ -447,6 +435,7 @@ class SentryAutoFetchProjectSlugTest(TestCase):
         item = Item.objects.create(
             title='Test Item',
             sentry_dsn='https://key@org123.ingest.sentry.io/12345',
+            sentry_auth_token='test_sentry_token_123',
             created_by=self.user
         )
         
@@ -468,6 +457,7 @@ class SentryAutoFetchProjectSlugTest(TestCase):
         item = Item.objects.create(
             title='Test Item',
             sentry_dsn='https://key@org123.ingest.sentry.io/99999',
+            sentry_auth_token='test_sentry_token_123',
             created_by=self.user
         )
         
@@ -498,10 +488,7 @@ class SentryAutoFetchProjectSlugTest(TestCase):
     
     def test_auto_fetch_project_slug_no_auth_token(self):
         """Test auto-fetch when no auth token is configured"""
-        # Remove auth token from settings
-        self.settings.sentry_auth_token = ''
-        self.settings.save()
-        
+        # Create item without auth token
         item = Item.objects.create(
             title='Test Item',
             sentry_dsn='https://key@org123.ingest.sentry.io/12345',
@@ -521,6 +508,7 @@ class SentryAutoFetchProjectSlugTest(TestCase):
         item = Item.objects.create(
             title='Test Item',
             sentry_dsn='https://key@org123.ingest.sentry.io/12345',
+            sentry_auth_token='test_sentry_token_123',
             enable_sentry_fetch=True,
             created_by=self.user
         )
