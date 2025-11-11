@@ -43,10 +43,14 @@ class SentryService:
         DSN format: https://<key>@<org>.ingest.sentry.io/<project_id>
         """
         try:
-            # Extract organization from the DSN
-            if '@' in dsn and '.ingest.sentry.io' in dsn:
-                parts = dsn.split('@')[1].split('.ingest.sentry.io')
-                self.organization = parts[0]
+            # Extract organization from the DSN (supports regional domains like .ingest.de.sentry.io)
+            if '@' in dsn and '.ingest.' in dsn and '.sentry.io' in dsn:
+                # Split by '@' and take the part after it (hostname + path)
+                after_at = dsn.split('@')[1]
+                # Extract the organization (first part before .ingest.)
+                hostname = after_at.split('/')[0]  # Remove path part
+                org_part = hostname.split('.ingest.')[0]
+                self.organization = org_part
                 
                 # Note: Project ID from DSN is numeric, but we need the slug
                 # This will need to be configured separately or fetched from API

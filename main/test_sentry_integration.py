@@ -166,6 +166,22 @@ class SentryTaskSyncServiceTest(TestCase):
         self.assertIsNone(org)
         self.assertIsNone(project_id)
     
+    def test_parse_sentry_dsn_info_regional_de(self):
+        """Test parsing Sentry DSN with German regional domain"""
+        dsn = 'https://861ba899bfb4104c882a7b7d51fe36e3@o4510215672365056.ingest.de.sentry.io/4510257628512336'
+        org, project_id = self.service._parse_sentry_dsn_info(dsn)
+        
+        self.assertEqual(org, 'o4510215672365056')
+        self.assertEqual(project_id, '4510257628512336')
+    
+    def test_parse_sentry_dsn_info_regional_us(self):
+        """Test parsing Sentry DSN with US regional domain"""
+        dsn = 'https://key@o123456.ingest.us.sentry.io/78901'
+        org, project_id = self.service._parse_sentry_dsn_info(dsn)
+        
+        self.assertEqual(org, 'o123456')
+        self.assertEqual(project_id, '78901')
+    
     def test_generate_task_title(self):
         """Test generating task title from Sentry issue"""
         issue = {

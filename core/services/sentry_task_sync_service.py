@@ -48,15 +48,21 @@ class SentryTaskSyncService:
             # Parse the DSN URL
             parsed = urlparse(dsn)
             
-            # Validate it's a Sentry URL
-            if not parsed.hostname or not parsed.hostname.endswith('.ingest.sentry.io'):
+            # Validate it's a Sentry URL (supports regional domains like .ingest.de.sentry.io)
+            if not parsed.hostname or '.ingest.' not in parsed.hostname or not parsed.hostname.endswith('.sentry.io'):
                 logger.warning(f"Invalid Sentry DSN hostname: {parsed.hostname}")
                 return None, None
             
-            # Extract organization from hostname (e.g., 'o123456.ingest.sentry.io' -> 'o123456')
+            # Extract organization from hostname (e.g., 'o123456.ingest.sentry.io' -> 'o123456' or 'o123456.ingest.de.sentry.io' -> 'o123456')
             hostname_parts = parsed.hostname.split('.')
-            if len(hostname_parts) >= 3 and hostname_parts[-3:] == ['ingest', 'sentry', 'io']:
-                org = hostname_parts[0]
+            # Find 'ingest' in the hostname parts and extract the organization (part before it)
+            if 'ingest' in hostname_parts:
+                ingest_index = hostname_parts.index('ingest')
+                if ingest_index > 0:
+                    org = hostname_parts[0]
+                else:
+                    logger.warning(f"Could not extract organization from hostname: {parsed.hostname}")
+                    return None, None
             else:
                 logger.warning(f"Could not extract organization from hostname: {parsed.hostname}")
                 return None, None
