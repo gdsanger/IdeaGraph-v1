@@ -1219,6 +1219,26 @@ Diese E-Mail wurde automatisch von IdeaGraph generiert.
             
             logger.info(f"Processing mail: {subject} from {sender_name} <{sender_email}>")
             
+            # CRITICAL: Prevent infinite loop - Skip processing emails from IdeaGraph itself
+            # If IdeaGraph sends an email to itself, it would be processed again, creating a loop
+            if self.settings.default_mail_sender and sender_email:
+                default_sender_lower = self.settings.default_mail_sender.lower()
+                sender_email_lower = sender_email.lower()
+                
+                if sender_email_lower == default_sender_lower:
+                    logger.warning(
+                        f"SELF-RECEIVE BLOCKED: Skipping email from default_mail_sender "
+                        f"'{self.settings.default_mail_sender}' to prevent infinite loop. "
+                        f"Subject: '{subject}'"
+                    )
+                    return {
+                        'success': False,
+                        'message': 'Email from self ignored to prevent infinite loop',
+                        'mail_subject': subject,
+                        'sender_email': sender_email,
+                        'skipped': True
+                    }
+            
             # Step 1: Convert HTML to Markdown
             body_markdown = self.convert_html_to_markdown(body_html)
             
