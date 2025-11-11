@@ -11,6 +11,7 @@ from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime
 from difflib import SequenceMatcher
 from django.utils import timezone
+from main.github_utils import parse_github_repo
 
 
 logger = logging.getLogger('github_task_sync_service')
@@ -46,33 +47,6 @@ class GitHubTaskSyncService:
     
     # Threshold for title similarity (0.0 to 1.0)
     TITLE_SIMILARITY_THRESHOLD = 0.85
-    
-    def _parse_github_repo(self, github_repo: str) -> Tuple[Optional[str], Optional[str]]:
-        """
-        Parse github_repo field to extract owner and repo name
-        
-        Args:
-            github_repo: Repository string in format "owner/repo" or full URL
-        
-        Returns:
-            Tuple of (owner, repo) or (None, None) if parsing fails
-        """
-        if not github_repo:
-            return None, None
-        
-        # Remove common GitHub URL prefixes
-        repo_str = github_repo.strip()
-        repo_str = repo_str.replace('https://github.com/', '')
-        repo_str = repo_str.replace('http://github.com/', '')
-        repo_str = repo_str.replace('github.com/', '')
-        repo_str = repo_str.strip('/')
-        
-        # Split by '/' to get owner and repo
-        parts = repo_str.split('/')
-        if len(parts) >= 2:
-            return parts[0], parts[1]
-        
-        return None, None
     
     def __init__(self, settings=None):
         """
@@ -197,7 +171,7 @@ class GitHubTaskSyncService:
         # Use item's github_repo if not provided
         if not repo and item.github_repo:
             # Parse the github_repo field which may contain "owner/repo" format
-            parsed_owner, parsed_repo = self._parse_github_repo(item.github_repo)
+            parsed_owner, parsed_repo = parse_github_repo(item.github_repo)
             if parsed_repo:
                 repo = parsed_repo
                 # If owner was also parsed and not provided as parameter, use it
