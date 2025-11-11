@@ -323,7 +323,7 @@ class MailProcessingServiceTestCase(TestCase):
         call_args = mock_execute.call_args
         self.assertEqual(call_args[1]['agent_name'], 'teams-support-analysis-agent')
         self.assertEqual(call_args[1]['provider'], 'openai')
-        self.assertEqual(call_args[1]['model'], 'gpt-4o-mini')
+        self.assertEqual(call_args[1]['model'], 'gpt-4')
     
     def test_generate_normalized_description_no_kigate(self, mock_weaviate_init):
         """Test generating normalized description without KiGate"""
@@ -991,18 +991,21 @@ class MailProcessingServiceTestCase(TestCase):
         comments = TaskComment.objects.filter(task=task).order_by('created_at')
         self.assertEqual(comments.count(), 2)
         
-        # First comment should be the original mail (from user)
+        # First comment should be the original mail (marked as inbound email)
         original_comment = comments[0]
-        self.assertEqual(original_comment.source, 'user')
+        self.assertEqual(original_comment.source, 'email')
+        self.assertEqual(original_comment.email_direction, 'inbound')
         self.assertEqual(original_comment.author, self.user)
+        self.assertEqual(original_comment.email_from, self.user.email)
         self.assertIn('Test Mail Subject', original_comment.text)
         self.assertIn('Converted mail content', original_comment.text)
         
-        # Second comment should be the confirmation email (from agent)
+        # Second comment should be the confirmation email (marked as outbound email)
         confirmation_comment = comments[1]
-        self.assertEqual(confirmation_comment.source, 'agent')
-        self.assertIsNone(confirmation_comment.author)
-        self.assertEqual(confirmation_comment.author_name, 'AI Agent Bot')
+        self.assertEqual(confirmation_comment.source, 'email')
+        self.assertEqual(confirmation_comment.email_direction, 'outbound')
+        self.assertEqual(confirmation_comment.author_name, 'System')
+        self.assertEqual(confirmation_comment.email_from, self.settings.default_mail_sender)
         self.assertIn('Ihr Anliegen wurde erfolgreich erfasst', confirmation_comment.text)
     
     @patch('core.services.graph_service.GraphService.send_mail')
@@ -1229,3 +1232,245 @@ class MailProcessingServiceTestCase(TestCase):
             self.assertTrue(result.get('success'))
             self.assertIsNotNone(result.get('task_id'))
             self.assertFalse(result.get('is_reply', False))  # Not a reply to existing task
+    
+    def test_process_mail_from_self_blocked(self, mock_weaviate_init):
+        """Test that emails from default_mail_sender are blocked to prevent infinite loop"""
+        service = MailProcessingService(self.settings)
+        
+        # Message from IdeaGraph itself (default_mail_sender)
+        message = {
+            'id': 'self-msg-123',
+            'subject': 'Test Self Email',
+            'body': {
+                'content': '<p>This is from IdeaGraph itself</p>'
+            },
+            'from': {
+                'emailAddress': {
+                    'address': self.settings.default_mail_sender,  # idea@angermeier.net
+                    'name': 'IdeaGraph System'
+                }
+            },
+            'hasAttachments': False
+        }
+        
+        result = service.process_mail(message)
+        
+        # Should be blocked
+        self.assertFalse(result['success'])
+        self.assertEqual(result['message'], 'Email from self ignored to prevent infinite loop')
+        self.assertTrue(result.get('skipped', False))
+        self.assertEqual(result['sender_email'], self.settings.default_mail_sender)
+        
+        # Verify no task was created
+        self.assertEqual(Task.objects.count(), 0)
+    
+    def test_process_mail_from_self_case_insensitive(self, mock_weaviate_init):
+        """Test that self-send blocking is case-insensitive"""
+        service = MailProcessingService(self.settings)
+        
+        # Test uppercase
+        message_upper = {
+            'id': 'self-msg-upper',
+            'subject': 'Test Uppercase',
+            'body': {'content': '<p>Test</p>'},
+            'from': {
+                'emailAddress': {
+                    'address': 'IDEA@ANGERMEIER.NET',  # Uppercase version
+                    'name': 'Test'
+                }
+            },
+            'hasAttachments': False
+        }
+        
+        result = service.process_mail(message_upper)
+        self.assertFalse(result['success'])
+        self.assertTrue(result.get('skipped', False))
+        
+        # Test mixed case
+        message_mixed = {
+            'id': 'self-msg-mixed',
+            'subject': 'Test Mixed Case',
+            'body': {'content': '<p>Test</p>'},
+            'from': {
+                'emailAddress': {
+                    'address': 'Idea@Angermeier.Net',  # Mixed case
+                    'name': 'Test'
+                }
+            },
+            'hasAttachments': False
+        }
+        
+        result = service.process_mail(message_mixed)
+        self.assertFalse(result['success'])
+        self.assertTrue(result.get('skipped', False))
+        
+        # Verify no tasks were created
+        self.assertEqual(Task.objects.count(), 0)
+    
+    def test_process_mail_from_others_allowed(self, mock_weaviate_init):
+        """Test that emails from other senders are still processed normally"""
+        # Mock dependencies for normal processing
+        with patch('core.services.weaviate_sync_service.WeaviateItemSyncService.search_similar') as mock_search, \
+             patch('core.services.kigate_service.KiGateService.execute_agent') as mock_kigate, \
+             patch('core.services.graph_service.GraphService.send_mail') as mock_send, \
+             patch('core.services.graph_service.GraphService.mark_message_as_read') as mock_mark, \
+             patch('core.services.graph_service.GraphService.move_message') as mock_move:
+            
+            mock_search.return_value = {
+                'success': True,
+                'results': [{
+                    'id': str(self.item.id),
+                    'distance': 0.1,
+                    'metadata': {
+                        'title': self.item.title,
+                        'description': self.item.description,
+                        'section': self.section.name,
+                        'status': self.item.status
+                    }
+                }]
+            }
+            
+            mock_kigate.return_value = {
+                'success': True,
+                'result': 'Normalized description'
+            }
+            
+            mock_send.return_value = {'success': True}
+            mock_mark.return_value = {'success': True}
+            mock_move.return_value = {'success': True}
+            
+            service = MailProcessingService(self.settings)
+            
+            # Message from different sender
+            message = {
+                'id': 'other-msg-123',
+                'subject': 'Test from Other',
+                'body': {'content': '<p>From different sender</p>'},
+                'from': {
+                    'emailAddress': {
+                        'address': 'user@example.com',  # Different from default_mail_sender
+                        'name': 'External User'
+                    }
+                },
+                'hasAttachments': False
+            }
+            
+            result = service.process_mail(message)
+            
+            # Should process normally
+            self.assertTrue(result['success'])
+            self.assertNotIn('skipped', result)
+            self.assertIn('task_id', result)
+            
+            # Verify task was created
+            self.assertEqual(Task.objects.count(), 1)
+    
+    def test_process_mail_from_self_with_empty_default_sender(self, mock_weaviate_init):
+        """Test that processing works when default_mail_sender is empty"""
+        # Set default_mail_sender to empty
+        self.settings.default_mail_sender = ''
+        self.settings.save()
+        
+        with patch('core.services.weaviate_sync_service.WeaviateItemSyncService.search_similar') as mock_search, \
+             patch('core.services.kigate_service.KiGateService.execute_agent') as mock_kigate, \
+             patch('core.services.graph_service.GraphService.send_mail') as mock_send, \
+             patch('core.services.graph_service.GraphService.mark_message_as_read') as mock_mark, \
+             patch('core.services.graph_service.GraphService.move_message') as mock_move:
+            
+            mock_search.return_value = {
+                'success': True,
+                'results': [{
+                    'id': str(self.item.id),
+                    'distance': 0.1,
+                    'metadata': {
+                        'title': self.item.title,
+                        'description': self.item.description,
+                        'section': self.section.name,
+                        'status': self.item.status
+                    }
+                }]
+            }
+            
+            mock_kigate.return_value = {
+                'success': True,
+                'result': 'Normalized description'
+            }
+            
+            mock_send.return_value = {'success': True}
+            mock_mark.return_value = {'success': True}
+            mock_move.return_value = {'success': True}
+            
+            service = MailProcessingService(self.settings)
+            
+            # Message should be processed even with empty default_mail_sender
+            message = {
+                'id': 'msg-empty-sender',
+                'subject': 'Test Empty Default Sender',
+                'body': {'content': '<p>Test content</p>'},
+                'from': {
+                    'emailAddress': {
+                        'address': 'sender@example.com',
+                        'name': 'Test Sender'
+                    }
+                },
+                'hasAttachments': False
+            }
+            
+            result = service.process_mail(message)
+            
+            # Should process normally (no self-check with empty default_mail_sender)
+            self.assertTrue(result['success'])
+            self.assertNotIn('skipped', result)
+    
+    def test_process_mail_from_self_with_empty_sender_email(self, mock_weaviate_init):
+        """Test that emails with empty sender are handled gracefully"""
+        with patch('core.services.weaviate_sync_service.WeaviateItemSyncService.search_similar') as mock_search, \
+             patch('core.services.kigate_service.KiGateService.execute_agent') as mock_kigate, \
+             patch('core.services.graph_service.GraphService.send_mail') as mock_send, \
+             patch('core.services.graph_service.GraphService.mark_message_as_read') as mock_mark, \
+             patch('core.services.graph_service.GraphService.move_message') as mock_move:
+            
+            mock_search.return_value = {
+                'success': True,
+                'results': [{
+                    'id': str(self.item.id),
+                    'distance': 0.1,
+                    'metadata': {
+                        'title': self.item.title,
+                        'description': self.item.description,
+                        'section': self.section.name,
+                        'status': self.item.status
+                    }
+                }]
+            }
+            
+            mock_kigate.return_value = {
+                'success': True,
+                'result': 'Normalized description'
+            }
+            
+            mock_send.return_value = {'success': True}
+            mock_mark.return_value = {'success': True}
+            mock_move.return_value = {'success': True}
+            
+            service = MailProcessingService(self.settings)
+            
+            # Message with empty sender email
+            message = {
+                'id': 'msg-no-sender',
+                'subject': 'Test No Sender',
+                'body': {'content': '<p>Test content</p>'},
+                'from': {
+                    'emailAddress': {
+                        'address': '',  # Empty sender
+                        'name': 'Unknown'
+                    }
+                },
+                'hasAttachments': False
+            }
+            
+            result = service.process_mail(message)
+            
+            # Should process (empty sender won't match default_mail_sender)
+            self.assertTrue(result['success'])
+            self.assertNotIn('skipped', result)

@@ -47,6 +47,12 @@ class User(models.Model):
     def __str__(self):
         return self.username
     
+    def get_full_name(self):
+        """Return the user's full name, or username if name is not set"""
+        if self.first_name or self.last_name:
+            return f"{self.first_name} {self.last_name}".strip()
+        return self.username
+    
     def set_password(self, raw_password):
         """Hash and set the user's password using bcrypt"""
         password_bytes = raw_password.encode('utf-8')
