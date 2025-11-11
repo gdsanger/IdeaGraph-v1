@@ -71,6 +71,55 @@ class SentryTaskSyncService:
             logger.error(f"Error parsing DSN: {e}", exc_info=True)
         return None, None
     
+    def auto_fetch_project_slug(self, item: Item) -> Optional[str]:
+        """
+        Automatically fetch the project slug from Sentry API using the DSN
+        
+        Args:
+            item: The Item with Sentry DSN configured
+            
+        Returns:
+            Project slug string, or None if not found
+        """
+        if not item.sentry_dsn:
+            logger.warning(f"Item {item.id} has no Sentry DSN configured")
+            return None
+        
+        # Get auth token
+        if not self.settings:
+            logger.error("No settings found - cannot fetch project slug")
+            return None
+        
+        sentry_auth_token = getattr(self.settings, 'sentry_auth_token', None)
+        if not sentry_auth_token:
+            logger.error("Sentry auth token not configured in settings")
+            return None
+        
+        # Parse DSN
+        org, project_id = self._parse_sentry_dsn_info(item.sentry_dsn)
+        if not org or not project_id:
+            logger.error(f"Could not parse DSN: {item.sentry_dsn}")
+            return None
+        
+        # Use Sentry API to fetch project slug
+        try:
+            sentry_service = SentryService()
+            sentry_service.organization = org
+            sentry_service.auth_token = sentry_auth_token
+            
+            project_slug = sentry_service.get_project_slug_from_id(project_id)
+            
+            if project_slug:
+                logger.info(f"Auto-fetched project slug '{project_slug}' for item {item.id}")
+                return project_slug
+            else:
+                logger.warning(f"Could not find project slug for project ID {project_id}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error auto-fetching project slug: {e}", exc_info=True)
+            return None
+    
     def fetch_and_create_tasks(
         self,
         item: Item,
@@ -144,19 +193,27 @@ class SentryTaskSyncService:
                 'duplicates_skipped': 0
             }
         
-        # We need the project slug, which needs to be configured separately
-        # For now, we'll require it to be part of the item configuration
-        # In a real implementation, this should be fetched from the API or configured
+        # Get or fetch the project slug
         sentry_project = getattr(item, 'sentry_project_slug', None)
-        if not sentry_project:
-            logger.warning(f"Item {item.id} has no Sentry project slug configured")
-            # Try to use project_id from DSN as fallback
-            sentry_project = project_id
+        
+        # If project slug is not configured, try to auto-fetch it from Sentry API
+        if not sentry_project or sentry_project.strip() == '':
+            logger.info(f"Project slug not configured for item {item.id}, attempting to auto-fetch...")
+            sentry_project = self.auto_fetch_project_slug(item)
+            
+            # If we successfully fetched it, save it to the item
+            if sentry_project:
+                try:
+                    item.sentry_project_slug = sentry_project
+                    item.save(update_fields=['sentry_project_slug'])
+                    logger.info(f"Auto-saved project slug '{sentry_project}' to item {item.id}")
+                except Exception as e:
+                    logger.error(f"Error saving project slug to item: {e}", exc_info=True)
         
         if not sentry_project:
             return {
                 'success': False,
-                'error': 'No Sentry project configured',
+                'error': 'Could not determine Sentry project slug. Please configure it manually or check your Sentry auth token.',
                 'issues_fetched': 0,
                 'tasks_created': 0,
                 'duplicates_skipped': 0

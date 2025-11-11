@@ -439,7 +439,8 @@
                                         <label for="sentry_project_slug" class="form-label">
                                             <i class="bi bi-folder"></i> Sentry Project Slug
                                         </label>
-                                        <input type="text" class="form-control" id="sentry_project_slug" name="sentry_project_slug" value="{{ item.sentry_project_slug }}" placeholder="my-project">
+                                        <input type="text" class="form-control" id="sentry_project_slug" name="sentry_project_slug" value="{{ item.sentry_project_slug }}" placeholder="auto-detected">
+                                        <small class="text-muted" style="font-size: 0.75rem;">Auto-filled from DSN if left empty</small>
                                     </div>
 
                                     <div class="mb-2">

@@ -134,6 +134,38 @@ class SentryService:
             logger.error(f"Error fetching projects: {e}", exc_info=True)
             return []
     
+    def get_project_slug_from_id(self, project_id: str) -> Optional[str]:
+        """
+        Get project slug from project ID by querying Sentry API
+        
+        Args:
+            project_id: The numeric project ID from the DSN
+            
+        Returns:
+            Project slug string, or None if not found
+        """
+        if not self.organization or not self.auth_token:
+            logger.error("Sentry not fully configured - need organization and auth token")
+            return None
+        
+        try:
+            # Get all projects and find the one matching the project_id
+            projects = self.get_projects()
+            
+            for project in projects:
+                # Project ID can be either string or int in the API response
+                if str(project.get('id')) == str(project_id):
+                    slug = project.get('slug')
+                    logger.info(f"Found project slug '{slug}' for project ID {project_id}")
+                    return slug
+            
+            logger.warning(f"No project found with ID {project_id}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error fetching project slug: {e}", exc_info=True)
+            return None
+    
     def get_issues(
         self,
         hours_back: int = 24,

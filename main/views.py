@@ -150,6 +150,53 @@ def _resolve_client_values(client_values):
     return resolved_clients
 
 
+def _auto_fetch_sentry_project_slug(sentry_dsn, current_slug=None):
+    """
+    Automatically fetch the Sentry project slug from the DSN if needed.
+    
+    Args:
+        sentry_dsn: The Sentry DSN string
+        current_slug: The current project slug value (if any)
+        
+    Returns:
+        Project slug string, or the current_slug if auto-fetch fails
+    """
+    # If we already have a slug, keep it
+    if current_slug and current_slug.strip():
+        return current_slug
+    
+    # If no DSN, return empty
+    if not sentry_dsn or not sentry_dsn.strip():
+        return current_slug or ''
+    
+    try:
+        from core.services.sentry_task_sync_service import SentryTaskSyncService
+        
+        # Create a temporary Item object to use with the service
+        # We only need the DSN field for the auto-fetch
+        class TempItem:
+            def __init__(self, dsn):
+                self.sentry_dsn = dsn
+                self.id = 'temp'
+        
+        temp_item = TempItem(sentry_dsn)
+        sync_service = SentryTaskSyncService()
+        
+        # Try to auto-fetch the project slug
+        project_slug = sync_service.auto_fetch_project_slug(temp_item)
+        
+        if project_slug:
+            logger.info(f"Auto-fetched project slug: {project_slug}")
+            return project_slug
+        else:
+            logger.warning("Could not auto-fetch project slug from Sentry API")
+            return current_slug or ''
+            
+    except Exception as e:
+        logger.error(f"Error auto-fetching project slug: {e}", exc_info=True)
+        return current_slug or ''
+
+
 def _build_selected_clients_payload(client_values):
     """Return dictionaries for rendering selected clients."""
     if not client_values:
@@ -1189,6 +1236,12 @@ def item_create(request):
         sentry_dsn = request.POST.get('sentry_dsn', '').strip()
         sentry_project_slug = request.POST.get('sentry_project_slug', '').strip()
         enable_sentry_fetch = request.POST.get('enable_sentry_fetch') == 'on'
+        
+        # Auto-fetch project slug if DSN is provided but slug is not
+        if sentry_dsn and not sentry_project_slug:
+            sentry_project_slug = _auto_fetch_sentry_project_slug(sentry_dsn, sentry_project_slug)
+            if sentry_project_slug:
+                messages.info(request, f'Auto-detected Sentry project slug: {sentry_project_slug}')
 
         if not title:
             messages.error(request, 'Title is required.')
@@ -1300,6 +1353,12 @@ def item_edit(request, item_id):
         sentry_dsn = request.POST.get('sentry_dsn', '').strip()
         sentry_project_slug = request.POST.get('sentry_project_slug', '').strip()
         enable_sentry_fetch = request.POST.get('enable_sentry_fetch') == 'on'
+        
+        # Auto-fetch project slug if DSN is provided/changed but slug is not
+        if sentry_dsn and not sentry_project_slug:
+            sentry_project_slug = _auto_fetch_sentry_project_slug(sentry_dsn, sentry_project_slug)
+            if sentry_project_slug:
+                messages.info(request, f'Auto-detected Sentry project slug: {sentry_project_slug}')
 
         if not title:
             messages.error(request, 'Title is required.')
