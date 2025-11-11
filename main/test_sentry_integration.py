@@ -417,3 +417,145 @@ class SentryAPIEndpointTest(TestCase):
         self.assertEqual(data['issues_fetched'], 3)
         self.assertEqual(data['tasks_created'], 2)
         self.assertEqual(data['duplicates_skipped'], 1)
+
+
+class SentryAutoFetchProjectSlugTest(TestCase):
+    """Test auto-fetch functionality for Sentry project slug"""
+    
+    def setUp(self):
+        """Set up test data"""
+        # Create test user
+        self.user = User.objects.create(
+            username='testuser',
+            email='test@example.com',
+            role='user'
+        )
+        self.user.set_password('Test@123')
+        self.user.save()
+        
+        # Create settings with Sentry token
+        self.settings = Settings.objects.create(
+            sentry_auth_token='test_sentry_token_123'
+        )
+        
+        self.service = SentryTaskSyncService()
+    
+    @patch('core.services.sentry_service.SentryService.get_projects')
+    def test_auto_fetch_project_slug_success(self, mock_get_projects):
+        """Test successful auto-fetch of project slug"""
+        # Create item with DSN but no project slug
+        item = Item.objects.create(
+            title='Test Item',
+            sentry_dsn='https://key@org123.ingest.sentry.io/12345',
+            created_by=self.user
+        )
+        
+        # Mock the Sentry API response
+        mock_get_projects.return_value = [
+            {'id': 12345, 'slug': 'my-awesome-project'},
+            {'id': 67890, 'slug': 'another-project'}
+        ]
+        
+        # Call auto-fetch
+        project_slug = self.service.auto_fetch_project_slug(item)
+        
+        # Verify result
+        self.assertEqual(project_slug, 'my-awesome-project')
+    
+    @patch('core.services.sentry_service.SentryService.get_projects')
+    def test_auto_fetch_project_slug_not_found(self, mock_get_projects):
+        """Test auto-fetch when project is not found"""
+        item = Item.objects.create(
+            title='Test Item',
+            sentry_dsn='https://key@org123.ingest.sentry.io/99999',
+            created_by=self.user
+        )
+        
+        # Mock the Sentry API response with different project IDs
+        mock_get_projects.return_value = [
+            {'id': 12345, 'slug': 'my-awesome-project'},
+            {'id': 67890, 'slug': 'another-project'}
+        ]
+        
+        # Call auto-fetch
+        project_slug = self.service.auto_fetch_project_slug(item)
+        
+        # Verify result is None
+        self.assertIsNone(project_slug)
+    
+    def test_auto_fetch_project_slug_no_dsn(self):
+        """Test auto-fetch when item has no DSN"""
+        item = Item.objects.create(
+            title='Test Item',
+            created_by=self.user
+        )
+        
+        # Call auto-fetch
+        project_slug = self.service.auto_fetch_project_slug(item)
+        
+        # Verify result is None
+        self.assertIsNone(project_slug)
+    
+    def test_auto_fetch_project_slug_no_auth_token(self):
+        """Test auto-fetch when no auth token is configured"""
+        # Remove auth token from settings
+        self.settings.sentry_auth_token = ''
+        self.settings.save()
+        
+        item = Item.objects.create(
+            title='Test Item',
+            sentry_dsn='https://key@org123.ingest.sentry.io/12345',
+            created_by=self.user
+        )
+        
+        # Call auto-fetch
+        project_slug = self.service.auto_fetch_project_slug(item)
+        
+        # Verify result is None
+        self.assertIsNone(project_slug)
+    
+    @patch('core.services.sentry_service.SentryService.get_projects')
+    def test_fetch_and_create_tasks_auto_fills_slug(self, mock_get_projects):
+        """Test that fetch_and_create_tasks auto-fills missing project slug"""
+        # Create item with DSN but no project slug
+        item = Item.objects.create(
+            title='Test Item',
+            sentry_dsn='https://key@org123.ingest.sentry.io/12345',
+            enable_sentry_fetch=True,
+            created_by=self.user
+        )
+        
+        # Mock the Sentry API response for projects
+        mock_get_projects.return_value = [
+            {'id': 12345, 'slug': 'auto-filled-project'}
+        ]
+        
+        # Mock the get_issues method to return empty list (we don't care about tasks)
+        with patch('core.services.sentry_service.SentryService.get_issues', return_value=[]):
+            result = self.service.fetch_and_create_tasks(item)
+        
+        # Verify the project slug was auto-filled and saved
+        item.refresh_from_db()
+        self.assertEqual(item.sentry_project_slug, 'auto-filled-project')
+        self.assertTrue(result['success'])
+    
+    def test_get_project_slug_from_id(self):
+        """Test SentryService.get_project_slug_from_id method"""
+        from core.services.sentry_service import SentryService
+        
+        service = SentryService()
+        service.organization = 'org123'
+        service.auth_token = 'test_token'
+        
+        # Mock get_projects to return test data
+        with patch.object(service, 'get_projects', return_value=[
+            {'id': 12345, 'slug': 'test-project'},
+            {'id': 67890, 'slug': 'another-project'}
+        ]):
+            # Test finding existing project
+            slug = service.get_project_slug_from_id('12345')
+            self.assertEqual(slug, 'test-project')
+            
+            # Test project not found
+            slug = service.get_project_slug_from_id('99999')
+            self.assertIsNone(slug)
