@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('main', '0053_merge_20251110_1048'),
+        ('main', '0053_add_support_embed_fields'),
     ]
 
     operations = [
