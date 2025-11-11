@@ -427,6 +427,33 @@
                                         <input type="text" class="form-control" id="github_repo" name="github_repo" value="{{ item.github_repo }}" placeholder="owner/repository">
                                     </div>
 
+                                    <!-- Sentry Integration -->
+                                    <div class="mb-2">
+                                        <label for="sentry_dsn" class="form-label">
+                                            <i class="bi bi-bug"></i> Sentry DSN
+                                        </label>
+                                        <input type="text" class="form-control" id="sentry_dsn" name="sentry_dsn" value="{{ item.sentry_dsn }}" placeholder="https://...@o...ingest.sentry.io/...">
+                                    </div>
+
+                                    <div class="mb-2">
+                                        <label for="sentry_project_slug" class="form-label">
+                                            <i class="bi bi-folder"></i> Sentry Project Slug
+                                        </label>
+                                        <input type="text" class="form-control" id="sentry_project_slug" name="sentry_project_slug" value="{{ item.sentry_project_slug }}" placeholder="my-project">
+                                    </div>
+
+                                    <div class="mb-2">
+                                        <label for="enable_sentry_fetch" class="form-label">
+                                            <i class="bi bi-arrow-repeat"></i> Sentry Auto-Fetch
+                                        </label>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="enable_sentry_fetch" name="enable_sentry_fetch" {% if item.enable_sentry_fetch %}checked{% endif %}>
+                                            <label class="form-check-label" for="enable_sentry_fetch" style="font-size: 0.75rem;">
+                                                Enable auto-fetch
+                                            </label>
+                                        </div>
+                                    </div>
+
                                     <!-- Section -->
                                     <div class="mb-2">
                                         <label for="section" class="form-label">Section</label>
@@ -554,6 +581,16 @@
                                                 title="Sync GitHub Documentation"
                                                 {% endif %}>
                                             <span class="button-text"><i class="bi bi-file-earmark-text"></i> Sync GitHub Docs</span>
+                                            <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-danger" id="fetchSentryErrorsBtn" 
+                                                {% if not item.sentry_dsn or not item.enable_sentry_fetch %}
+                                                disabled 
+                                                title="{% if not item.sentry_dsn %}Sentry DSN not configured{% elif not item.enable_sentry_fetch %}Sentry auto-fetch is disabled{% endif %}"
+                                                {% else %}
+                                                title="Fetch Sentry Errors"
+                                                {% endif %}>
+                                            <span class="button-text"><i class="bi bi-bug"></i> Fetch Sentry Errors</span>
                                             <span class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
                                         </button>
                                         <button type="button" class="btn btn-secondary" id="sendEmailBtn" data-bs-toggle="modal" data-bs-target="#sendEmailModal">
@@ -1625,6 +1662,64 @@ document.querySelector('#syncGitHubDocsBtn')?.addEventListener('click', async fu
             }, 2000);
         } else {
             showAlert(data.error || 'Failed to sync GitHub documentation', 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+    }
+});
+
+// Fetch Sentry Errors Button
+document.querySelector('#fetchSentryErrorsBtn')?.addEventListener('click', async function() {
+    const btn = this;
+    const spinner = btn.querySelector('.spinner-border');
+    const buttonText = btn.querySelector('.button-text');
+    
+    // Show confirmation dialog
+    const confirmed = confirm(
+        'This will fetch recent errors from Sentry and create Bug tasks for this item.\n\n' +
+        'Duplicate errors will be automatically skipped.\n\n' +
+        'Do you want to continue?'
+    );
+    
+    if (!confirmed) {
+        return;
+    }
+    
+    btn.disabled = true;
+    spinner.style.display = 'inline-block';
+    
+    try {
+        const response = await fetch('/api/items/{{ item.id }}/fetch-sentry-errors', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                hours_back: 24  // Fetch errors from last 24 hours
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            let message = `Sentry error fetch completed!\n\n`;
+            message += `Issues fetched: ${data.issues_fetched}\n`;
+            message += `Tasks created: ${data.tasks_created}\n`;
+            message += `Duplicates skipped: ${data.duplicates_skipped}`;
+            
+            showAlert(message, 'success');
+            
+            // Reload the page to show new tasks
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+        } else {
+            showAlert(data.error || 'Failed to fetch Sentry errors', 'danger');
         }
     } catch (error) {
         console.error('Error:', error);
