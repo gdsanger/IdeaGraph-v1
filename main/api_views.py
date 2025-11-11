@@ -2509,6 +2509,7 @@ def api_task_create_github_issue(request, task_id):
         return JsonResponse({'error': 'Authentication required'}, status=401)
     
     from .models import Task
+    from .github_utils import parse_github_repo
     
     try:
         task = Task.objects.get(id=task_id)
@@ -2526,11 +2527,12 @@ def api_task_create_github_issue(request, task_id):
             return JsonResponse({'error': 'No GitHub repository configured for this item'}, status=400)
         
         # Parse owner/repo from github_repo field
-        repo_parts = task.item.github_repo.split('/')
-        if len(repo_parts) != 2:
-            return JsonResponse({'error': 'Invalid GitHub repository format. Expected: owner/repo'}, status=400)
-        
-        owner, repo = repo_parts
+        owner, repo = parse_github_repo(task.item.github_repo)
+        if not owner or not repo:
+            return JsonResponse({
+                'error': 'Invalid GitHub repository format. Expected: owner/repo or https://github.com/owner/repo',
+                'provided': task.item.github_repo
+            }, status=400)
         
         # Prepare labels from tags
         labels = [tag.name for tag in task.tags.all()]

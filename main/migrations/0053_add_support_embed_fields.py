@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('main', '0050_update_task_status_choices'),
+        ('main', '0052_item_sentry_project_slug_settings_sentry_auth_token'),
     ]
 
     operations = [
