@@ -1072,6 +1072,15 @@ def item_detail(request, item_id):
         parent_id = request.POST.get('parent')
         is_template = request.POST.get('is_template') == 'on'
         inherit_context = request.POST.get('inherit_context') == 'on'
+        sentry_dsn = request.POST.get('sentry_dsn', '').strip()
+        sentry_project_slug = request.POST.get('sentry_project_slug', '').strip()
+        enable_sentry_fetch = request.POST.get('enable_sentry_fetch') == 'on'
+        
+        # Auto-fetch project slug if DSN is provided/changed but slug is not
+        if sentry_dsn and not sentry_project_slug:
+            sentry_project_slug = _auto_fetch_sentry_project_slug(sentry_dsn, sentry_project_slug)
+            if sentry_project_slug:
+                messages.info(request, f'Auto-detected Sentry project slug: {sentry_project_slug}')
 
         if not title:
             messages.error(request, 'Title is required.')
@@ -1085,6 +1094,9 @@ def item_detail(request, item_id):
                 item.status = status
                 item.is_template = is_template
                 item.inherit_context = inherit_context
+                item.sentry_dsn = sentry_dsn
+                item.sentry_project_slug = sentry_project_slug
+                item.enable_sentry_fetch = enable_sentry_fetch
 
                 if section_id:
                     item.section_id = section_id
