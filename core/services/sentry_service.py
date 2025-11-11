@@ -42,21 +42,24 @@ class SentryService:
         
         DSN format: https://<key>@<org>.ingest.sentry.io/<project_id>
         """
+        from urllib.parse import urlparse
+        
         try:
-            # Extract organization from the DSN (supports regional domains like .ingest.de.sentry.io)
-            if '@' in dsn and '.ingest.' in dsn and '.sentry.io' in dsn:
-                # Split by '@' and take the part after it (hostname + path)
-                after_at = dsn.split('@')[1]
-                # Extract the organization (first part before .ingest.)
-                hostname = after_at.split('/')[0]  # Remove path part
-                org_part = hostname.split('.ingest.')[0]
-                self.organization = org_part
-                
-                # Note: Project ID from DSN is numeric, but we need the slug
-                # This will need to be configured separately or fetched from API
-                logger.info(f"Extracted organization from DSN: {self.organization}")
-            else:
-                logger.warning("Could not parse organization from DSN")
+            # Parse the DSN URL properly
+            parsed = urlparse(dsn)
+            
+            # Validate it's a Sentry URL (supports regional domains like .ingest.de.sentry.io)
+            if not parsed.hostname or '.ingest.' not in parsed.hostname or not parsed.hostname.endswith('.sentry.io'):
+                logger.warning("Could not parse organization from DSN - invalid hostname")
+                return
+            
+            # Extract organization (first part before .ingest.)
+            org_part = parsed.hostname.split('.ingest.')[0]
+            self.organization = org_part
+            
+            # Note: Project ID from DSN is numeric, but we need the slug
+            # This will need to be configured separately or fetched from API
+            logger.info(f"Extracted organization from DSN: {self.organization}")
         except Exception as e:
             logger.error(f"Error parsing DSN: {e}", exc_info=True)
     
