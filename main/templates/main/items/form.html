@@ -70,7 +70,19 @@
                                 <small class="text-muted">Optional: Sentry DSN for error tracking integration</small>
                             </div>
 
-                            <div class="col-md-3 mb-3">
+                            <div class="col-md-6 mb-3">
+                                <label for="sentry_auth_token" class="form-label">
+                                    <i class="bi bi-key"></i> Auth Token
+                                </label>
+                                <input type="password" class="form-control" id="sentry_auth_token" name="sentry_auth_token" 
+                                       value="{% if item %}{{ item.sentry_auth_token }}{% endif %}" 
+                                       placeholder="sntrys_...">
+                                <small class="text-muted">Required for fetching errors from Sentry</small>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
                                 <label for="sentry_project_slug" class="form-label">
                                     <i class="bi bi-folder"></i> Project Slug
                                 </label>
@@ -80,7 +92,7 @@
                                 <small class="text-muted">Auto-filled from DSN if left empty</small>
                             </div>
 
-                            <div class="col-md-3 mb-3">
+                            <div class="col-md-6 mb-3">
                                 <label for="enable_sentry_fetch" class="form-label">
                                     <i class="bi bi-arrow-repeat"></i> Auto-Fetch
                                 </label>

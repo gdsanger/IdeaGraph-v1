@@ -69,6 +69,7 @@ class SentryIntegrationTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'sentry_dsn')
         self.assertContains(response, 'sentry_project_slug')
+        self.assertContains(response, 'sentry_auth_token')
         self.assertContains(response, 'enable_sentry_fetch')
     
     def test_item_create_with_sentry_fields(self):
@@ -80,6 +81,7 @@ class SentryIntegrationTest(TestCase):
             'status': 'new',
             'sentry_dsn': 'https://key@test.ingest.sentry.io/99999',
             'sentry_project_slug': 'new-project',
+            'sentry_auth_token': 'test_token_123',
             'enable_sentry_fetch': 'on'
         })
         
@@ -90,6 +92,7 @@ class SentryIntegrationTest(TestCase):
         item = Item.objects.get(title='New Item with Sentry')
         self.assertEqual(item.sentry_dsn, 'https://key@test.ingest.sentry.io/99999')
         self.assertEqual(item.sentry_project_slug, 'new-project')
+        self.assertEqual(item.sentry_auth_token, 'test_token_123')
         self.assertTrue(item.enable_sentry_fetch)
     
     def test_item_update_sentry_fields(self):
@@ -101,6 +104,7 @@ class SentryIntegrationTest(TestCase):
             'status': 'new',
             'sentry_dsn': 'https://key@updated.ingest.sentry.io/88888',
             'sentry_project_slug': 'updated-project',
+            'sentry_auth_token': 'updated_token',
             'enable_sentry_fetch': 'on'
         })
         
@@ -111,6 +115,7 @@ class SentryIntegrationTest(TestCase):
         item = Item.objects.get(id=self.item_no_sentry.id)
         self.assertEqual(item.sentry_dsn, 'https://key@updated.ingest.sentry.io/88888')
         self.assertEqual(item.sentry_project_slug, 'updated-project')
+        self.assertEqual(item.sentry_auth_token, 'updated_token')
         self.assertTrue(item.enable_sentry_fetch)
     
     def test_item_model_has_sentry_auth_token(self):
