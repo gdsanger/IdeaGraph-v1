@@ -273,6 +273,13 @@ class Item(models.Model):
         verbose_name='Sentry Project Slug',
         help_text='Sentry project slug (e.g., ideagraph-v1)'
     )
+    sentry_auth_token = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='Sentry Auth Token',
+        help_text='Sentry API authentication token for this item'
+    )
     enable_sentry_fetch = models.BooleanField(
         default=False,
         verbose_name='Enable Sentry Fetch',
