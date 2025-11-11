@@ -41,11 +41,16 @@ For each Item that should fetch Sentry errors:
    - **Sentry DSN**: The Data Source Name from your Sentry project
      - Format: `https://<key>@<org>.ingest.sentry.io/<project_id>`
      - Example: `https://abc123@o123456.ingest.sentry.io/789012`
+     - **Required**: This is the primary identifier for your Sentry project
    - **Sentry Project Slug**: The project slug from Sentry
      - Example: `ideagraph-v1`, `my-app`
+     - **Auto-detected**: Leave empty to automatically fetch from Sentry API
+     - **Optional**: Only needed if auto-detection fails or you want to override
    - **Enable Auto-Fetch**: Check this box to enable automatic error fetching
 
 4. Save the Item
+
+**Note**: When you provide a Sentry DSN but leave the Project Slug empty, the system will automatically query the Sentry API to fetch and save the correct project slug. This eliminates the need to manually look up the project slug in your Sentry settings.
 
 ## Usage
 
@@ -127,6 +132,29 @@ To automatically fetch Sentry errors on a schedule, add a cron job:
 
 ## How It Works
 
+### Automatic Project Slug Detection
+
+When you configure a Sentry DSN without specifying a project slug, the system automatically:
+
+1. **Parse the DSN**: Extracts the organization and project ID from the DSN
+2. **Query Sentry API**: Fetches the list of projects from your Sentry organization
+3. **Match Project**: Finds the project matching the ID from the DSN
+4. **Save Slug**: Automatically saves the project slug to the Item
+
+This automation happens:
+- When creating a new Item with a Sentry DSN
+- When updating an Item's Sentry DSN
+- When running the sync script for the first time on an Item without a project slug
+
+**Benefits**:
+- No need to manually look up the project slug in Sentry settings
+- Reduces configuration errors
+- Simplifies the setup process
+
+**Requirements**:
+- A valid Sentry Auth Token must be configured in Settings
+- The auth token must have `project:read` and `org:read` permissions
+
 ### Error Fetching Process
 
 1. **Query Sentry API**: The service queries the Sentry API for issues in the configured project
@@ -199,12 +227,32 @@ If a duplicate is detected, the sync process skips creating a new task and logs 
 
 ## Troubleshooting
 
+### Project Slug is not auto-detected
+
+If the project slug is not automatically filled in:
+
+1. **Check Sentry Auth Token**:
+   - Ensure the Sentry Auth Token is configured in Settings
+   - Verify the token has `project:read` and `org:read` permissions
+   
+2. **Check DSN Format**:
+   - Ensure the DSN follows the format: `https://<key>@<org>.ingest.sentry.io/<project_id>`
+   - Verify the organization and project ID are correct
+   
+3. **Check Network Access**:
+   - Ensure the server can reach `sentry.io` (API endpoint)
+   - Check for firewall or proxy restrictions
+   
+4. **Manual Override**:
+   - If auto-detection fails, you can manually enter the project slug
+   - Find it in Sentry: Settings → Projects → [Your Project] → Project Slug
+
 ### No errors are being fetched
 
 1. **Check Sentry Configuration**:
    - Verify the Sentry Auth Token is set in Settings
    - Verify the Sentry DSN is correct for the Item
-   - Verify the Sentry Project Slug is correct
+   - Verify the Sentry Project Slug is present (should be auto-filled or manually entered)
    - Verify "Enable Auto-Fetch" is checked
 
 2. **Check Sentry API Token Permissions**:
