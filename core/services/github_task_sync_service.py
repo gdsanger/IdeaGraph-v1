@@ -11,6 +11,7 @@ from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime
 from difflib import SequenceMatcher
 from django.utils import timezone
+from main.github_utils import parse_github_repo
 
 
 logger = logging.getLogger('github_task_sync_service')
@@ -168,10 +169,20 @@ class GitHubTaskSyncService:
             }
         
         # Use item's github_repo if not provided
-        if not repo:
-            repo = item.github_repo
+        if not repo and item.github_repo:
+            # Parse the github_repo field which may contain "owner/repo" format
+            parsed_owner, parsed_repo = parse_github_repo(item.github_repo)
+            if parsed_repo:
+                repo = parsed_repo
+                # If owner was also parsed and not provided as parameter, use it
+                if parsed_owner and not owner:
+                    owner = parsed_owner
+                    logger.info(f"Using repository from item: {owner}/{repo}")
+            else:
+                # Assume it's just the repo name
+                repo = item.github_repo
         
-        # Use default owner from settings if not provided
+        # Use default owner from settings if still not provided
         if not owner:
             owner = self.settings.github_default_owner
         
@@ -179,7 +190,15 @@ class GitHubTaskSyncService:
             return {
                 'success': False,
                 'error': 'No GitHub owner specified',
-                'details': 'Please configure a default GitHub owner in settings'
+                'details': 'Please configure a default GitHub owner in settings or specify owner in repository format (owner/repo)'
+            }
+        
+        # Validate that we have both owner and repo
+        if not repo:
+            return {
+                'success': False,
+                'error': 'No GitHub repository name specified',
+                'details': 'Repository name could not be determined from item or parameters'
             }
         
         results = {
@@ -317,10 +336,15 @@ class GitHubTaskSyncService:
         
         except GitHubServiceError as e:
             logger.error(f"GitHub service error: {e.message}")
+            error_msg = e.message
+            # Add repository context to 404 errors
+            if e.status_code == 404:
+                error_msg = f"Repository not found or not accessible: {owner}/{repo}. Please verify the repository exists and your GitHub token has access."
             return {
                 'success': False,
-                'error': e.message,
-                'details': e.details or ''
+                'error': error_msg,
+                'details': e.details or '',
+                'repository': f"{owner}/{repo}"
             }
         except Exception as e:
             logger.exception(f"Unexpected error during GitHub issue sync: {str(e)}")
