@@ -105,7 +105,8 @@ class SentryTaskSyncService:
         
         # Use Sentry API to fetch project slug
         try:
-            sentry_service = SentryService()
+            # Initialize with DSN to detect regional endpoint
+            sentry_service = SentryService(dsn=item.sentry_dsn, auth_token=sentry_auth_token)
             sentry_service.organization = org
             sentry_service.auth_token = sentry_auth_token
             
@@ -209,8 +210,8 @@ class SentryTaskSyncService:
                 'duplicates_skipped': 0
             }
         
-        # Initialize Sentry service
-        sentry_service = SentryService()
+        # Initialize Sentry service with DSN to detect regional endpoint
+        sentry_service = SentryService(dsn=item.sentry_dsn, auth_token=sentry_auth_token)
         sentry_service.configure(org, sentry_project, sentry_auth_token)
         
         # Fetch issues
