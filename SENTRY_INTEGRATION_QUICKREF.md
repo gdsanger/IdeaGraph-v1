@@ -22,11 +22,14 @@ Example: `sntrys_abc123def456...`
 Item Edit → Sentry Integration Section
 ```
 
-| Field | Example | Required |
-|-------|---------|----------|
-| Sentry DSN | `https://key@org.ingest.sentry.io/12345` | Yes |
-| Project Slug | `ideagraph-v1` | Yes |
-| Enable Auto-Fetch | ☑ | Yes |
+| Field | Example | Required | Notes |
+|-------|---------|----------|-------|
+| Sentry DSN | `https://key@org.ingest.sentry.io/12345` | Yes | Regional domains auto-detected (`.de`, `.us`, etc.) |
+| Sentry Auth Token | `sntrys_abc123...` | Yes | Per-item token (optional if set in Settings) |
+| Project Slug | `ideagraph-v1` | Auto* | Auto-detected from API if left empty |
+| Enable Auto-Fetch | ☑ | Yes | Must be checked to enable sync |
+
+*Project Slug is automatically fetched if not provided
 
 ## 🚀 Usage
 
@@ -92,10 +95,17 @@ Tasks are **NOT created** if:
 
 ## 🐛 Troubleshooting
 
+### Error 404 - Issues not found?
+1. ✅ **Regional endpoint**: DSN with `.ingest.de.sentry.io` now auto-detects EU endpoint
+2. ✅ Check Sentry Auth Token (per-item or in Settings)
+3. ✅ Check DSN format includes region: `https://key@org.ingest[.region].sentry.io/project`
+4. ✅ Check Project Slug matches Sentry (or leave empty for auto-detect)
+5. ✅ Check organization ID in DSN is correct
+
 ### No errors fetched?
-1. ✅ Check Sentry Auth Token in Settings
+1. ✅ Check Sentry Auth Token in Settings or per-Item
 2. ✅ Check DSN format is correct
-3. ✅ Check Project Slug matches Sentry
+3. ✅ Check Project Slug matches Sentry (or auto-detected)
 4. ✅ Check "Enable Auto-Fetch" is checked
 5. ✅ Check errors exist in last 24 hours
 

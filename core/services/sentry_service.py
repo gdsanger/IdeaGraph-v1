@@ -38,9 +38,13 @@ class SentryService:
     
     def _parse_dsn(self, dsn: str):
         """
-        Parse Sentry DSN to extract organization and project info
+        Parse Sentry DSN to extract organization, region, and project info
         
-        DSN format: https://<key>@<org>.ingest.sentry.io/<project_id>
+        DSN format: https://<key>@<org>.ingest[.region].sentry.io/<project_id>
+        Regional examples:
+          - US/Default: https://key@o123.ingest.sentry.io/456
+          - EU: https://key@o123.ingest.de.sentry.io/456
+          - US-2: https://key@o123.ingest.us.sentry.io/456
         """
         from urllib.parse import urlparse
         
@@ -57,9 +61,33 @@ class SentryService:
             org_part = parsed.hostname.split('.ingest.')[0]
             self.organization = org_part
             
+            # Extract region from hostname to determine the correct API base URL
+            # Hostname format: <org>.ingest[.region].sentry.io
+            hostname_parts = parsed.hostname.split('.')
+            
+            # Find the region indicator between 'ingest' and 'sentry'
+            try:
+                ingest_index = hostname_parts.index('ingest')
+                sentry_index = hostname_parts.index('sentry')
+                
+                # Check if there's a region part between 'ingest' and 'sentry'
+                if sentry_index - ingest_index == 2:
+                    # Regional domain: e.g., o123.ingest.de.sentry.io
+                    region = hostname_parts[ingest_index + 1]
+                    self.base_url = f"https://{region}.sentry.io/api/0"
+                    logger.info(f"Detected regional Sentry instance: {region}")
+                else:
+                    # Default domain: e.g., o123.ingest.sentry.io
+                    self.base_url = "https://sentry.io/api/0"
+                    logger.info("Detected default Sentry instance")
+            except (ValueError, IndexError):
+                # Fallback to default if parsing fails
+                self.base_url = "https://sentry.io/api/0"
+                logger.warning("Could not determine region, using default API endpoint")
+            
             # Note: Project ID from DSN is numeric, but we need the slug
             # This will need to be configured separately or fetched from API
-            logger.info(f"Extracted organization from DSN: {self.organization}")
+            logger.info(f"Extracted organization from DSN: {self.organization}, API base URL: {self.base_url}")
         except Exception as e:
             logger.error(f"Error parsing DSN: {e}", exc_info=True)
     

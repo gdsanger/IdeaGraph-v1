@@ -7,6 +7,7 @@ The Sentry Integration feature allows IdeaGraph to automatically fetch errors fr
 ## Features
 
 - **Automatic Error Fetching**: Automatically fetch errors from Sentry API
+- **Regional Sentry Support**: Automatically detects and uses correct API endpoints for regional Sentry instances (EU, US, etc.)
 - **Bug Task Creation**: Create Bug-type tasks from Sentry errors
 - **Duplicate Detection**: Prevent creating duplicate tasks for the same error
 - **Time-based Filtering**: Only fetch errors from the last 24 hours (configurable)
@@ -39,9 +40,12 @@ For each Item that should fetch Sentry errors:
 2. Click **Edit**
 3. Configure the following Sentry fields:
    - **Sentry DSN**: The Data Source Name from your Sentry project
-     - Format: `https://<key>@<org>.ingest.sentry.io/<project_id>`
-     - Example: `https://abc123@o123456.ingest.sentry.io/789012`
+     - Format: `https://<key>@<org>.ingest[.region].sentry.io/<project_id>`
+     - Example (default): `https://abc123@o123456.ingest.sentry.io/789012`
+     - Example (EU/DE): `https://abc123@o123456.ingest.de.sentry.io/789012`
+     - Example (US): `https://abc123@o123456.ingest.us.sentry.io/789012`
      - **Required**: This is the primary identifier for your Sentry project
+     - **Note**: The system automatically detects the region from the DSN and uses the appropriate API endpoint
    - **Sentry Project Slug**: The project slug from Sentry
      - Example: `ideagraph-v1`, `my-app`
      - **Auto-detected**: Leave empty to automatically fetch from Sentry API
@@ -227,20 +231,48 @@ If a duplicate is detected, the sync process skips creating a new task and logs 
 
 ## Troubleshooting
 
+### Error 404 - Issues not found
+
+If you're getting a 404 error when fetching issues:
+
+1. **Check Regional Endpoint (Most Common)**:
+   - The system now automatically detects regional Sentry instances from the DSN
+   - Verify your DSN is correct and includes the proper regional domain:
+     - Default: `https://key@org.ingest.sentry.io/project`
+     - EU/DE: `https://key@org.ingest.de.sentry.io/project`
+     - US: `https://key@org.ingest.us.sentry.io/project`
+   - The system will automatically use:
+     - `https://sentry.io/api/0` for default instances
+     - `https://de.sentry.io/api/0` for EU/DE instances
+     - `https://us.sentry.io/api/0` for US instances
+
+2. **Check Project Slug**:
+   - Ensure the project slug is correctly set or can be auto-detected
+   - The project slug must match exactly with your Sentry project
+   
+3. **Check Organization ID**:
+   - Ensure the organization ID in the DSN is correct
+   - For Sentry SaaS, this usually starts with 'o' followed by numbers (e.g., `o4510215672365056`)
+
+4. **Check Auth Token Permissions**:
+   - Token must have `project:read`, `org:read`, and `event:read` permissions
+   - Token must be valid for the specific Sentry organization
+
 ### Project Slug is not auto-detected
 
 If the project slug is not automatically filled in:
 
 1. **Check Sentry Auth Token**:
-   - Ensure the Sentry Auth Token is configured in Settings
+   - Ensure the Sentry Auth Token is configured in Settings or per-Item
    - Verify the token has `project:read` and `org:read` permissions
    
 2. **Check DSN Format**:
-   - Ensure the DSN follows the format: `https://<key>@<org>.ingest.sentry.io/<project_id>`
+   - Ensure the DSN follows the format: `https://<key>@<org>.ingest[.region].sentry.io/<project_id>`
    - Verify the organization and project ID are correct
    
 3. **Check Network Access**:
-   - Ensure the server can reach `sentry.io` (API endpoint)
+   - Ensure the server can reach the appropriate Sentry API endpoint
+   - For regional instances, ensure access to `de.sentry.io`, `us.sentry.io`, etc.
    - Check for firewall or proxy restrictions
    
 4. **Manual Override**:
