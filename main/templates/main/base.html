@@ -120,6 +120,14 @@
                         </a>
                     </li>
                     {% endif %}
+                    <!-- All New Tasks Badge - Only show if there are new tasks -->
+                    {% if all_new_tasks_count > 0 %}
+                    <li class="nav-item">
+                        <a class="all-new-tasks-badge" href="{% url 'main:task_overview' %}?status=new" title="All New Tasks">
+                            <span class="badge-count">{{ all_new_tasks_count }}</span>
+                        </a>
+                    </li>
+                    {% endif %}
                     
                     {% if request.session.user_id %}
                         <!-- Admin Dropdown - Only for Admin Role -->
