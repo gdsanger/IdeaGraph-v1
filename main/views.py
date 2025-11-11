@@ -1187,6 +1187,7 @@ def item_create(request):
         is_template = request.POST.get('is_template') == 'on'
         inherit_context = request.POST.get('inherit_context') == 'on'
         sentry_dsn = request.POST.get('sentry_dsn', '').strip()
+        sentry_project_slug = request.POST.get('sentry_project_slug', '').strip()
         enable_sentry_fetch = request.POST.get('enable_sentry_fetch') == 'on'
 
         if not title:
