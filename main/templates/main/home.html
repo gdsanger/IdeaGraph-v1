@@ -1,6 +1,9 @@
 {% extends "main/base.html" %}
 
 {% block content %}
+
+
+<script src="https://cdn.jsdelivr.net/npm/tsparticles@2.12.0/tsparticles.bundle.min.js" integrity="sha384-gZSNMuUgSbqcltOBBRNXCH+szg+2C69ISFyCk2w+xsZc0iFU+bIVPfYPmLwLtNzz" crossorigin="anonymous"></script>
 <div class="container">
     <!-- Hero Section -->
     <div class="row mb-5 fade-in-up">
@@ -334,4 +337,45 @@
         </div>
     </div>
 </div>
+<script>
+// Particle configuration
+tsParticles.load("particles-canvas", {
+    particles: {
+        number: { value: 80, density: { enable: true, area: 800 } },
+        color: { value: ["#8b5cf6", "#f7b500"] },
+        shape: { type: "circle" },
+        opacity: { value: 0.5, random: false },
+        size: { value: 3, random: true },
+        links: {
+            enable: true,
+            distance: 150,
+            color: "#8b5cf6",
+            opacity: 0.4,
+            width: 1
+        },
+        move: {
+            enable: true,
+            speed: 2,
+            direction: "none",
+            random: false,
+            straight: false,
+            outModes: { default: "out" },
+            bounce: false
+        }
+    },
+    interactivity: {
+        detectOn: "canvas",
+        events: {
+            onhover: { enable: true, mode: "grab" },
+            onclick: { enable: true, mode: "push" },
+            resize: true
+        },
+        modes: {
+            grab: { distance: 140, links: { opacity: 1 } },
+            push: { quantity: 4 }
+        }
+    },
+    detectRetina: true
+});
+</script>
 {% endblock %}
