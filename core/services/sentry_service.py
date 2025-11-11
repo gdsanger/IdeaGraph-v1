@@ -42,17 +42,24 @@ class SentryService:
         
         DSN format: https://<key>@<org>.ingest.sentry.io/<project_id>
         """
+        from urllib.parse import urlparse
+        
         try:
-            # Extract organization from the DSN
-            if '@' in dsn and '.ingest.sentry.io' in dsn:
-                parts = dsn.split('@')[1].split('.ingest.sentry.io')
-                self.organization = parts[0]
-                
-                # Note: Project ID from DSN is numeric, but we need the slug
-                # This will need to be configured separately or fetched from API
-                logger.info(f"Extracted organization from DSN: {self.organization}")
-            else:
-                logger.warning("Could not parse organization from DSN")
+            # Parse the DSN URL properly
+            parsed = urlparse(dsn)
+            
+            # Validate it's a Sentry URL (supports regional domains like .ingest.de.sentry.io)
+            if not parsed.hostname or '.ingest.' not in parsed.hostname or not parsed.hostname.endswith('.sentry.io'):
+                logger.warning("Could not parse organization from DSN - invalid hostname")
+                return
+            
+            # Extract organization (first part before .ingest.)
+            org_part = parsed.hostname.split('.ingest.')[0]
+            self.organization = org_part
+            
+            # Note: Project ID from DSN is numeric, but we need the slug
+            # This will need to be configured separately or fetched from API
+            logger.info(f"Extracted organization from DSN: {self.organization}")
         except Exception as e:
             logger.error(f"Error parsing DSN: {e}", exc_info=True)
     
