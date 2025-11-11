@@ -5,6 +5,27 @@ from django.db import DatabaseError
 from .models import Item, Task
 
 
+def all_new_tasks_badge(request):
+    """
+    Context processor to add all new tasks badge count to all templates.
+    
+    Returns the count of all new tasks across all items.
+    """
+    try:
+        # Count all tasks with status 'new' across all items
+        new_task_count = Task.objects.filter(status='new').count()
+        
+        return {
+            'all_new_tasks_count': new_task_count,
+        }
+    except (DatabaseError, ValueError, TypeError) as e:
+        # In case of database errors or data issues, return safe defaults
+        # Log the error for debugging but don't break the page render
+        return {
+            'all_new_tasks_count': 0,
+        }
+
+
 def mail_inbox_badge(request):
     """
     Context processor to add mail inbox badge count to all templates.
