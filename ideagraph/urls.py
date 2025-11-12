@@ -19,5 +19,6 @@ from django.urls import path, include
 
 urlpatterns = [
     path('', include('main.urls')),
+    path('api/ideagraph/', include('main.api.urls')),
     path('django-admin/', admin.site.urls),
 ]
