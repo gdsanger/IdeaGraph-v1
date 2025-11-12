@@ -241,11 +241,11 @@ class SemanticSearchViewSet(viewsets.ViewSet):
             })
             
         except WeaviateClientServiceError as e:
-            logger.error(f"Semantic search failed: {e.message}")
+            logger.error(f"Semantic search failed: {e.message}", exc_info=True)
             return Response({
                 'success': False,
                 'error': 'Semantic search failed',
-                'details': e.details or str(e)
+                'details': 'An error occurred while performing semantic search'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -286,14 +286,14 @@ class FileViewSet(viewsets.ViewSet):
                 return Response({
                     'success': False,
                     'error': 'File not found',
-                    'details': e.details or str(e)
+                    'details': 'The requested file does not exist'
                 }, status=status.HTTP_404_NOT_FOUND)
             
-            logger.error(f"File retrieval failed: {e.message}")
+            logger.error(f"File retrieval failed: {e.message}", exc_info=True)
             return Response({
                 'success': False,
                 'error': 'File retrieval failed',
-                'details': e.details or str(e)
+                'details': 'An error occurred while retrieving the file'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -377,11 +377,11 @@ class MilestoneViewSet(viewsets.ReadOnlyModelViewSet):
             })
             
         except MilestoneServiceError as e:
-            logger.error(f"Changelog generation failed: {e.message}")
+            logger.error(f"Changelog generation failed: {e.message}", exc_info=True)
             return Response({
                 'success': False,
                 'error': 'Changelog generation failed',
-                'details': e.details or str(e)
+                'details': 'An error occurred while generating the changelog'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
@@ -403,9 +403,9 @@ class MilestoneViewSet(viewsets.ReadOnlyModelViewSet):
             })
             
         except MilestoneServiceError as e:
-            logger.error(f"Summary generation failed: {e.message}")
+            logger.error(f"Summary generation failed: {e.message}", exc_info=True)
             return Response({
                 'success': False,
                 'error': 'Summary generation failed',
-                'details': e.details or str(e)
+                'details': 'An error occurred while generating the summary'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
