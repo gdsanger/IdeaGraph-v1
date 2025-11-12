@@ -70,6 +70,21 @@ class User(models.Model):
         """Update the last login timestamp"""
         self.last_login = timezone.now()
         self.save(update_fields=['last_login'])
+    
+    @property
+    def is_authenticated(self):
+        """
+        Always return True for compatibility with Django REST Framework.
+        This is used by DRF's authentication and throttling systems.
+        """
+        return True
+    
+    @property
+    def is_anonymous(self):
+        """
+        Always return False for compatibility with Django REST Framework.
+        """
+        return False
 
 
 class PasswordResetToken(models.Model):

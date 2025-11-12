@@ -10,7 +10,9 @@ class IsAuthenticated(permissions.BasePermission):
     """
     
     def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated
+        # Our custom User model doesn't have is_authenticated property
+        # Check if user is set and is active
+        return request.user and hasattr(request, 'auth') and request.auth is not None
 
 
 class IsOwnerOrReadOnly(permissions.BasePermission):
