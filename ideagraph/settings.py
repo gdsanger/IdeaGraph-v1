@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
     'django_htmx',
     'main',
 ]
@@ -297,3 +298,23 @@ LOGGING = {
 
 # GitHub Documentation Sync Configuration
 GITHUB_DOC_SYNC_INTERVAL = int(os.getenv('GITHUB_DOC_SYNC_INTERVAL', 180))  # Minutes (default: 3 hours)
+
+# REST Framework Configuration
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [],
+    'DEFAULT_PERMISSION_CLASSES': [],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'actions_api': '100/hour',
+        'actions_api_burst': '10/minute',
+    },
+    'EXCEPTION_HANDLER': 'main.api.exceptions.custom_exception_handler',
+}
+
+# Actions API Configuration
+ACTIONS_API_ENABLED = os.getenv('ACTIONS_API_ENABLED', 'false').lower() == 'true'
+ACTIONS_API_KEY_HEADER = os.getenv('ACTIONS_API_KEY_HEADER', 'X-IG-API-Key')
+ACTIONS_API_ACTOR_HEADER = os.getenv('ACTIONS_API_ACTOR_HEADER', 'X-IG-Actor')
+ACTIONS_API_USER_HEADER = os.getenv('ACTIONS_API_USER_HEADER', 'X-IG-User')

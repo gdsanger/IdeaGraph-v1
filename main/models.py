@@ -70,6 +70,21 @@ class User(models.Model):
         """Update the last login timestamp"""
         self.last_login = timezone.now()
         self.save(update_fields=['last_login'])
+    
+    @property
+    def is_authenticated(self):
+        """
+        Always return True for compatibility with Django REST Framework.
+        This is used by DRF's authentication and throttling systems.
+        """
+        return True
+    
+    @property
+    def is_anonymous(self):
+        """
+        Always return False for compatibility with Django REST Framework.
+        """
+        return False
 
 
 class PasswordResetToken(models.Model):
@@ -123,6 +138,54 @@ class PasswordResetToken(models.Model):
         )
         
         return reset_token
+
+
+class ApiKey(models.Model):
+    """API Key model for Actions API authentication"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='api_keys')
+    name = models.CharField(max_length=100, help_text='Descriptive name for this API key')
+    key = models.CharField(max_length=64, unique=True, help_text='API key value')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True, help_text='Optional expiration date')
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'API Key'
+        verbose_name_plural = 'API Keys'
+    
+    def __str__(self):
+        return f"{self.name} ({self.user.username})"
+    
+    def is_valid(self):
+        """Check if API key is valid"""
+        if not self.is_active:
+            return False
+        if self.expires_at and timezone.now() > self.expires_at:
+            return False
+        return True
+    
+    def update_last_used(self):
+        """Update the last used timestamp"""
+        self.last_used_at = timezone.now()
+        self.save(update_fields=['last_used_at'])
+    
+    @classmethod
+    def generate_key(cls, user, name, expires_at=None):
+        """Generate a new API key for a user"""
+        key = secrets.token_urlsafe(48)
+        
+        api_key = cls.objects.create(
+            user=user,
+            name=name,
+            key=key,
+            expires_at=expires_at
+        )
+        
+        return api_key
 
 
 class Tag(models.Model):

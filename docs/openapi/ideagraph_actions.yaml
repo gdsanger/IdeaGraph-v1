@@ -1,0 +1,806 @@
+openapi: 3.0.3
+info:
+  title: IdeaGraph Actions API
+  description: |
+    Actions API for IdeaGraph with CustomGPT integration.
+    
+    This API provides access to Items, Tasks, semantic search, files from Weaviate,
+    and AI-powered milestone summaries and changelogs.
+    
+    **Authentication:** All endpoints require an API key in the `X-IG-API-Key` header.
+    
+    **Rate Limiting:** 100 requests/hour with 10 requests/minute burst limit.
+  version: 1.0.0
+  contact:
+    name: IdeaGraph Support
+    url: https://github.com/gdsanger/IdeaGraph-v1
+
+servers:
+  - url: https://idea.angermeier.net/api/ideagraph
+    description: Production server
+  - url: http://localhost:8080/api/ideagraph
+    description: Development server
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+  /items/:
+    get:
+      summary: List items
+      description: List and search items with optional filtering
+      operationId: listItems
+      tags:
+        - Items
+      parameters:
+        - name: query
+          in: query
+          description: Search query for title or description
+          schema:
+            type: string
+        - name: tag
+          in: query
+          description: Filter by tag name
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of results (max 100)
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemListResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  
+  /items/{id}/:
+    get:
+      summary: Get item detail
+      description: Retrieve detailed information about a specific item
+      operationId: getItem
+      tags:
+        - Items
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemDetailResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /items/{id}/files/:
+    get:
+      summary: Get item files
+      description: List files associated with an item
+      operationId: getItemFiles
+      tags:
+        - Items
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileListResponse'
+  
+  /tasks/:
+    get:
+      summary: List tasks
+      description: List and search tasks with optional filtering
+      operationId: listTasks
+      tags:
+        - Tasks
+      parameters:
+        - name: itemId
+          in: query
+          description: Filter by item ID
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            type: string
+            enum: [new, review, ready, working, testing, done]
+        - name: query
+          in: query
+          description: Search query for title or description
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of results (max 100)
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskListResponse'
+    
+    post:
+      summary: Create task
+      description: Create a new task
+      operationId: createTask
+      tags:
+        - Tasks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '201':
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  
+  /tasks/{id}/:
+    get:
+      summary: Get task detail
+      description: Retrieve detailed information about a specific task
+      operationId: getTask
+      tags:
+        - Tasks
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    patch:
+      summary: Update task
+      description: Update an existing task
+      operationId: updateTask
+      tags:
+        - Tasks
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdate'
+      responses:
+        '200':
+          description: Task updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /search/semantic/:
+    get:
+      summary: Semantic search
+      description: Perform semantic search across all knowledge objects using Weaviate
+      operationId: semanticSearch
+      tags:
+        - Search
+      parameters:
+        - name: query
+          in: query
+          required: true
+          description: Search query text
+          schema:
+            type: string
+        - name: types
+          in: query
+          description: Comma-separated list of object types to filter
+          schema:
+            type: string
+            example: "Task,Item,File"
+        - name: limit
+          in: query
+          description: Maximum number of results (max 50)
+          schema:
+            type: integer
+            default: 10
+            maximum: 50
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SemanticSearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  
+  /files/{fileId}/:
+    get:
+      summary: Get file content
+      description: Retrieve file content and metadata from Weaviate
+      operationId: getFile
+      tags:
+        - Files
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          description: File ID (UUID or SharePoint ID)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileContentResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /milestones/:
+    get:
+      summary: List milestones
+      description: List milestones with optional filtering
+      operationId: listMilestones
+      tags:
+        - Milestones
+      parameters:
+        - name: itemId
+          in: query
+          description: Filter by item ID
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            type: string
+            enum: [planned, in_progress, completed]
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MilestoneListResponse'
+  
+  /milestones/{id}/:
+    get:
+      summary: Get milestone detail
+      description: Retrieve detailed information about a specific milestone
+      operationId: getMilestone
+      tags:
+        - Milestones
+      parameters:
+        - $ref: '#/components/parameters/MilestoneId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MilestoneResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /milestones/{id}/changelog/:
+    get:
+      summary: Get milestone changelog
+      description: Generate or retrieve markdown changelog for milestone
+      operationId: getMilestoneChangelog
+      tags:
+        - Milestones
+      parameters:
+        - $ref: '#/components/parameters/MilestoneId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChangelogResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  
+  /milestones/{id}/summarize/:
+    post:
+      summary: Generate milestone summary
+      description: Generate AI-powered summary from context objects
+      operationId: summarizeMilestone
+      tags:
+        - Milestones
+      parameters:
+        - $ref: '#/components/parameters/MilestoneId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummaryResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-IG-API-Key
+      description: API key for authentication
+  
+  parameters:
+    ItemId:
+      name: id
+      in: path
+      required: true
+      description: Item UUID
+      schema:
+        type: string
+        format: uuid
+    
+    TaskId:
+      name: id
+      in: path
+      required: true
+      description: Task UUID
+      schema:
+        type: string
+        format: uuid
+    
+    MilestoneId:
+      name: id
+      in: path
+      required: true
+      description: Milestone UUID
+      schema:
+        type: string
+        format: uuid
+  
+  schemas:
+    Tag:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        color:
+          type: string
+    
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        first_name:
+          type: string
+        last_name:
+          type: string
+    
+    Item:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [new, spec_review, working, ready, done, rejected]
+        github_repo:
+          type: string
+        section_name:
+          type: string
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        created_by:
+          $ref: '#/components/schemas/User'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    
+    ItemDetail:
+      allOf:
+        - $ref: '#/components/schemas/Item'
+        - type: object
+          properties:
+            file_count:
+              type: integer
+            task_count:
+              type: integer
+            milestone_count:
+              type: integer
+    
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [new, review, ready, working, testing, done]
+        type:
+          type: string
+          enum: [bug, feature, frage, support, idee, sonstige]
+        item_id:
+          type: string
+          format: uuid
+        milestone_id:
+          type: string
+          format: uuid
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        assigned_to:
+          $ref: '#/components/schemas/User'
+        created_by:
+          $ref: '#/components/schemas/User'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    
+    TaskCreate:
+      type: object
+      required:
+        - title
+        - status
+        - type
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [new, review, ready, working, testing, done]
+        type:
+          type: string
+          enum: [bug, feature, frage, support, idee, sonstige]
+        item_id:
+          type: string
+          format: uuid
+        milestone_id:
+          type: string
+          format: uuid
+        tag_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+    
+    TaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [new, review, ready, working, testing, done]
+        type:
+          type: string
+          enum: [bug, feature, frage, support, idee, sonstige]
+        tag_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+    
+    FileRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        file_id:
+          type: string
+        file_size:
+          type: integer
+        content_type:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    
+    FileContent:
+      type: object
+      properties:
+        file_id:
+          type: string
+        filename:
+          type: string
+        content_type:
+          type: string
+        content:
+          type: string
+        size:
+          type: integer
+        excerpt:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    
+    ContextHit:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        title:
+          type: string
+        excerpt:
+          type: string
+          maxLength: 350
+        score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        metadata:
+          type: object
+    
+    Milestone:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        due_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [planned, in_progress, completed]
+        item_id:
+          type: string
+          format: uuid
+        item_title:
+          type: string
+        task_count:
+          type: integer
+        summary:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    
+    ItemListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Item'
+        count:
+          type: integer
+    
+    ItemDetailResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        item:
+          $ref: '#/components/schemas/ItemDetail'
+    
+    FileListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileRef'
+        count:
+          type: integer
+    
+    TaskListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+        count:
+          type: integer
+    
+    TaskResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        task:
+          $ref: '#/components/schemas/Task'
+    
+    SemanticSearchResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContextHit'
+        count:
+          type: integer
+    
+    FileContentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        file:
+          $ref: '#/components/schemas/FileContent'
+    
+    MilestoneListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        milestones:
+          type: array
+          items:
+            $ref: '#/components/schemas/Milestone'
+        count:
+          type: integer
+    
+    MilestoneResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        milestone:
+          $ref: '#/components/schemas/Milestone'
+    
+    ChangelogResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        changelog:
+          type: string
+          description: Markdown-formatted changelog
+        metadata:
+          type: object
+          properties:
+            task_count:
+              type: integer
+            agent_used:
+              type: string
+    
+    SummaryResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        summary:
+          type: string
+        metadata:
+          type: object
+          properties:
+            context_count:
+              type: integer
+            agent_used:
+              type: string
+    
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        error:
+          type: string
+        details:
+          type: string
+  
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    Forbidden:
+      description: Authentication required or forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+tags:
+  - name: Items
+    description: Item management operations
+  - name: Tasks
+    description: Task management operations
+  - name: Search
+    description: Semantic search operations
+  - name: Files
+    description: File content operations
+  - name: Milestones
+    description: Milestone management and AI operations
