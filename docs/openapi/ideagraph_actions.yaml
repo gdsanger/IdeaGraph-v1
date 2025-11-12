@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: IdeaGraph Actions API
   description: |
@@ -68,7 +68,13 @@ paths:
       tags:
         - Items
       parameters:
-        - $ref: '#/components/parameters/ItemId'
+        - name: id
+          in: path
+          required: true
+          description: Item UUID
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
           description: Successful response
@@ -87,7 +93,13 @@ paths:
       tags:
         - Items
       parameters:
-        - $ref: '#/components/parameters/ItemId'
+        - name: id
+          in: path
+          required: true
+          description: Item UUID
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
           description: Successful response
@@ -166,7 +178,13 @@ paths:
       tags:
         - Tasks
       parameters:
-        - $ref: '#/components/parameters/TaskId'
+        - name: id
+          in: path
+          required: true
+          description: Task UUID
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
           description: Successful response
@@ -184,7 +202,13 @@ paths:
       tags:
         - Tasks
       parameters:
-        - $ref: '#/components/parameters/TaskId'
+        - name: id
+          in: path
+          required: true
+          description: Task UUID
+          schema:
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
@@ -300,7 +324,13 @@ paths:
       tags:
         - Milestones
       parameters:
-        - $ref: '#/components/parameters/MilestoneId'
+        - name: id
+          in: path
+          required: true
+          description: Milestone UUID
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
           description: Successful response
@@ -319,7 +349,13 @@ paths:
       tags:
         - Milestones
       parameters:
-        - $ref: '#/components/parameters/MilestoneId'
+        - name: id
+          in: path
+          required: true
+          description: Milestone UUID
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
           description: Successful response
@@ -338,7 +374,13 @@ paths:
       tags:
         - Milestones
       parameters:
-        - $ref: '#/components/parameters/MilestoneId'
+        - name: id
+          in: path
+          required: true
+          description: Milestone UUID
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
           description: Successful response
