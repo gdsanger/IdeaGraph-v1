@@ -4,11 +4,13 @@ Weaviate Conversation Synchronization Service for IdeaGraph
 This module provides synchronization of Teams conversations with Weaviate vector database.
 """
 
+import os
 import logging
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 import weaviate
 from weaviate.classes.init import Auth
+from weaviate.config import AdditionalConfig, Timeout
 
 logger = logging.getLogger('weaviate_conversation_sync_service')
 
@@ -86,12 +88,22 @@ class WeaviateConversationSyncService:
                     auth_credentials=Auth.api_key(self.settings.weaviate_api_key)
                 )
             else:
-                # Use local Weaviate instance at localhost:8081 with no authentication
-                logger.info("Initializing Weaviate client at localhost:8081")
+                # Use local Weaviate instance with configurable host and port
+                # Priority: Settings model > Environment variables > Defaults
+                host = self.settings.weaviate_url or os.getenv('WEAVIATE_URL', 'localhost')
+                port = self.settings.weaviate_port or int(os.getenv('WEAVIATE_PORT', '8081'))
+                grpc_port = self.settings.weaviate_grpc_port or int(os.getenv('WEAVIATE_GRPC', '50051'))
+                timeout = self.settings.weaviate_timeout or int(os.getenv('WEAVIATE_TIMEOUT', '30'))
+                
+                logger.info(f"Initializing Weaviate client at {host}:{port} (gRPC: {grpc_port})")
                 
                 self._client = weaviate.connect_to_local(
-                    host="localhost",
-                    port=8081
+                    host=host,
+                    port=port,
+                    grpc_port=grpc_port,
+                    additional_config=AdditionalConfig(
+                        timeout=Timeout(query=timeout, insert=timeout)
+                    )
                 )
             
             logger.info("Weaviate client initialized successfully")

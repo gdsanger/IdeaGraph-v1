@@ -16,6 +16,7 @@ collection, following the IdeaGraph knowledge management architecture:
 For more information, see: KNOWLEDGEOBJECT_SCHEMA_MIGRATION.md
 """
 
+import os
 import logging
 import requests
 from typing import Optional, Dict, Any, List, Tuple
@@ -23,6 +24,7 @@ from datetime import datetime, timezone
 import weaviate
 from weaviate.classes.init import Auth
 from weaviate.classes.query import MetadataQuery, Filter, HybridFusion
+from weaviate.config import AdditionalConfig, Timeout
 
 
 logger = logging.getLogger('weaviate_github_issue_sync_service')
@@ -121,12 +123,22 @@ class WeaviateGitHubIssueSyncService:
                     auth_credentials=Auth.api_key(self.settings.weaviate_api_key)
                 )
             else:
-                # Use local Weaviate instance at localhost:8081 with no authentication
-                logger.info("Initializing Weaviate client for GitHub Issues at localhost:8081")
+                # Use local Weaviate instance with configurable host and port
+                # Priority: Settings model > Environment variables > Defaults
+                host = self.settings.weaviate_url or os.getenv('WEAVIATE_URL', 'localhost')
+                port = self.settings.weaviate_port or int(os.getenv('WEAVIATE_PORT', '8081'))
+                grpc_port = self.settings.weaviate_grpc_port or int(os.getenv('WEAVIATE_GRPC', '50051'))
+                timeout = self.settings.weaviate_timeout or int(os.getenv('WEAVIATE_TIMEOUT', '30'))
+                
+                logger.info(f"Initializing Weaviate client for GitHub Issues at {host}:{port} (gRPC: {grpc_port})")
                 
                 self._client = weaviate.connect_to_local(
-                    host="localhost",
-                    port=8081
+                    host=host,
+                    port=port,
+                    grpc_port=grpc_port,
+                    additional_config=AdditionalConfig(
+                        timeout=Timeout(query=timeout, insert=timeout)
+                    )
                 )
 
             logger.info(f"Weaviate client initialized, collection '{self.COLLECTION_NAME}' ready")
