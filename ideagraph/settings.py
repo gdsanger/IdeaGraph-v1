@@ -34,12 +34,13 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-(obrh2+_e_r258#^2n79_+2y6e
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = ["idea.angermeier.net", "localhost", "127.0.0.1", "172.18.248.192", "idea.isarlabs.de"]
+ALLOWED_HOSTS = ["idea.angermeier.net", "localhost", "127.0.0.1", "172.18.248.192", "idea.isarlabs.de", "idea.anger.ideagraph.de"]
 
 # Wichtig: ab Django 4.x MIT Schema!
 CSRF_TRUSTED_ORIGINS = [
     "https://idea.angermeier.net",
     "https://idea.isarlabs.de",
+    "https://idea.anger.ideagraph.de"
     # optional Wildcard, falls mehrere Subdomains:
     # "https://*.angermeier.net",
 ]
@@ -112,7 +113,7 @@ WSGI_APPLICATION = 'ideagraph.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': BASE_DIR / 'data/db.sqlite3',
     }
 }
 
