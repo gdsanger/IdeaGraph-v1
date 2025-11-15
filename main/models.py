@@ -1018,7 +1018,7 @@ class Settings(models.Model):
         blank=True,
         default='',
         verbose_name='WEAVIATE_URL',
-        help_text='Weaviate Cloud URL'
+        help_text='Weaviate Cloud URL or local host (e.g., localhost or weaviate for Docker)'
     )
     weaviate_api_key = models.CharField(
         max_length=255,
@@ -1026,6 +1026,21 @@ class Settings(models.Model):
         default='',
         verbose_name='WEAVIATE_API_KEY',
         help_text='Weaviate Cloud API Key'
+    )
+    weaviate_port = models.IntegerField(
+        default=8081,
+        verbose_name='WEAVIATE_PORT',
+        help_text='Weaviate HTTP port (default: 8081)'
+    )
+    weaviate_grpc_port = models.IntegerField(
+        default=50051,
+        verbose_name='WEAVIATE_GRPC',
+        help_text='Weaviate gRPC port (default: 50051)'
+    )
+    weaviate_timeout = models.IntegerField(
+        default=30,
+        verbose_name='WEAVIATE_TIMEOUT',
+        help_text='Weaviate timeout in seconds (default: 30)'
     )
     
     # Additional Settings

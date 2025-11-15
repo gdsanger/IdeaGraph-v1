@@ -5,11 +5,13 @@ This service finds similar tasks within an item using embedding-based
 semantic similarity search via Weaviate.
 """
 
+import os
 import logging
 from typing import List, Dict, Any, Optional
 import weaviate
 from weaviate.classes.init import Auth
 from weaviate.classes.query import MetadataQuery
+from weaviate.config import AdditionalConfig, Timeout
 
 logger = logging.getLogger('support_duplicate_finder_service')
 
@@ -59,11 +61,22 @@ class SupportDuplicateFinderService:
                     auth_credentials=Auth.api_key(self.settings.weaviate_api_key),
                 )
             else:
-                if not self.settings.weaviate_url:
-                    raise Exception("Weaviate URL not configured")
+                # Use local Weaviate instance with configurable host and port
+                # Priority: Settings model > Environment variables > Defaults
+                host = self.settings.weaviate_url or os.getenv('WEAVIATE_URL', 'localhost')
+                # Strip protocol if present (for backward compatibility)
+                host = host.replace('http://', '').replace('https://', '')
+                port = self.settings.weaviate_port or int(os.getenv('WEAVIATE_PORT', '8081'))
+                grpc_port = self.settings.weaviate_grpc_port or int(os.getenv('WEAVIATE_GRPC', '50051'))
+                timeout = self.settings.weaviate_timeout or int(os.getenv('WEAVIATE_TIMEOUT', '30'))
                 
                 self._client = weaviate.connect_to_local(
-                    host=self.settings.weaviate_url.replace('http://', '').replace('https://', ''),
+                    host=host,
+                    port=port,
+                    grpc_port=grpc_port,
+                    additional_config=AdditionalConfig(
+                        timeout=Timeout(query=timeout, insert=timeout)
+                    )
                 )
             
             logger.info("Weaviate client initialized successfully for duplicate finder")
