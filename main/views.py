@@ -584,6 +584,9 @@ def settings_create(request):
             weaviate_cloud_enabled=request.POST.get('weaviate_cloud_enabled') == 'on',
             weaviate_url=request.POST.get('weaviate_url', ''),
             weaviate_api_key=request.POST.get('weaviate_api_key', ''),
+            weaviate_port=int(request.POST.get('weaviate_port') or 8081),
+            weaviate_grpc_port=int(request.POST.get('weaviate_grpc_port') or 50051),
+            weaviate_timeout=int(request.POST.get('weaviate_timeout') or 30),
             max_tags_per_idea=int(request.POST.get('max_tags_per_idea') or 5),
             graph_api_enabled=request.POST.get('graph_api_enabled') == 'on',
             sharepoint_site_id=request.POST.get('sharepoint_site_id', ''),
@@ -642,6 +645,9 @@ def settings_update(request, pk):
         settings.weaviate_cloud_enabled = request.POST.get('weaviate_cloud_enabled') == 'on'
         settings.weaviate_url = request.POST.get('weaviate_url', '')
         settings.weaviate_api_key = request.POST.get('weaviate_api_key', '')
+        settings.weaviate_port = int(request.POST.get('weaviate_port') or 8081)
+        settings.weaviate_grpc_port = int(request.POST.get('weaviate_grpc_port') or 50051)
+        settings.weaviate_timeout = int(request.POST.get('weaviate_timeout') or 30)
         settings.max_tags_per_idea = int(request.POST.get('max_tags_per_idea') or 5)
         settings.graph_api_enabled = request.POST.get('graph_api_enabled') == 'on'
         settings.sharepoint_site_id = request.POST.get('sharepoint_site_id', '')
