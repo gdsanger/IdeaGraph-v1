@@ -376,13 +376,13 @@
                             <div class="col-md-6 mb-3">
                                 <label for="weaviate_url" class="form-label">WEAVIATE_URL</label>
                                 <input 
-                                    type="url" 
+                                    type="text" 
                                     class="form-control" 
                                     id="weaviate_url" 
                                     name="weaviate_url" 
                                     value="{{ settings.weaviate_url|default:'' }}"
-                                    placeholder="https://my-cluster.weaviate.network">
-                                <div class="form-text">Weaviate Cloud URL (includes automatic gRPC support)</div>
+                                    placeholder="localhost or weaviate (Docker) / https://my-cluster.weaviate.network (Cloud)">
+                                <div class="form-text">Weaviate Cloud URL or local host (e.g., localhost or weaviate for Docker)</div>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label for="weaviate_api_key" class="form-label">WEAVIATE_API_KEY</label>
@@ -396,9 +396,50 @@
                                 <div class="form-text">Weaviate Cloud API Key</div>
                             </div>
                         </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="weaviate_port" class="form-label">WEAVIATE_PORT</label>
+                                <input 
+                                    type="number" 
+                                    class="form-control" 
+                                    id="weaviate_port" 
+                                    name="weaviate_port" 
+                                    value="{{ settings.weaviate_port|default:8081 }}"
+                                    min="1" 
+                                    max="65535"
+                                    placeholder="8081">
+                                <div class="form-text">Weaviate HTTP port (default: 8081)</div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="weaviate_grpc_port" class="form-label">WEAVIATE_GRPC</label>
+                                <input 
+                                    type="number" 
+                                    class="form-control" 
+                                    id="weaviate_grpc_port" 
+                                    name="weaviate_grpc_port" 
+                                    value="{{ settings.weaviate_grpc_port|default:50051 }}"
+                                    min="1" 
+                                    max="65535"
+                                    placeholder="50051">
+                                <div class="form-text">Weaviate gRPC port (default: 50051)</div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="weaviate_timeout" class="form-label">WEAVIATE_TIMEOUT</label>
+                                <input 
+                                    type="number" 
+                                    class="form-control" 
+                                    id="weaviate_timeout" 
+                                    name="weaviate_timeout" 
+                                    value="{{ settings.weaviate_timeout|default:30 }}"
+                                    min="5" 
+                                    max="300"
+                                    placeholder="30">
+                                <div class="form-text">Weaviate timeout in seconds (default: 30)</div>
+                            </div>
+                        </div>
                         <div class="alert alert-info" role="alert">
-                            <i class="bi bi-info-circle-fill"></i> <strong>gRPC Support</strong>
-                            <p class="mb-0 mt-2">gRPC is automatically enabled with Weaviate Cloud for improved performance. The client handles port configuration (HTTPS on 443, gRPC on 50051) automatically.</p>
+                            <i class="bi bi-info-circle-fill"></i> <strong>Configuration Info</strong>
+                            <p class="mb-0 mt-2">For Weaviate Cloud, gRPC is automatically enabled for improved performance. For local Docker installations, configure the ports according to your docker-compose.yml setup.</p>
                         </div>
                     </div>
 
@@ -475,55 +516,6 @@
                                     max="128000"
                                     placeholder="10000">
                                 <div class="form-text">Maximum number of tokens to send per KiGate API request (content will be chunked if larger)</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <hr style="border-color: var(--autumn-primary);">
-
-                    <!-- Weaviate Configuration -->
-                    <div class="mb-4">
-                        <h5 class="mb-3" style="color: var(--autumn-accent);">
-                            <i class="bi bi-cloud-fill"></i> Weaviate Configuration
-                        </h5>
-                        <div class="row">
-                            <div class="col-md-12 mb-3">
-                                <div class="form-check form-switch">
-                                    <input 
-                                        class="form-check-input" 
-                                        type="checkbox" 
-                                        id="weaviate_cloud_enabled" 
-                                        name="weaviate_cloud_enabled"
-                                        {% if settings.weaviate_cloud_enabled %}checked{% endif %}>
-                                    <label class="form-check-label" for="weaviate_cloud_enabled">
-                                        Cloud
-                                    </label>
-                                    <div class="form-text">Enable Weaviate Cloud (if disabled, local configuration is used)</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="weaviate_url" class="form-label">WEAVIATE_URL</label>
-                                <input 
-                                    type="url" 
-                                    class="form-control" 
-                                    id="weaviate_url" 
-                                    name="weaviate_url" 
-                                    value="{{ settings.weaviate_url|default:'' }}"
-                                    placeholder="https://your-cluster.weaviate.network">
-                                <div class="form-text">Weaviate Cloud URL</div>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="weaviate_api_key" class="form-label">WEAVIATE_API_KEY</label>
-                                <input 
-                                    type="password" 
-                                    class="form-control" 
-                                    id="weaviate_api_key" 
-                                    name="weaviate_api_key" 
-                                    value="{{ settings.weaviate_api_key|default:'' }}"
-                                    placeholder="Your Weaviate API Key">
-                                <div class="form-text">Weaviate Cloud API Key</div>
                             </div>
                         </div>
                     </div>
