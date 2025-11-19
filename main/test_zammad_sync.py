@@ -632,6 +632,137 @@ class ZammadSyncServiceTestCase(TestCase):
         self.assertEqual(updated_task.item.title, 'Supportanfragen Zammad',
                         "Old task should be assigned to 'Supportanfragen Zammad' item")
 
+    @patch('core.services.zammad_sync_service.requests.request')
+    def test_comment_not_added_on_task_update(self, mock_request):
+        """Test that no comment is added to Zammad ticket when task is updated (prevents duplicates)"""
+        comment_added = {'called': False}
+        
+        # Mock responses
+        def mock_request_side_effect(*args, **kwargs):
+            url = kwargs.get('url', '')
+            method = kwargs.get('method', 'GET')
+            
+            if '/ticket_states' in url:
+                return Mock(
+                    status_code=200,
+                    json=lambda: [
+                        {'id': 1, 'name': 'new'},
+                        {'id': 2, 'name': 'open'},
+                    ]
+                )
+            elif '/tickets/' in url and method == 'PUT':
+                return Mock(status_code=200, json=lambda: {'id': 999, 'state_id': 2})
+            elif '/ticket_articles' in url and method == 'POST':
+                # Mark that comment was attempted
+                comment_added['called'] = True
+                return Mock(status_code=201, json=lambda: {'id': 999, 'ticket_id': 999})
+            
+            return Mock(status_code=200, json=lambda: {})
+        
+        mock_request.side_effect = mock_request_side_effect
+        
+        # Create an existing task (simulating a task that was already synced)
+        section = Section.objects.create(name='Zammad - Support')
+        existing_task = Task.objects.create(
+            title='Existing Task',
+            description='This task already exists',
+            type='ticket',
+            section=section,
+            external_id='999',
+            external_url='https://zammad.example.com/#ticket/zoom/999'
+        )
+        
+        # Sync the same ticket again (which should trigger an update)
+        ticket = {
+            'id': 999,
+            'title': 'Updated Task Title',
+            'group': 'Support',
+            'state': {'name': 'open'},
+            'tags': [],
+            'articles': [
+                {
+                    'id': 1,
+                    'body': 'Updated description',
+                    'attachments': []
+                }
+            ]
+        }
+        
+        service = ZammadSyncService(self.settings)
+        result = service.sync_ticket_to_task(ticket)
+        
+        self.assertTrue(result['success'])
+        self.assertEqual(result['action'], 'updated')
+        
+        # Verify NO comment was added during update
+        self.assertFalse(comment_added['called'], 
+                        "Comment should NOT be added to Zammad ticket when task is updated")
+
+    @patch('core.services.zammad_sync_service.requests.request')
+    def test_comment_added_only_on_task_creation(self, mock_request):
+        """Test that comment is added to Zammad ticket only when task is created"""
+        comment_added = {'called': False, 'body': None}
+        
+        # Mock responses
+        def mock_request_side_effect(*args, **kwargs):
+            url = kwargs.get('url', '')
+            method = kwargs.get('method', 'GET')
+            json_data = kwargs.get('json', {})
+            
+            if '/ticket_states' in url:
+                return Mock(
+                    status_code=200,
+                    json=lambda: [
+                        {'id': 1, 'name': 'new'},
+                        {'id': 2, 'name': 'open'},
+                    ]
+                )
+            elif '/tickets/' in url and method == 'PUT':
+                return Mock(status_code=200, json=lambda: {'id': 888, 'state_id': 2})
+            elif '/ticket_articles' in url and method == 'POST':
+                # Capture the comment data
+                comment_added['called'] = True
+                comment_added['body'] = json_data.get('body', '')
+                return Mock(status_code=201, json=lambda: {'id': 999, 'ticket_id': 888})
+            
+            return Mock(status_code=200, json=lambda: {})
+        
+        mock_request.side_effect = mock_request_side_effect
+        
+        # Sync a new ticket (which should trigger creation)
+        ticket = {
+            'id': 888,
+            'title': 'Brand New Ticket',
+            'group': 'Support',
+            'state': {'name': 'new'},
+            'tags': [],
+            'articles': [
+                {
+                    'id': 1,
+                    'body': 'This is a brand new ticket',
+                    'attachments': []
+                }
+            ]
+        }
+        
+        service = ZammadSyncService(self.settings)
+        result = service.sync_ticket_to_task(ticket)
+        
+        self.assertTrue(result['success'])
+        self.assertEqual(result['action'], 'created')
+        
+        # Verify comment WAS added during creation
+        self.assertTrue(comment_added['called'], 
+                       "Comment SHOULD be added to Zammad ticket when task is created")
+        
+        # Verify comment contains IdeaGraph link
+        task = Task.objects.get(external_id='888')
+        expected_link = f"/tasks/{task.id}"
+        self.assertIn(expected_link, comment_added['body'], 
+                     f"Comment should contain task link {expected_link}")
+        self.assertIn('IdeaGraph', comment_added['body'],
+                     "Comment should mention IdeaGraph")
+
 
 class ZammadAPIEndpointsTestCase(TestCase):
     """Test suite for Zammad API endpoints"""
