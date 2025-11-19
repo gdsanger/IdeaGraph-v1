@@ -519,10 +519,12 @@ class ZammadSyncService:
                 logger.warning(f"Failed to update ticket status in Zammad: {str(e)}")
             
             # Add comment to Zammad ticket with link to IdeaGraph task
-            try:
-                self._add_comment_to_ticket(ticket_id, str(task.id))
-            except Exception as e:
-                logger.warning(f"Failed to add comment to Zammad ticket: {str(e)}")
+            # Only add comment when task is created, not when updated (to prevent duplicate comments)
+            if action == 'created':
+                try:
+                    self._add_comment_to_ticket(ticket_id, str(task.id))
+                except Exception as e:
+                    logger.warning(f"Failed to add comment to Zammad ticket: {str(e)}")
             
             return {
                 'success': True,
