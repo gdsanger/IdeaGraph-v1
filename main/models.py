@@ -1143,6 +1143,16 @@ class Settings(models.Model):
         verbose_name='Zammad Sync Interval',
         help_text='Interval in minutes for periodic synchronization'
     )
+    zammad_api_timeout = models.IntegerField(
+        default=60,
+        verbose_name='Zammad API Timeout',
+        help_text='Timeout in seconds for Zammad API requests (default: 60)'
+    )
+    zammad_max_retries = models.IntegerField(
+        default=3,
+        verbose_name='Zammad Max Retries',
+        help_text='Maximum number of retries for failed requests (default: 3)'
+    )
     
     # Google PSE Configuration
     google_pse_enabled = models.BooleanField(

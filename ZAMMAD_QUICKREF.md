@@ -8,6 +8,8 @@ zammad_api_url = "https://support.example.com"
 zammad_api_token = "your_api_token_here"
 zammad_groups = "Support,Development,Sales"
 zammad_sync_interval = 15  # minutes
+zammad_api_timeout = 60  # seconds (default: 60)
+zammad_max_retries = 3  # retries on timeout/connection error (default: 3)
 ```
 
 ## CLI Commands
