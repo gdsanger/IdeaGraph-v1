@@ -27,6 +27,8 @@ Navigate to Settings (Admin access required) and configure:
 | `zammad_api_token` | String | Zammad API token for authentication | Yes |
 | `zammad_groups` | String | Comma-separated list of group names to monitor (e.g., `Support,Development,Sales`) | Yes |
 | `zammad_sync_interval` | Integer | Sync interval in minutes for periodic execution (default: 15) | No |
+| `zammad_api_timeout` | Integer | Timeout in seconds for Zammad API requests (default: 60) | No |
+| `zammad_max_retries` | Integer | Maximum number of retries for failed requests (default: 3) | No |
 
 ### 2. Generate Zammad API Token
 
@@ -257,6 +259,10 @@ Get synchronization status and statistics.
 - Verify `zammad_api_url` is correct and accessible
 - Check firewall rules allow outbound connections to Zammad
 - Ensure Zammad instance is running and accessible
+- Increase `zammad_api_timeout` setting if Zammad API responses are slow (default: 60 seconds)
+- Increase `zammad_max_retries` to allow more retry attempts for transient network issues (default: 3)
+
+**Note**: The service automatically retries failed requests with exponential backoff. If you see timeout errors in logs, the service will retry up to 3 times (configurable) with increasing wait times (1s, 2s, 4s).
 
 ### Authentication Errors
 

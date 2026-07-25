@@ -7,6 +7,7 @@ tasks in IdeaGraph. Attachments are uploaded to SharePoint via TaskFileService.
 """
 
 import logging
+import time
 import requests
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -45,7 +46,9 @@ class ZammadSyncService:
     - AI-based task type classification (optional)
     """
     
-    REQUEST_TIMEOUT = 30  # seconds
+    DEFAULT_TIMEOUT = 60  # seconds (increased from 30)
+    DEFAULT_MAX_RETRIES = 3
+    RETRY_BACKOFF_FACTOR = 2  # exponential backoff multiplier
     
     def __init__(self, settings=None):
         """
@@ -81,7 +84,11 @@ class ZammadSyncService:
         self.api_token = self.settings.zammad_api_token
         self.groups = [g.strip() for g in self.settings.zammad_groups.split(',') if g.strip()]
         
-        logger.info(f"ZammadSyncService initialized with URL: {self.api_url}")
+        # Use configurable timeout and retry settings with fallbacks
+        self.request_timeout = getattr(self.settings, 'zammad_api_timeout', None) or self.DEFAULT_TIMEOUT
+        self.max_retries = getattr(self.settings, 'zammad_max_retries', None) or self.DEFAULT_MAX_RETRIES
+        
+        logger.info(f"ZammadSyncService initialized with URL: {self.api_url}, timeout: {self.request_timeout}s, max_retries: {self.max_retries}")
     
     def _make_request(
         self,
@@ -91,7 +98,7 @@ class ZammadSyncService:
         params: Optional[Dict] = None
     ) -> requests.Response:
         """
-        Make authenticated request to Zammad API
+        Make authenticated request to Zammad API with retry logic
         
         Args:
             method: HTTP method (GET, POST, PUT, DELETE)
@@ -103,7 +110,7 @@ class ZammadSyncService:
             Response object
             
         Raises:
-            ZammadSyncServiceError: If request fails
+            ZammadSyncServiceError: If request fails after all retries
         """
         url = f"{self.api_url}/api/v1/{endpoint.lstrip('/')}"
         headers = {
@@ -111,29 +118,72 @@ class ZammadSyncService:
             'Content-Type': 'application/json'
         }
         
-        try:
-            logger.debug(f"Making {method} request to {url}")
-            response = requests.request(
-                method=method,
-                url=url,
-                headers=headers,
-                json=json_data,
-                params=params,
-                timeout=self.REQUEST_TIMEOUT
-            )
-            response.raise_for_status()
-            return response
-        except requests.exceptions.Timeout:
+        last_exception = None
+        
+        for attempt in range(self.max_retries):
+            try:
+                logger.debug(f"Making {method} request to {url} (attempt {attempt + 1}/{self.max_retries})")
+                response = requests.request(
+                    method=method,
+                    url=url,
+                    headers=headers,
+                    json=json_data,
+                    params=params,
+                    timeout=self.request_timeout
+                )
+                response.raise_for_status()
+                return response
+            except requests.exceptions.Timeout as e:
+                last_exception = e
+                if attempt < self.max_retries - 1:
+                    wait_time = self.RETRY_BACKOFF_FACTOR ** attempt
+                    logger.warning(
+                        f"Request to {url} timed out after {self.request_timeout}s "
+                        f"(attempt {attempt + 1}/{self.max_retries}). Retrying in {wait_time}s..."
+                    )
+                    time.sleep(wait_time)
+                else:
+                    logger.error(
+                        f"Request to {url} timed out after {self.request_timeout}s "
+                        f"(all {self.max_retries} attempts exhausted)"
+                    )
+            except requests.exceptions.ConnectionError as e:
+                last_exception = e
+                if attempt < self.max_retries - 1:
+                    wait_time = self.RETRY_BACKOFF_FACTOR ** attempt
+                    logger.warning(
+                        f"Connection error for {url} (attempt {attempt + 1}/{self.max_retries}). "
+                        f"Retrying in {wait_time}s..."
+                    )
+                    time.sleep(wait_time)
+                else:
+                    logger.error(
+                        f"Connection error for {url} (all {self.max_retries} attempts exhausted)"
+                    )
+            except requests.exceptions.RequestException as e:
+                # For other request exceptions (e.g., 4xx/5xx errors), don't retry
+                status_code = getattr(e.response, 'status_code', None) if hasattr(e, 'response') else None
+                error_detail = getattr(e.response, 'text', str(e)) if hasattr(e, 'response') else str(e)
+                raise ZammadSyncServiceError(
+                    f"Request failed with status {status_code}" if status_code else "Request failed",
+                    details=error_detail
+                )
+        
+        # If we exhausted all retries, raise the last exception as a ZammadSyncServiceError
+        if isinstance(last_exception, requests.exceptions.Timeout):
             raise ZammadSyncServiceError(
                 "Request timeout",
-                details=f"Request to {url} timed out after {self.REQUEST_TIMEOUT}s"
+                details=f"Request to {url} timed out after {self.request_timeout}s ({self.max_retries} attempts)"
             )
-        except requests.exceptions.RequestException as e:
-            status_code = getattr(e.response, 'status_code', None) if hasattr(e, 'response') else None
-            error_detail = getattr(e.response, 'text', str(e)) if hasattr(e, 'response') else str(e)
+        elif isinstance(last_exception, requests.exceptions.ConnectionError):
             raise ZammadSyncServiceError(
-                f"Request failed with status {status_code}" if status_code else "Request failed",
-                details=error_detail
+                "Connection error",
+                details=f"Failed to connect to {url} ({self.max_retries} attempts)"
+            )
+        else:
+            raise ZammadSyncServiceError(
+                "Request failed",
+                details=str(last_exception) if last_exception else "Unknown error"
             )
     
     def test_connection(self) -> Dict[str, Any]:

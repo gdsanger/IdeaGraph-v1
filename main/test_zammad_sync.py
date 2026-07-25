@@ -90,6 +90,114 @@ class ZammadSyncServiceTestCase(TestCase):
         self.assertFalse(result.get('success', True))
         self.assertIn('error', result)
     
+    @patch('core.services.zammad_sync_service.time.sleep')
+    @patch('core.services.zammad_sync_service.requests.request')
+    def test_request_retry_on_timeout(self, mock_request, mock_sleep):
+        """Test that requests are retried on timeout with exponential backoff"""
+        from requests.exceptions import Timeout
+        
+        # First two calls timeout, third succeeds
+        mock_request.side_effect = [
+            Timeout("Connection timed out"),
+            Timeout("Connection timed out"),
+            Mock(status_code=200, json=lambda: {'id': 1, 'login': 'testuser'})
+        ]
+        
+        service = ZammadSyncService(self.settings)
+        result = service.test_connection()
+        
+        self.assertTrue(result['success'])
+        self.assertEqual(mock_request.call_count, 3)
+        # Verify exponential backoff: sleep(1), sleep(2)
+        self.assertEqual(mock_sleep.call_count, 2)
+        mock_sleep.assert_any_call(1)  # 2^0 = 1
+        mock_sleep.assert_any_call(2)  # 2^1 = 2
+    
+    @patch('core.services.zammad_sync_service.time.sleep')
+    @patch('core.services.zammad_sync_service.requests.request')
+    def test_request_retry_on_connection_error(self, mock_request, mock_sleep):
+        """Test that requests are retried on connection error"""
+        from requests.exceptions import ConnectionError
+        
+        # First call has connection error, second succeeds
+        mock_request.side_effect = [
+            ConnectionError("Connection refused"),
+            Mock(status_code=200, json=lambda: {'id': 1, 'login': 'testuser'})
+        ]
+        
+        service = ZammadSyncService(self.settings)
+        result = service.test_connection()
+        
+        self.assertTrue(result['success'])
+        self.assertEqual(mock_request.call_count, 2)
+        self.assertEqual(mock_sleep.call_count, 1)
+    
+    @patch('core.services.zammad_sync_service.time.sleep')
+    @patch('core.services.zammad_sync_service.requests.request')
+    def test_request_exhausts_retries_on_timeout(self, mock_request, mock_sleep):
+        """Test that ZammadSyncServiceError is raised after all retries are exhausted"""
+        from requests.exceptions import Timeout
+        
+        # All calls timeout
+        mock_request.side_effect = Timeout("Connection timed out")
+        
+        service = ZammadSyncService(self.settings)
+        result = service.test_connection()
+        
+        # Should fail after 3 retries (default)
+        self.assertFalse(result['success'])
+        self.assertIn('timeout', result['error'].lower())
+        self.assertEqual(mock_request.call_count, 3)
+    
+    @patch('core.services.zammad_sync_service.requests.request')
+    def test_request_no_retry_on_http_error(self, mock_request):
+        """Test that HTTP errors (4xx, 5xx) are not retried"""
+        from requests.exceptions import HTTPError
+        
+        response = Mock()
+        response.status_code = 404
+        response.text = 'Not found'
+        mock_request.return_value = response
+        response.raise_for_status.side_effect = HTTPError(response=response)
+        
+        service = ZammadSyncService(self.settings)
+        result = service.test_connection()
+        
+        self.assertFalse(result['success'])
+        # HTTP errors should not be retried - only 1 call
+        self.assertEqual(mock_request.call_count, 1)
+    
+    def test_configurable_timeout_from_settings(self):
+        """Test that timeout is configurable via settings"""
+        self.settings.zammad_api_timeout = 120
+        self.settings.save()
+        
+        service = ZammadSyncService(self.settings)
+        
+        self.assertEqual(service.request_timeout, 120)
+    
+    def test_configurable_max_retries_from_settings(self):
+        """Test that max_retries is configurable via settings"""
+        self.settings.zammad_max_retries = 5
+        self.settings.save()
+        
+        service = ZammadSyncService(self.settings)
+        
+        self.assertEqual(service.max_retries, 5)
+    
+    def test_default_timeout_value(self):
+        """Test that default timeout value is used when not configured"""
+        # Settings has no explicit timeout set (uses default)
+        service = ZammadSyncService(self.settings)
+        
+        self.assertEqual(service.request_timeout, 60)  # Default is 60 seconds
+    
+    def test_default_max_retries_value(self):
+        """Test that default max_retries value is used when not configured"""
+        service = ZammadSyncService(self.settings)
+        
+        self.assertEqual(service.max_retries, 3)  # Default is 3 retries
+
     @patch('core.services.zammad_sync_service.requests.request')
     def test_get_group_id(self, mock_request):
         """Test getting group ID by name"""
